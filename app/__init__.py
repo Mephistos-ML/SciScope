@@ -1,0 +1,1 @@
+"""SciScope application package."""
