@@ -98,8 +98,8 @@ def test_status_and_signal_endpoints_return_json(monkeypatch) -> None:
     status_payload = json.loads(body)
     assert status_payload["topicSlug"] == "pnmr"
     assert status_payload["discoveryQueries"] == []
-    assert status_payload["watchedRepositories"] == []
-    assert status_payload["releaseCheckpoints"] == []
+    assert status_payload["watchedEntities"] == []
+    assert status_payload["sourceCheckpoints"] == []
     assert status_payload["totalSignals"] == 1
     assert status_payload["matchedSignals"] == 1
 
