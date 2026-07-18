@@ -58,21 +58,6 @@ PNMR_PROFILE = ResearchProfile(
         "PCS PRE lanthanide assignment",
         "paramagnetic NMR software release",
     ),
-    metadata={
-        "focus_signal_kinds": [
-            "github_release",
-        ],
-        "focus_files": [
-            "pcs",
-            "pre",
-            "tensor",
-            "fit",
-            "assign",
-        ],
-        "focus_packages": [
-            "paranmr",
-        ],
-    },
 )
 
 

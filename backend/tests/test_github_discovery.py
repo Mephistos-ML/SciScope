@@ -11,8 +11,11 @@ def test_build_repository_search_queries_uses_profile_terms() -> None:
     queries = build_repository_search_queries(PNMR_PROFILE)
 
     assert queries
-    assert "paramagnetic NMR susceptibility tensor fitting" in queries
-    assert "paramagnetic nmr software" in queries
+    assert "paramagnetic nmr" in queries
+    assert "pseudocontact shift" in queries
+    assert "susceptibility tensor" in queries
+    assert "paramagnetic relaxation enhancement" in queries
+    assert "paranmr" not in queries
     assert len(queries) <= 5
 
 

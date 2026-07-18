@@ -9,33 +9,42 @@ MAX_DISCOVERY_QUERIES = 5
 
 
 def build_repository_search_queries(profile: ResearchProfile) -> tuple[str, ...]:
-    """Build a small set of GitHub repository discovery queries."""
+    """Build GitHub search queries directly from profile terms."""
 
-    candidates: list[str] = []
-    candidates.extend(profile.seed_queries)
+    candidates = [
+        *profile.core_terms,
+        *profile.synonyms,
+        *profile.related_terms,
+    ]
 
-    core_terms = tuple(term for term in profile.core_terms if term.strip())
-    if core_terms:
-        candidates.append(f"{core_terms[0]} software")
-    if len(core_terms) > 1:
-        candidates.append(f"{core_terms[0]} {core_terms[1]}")
-
-    related_terms = tuple(term for term in profile.related_terms if term.strip())
-    if core_terms and related_terms:
-        candidates.append(f"{core_terms[0]} {related_terms[0]}")
-
-    deduped: list[str] = []
+    queries: list[str] = []
     seen: set[str] = set()
-    for query in candidates:
-        normalized = " ".join(query.split()).strip()
-        if not normalized:
+    for term in candidates:
+        normalized = " ".join(term.split()).strip()
+        if not _is_usable_github_query(normalized):
             continue
+
         folded = normalized.casefold()
         if folded in seen:
             continue
+
         seen.add(folded)
-        deduped.append(normalized)
-        if len(deduped) >= MAX_DISCOVERY_QUERIES:
+        queries.append(normalized)
+        if len(queries) >= MAX_DISCOVERY_QUERIES:
             break
 
-    return tuple(deduped)
+    return tuple(queries)
+
+
+def _is_usable_github_query(term: str) -> bool:
+    if not term:
+        return False
+
+    if len(term) < 5:
+        return False
+
+    # Drop short abbreviations like PCS/PRE that are too noisy on GitHub.
+    if " " not in term and len(term) < 8:
+        return False
+
+    return True
