@@ -57,6 +57,37 @@ def load_github_signals_for_profile(profile: ResearchProfile) -> list[RawSignal]
     return signals
 
 
+def sync_github_baseline_for_profile(profile: ResearchProfile) -> None:
+    """Initialize checkpoints for watched repositories that have none yet."""
+
+    watched_repositories = load_watched_github_repository_entities(profile.topic_slug)
+    checkpoints_to_upsert: list[EntityCheckpoint] = []
+
+    for entity in watched_repositories:
+        repo_name = read_repo_name(entity)
+        if repo_name is None:
+            continue
+
+        checkpoint = get_entity_checkpoint(
+            entity.entity_id,
+            LATEST_RELEASE_CHECKPOINT_KEY,
+        )
+        if checkpoint is not None:
+            continue
+
+        checkpoints_to_upsert.append(
+            EntityCheckpoint(
+                entity_id=entity.entity_id,
+                source=entity.source,
+                checkpoint_key=LATEST_RELEASE_CHECKPOINT_KEY,
+                checkpoint_value=datetime.now(UTC).isoformat(),
+                updated_at=datetime.now(UTC),
+            )
+        )
+
+    upsert_entity_checkpoints(checkpoints_to_upsert)
+
+
 def load_watched_github_repository_entities(topic_slug: str) -> tuple[Entity, ...]:
     """Load watched GitHub repository entities for one topic."""
 
