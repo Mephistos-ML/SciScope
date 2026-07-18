@@ -70,9 +70,6 @@ PNMR_PROFILE = ResearchProfile(
         "paramagnetic NMR software release",
     ),
     metadata={
-        "focus_repos": [
-            "Mephistos-ML/paranmr",
-        ],
         "focus_signal_kinds": [
             "github_release",
         ],

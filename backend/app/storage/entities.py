@@ -158,6 +158,42 @@ def list_entities(
     ]
 
 
+def list_entities_by_ids(
+    entity_ids: Sequence[str],
+    *,
+    db_path: Path = DB_PATH,
+) -> list[Entity]:
+    """Load entities by id while preserving the requested subset."""
+
+    if not entity_ids:
+        return []
+
+    init_entity_storage(db_path)
+
+    placeholders = ", ".join("?" for _ in entity_ids)
+    query = f"""
+        SELECT entity_id, source, entity_type, canonical_name, url, metadata_json
+        FROM entities
+        WHERE entity_id IN ({placeholders})
+        ORDER BY canonical_name ASC
+    """
+
+    with sqlite3.connect(db_path) as connection:
+        rows = connection.execute(query, list(entity_ids)).fetchall()
+
+    return [
+        Entity(
+            entity_id=row[0],
+            source=row[1],
+            entity_type=row[2],
+            canonical_name=row[3],
+            url=row[4],
+            metadata=_loads_json_dict(row[5]),
+        )
+        for row in rows
+    ]
+
+
 def upsert_topic_entity_matches(
     matches: Sequence[TopicEntityMatch],
     db_path: Path = DB_PATH,

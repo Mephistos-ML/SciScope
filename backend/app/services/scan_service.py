@@ -17,6 +17,7 @@ from app.services.normalization import normalize_raw_signal
 from app.services.profile_builder import PNMR_PROFILE, PNMR_TOPIC
 from app.sources.github.monitor import load_repo_activity
 from app.sources.replay import load_replay_signals
+from app.storage.entities import list_entities_by_ids, list_topic_entity_matches
 from app.storage.seen_signals import load_seen_signal_ids, upsert_raw_signals
 
 
@@ -268,7 +269,7 @@ def _load_seen_ids_by_source(signals: list[SignalView]) -> dict[str, set[str]]:
 
 def _load_live_github_signals() -> list[RawSignal]:
     started_after = STATE.monitoring_started_at
-    repo_names = _get_focus_repos()
+    repo_names = _load_watched_github_repositories()
 
     signals: list[RawSignal] = []
     for repo_name in repo_names:
@@ -281,13 +282,20 @@ def _load_live_github_signals() -> list[RawSignal]:
     return signals
 
 
-def _get_focus_repos() -> tuple[str, ...]:
-    raw_repos = PNMR_PROFILE.metadata.get("focus_repos", [])
-    if not isinstance(raw_repos, list):
-        return ()
+def _load_watched_github_repositories() -> tuple[str, ...]:
+    matches = list_topic_entity_matches(PNMR_PROFILE.topic_slug)
+    entity_ids = [match.entity_id for match in matches if match.source == "github"]
+    entities = list_entities_by_ids(entity_ids)
 
     repos: list[str] = []
-    for item in raw_repos:
-        if isinstance(item, str) and item:
-            repos.append(item)
+    for entity in entities:
+        if entity.source != "github" or entity.entity_type != "repository":
+            continue
+
+        repo_name = entity.metadata.get("repo")
+        if not isinstance(repo_name, str) or not repo_name.strip():
+            repo_name = entity.canonical_name
+        repo_name = repo_name.strip()
+        if repo_name:
+            repos.append(repo_name)
     return tuple(repos)
