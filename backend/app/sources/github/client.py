@@ -8,6 +8,7 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 from app.config import APP_VERSION
+from app.sources.github.auth import build_auth_headers
 
 
 GITHUB_API_BASE = "https://api.github.com"
@@ -25,12 +26,15 @@ def build_user_agent() -> str:
 def fetch_json(url: str) -> object:
     """Fetch one JSON payload from the GitHub API with simple retries."""
 
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": build_user_agent(),
+    }
+    headers.update(build_auth_headers())
+
     request = Request(
         url,
-        headers={
-            "Accept": "application/vnd.github+json",
-            "User-Agent": build_user_agent(),
-        },
+        headers=headers,
     )
 
     last_error: Exception | None = None
