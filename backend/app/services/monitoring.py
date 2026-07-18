@@ -73,6 +73,52 @@ def load_watched_github_repository_entities(topic_slug: str) -> tuple[Entity, ..
     return tuple(repos)
 
 
+def describe_watched_github_repositories(topic_slug: str) -> list[dict[str, object]]:
+    """Return watched repository metadata for debug visibility."""
+
+    repositories = load_watched_github_repository_entities(topic_slug)
+    return [
+        {
+            "entityId": entity.entity_id,
+            "repo": read_repo_name(entity),
+            "url": entity.url,
+            "stars": entity.metadata.get("stars"),
+            "query": entity.metadata.get("query"),
+            "language": entity.metadata.get("language"),
+        }
+        for entity in repositories
+    ]
+
+
+def describe_release_checkpoints(topic_slug: str) -> list[dict[str, object]]:
+    """Return release checkpoint state for watched repositories."""
+
+    repositories = load_watched_github_repository_entities(topic_slug)
+    checkpoints: list[dict[str, object]] = []
+    for entity in repositories:
+        checkpoint = get_entity_checkpoint(
+            entity.entity_id,
+            LATEST_RELEASE_CHECKPOINT_KEY,
+        )
+        checkpoints.append(
+            {
+                "entityId": entity.entity_id,
+                "repo": read_repo_name(entity),
+                "checkpointKey": LATEST_RELEASE_CHECKPOINT_KEY,
+                "checkpointValue": (
+                    checkpoint.checkpoint_value if checkpoint is not None else None
+                ),
+                "updatedAt": (
+                    checkpoint.updated_at.isoformat(timespec="seconds")
+                    if checkpoint is not None
+                    else None
+                ),
+            }
+        )
+
+    return checkpoints
+
+
 def read_repo_name(entity: Entity) -> str | None:
     """Read a normalized repo full name from one entity."""
 

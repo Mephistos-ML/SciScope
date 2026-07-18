@@ -26,6 +26,17 @@ class DiscoveryResult:
     entity_count: int
     matched_entity_count: int
 
+    def to_payload(self) -> dict[str, object]:
+        """Return a JSON-friendly representation for debug visibility."""
+
+        return {
+            "topicSlug": self.topic_slug,
+            "queries": list(self.queries),
+            "candidateCount": self.candidate_count,
+            "entityCount": self.entity_count,
+            "matchedEntityCount": self.matched_entity_count,
+        }
+
 
 def discover_github_entities_for_profile(
     profile: ResearchProfile,

@@ -13,7 +13,11 @@ from app.models.signal import RawSignal
 from app.runtime.state import STATE
 from app.services.discovery import discover_github_entities_for_profile
 from app.services.matching import match_signal_to_profile
-from app.services.monitoring import load_github_signals_for_profile
+from app.services.monitoring import (
+    describe_release_checkpoints,
+    describe_watched_github_repositories,
+    load_github_signals_for_profile,
+)
 from app.services.normalization import normalize_raw_signal
 from app.services.topic_registry import get_active_profile, get_active_topic
 from app.sources.replay import load_replay_signals
@@ -46,8 +50,13 @@ def start_monitoring() -> None:
     active_profile = get_active_profile()
 
     try:
-        discover_github_entities_for_profile(active_profile)
+        discovery_result = discover_github_entities_for_profile(active_profile)
+        STATE.last_discovery_result = discovery_result.to_payload()
+        STATE.last_discovery_at = datetime.now(UTC)
+        STATE.last_discovery_error = None
     except Exception as exc:
+        STATE.last_discovery_error = str(exc)
+        STATE.last_discovery_at = datetime.now(UTC)
         STATE.last_scan_error = f"GitHub discovery failed: {exc}"
 
     if not STATE.auto_scan_started:
@@ -106,6 +115,8 @@ def get_status_payload() -> dict[str, object]:
     active_topic = get_active_topic()
     active_profile = get_active_profile()
     signals = list_signal_views()
+    watched_repositories = describe_watched_github_repositories(active_profile.topic_slug)
+    release_checkpoints = describe_release_checkpoints(active_profile.topic_slug)
     return {
         "topicSlug": active_profile.topic_slug,
         "topicLabel": active_topic.label,
@@ -117,6 +128,20 @@ def get_status_payload() -> dict[str, object]:
             else None
         ),
         "lastScanError": STATE.last_scan_error,
+        "lastDiscoveryAt": (
+            STATE.last_discovery_at.isoformat(timespec="seconds")
+            if STATE.last_discovery_at
+            else None
+        ),
+        "lastDiscoveryError": STATE.last_discovery_error,
+        "lastDiscoveryResult": STATE.last_discovery_result,
+        "discoveryQueries": (
+            list(STATE.last_discovery_result.get("queries", []))
+            if isinstance(STATE.last_discovery_result, dict)
+            else []
+        ),
+        "watchedRepositories": watched_repositories,
+        "releaseCheckpoints": release_checkpoints,
         "totalSignals": len(signals),
         "matchedSignals": sum(1 for signal in signals if signal.matched),
     }
