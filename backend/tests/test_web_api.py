@@ -6,8 +6,9 @@ import io
 import json
 
 from app.models.signal import RawSignal
+from app.models.topic import ResearchProfile, ResearchTopic
 from app.runtime.state import STATE
-from app.services import scan_service
+from app.services import runtime
 from app.api.routes import application
 
 
@@ -60,27 +61,45 @@ def _build_raw_signal(item_id: str) -> RawSignal:
     )
 
 
+def _build_active_topic() -> ResearchTopic:
+    return ResearchTopic(slug="pnmr", label="Paramagnetic NMR")
+
+
+def _build_active_profile() -> ResearchProfile:
+    return ResearchProfile(topic_slug="pnmr", core_terms=("paramagnetic nmr", "pcs"))
+
+
 def test_status_and_signal_endpoints_return_json(monkeypatch) -> None:
     STATE.signals.clear()
     STATE.monitoring_started_at = None
     STATE.last_scan_at = None
     STATE.last_scan_error = None
+    STATE.last_discovery_at = None
+    STATE.last_discovery_error = None
+    STATE.last_discovery_result = None
     STATE.auto_scan_started = False
     STATE.auto_scan_stop_event.clear()
     STATE.auto_scan_thread = None
 
-    monkeypatch.setattr(scan_service, "load_replay_signals", lambda: [_build_raw_signal("demo")])
-    monkeypatch.setattr(scan_service, "_load_live_github_signals", lambda: [])
-    monkeypatch.setattr(scan_service, "load_seen_signal_ids", lambda source: set())
-    monkeypatch.setattr(scan_service, "upsert_raw_signals", lambda signals: None)
+    monkeypatch.setattr(runtime, "get_active_topic", _build_active_topic)
+    monkeypatch.setattr(runtime, "get_active_profile", _build_active_profile)
+    monkeypatch.setattr(runtime, "describe_watched_github_repositories", lambda topic_slug: [])
+    monkeypatch.setattr(runtime, "describe_release_checkpoints", lambda topic_slug: [])
+    monkeypatch.setattr(runtime, "load_replay_signals", lambda: [_build_raw_signal("demo")])
+    monkeypatch.setattr(runtime, "load_github_signals_for_profile", lambda profile: [])
+    monkeypatch.setattr(runtime, "load_seen_signal_ids", lambda source: set())
+    monkeypatch.setattr(runtime, "upsert_raw_signals", lambda signals: None)
 
-    scan_service.run_scan_cycle()
+    runtime.run_scan_cycle()
 
     status, headers, body = _request("/api/status")
     assert status == "200 OK"
     assert headers["Content-Type"] == "application/json; charset=utf-8"
     status_payload = json.loads(body)
     assert status_payload["topicSlug"] == "pnmr"
+    assert status_payload["discoveryQueries"] == []
+    assert status_payload["watchedRepositories"] == []
+    assert status_payload["releaseCheckpoints"] == []
     assert status_payload["totalSignals"] == 1
     assert status_payload["matchedSignals"] == 1
 

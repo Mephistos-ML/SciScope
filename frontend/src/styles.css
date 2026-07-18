@@ -299,6 +299,11 @@ td {
   color: #1e4db7;
 }
 
+.debug {
+  background: #ece8ff;
+  color: #4a3399;
+}
+
 .detail-block {
   grid-column: 1 / -1;
   padding: 18px;
@@ -321,6 +326,25 @@ td {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.debug-list {
+  display: grid;
+  gap: 12px;
+}
+
+.debug-item {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: #f4f6fa;
+  border: 1px solid rgba(17, 17, 17, 0.08);
+}
+
+.debug-item span {
+  color: #555555;
+  font-size: 0.92rem;
 }
 
 .muted-text,

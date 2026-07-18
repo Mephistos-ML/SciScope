@@ -84,13 +84,14 @@ export function DashboardPage() {
       return;
     }
 
+    const signalId = selectedSignalId;
     let cancelled = false;
 
     async function loadSignalDetail() {
       setDetailState("loading");
 
       try {
-        const detail = await fetchSignalDetail(selectedSignalId);
+        const detail = await fetchSignalDetail(signalId);
         if (cancelled) {
           return;
         }
@@ -151,6 +152,11 @@ export function DashboardPage() {
   const lastScan = formatLastScan(status?.lastScanAt ?? null);
   const monitoringState = status?.autoScanStarted ? "on" : "off";
   const autoScanStarted = status?.autoScanStarted ?? false;
+  const discoveryStatus = status?.lastDiscoveryError
+    ? "error"
+    : status?.lastDiscoveryResult
+      ? "ready"
+      : "idle";
 
   return (
     <main className="page-shell">
@@ -270,6 +276,92 @@ export function DashboardPage() {
               )}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="panel-kicker">Debug</p>
+            <h2>Pipeline state</h2>
+          </div>
+          <span className="panel-status">{discoveryStatus}</span>
+        </div>
+
+        <div className="detail-grid">
+          <article className="detail-card">
+            <p className="detail-label">Last discovery</p>
+            <strong>{formatLastScan(status?.lastDiscoveryAt ?? null)}</strong>
+          </article>
+          <article className="detail-card">
+            <p className="detail-label">Discovery queries</p>
+            <strong>{status?.discoveryQueries.length ?? 0}</strong>
+          </article>
+          <article className="detail-card">
+            <p className="detail-label">Watched repos</p>
+            <strong>{status?.watchedRepositories.length ?? 0}</strong>
+          </article>
+          <article className="detail-card">
+            <p className="detail-label">Checkpoints</p>
+            <strong>{status?.releaseCheckpoints.length ?? 0}</strong>
+          </article>
+
+          <section className="detail-block">
+            <h3>Discovery queries</h3>
+            <div className="tag-row">
+              {status?.discoveryQueries.length ? (
+                status.discoveryQueries.map((query) => (
+                  <span className="badge debug" key={query}>
+                    {query}
+                  </span>
+                ))
+              ) : (
+                <span className="muted-text">No discovery queries recorded yet.</span>
+              )}
+            </div>
+          </section>
+
+          <section className="detail-block">
+            <h3>Watched repositories</h3>
+            {status?.watchedRepositories.length ? (
+              <div className="debug-list">
+                {status.watchedRepositories.map((repository) => (
+                  <article className="debug-item" key={repository.entityId}>
+                    <strong>{repository.repo ?? repository.entityId}</strong>
+                    <span>{repository.language ?? "unknown language"}</span>
+                    <span>{repository.stars ?? 0} stars</span>
+                    <span>query: {repository.query ?? "n/a"}</span>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="muted-text">No watched repositories yet.</p>
+            )}
+          </section>
+
+          <section className="detail-block">
+            <h3>Release checkpoints</h3>
+            {status?.releaseCheckpoints.length ? (
+              <div className="debug-list">
+                {status.releaseCheckpoints.map((checkpoint) => (
+                  <article className="debug-item" key={checkpoint.entityId}>
+                    <strong>{checkpoint.repo ?? checkpoint.entityId}</strong>
+                    <span>{checkpoint.checkpointValue ?? "no checkpoint yet"}</span>
+                    <span>{checkpoint.updatedAt ?? "not updated"}</span>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="muted-text">No checkpoints yet.</p>
+            )}
+          </section>
+
+          <section className="detail-block">
+            <h3>Last discovery result</h3>
+            <pre>
+              {JSON.stringify(status?.lastDiscoveryResult ?? null, null, 2)}
+            </pre>
+          </section>
         </div>
       </section>
 

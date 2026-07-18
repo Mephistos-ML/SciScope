@@ -5,9 +5,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.models.signal import RawSignal
+from app.seeds.topics import PNMR_PROFILE
 from app.services.matching import match_signal_to_profile
 from app.services.normalization import normalize_raw_signal
-from app.services.profile_builder import PNMR_PROFILE
 
 
 def _build_raw_signal(

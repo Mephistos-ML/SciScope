@@ -11,10 +11,15 @@ import time
 from app.config import AUTO_SCAN_INTERVAL_SECONDS
 from app.models.signal import RawSignal
 from app.runtime.state import STATE
+from app.services.discovery import discover_github_entities_for_profile
 from app.services.matching import match_signal_to_profile
+from app.services.monitoring import (
+    describe_release_checkpoints,
+    describe_watched_github_repositories,
+    load_github_signals_for_profile,
+)
 from app.services.normalization import normalize_raw_signal
-from app.services.profile_builder import PNMR_PROFILE, PNMR_TOPIC
-from app.sources.github import load_repo_activity
+from app.services.topic_registry import get_active_profile, get_active_topic
 from app.sources.replay import load_replay_signals
 from app.storage.seen_signals import load_seen_signal_ids, upsert_raw_signals
 
@@ -41,6 +46,18 @@ class SignalView:
 
 def start_monitoring() -> None:
     """Start the background auto-scan loop and run one immediate scan."""
+
+    active_profile = get_active_profile()
+
+    try:
+        discovery_result = discover_github_entities_for_profile(active_profile)
+        STATE.last_discovery_result = discovery_result.to_payload()
+        STATE.last_discovery_at = datetime.now(UTC)
+        STATE.last_discovery_error = None
+    except Exception as exc:
+        STATE.last_discovery_error = str(exc)
+        STATE.last_discovery_at = datetime.now(UTC)
+        STATE.last_scan_error = f"GitHub discovery failed: {exc}"
 
     if not STATE.auto_scan_started:
         STATE.monitoring_started_at = datetime.now(UTC)
@@ -95,10 +112,14 @@ def get_signal_view(item_id: str) -> SignalView | None:
 def get_status_payload() -> dict[str, object]:
     """Return a compact JSON-serializable status payload."""
 
+    active_topic = get_active_topic()
+    active_profile = get_active_profile()
     signals = list_signal_views()
+    watched_repositories = describe_watched_github_repositories(active_profile.topic_slug)
+    release_checkpoints = describe_release_checkpoints(active_profile.topic_slug)
     return {
-        "topicSlug": PNMR_PROFILE.topic_slug,
-        "topicLabel": PNMR_TOPIC.label,
+        "topicSlug": active_profile.topic_slug,
+        "topicLabel": active_topic.label,
         "autoScanStarted": STATE.auto_scan_started,
         "autoScanIntervalSeconds": AUTO_SCAN_INTERVAL_SECONDS,
         "lastScanAt": (
@@ -107,6 +128,20 @@ def get_status_payload() -> dict[str, object]:
             else None
         ),
         "lastScanError": STATE.last_scan_error,
+        "lastDiscoveryAt": (
+            STATE.last_discovery_at.isoformat(timespec="seconds")
+            if STATE.last_discovery_at
+            else None
+        ),
+        "lastDiscoveryError": STATE.last_discovery_error,
+        "lastDiscoveryResult": STATE.last_discovery_result,
+        "discoveryQueries": (
+            list(STATE.last_discovery_result.get("queries", []))
+            if isinstance(STATE.last_discovery_result, dict)
+            else []
+        ),
+        "watchedRepositories": watched_repositories,
+        "releaseCheckpoints": release_checkpoints,
         "totalSignals": len(signals),
         "matchedSignals": sum(1 for signal in signals if signal.matched),
     }
@@ -159,18 +194,25 @@ def get_signal_detail_payload(item_id: str) -> dict[str, object] | None:
 
 
 def _run_scan_cycle_unlocked() -> None:
+    active_profile = get_active_profile()
     signals: list[SignalView] = []
     STATE.last_scan_error = None
 
     try:
         replay_signals = load_replay_signals()
-        signals.extend(_build_signal_view(raw_signal) for raw_signal in replay_signals)
+        signals.extend(
+            _build_signal_view(raw_signal, active_profile=active_profile)
+            for raw_signal in replay_signals
+        )
     except Exception as exc:
         STATE.last_scan_error = f"Replay fixtures failed to load: {exc}"
 
     try:
-        live_signals = _load_live_github_signals()
-        signals.extend(_build_signal_view(raw_signal) for raw_signal in live_signals)
+        live_signals = load_github_signals_for_profile(active_profile)
+        signals.extend(
+            _build_signal_view(raw_signal, active_profile=active_profile)
+            for raw_signal in live_signals
+        )
     except Exception as exc:
         message = f"GitHub source failed to load: {exc}"
         STATE.last_scan_error = (
@@ -225,9 +267,13 @@ def _auto_scan_loop() -> None:
         run_scan_cycle()
 
 
-def _build_signal_view(raw_signal: RawSignal) -> SignalView:
+def _build_signal_view(
+    raw_signal: RawSignal,
+    *,
+    active_profile,
+) -> SignalView:
     normalized_signal = normalize_raw_signal(raw_signal)
-    match = match_signal_to_profile(normalized_signal, PNMR_PROFILE)
+    match = match_signal_to_profile(normalized_signal, active_profile)
 
     return SignalView(
         item_id=normalized_signal.item_id,
@@ -258,30 +304,3 @@ def _load_seen_ids_by_source(signals: list[SignalView]) -> dict[str, set[str]]:
         source: load_seen_signal_ids(source)
         for source in grouped_sources
     }
-
-
-def _load_live_github_signals() -> list[RawSignal]:
-    started_after = STATE.monitoring_started_at
-    repo_names = _get_focus_repos()
-
-    signals: list[RawSignal] = []
-    for repo_name in repo_names:
-        signals.extend(
-            load_repo_activity(
-                repo_name,
-                started_after=started_after,
-            )
-        )
-    return signals
-
-
-def _get_focus_repos() -> tuple[str, ...]:
-    raw_repos = PNMR_PROFILE.metadata.get("focus_repos", [])
-    if not isinstance(raw_repos, list):
-        return ()
-
-    repos: list[str] = []
-    for item in raw_repos:
-        if isinstance(item, str) and item:
-            repos.append(item)
-    return tuple(repos)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.services.scan_service import (
+from app.services.runtime import (
     get_status_payload,
     start_monitoring,
     stop_monitoring,

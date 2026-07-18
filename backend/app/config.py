@@ -2,5 +2,6 @@
 
 from pathlib import Path
 
+APP_VERSION = "0.1.0"
 AUTO_SCAN_INTERVAL_SECONDS = 300
 REPLAY_FIXTURES_PATH = Path(__file__).resolve().parents[2] / "data" / "replay_signals.json"
