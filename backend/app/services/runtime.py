@@ -15,7 +15,7 @@ from app.services.discovery import discover_github_entities_for_profile
 from app.services.matching import match_signal_to_profile
 from app.services.monitoring import load_github_signals_for_profile
 from app.services.normalization import normalize_raw_signal
-from app.services.profile_builder import PNMR_PROFILE, PNMR_TOPIC
+from app.services.topic_registry import get_active_profile, get_active_topic
 from app.sources.replay import load_replay_signals
 from app.storage.seen_signals import load_seen_signal_ids, upsert_raw_signals
 
@@ -43,8 +43,10 @@ class SignalView:
 def start_monitoring() -> None:
     """Start the background auto-scan loop and run one immediate scan."""
 
+    active_profile = get_active_profile()
+
     try:
-        discover_github_entities_for_profile(PNMR_PROFILE)
+        discover_github_entities_for_profile(active_profile)
     except Exception as exc:
         STATE.last_scan_error = f"GitHub discovery failed: {exc}"
 
@@ -101,10 +103,12 @@ def get_signal_view(item_id: str) -> SignalView | None:
 def get_status_payload() -> dict[str, object]:
     """Return a compact JSON-serializable status payload."""
 
+    active_topic = get_active_topic()
+    active_profile = get_active_profile()
     signals = list_signal_views()
     return {
-        "topicSlug": PNMR_PROFILE.topic_slug,
-        "topicLabel": PNMR_TOPIC.label,
+        "topicSlug": active_profile.topic_slug,
+        "topicLabel": active_topic.label,
         "autoScanStarted": STATE.auto_scan_started,
         "autoScanIntervalSeconds": AUTO_SCAN_INTERVAL_SECONDS,
         "lastScanAt": (
@@ -165,18 +169,25 @@ def get_signal_detail_payload(item_id: str) -> dict[str, object] | None:
 
 
 def _run_scan_cycle_unlocked() -> None:
+    active_profile = get_active_profile()
     signals: list[SignalView] = []
     STATE.last_scan_error = None
 
     try:
         replay_signals = load_replay_signals()
-        signals.extend(_build_signal_view(raw_signal) for raw_signal in replay_signals)
+        signals.extend(
+            _build_signal_view(raw_signal, active_profile=active_profile)
+            for raw_signal in replay_signals
+        )
     except Exception as exc:
         STATE.last_scan_error = f"Replay fixtures failed to load: {exc}"
 
     try:
-        live_signals = load_github_signals_for_profile(PNMR_PROFILE)
-        signals.extend(_build_signal_view(raw_signal) for raw_signal in live_signals)
+        live_signals = load_github_signals_for_profile(active_profile)
+        signals.extend(
+            _build_signal_view(raw_signal, active_profile=active_profile)
+            for raw_signal in live_signals
+        )
     except Exception as exc:
         message = f"GitHub source failed to load: {exc}"
         STATE.last_scan_error = (
@@ -231,9 +242,13 @@ def _auto_scan_loop() -> None:
         run_scan_cycle()
 
 
-def _build_signal_view(raw_signal: RawSignal) -> SignalView:
+def _build_signal_view(
+    raw_signal: RawSignal,
+    *,
+    active_profile,
+) -> SignalView:
     normalized_signal = normalize_raw_signal(raw_signal)
-    match = match_signal_to_profile(normalized_signal, PNMR_PROFILE)
+    match = match_signal_to_profile(normalized_signal, active_profile)
 
     return SignalView(
         item_id=normalized_signal.item_id,

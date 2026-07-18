@@ -6,6 +6,7 @@ import io
 import json
 
 from app.models.signal import RawSignal
+from app.models.topic import ResearchProfile, ResearchTopic
 from app.runtime.state import STATE
 from app.services import runtime
 from app.api.routes import application
@@ -60,6 +61,14 @@ def _build_raw_signal(item_id: str) -> RawSignal:
     )
 
 
+def _build_active_topic() -> ResearchTopic:
+    return ResearchTopic(slug="pnmr", label="Paramagnetic NMR")
+
+
+def _build_active_profile() -> ResearchProfile:
+    return ResearchProfile(topic_slug="pnmr", core_terms=("paramagnetic nmr", "pcs"))
+
+
 def test_status_and_signal_endpoints_return_json(monkeypatch) -> None:
     STATE.signals.clear()
     STATE.monitoring_started_at = None
@@ -69,6 +78,8 @@ def test_status_and_signal_endpoints_return_json(monkeypatch) -> None:
     STATE.auto_scan_stop_event.clear()
     STATE.auto_scan_thread = None
 
+    monkeypatch.setattr(runtime, "get_active_topic", _build_active_topic)
+    monkeypatch.setattr(runtime, "get_active_profile", _build_active_profile)
     monkeypatch.setattr(runtime, "load_replay_signals", lambda: [_build_raw_signal("demo")])
     monkeypatch.setattr(runtime, "load_github_signals_for_profile", lambda profile: [])
     monkeypatch.setattr(runtime, "load_seen_signal_ids", lambda source: set())
