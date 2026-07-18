@@ -374,6 +374,38 @@ def list_entity_checkpoints(
     ]
 
 
+def get_entity_checkpoint(
+    entity_id: str,
+    checkpoint_key: str,
+    *,
+    db_path: Path = DB_PATH,
+) -> EntityCheckpoint | None:
+    """Load one checkpoint for one entity."""
+
+    init_entity_storage(db_path)
+
+    with sqlite3.connect(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT entity_id, source, checkpoint_key, checkpoint_value, updated_at
+            FROM entity_checkpoints
+            WHERE entity_id = ? AND checkpoint_key = ?
+            """,
+            (entity_id, checkpoint_key),
+        ).fetchone()
+
+    if row is None:
+        return None
+
+    return EntityCheckpoint(
+        entity_id=row[0],
+        source=row[1],
+        checkpoint_key=row[2],
+        checkpoint_value=row[3],
+        updated_at=datetime.fromisoformat(row[4]),
+    )
+
+
 def _utc_now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
