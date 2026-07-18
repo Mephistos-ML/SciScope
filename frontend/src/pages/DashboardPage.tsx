@@ -14,16 +14,11 @@ import type {
   StatusPayload,
 } from "../types/api";
 import { MetricCard } from "../components/MetricCard";
-import { AppLink } from "../lib/router";
 
 type LoadState = "idle" | "loading" | "syncing" | "error";
 type DetailState = "idle" | "loading" | "ready" | "error";
 
-type DashboardPageProps = {
-  navigate: (href: string) => void;
-};
-
-export function DashboardPage({ navigate }: DashboardPageProps) {
+export function DashboardPage() {
   const [status, setStatus] = useState<StatusPayload | null>(null);
   const [signals, setSignals] = useState<SignalListItem[]>([]);
   const [selectedSignalId, setSelectedSignalId] = useState<string | null>(null);
@@ -168,9 +163,6 @@ export function DashboardPage({ navigate }: DashboardPageProps) {
           </p>
         </div>
         <div className="hero-actions">
-          <AppLink className="secondary-link-button" href="/sources" onNavigate={navigate}>
-            Sources
-          </AppLink>
           <button
             className="primary-button"
             onClick={() => void handleStart()}
