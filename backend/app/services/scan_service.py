@@ -11,6 +11,7 @@ import time
 from app.config import AUTO_SCAN_INTERVAL_SECONDS
 from app.models.signal import RawSignal
 from app.runtime.state import STATE
+from app.services.discovery_service import discover_github_entities_for_profile
 from app.services.matching import match_signal_to_profile
 from app.services.normalization import normalize_raw_signal
 from app.services.profile_builder import PNMR_PROFILE, PNMR_TOPIC
@@ -41,6 +42,11 @@ class SignalView:
 
 def start_monitoring() -> None:
     """Start the background auto-scan loop and run one immediate scan."""
+
+    try:
+        discover_github_entities_for_profile(PNMR_PROFILE)
+    except Exception as exc:
+        STATE.last_scan_error = f"GitHub discovery failed: {exc}"
 
     if not STATE.auto_scan_started:
         STATE.monitoring_started_at = datetime.now(UTC)
