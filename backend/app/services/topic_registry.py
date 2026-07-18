@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.models.topic import ResearchProfile, ResearchTopic
-from app.services.profile_builder import get_seed_profile, get_seed_topic
+from app.seeds.topics import get_seed_profile, get_seed_topic
 
 
 DEFAULT_TOPIC_SLUG = "pnmr"

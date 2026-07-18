@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.services.profile_builder import PNMR_PROFILE
+from app.seeds.topics import PNMR_PROFILE
 from app.sources.github import discovery as github_discovery
 from app.sources.github.query_builder import build_repository_search_queries
 

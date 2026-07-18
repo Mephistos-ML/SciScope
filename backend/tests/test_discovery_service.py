@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from app.seeds.topics import PNMR_PROFILE
 from app.services.discovery import discover_github_entities_for_profile
-from app.services.profile_builder import PNMR_PROFILE
 from app.storage.entities import list_entities, list_topic_entity_matches
 
 

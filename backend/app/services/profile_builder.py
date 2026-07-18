@@ -6,9 +6,6 @@ Architectural contract:
 - it does not own active profiles in the system
 - it does not store profile state
 - it should stay source-agnostic
-
-Current seeded pNMR data is an early V0 bootstrap, not the final multi-profile
-architecture.
 """
 
 from __future__ import annotations
@@ -16,89 +13,12 @@ from __future__ import annotations
 from app.models.topic import ResearchProfile, ResearchTopic
 
 
-PNMR_TOPIC = ResearchTopic(
-    slug="pnmr",
-    label="Paramagnetic NMR",
-    description=(
-        "Paramagnetic NMR methods, susceptibility tensor fitting, PCS/PRE "
-        "analysis, assignment workflows, and related scientific software."
-    ),
-)
+def build_profile(topic: ResearchTopic) -> ResearchProfile:
+    """Build one research profile from one topic.
 
+    V0 keeps this unimplemented because active profiles still come from the seed
+    layer. Once user-defined topics arrive, this becomes the source-agnostic
+    transformation point.
+    """
 
-PNMR_PROFILE = ResearchProfile(
-    topic_slug="pnmr",
-    core_terms=(
-        "paramagnetic nmr",
-        "pseudocontact shift",
-        "pcs",
-        "paramagnetic relaxation enhancement",
-        "pre",
-        "magnetic susceptibility tensor",
-        "susceptibility tensor",
-        "lanthanide tag",
-    ),
-    synonyms=(
-        "para nmr",
-        "tensor fitting",
-        "pcs fitting",
-        "pre fitting",
-        "delta chi",
-        "anisotropy tensor",
-    ),
-    related_terms=(
-        "assignment",
-        "automated assignment",
-        "spectral assignment",
-        "spin label",
-        "hyperfine",
-        "metal center",
-        "ab initio",
-        "structure refinement",
-        "nmr restraint",
-    ),
-    negative_terms=(
-        "solid state battery",
-        "polymer electrolyte",
-        "pet imaging",
-        "general mri",
-        "epr only",
-    ),
-    seed_queries=(
-        "paramagnetic NMR susceptibility tensor fitting",
-        "PCS PRE lanthanide assignment",
-        "paramagnetic NMR software release",
-    ),
-    metadata={
-        "focus_signal_kinds": [
-            "github_release",
-        ],
-        "focus_files": [
-            "pcs",
-            "pre",
-            "tensor",
-            "fit",
-            "assign",
-        ],
-        "focus_packages": [
-            "paranmr",
-        ],
-    },
-)
-
-def get_seed_topic(topic_slug: str) -> ResearchTopic:
-    """Return one built-in topic seed for early V0 development."""
-
-    if topic_slug == PNMR_TOPIC.slug:
-        return PNMR_TOPIC
-
-    raise KeyError(f"Unknown seeded topic: {topic_slug}")
-
-
-def get_seed_profile(topic_slug: str) -> ResearchProfile:
-    """Return one built-in research profile for early V0 development."""
-
-    if topic_slug == PNMR_PROFILE.topic_slug:
-        return PNMR_PROFILE
-
-    raise KeyError(f"Unknown seeded profile: {topic_slug}")
+    raise NotImplementedError("Profile building from arbitrary topics is not implemented yet.")
