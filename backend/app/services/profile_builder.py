@@ -1,4 +1,15 @@
-"""Research topic to research profile generation lives here."""
+"""Research topic to research profile generation lives here.
+
+Architectural contract:
+
+- this module builds one ``ResearchProfile`` from one ``ResearchTopic``
+- it does not own active profiles in the system
+- it does not store profile state
+- it should stay source-agnostic
+
+Current seeded pNMR data is an early V0 bootstrap, not the final multi-profile
+architecture.
+"""
 
 from __future__ import annotations
 
@@ -79,7 +90,7 @@ PNMR_PROFILE = ResearchProfile(
 )
 
 def get_seed_topic(topic_slug: str) -> ResearchTopic:
-    """Return a built-in topic seed for early V0 development."""
+    """Return one built-in topic seed for early V0 development."""
 
     if topic_slug == PNMR_TOPIC.slug:
         return PNMR_TOPIC
@@ -88,7 +99,7 @@ def get_seed_topic(topic_slug: str) -> ResearchTopic:
 
 
 def get_seed_profile(topic_slug: str) -> ResearchProfile:
-    """Return a built-in research profile for early V0 development."""
+    """Return one built-in research profile for early V0 development."""
 
     if topic_slug == PNMR_PROFILE.topic_slug:
         return PNMR_PROFILE

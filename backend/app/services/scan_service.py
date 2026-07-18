@@ -14,7 +14,7 @@ from app.runtime.state import STATE
 from app.services.matching import match_signal_to_profile
 from app.services.normalization import normalize_raw_signal
 from app.services.profile_builder import PNMR_PROFILE, PNMR_TOPIC
-from app.sources.github import load_repo_activity
+from app.sources.github.monitor import load_repo_activity
 from app.sources.replay import load_replay_signals
 from app.storage.seen_signals import load_seen_signal_ids, upsert_raw_signals
 

@@ -1,15 +1,11 @@
-"""GitHub source loader for live repository releases."""
+"""GitHub monitoring adapter for repository releases."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
-import json
-from urllib.request import Request, urlopen
 
 from app.models.signal import RawSignal
-
-GITHUB_API_BASE = "https://api.github.com"
-DEFAULT_USER_AGENT = "SciScope/0.1"
+from app.sources.github.client import GITHUB_API_BASE, fetch_json
 
 
 def load_repo_activity(
@@ -31,7 +27,7 @@ def _load_release_signals(
     started_after: datetime,
 ) -> list[RawSignal]:
     releases_url = f"{GITHUB_API_BASE}/repos/{repo_full_name}/releases?per_page=10"
-    payload = _fetch_json(releases_url)
+    payload = fetch_json(releases_url)
 
     if not isinstance(payload, list):
         return []
@@ -58,7 +54,10 @@ def _load_release_signals(
                 source_type="github_release",
                 item_id=f"{repo_full_name}:release:{release_id}",
                 title=f"{repo_full_name} release {title}",
-                url=str(item.get("html_url") or f"https://github.com/{repo_full_name}/releases"),
+                url=str(
+                    item.get("html_url")
+                    or f"https://github.com/{repo_full_name}/releases"
+                ),
                 published_at=published_at,
                 raw_text=f"{title}\n\n{body}\n\n{tag_name}".strip(),
                 payload={
@@ -72,6 +71,7 @@ def _load_release_signals(
 
     return signals
 
+
 def _parse_github_datetime(value: object) -> datetime | None:
     if not isinstance(value, str) or not value.strip():
         return None
@@ -81,14 +81,3 @@ def _parse_github_datetime(value: object) -> datetime | None:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
-
-def _fetch_json(url: str) -> object:
-    request = Request(
-        url,
-        headers={
-            "Accept": "application/vnd.github+json",
-            "User-Agent": DEFAULT_USER_AGENT,
-        },
-    )
-    with urlopen(request, timeout=15) as response:
-        return json.load(response)

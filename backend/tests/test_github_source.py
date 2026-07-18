@@ -1,10 +1,10 @@
-"""Tests for the live GitHub release source adapter."""
+"""Tests for the live GitHub release monitoring adapter."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from app.sources import github as github_source
+from app.sources.github import monitor as github_monitor
 
 
 def test_load_repo_activity_builds_release_signals(monkeypatch) -> None:
@@ -25,9 +25,9 @@ def test_load_repo_activity_builds_release_signals(monkeypatch) -> None:
 
         raise AssertionError(f"Unexpected URL: {url}")
 
-    monkeypatch.setattr(github_source, "_fetch_json", fake_fetch_json)
+    monkeypatch.setattr(github_monitor, "fetch_json", fake_fetch_json)
 
-    signals = github_source.load_repo_activity(
+    signals = github_monitor.load_repo_activity(
         "Mephistos-ML/paranmr",
         started_after=started_after,
     )
@@ -57,9 +57,9 @@ def test_load_repo_activity_ignores_events_before_start(monkeypatch) -> None:
 
         raise AssertionError(f"Unexpected URL: {url}")
 
-    monkeypatch.setattr(github_source, "_fetch_json", fake_fetch_json)
+    monkeypatch.setattr(github_monitor, "fetch_json", fake_fetch_json)
 
-    signals = github_source.load_repo_activity(
+    signals = github_monitor.load_repo_activity(
         "Mephistos-ML/paranmr",
         started_after=started_after,
     )
