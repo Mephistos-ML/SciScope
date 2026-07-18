@@ -14,6 +14,7 @@ import type {
   StatusPayload,
 } from "../types/api";
 import { MetricCard } from "../components/MetricCard";
+import { SourceBadge } from "../components/SourceBadge";
 
 type LoadState = "idle" | "loading" | "syncing" | "error";
 type DetailState = "idle" | "loading" | "ready" | "error";
@@ -259,7 +260,9 @@ export function DashboardPage() {
                         {signal.title}
                       </button>
                     </td>
-                    <td>{signal.source}</td>
+                    <td>
+                      <SourceBadge source={signal.source} />
+                    </td>
                     <td>{signal.signalKind}</td>
                     <td>{signal.score.toFixed(1)}</td>
                     <td>
@@ -328,6 +331,7 @@ export function DashboardPage() {
                 {status.watchedEntities.map((entity) => (
                   <article className="debug-item" key={entity.entityId}>
                     <strong>{entity.repo ?? entity.entityId}</strong>
+                    <SourceBadge source="github" />
                     <span>{entity.language ?? "unknown language"}</span>
                     <span>{entity.stars ?? 0} stars</span>
                     <span>query: {entity.query ?? "n/a"}</span>
@@ -346,6 +350,7 @@ export function DashboardPage() {
                 {status.sourceCheckpoints.map((checkpoint) => (
                   <article className="debug-item" key={checkpoint.entityId}>
                     <strong>{checkpoint.repo ?? checkpoint.entityId}</strong>
+                    <SourceBadge source="github" />
                     <span>{checkpoint.checkpointValue ?? "no checkpoint yet"}</span>
                     <span>{checkpoint.updatedAt ?? "not updated"}</span>
                   </article>
@@ -382,7 +387,9 @@ export function DashboardPage() {
           <div className="detail-grid">
             <article className="detail-card">
               <p className="detail-label">Source</p>
-              <strong>{selectedSignal.source}</strong>
+              <strong>
+                <SourceBadge source={selectedSignal.source} />
+              </strong>
             </article>
             <article className="detail-card">
               <p className="detail-label">Kind</p>
