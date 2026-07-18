@@ -8,25 +8,16 @@ from datetime import UTC, datetime
 import threading
 import time
 
-from app.models.entity import Entity, EntityCheckpoint
 from app.config import AUTO_SCAN_INTERVAL_SECONDS
 from app.models.signal import RawSignal
 from app.runtime.state import STATE
-from app.services.discovery_service import discover_github_entities_for_profile
+from app.services.discovery import discover_github_entities_for_profile
 from app.services.matching import match_signal_to_profile
+from app.services.monitoring import load_github_signals_for_profile
 from app.services.normalization import normalize_raw_signal
 from app.services.profile_builder import PNMR_PROFILE, PNMR_TOPIC
-from app.sources.github.monitor import load_repo_activity
 from app.sources.replay import load_replay_signals
-from app.storage.entities import (
-    get_entity_checkpoint,
-    list_entities_by_ids,
-    list_topic_entity_matches,
-    upsert_entity_checkpoints,
-)
 from app.storage.seen_signals import load_seen_signal_ids, upsert_raw_signals
-
-LATEST_RELEASE_CHECKPOINT_KEY = "latest_release_published_at"
 
 
 @dataclass(frozen=True)
@@ -184,7 +175,7 @@ def _run_scan_cycle_unlocked() -> None:
         STATE.last_scan_error = f"Replay fixtures failed to load: {exc}"
 
     try:
-        live_signals = _load_live_github_signals()
+        live_signals = load_github_signals_for_profile(PNMR_PROFILE)
         signals.extend(_build_signal_view(raw_signal) for raw_signal in live_signals)
     except Exception as exc:
         message = f"GitHub source failed to load: {exc}"
@@ -273,100 +264,3 @@ def _load_seen_ids_by_source(signals: list[SignalView]) -> dict[str, set[str]]:
         source: load_seen_signal_ids(source)
         for source in grouped_sources
     }
-
-
-def _load_live_github_signals() -> list[RawSignal]:
-    baseline_started_after = STATE.monitoring_started_at
-    watched_repositories = _load_watched_github_repository_entities()
-    signals: list[RawSignal] = []
-    checkpoints_to_upsert: list[EntityCheckpoint] = []
-
-    for entity in watched_repositories:
-        repo_name = _read_repo_name(entity)
-        if repo_name is None:
-            continue
-
-        started_after = _resolve_release_checkpoint(
-            entity,
-            baseline_started_after=baseline_started_after,
-        )
-        if started_after is None:
-            continue
-
-        repo_signals = load_repo_activity(
-            repo_name,
-            started_after=started_after,
-        )
-        signals.extend(repo_signals)
-
-        checkpoint = _build_release_checkpoint(
-            entity,
-            repo_signals=repo_signals,
-            fallback_started_after=started_after,
-        )
-        if checkpoint is not None:
-            checkpoints_to_upsert.append(checkpoint)
-
-    upsert_entity_checkpoints(checkpoints_to_upsert)
-    return signals
-
-
-def _load_watched_github_repository_entities() -> tuple[Entity, ...]:
-    matches = list_topic_entity_matches(PNMR_PROFILE.topic_slug)
-    entity_ids = [match.entity_id for match in matches if match.source == "github"]
-    entities = list_entities_by_ids(entity_ids)
-
-    repos: list[Entity] = []
-    for entity in entities:
-        if entity.source != "github" or entity.entity_type != "repository":
-            continue
-        if _read_repo_name(entity) is not None:
-            repos.append(entity)
-    return tuple(repos)
-
-
-def _read_repo_name(entity: Entity) -> str | None:
-    repo_name = entity.metadata.get("repo")
-    if not isinstance(repo_name, str) or not repo_name.strip():
-        repo_name = entity.canonical_name
-    repo_name = repo_name.strip()
-    if repo_name:
-        return repo_name
-    return None
-
-
-def _resolve_release_checkpoint(
-    entity: Entity,
-    *,
-    baseline_started_after: datetime | None,
-) -> datetime | None:
-    checkpoint = get_entity_checkpoint(
-        entity.entity_id,
-        LATEST_RELEASE_CHECKPOINT_KEY,
-    )
-    if checkpoint is not None:
-        return datetime.fromisoformat(checkpoint.checkpoint_value).astimezone(UTC)
-
-    return baseline_started_after
-
-
-def _build_release_checkpoint(
-    entity: Entity,
-    *,
-    repo_signals: list[RawSignal],
-    fallback_started_after: datetime,
-) -> EntityCheckpoint | None:
-    latest_published_at = max(
-        (signal.published_at for signal in repo_signals if signal.published_at is not None),
-        default=fallback_started_after,
-    )
-    if latest_published_at is None:
-        return None
-
-    return EntityCheckpoint(
-        entity_id=entity.entity_id,
-        source=entity.source,
-        checkpoint_key=LATEST_RELEASE_CHECKPOINT_KEY,
-        checkpoint_value=latest_published_at.astimezone(UTC).isoformat(),
-        updated_at=datetime.now(UTC),
-    )

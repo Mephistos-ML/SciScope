@@ -6,12 +6,12 @@ from datetime import UTC, datetime
 
 from app.models.entity import Entity, TopicEntityMatch
 from app.models.signal import RawSignal
-from app.services import scan_service
+from app.services import monitoring
 
 
 def test_load_watched_github_repositories_uses_topic_memory(monkeypatch) -> None:
     monkeypatch.setattr(
-        scan_service,
+        monitoring,
         "list_topic_entity_matches",
         lambda topic_slug: [
             TopicEntityMatch(
@@ -25,7 +25,7 @@ def test_load_watched_github_repositories_uses_topic_memory(monkeypatch) -> None
         ],
     )
     monkeypatch.setattr(
-        scan_service,
+        monitoring,
         "list_entities_by_ids",
         lambda entity_ids: [
             Entity(
@@ -39,7 +39,7 @@ def test_load_watched_github_repositories_uses_topic_memory(monkeypatch) -> None
         ],
     )
 
-    repos = scan_service._load_watched_github_repository_entities()
+    repos = monitoring.load_watched_github_repository_entities("pnmr")
 
     assert len(repos) == 1
     assert repos[0].canonical_name == "Mephistos-ML/paranmr"
@@ -57,21 +57,21 @@ def test_load_live_github_signals_reads_repositories_from_watch_memory(
         metadata={"repo": "Mephistos-ML/paranmr"},
     )
     monkeypatch.setattr(
-        scan_service,
-        "_load_watched_github_repository_entities",
-        lambda: (repo_entity,),
+        monitoring,
+        "load_watched_github_repository_entities",
+        lambda topic_slug: (repo_entity,),
     )
     monkeypatch.setattr(
-        scan_service,
+        monitoring,
         "get_entity_checkpoint",
         lambda entity_id, checkpoint_key: None,
     )
     monkeypatch.setattr(
-        scan_service.STATE,
+        monitoring.STATE,
         "monitoring_started_at",
         datetime(2026, 7, 18, 10, 0, tzinfo=UTC),
     )
-    monkeypatch.setattr(scan_service, "upsert_entity_checkpoints", lambda checkpoints: None)
+    monkeypatch.setattr(monitoring, "upsert_entity_checkpoints", lambda checkpoints: None)
     called: list[tuple[str, datetime | None]] = []
 
     def fake_load_repo_activity(repo_full_name: str, *, started_after):
@@ -94,9 +94,11 @@ def test_load_live_github_signals_reads_repositories_from_watch_memory(
             )
         ]
 
-    monkeypatch.setattr(scan_service, "load_repo_activity", fake_load_repo_activity)
+    monkeypatch.setattr(monitoring, "load_repo_activity", fake_load_repo_activity)
 
-    signals = scan_service._load_live_github_signals()
+    signals = monitoring.load_github_signals_for_profile(
+        type("Profile", (), {"topic_slug": "pnmr"})(),
+    )
 
     assert len(signals) == 1
     assert called == [("Mephistos-ML/paranmr", datetime(2026, 7, 18, 10, 0, tzinfo=UTC))]
@@ -112,14 +114,14 @@ def test_load_live_github_signals_uses_entity_checkpoint_when_present(monkeypatc
         metadata={"repo": "Mephistos-ML/paranmr"},
     )
     monkeypatch.setattr(
-        scan_service,
-        "_load_watched_github_repository_entities",
-        lambda: (repo_entity,),
+        monitoring,
+        "load_watched_github_repository_entities",
+        lambda topic_slug: (repo_entity,),
     )
     monkeypatch.setattr(
-        scan_service,
+        monitoring,
         "get_entity_checkpoint",
-        lambda entity_id, checkpoint_key: scan_service.EntityCheckpoint(
+        lambda entity_id, checkpoint_key: monitoring.EntityCheckpoint(
             entity_id=entity_id,
             source="github",
             checkpoint_key=checkpoint_key,
@@ -127,15 +129,17 @@ def test_load_live_github_signals_uses_entity_checkpoint_when_present(monkeypatc
             updated_at=datetime(2026, 7, 18, 9, 31, tzinfo=UTC),
         ),
     )
-    monkeypatch.setattr(scan_service, "upsert_entity_checkpoints", lambda checkpoints: None)
+    monkeypatch.setattr(monitoring, "upsert_entity_checkpoints", lambda checkpoints: None)
     called: list[datetime | None] = []
 
     def fake_load_repo_activity(repo_full_name: str, *, started_after):
         called.append(started_after)
         return []
 
-    monkeypatch.setattr(scan_service, "load_repo_activity", fake_load_repo_activity)
+    monkeypatch.setattr(monitoring, "load_repo_activity", fake_load_repo_activity)
 
-    scan_service._load_live_github_signals()
+    monitoring.load_github_signals_for_profile(
+        type("Profile", (), {"topic_slug": "pnmr"})(),
+    )
 
     assert called == [datetime(2026, 7, 18, 9, 30, tzinfo=UTC)]

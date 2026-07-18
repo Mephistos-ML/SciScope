@@ -7,7 +7,7 @@ import json
 
 from app.models.signal import RawSignal
 from app.runtime.state import STATE
-from app.services import scan_service
+from app.services import runtime
 from app.api.routes import application
 
 
@@ -69,12 +69,12 @@ def test_status_and_signal_endpoints_return_json(monkeypatch) -> None:
     STATE.auto_scan_stop_event.clear()
     STATE.auto_scan_thread = None
 
-    monkeypatch.setattr(scan_service, "load_replay_signals", lambda: [_build_raw_signal("demo")])
-    monkeypatch.setattr(scan_service, "_load_live_github_signals", lambda: [])
-    monkeypatch.setattr(scan_service, "load_seen_signal_ids", lambda source: set())
-    monkeypatch.setattr(scan_service, "upsert_raw_signals", lambda signals: None)
+    monkeypatch.setattr(runtime, "load_replay_signals", lambda: [_build_raw_signal("demo")])
+    monkeypatch.setattr(runtime, "load_github_signals_for_profile", lambda profile: [])
+    monkeypatch.setattr(runtime, "load_seen_signal_ids", lambda source: set())
+    monkeypatch.setattr(runtime, "upsert_raw_signals", lambda signals: None)
 
-    scan_service.run_scan_cycle()
+    runtime.run_scan_cycle()
 
     status, headers, body = _request("/api/status")
     assert status == "200 OK"

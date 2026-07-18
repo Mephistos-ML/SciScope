@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.services.discovery_service import discover_github_entities_for_profile
+from app.services.discovery import discover_github_entities_for_profile
 from app.services.profile_builder import PNMR_PROFILE
 from app.storage.entities import list_entities, list_topic_entity_matches
 
@@ -11,7 +11,7 @@ def test_discover_github_entities_for_profile_persists_matched_repositories(
     monkeypatch,
     tmp_path,
 ) -> None:
-    from app.services import discovery_service
+    from app.services import discovery
     from app.models.signal import RawSignal
 
     def fake_discover_repository_candidates(queries: tuple[str, ...]) -> list[RawSignal]:
@@ -57,7 +57,7 @@ def test_discover_github_entities_for_profile_persists_matched_repositories(
         ]
 
     monkeypatch.setattr(
-        discovery_service,
+        discovery,
         "discover_repository_candidates",
         fake_discover_repository_candidates,
     )
