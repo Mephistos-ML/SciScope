@@ -1,14 +1,11 @@
-"""Monitoring orchestration for watched entities."""
+"""GitHub-specific watched-repository state and checkpoint helpers."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 
 from app.models.entity import Entity, EntityCheckpoint
-from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile
-from app.runtime.state import STATE
-from app.sources.github.monitor import load_repo_activity
 from app.storage.entities import (
     get_entity_checkpoint,
     list_entities_by_ids,
@@ -19,12 +16,10 @@ from app.storage.entities import (
 LATEST_RELEASE_CHECKPOINT_KEY = "latest_release_published_at"
 
 
-def load_github_signals_for_profile(profile: ResearchProfile) -> list[RawSignal]:
-    """Load live GitHub release signals for watched repositories."""
+def sync_github_baseline_for_profile(profile: ResearchProfile) -> None:
+    """Initialize checkpoints for watched repositories that have none yet."""
 
-    baseline_started_after = STATE.monitoring_started_at
     watched_repositories = load_watched_github_repository_entities(profile.topic_slug)
-    signals: list[RawSignal] = []
     checkpoints_to_upsert: list[EntityCheckpoint] = []
 
     for entity in watched_repositories:
@@ -32,29 +27,25 @@ def load_github_signals_for_profile(profile: ResearchProfile) -> list[RawSignal]
         if repo_name is None:
             continue
 
-        started_after = resolve_release_checkpoint(
-            entity,
-            baseline_started_after=baseline_started_after,
-        )
-        if started_after is None:
-            continue
-
-        repo_signals = load_repo_activity(
-            repo_name,
-            started_after=started_after,
-        )
-        signals.extend(repo_signals)
-
-        checkpoint = build_release_checkpoint(
-            entity,
-            repo_signals=repo_signals,
-            fallback_started_after=started_after,
+        checkpoint = get_entity_checkpoint(
+            entity.entity_id,
+            LATEST_RELEASE_CHECKPOINT_KEY,
         )
         if checkpoint is not None:
-            checkpoints_to_upsert.append(checkpoint)
+            continue
+
+        now = datetime.now(UTC)
+        checkpoints_to_upsert.append(
+            EntityCheckpoint(
+                entity_id=entity.entity_id,
+                source=entity.source,
+                checkpoint_key=LATEST_RELEASE_CHECKPOINT_KEY,
+                checkpoint_value=now.isoformat(),
+                updated_at=now,
+            )
+        )
 
     upsert_entity_checkpoints(checkpoints_to_upsert)
-    return signals
 
 
 def load_watched_github_repository_entities(topic_slug: str) -> tuple[Entity, ...]:
@@ -151,22 +142,19 @@ def resolve_release_checkpoint(
 def build_release_checkpoint(
     entity: Entity,
     *,
-    repo_signals: list[RawSignal],
+    latest_published_at: datetime | None,
     fallback_started_after: datetime,
 ) -> EntityCheckpoint | None:
     """Build the next release cursor for one watched entity."""
 
-    latest_published_at = max(
-        (signal.published_at for signal in repo_signals if signal.published_at is not None),
-        default=fallback_started_after,
-    )
-    if latest_published_at is None:
+    checkpoint_value = latest_published_at or fallback_started_after
+    if checkpoint_value is None:
         return None
 
     return EntityCheckpoint(
         entity_id=entity.entity_id,
         source=entity.source,
         checkpoint_key=LATEST_RELEASE_CHECKPOINT_KEY,
-        checkpoint_value=latest_published_at.astimezone(UTC).isoformat(),
+        checkpoint_value=checkpoint_value.astimezone(UTC).isoformat(),
         updated_at=datetime.now(UTC),
     )

@@ -14,6 +14,7 @@ import type {
   StatusPayload,
 } from "../types/api";
 import { MetricCard } from "../components/MetricCard";
+import { SourceBadge } from "../components/SourceBadge";
 
 type LoadState = "idle" | "loading" | "syncing" | "error";
 type DetailState = "idle" | "loading" | "ready" | "error";
@@ -259,7 +260,9 @@ export function DashboardPage() {
                         {signal.title}
                       </button>
                     </td>
-                    <td>{signal.source}</td>
+                    <td>
+                      <SourceBadge source={signal.source} />
+                    </td>
                     <td>{signal.signalKind}</td>
                     <td>{signal.score.toFixed(1)}</td>
                     <td>
@@ -298,12 +301,12 @@ export function DashboardPage() {
             <strong>{status?.discoveryQueries.length ?? 0}</strong>
           </article>
           <article className="detail-card">
-            <p className="detail-label">Watched repos</p>
-            <strong>{status?.watchedRepositories.length ?? 0}</strong>
+            <p className="detail-label">Watched entities</p>
+            <strong>{status?.watchedEntities.length ?? 0}</strong>
           </article>
           <article className="detail-card">
             <p className="detail-label">Checkpoints</p>
-            <strong>{status?.releaseCheckpoints.length ?? 0}</strong>
+            <strong>{status?.sourceCheckpoints.length ?? 0}</strong>
           </article>
 
           <section className="detail-block">
@@ -322,30 +325,32 @@ export function DashboardPage() {
           </section>
 
           <section className="detail-block">
-            <h3>Watched repositories</h3>
-            {status?.watchedRepositories.length ? (
+            <h3>Watched entities</h3>
+            {status?.watchedEntities.length ? (
               <div className="debug-list">
-                {status.watchedRepositories.map((repository) => (
-                  <article className="debug-item" key={repository.entityId}>
-                    <strong>{repository.repo ?? repository.entityId}</strong>
-                    <span>{repository.language ?? "unknown language"}</span>
-                    <span>{repository.stars ?? 0} stars</span>
-                    <span>query: {repository.query ?? "n/a"}</span>
+                {status.watchedEntities.map((entity) => (
+                  <article className="debug-item" key={entity.entityId}>
+                    <strong>{entity.repo ?? entity.entityId}</strong>
+                    <SourceBadge source="github" />
+                    <span>{entity.language ?? "unknown language"}</span>
+                    <span>{entity.stars ?? 0} stars</span>
+                    <span>query: {entity.query ?? "n/a"}</span>
                   </article>
                 ))}
               </div>
             ) : (
-              <p className="muted-text">No watched repositories yet.</p>
+              <p className="muted-text">No watched entities yet.</p>
             )}
           </section>
 
           <section className="detail-block">
-            <h3>Release checkpoints</h3>
-            {status?.releaseCheckpoints.length ? (
+            <h3>Source checkpoints</h3>
+            {status?.sourceCheckpoints.length ? (
               <div className="debug-list">
-                {status.releaseCheckpoints.map((checkpoint) => (
+                {status.sourceCheckpoints.map((checkpoint) => (
                   <article className="debug-item" key={checkpoint.entityId}>
                     <strong>{checkpoint.repo ?? checkpoint.entityId}</strong>
+                    <SourceBadge source="github" />
                     <span>{checkpoint.checkpointValue ?? "no checkpoint yet"}</span>
                     <span>{checkpoint.updatedAt ?? "not updated"}</span>
                   </article>
@@ -382,7 +387,9 @@ export function DashboardPage() {
           <div className="detail-grid">
             <article className="detail-card">
               <p className="detail-label">Source</p>
-              <strong>{selectedSignal.source}</strong>
+              <strong>
+                <SourceBadge source={selectedSignal.source} />
+              </strong>
             </article>
             <article className="detail-card">
               <p className="detail-label">Kind</p>

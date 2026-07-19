@@ -6,6 +6,14 @@ from datetime import UTC, datetime
 
 from app.models.signal import RawSignal
 from app.sources.github.client import GITHUB_API_BASE, fetch_json
+from app.sources.github.state import (
+    build_release_checkpoint,
+    load_watched_github_repository_entities,
+    read_repo_name,
+    resolve_release_checkpoint,
+)
+from app.runtime.state import STATE
+from app.storage.entities import upsert_entity_checkpoints
 
 
 def load_repo_activity(
@@ -19,6 +27,52 @@ def load_repo_activity(
         return []
 
     return _load_release_signals(repo_full_name, started_after=started_after)
+
+
+def load_github_signals_for_profile(profile) -> list[RawSignal]:
+    """Load live GitHub release signals for watched repositories."""
+
+    baseline_started_after = STATE.monitoring_started_at
+    watched_repositories = load_watched_github_repository_entities(profile.topic_slug)
+    signals: list[RawSignal] = []
+    checkpoints_to_upsert = []
+
+    for entity in watched_repositories:
+        repo_name = read_repo_name(entity)
+        if repo_name is None:
+            continue
+
+        started_after = resolve_release_checkpoint(
+            entity,
+            baseline_started_after=baseline_started_after,
+        )
+        if started_after is None:
+            continue
+
+        repo_signals = load_repo_activity(
+            repo_name,
+            started_after=started_after,
+        )
+        signals.extend(repo_signals)
+
+        latest_published_at = max(
+            (
+                signal.published_at
+                for signal in repo_signals
+                if signal.published_at is not None
+            ),
+            default=started_after,
+        )
+        checkpoint = build_release_checkpoint(
+            entity,
+            latest_published_at=latest_published_at,
+            fallback_started_after=started_after,
+        )
+        if checkpoint is not None:
+            checkpoints_to_upsert.append(checkpoint)
+
+    upsert_entity_checkpoints(checkpoints_to_upsert)
+    return signals
 
 
 def _load_release_signals(

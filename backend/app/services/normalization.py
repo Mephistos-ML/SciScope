@@ -13,8 +13,8 @@ def normalize_raw_signal(raw_signal: RawSignal) -> NormalizedSignal:
     """Normalize a raw signal into a matching-ready shared shape.
 
     V0 keeps normalization intentionally small and explainable. The first target
-    is GitHub-like software signals, so the normalizer primarily concatenates
-    the text fields that matter for deterministic matching.
+    is software-oriented research signals, so the normalizer primarily
+    concatenates the text fields that matter for deterministic matching.
     """
 
     signal_kind = _read_signal_kind(raw_signal)

@@ -347,6 +347,21 @@ td {
   font-size: 0.92rem;
 }
 
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+  color: inherit;
+}
+
+.source-badge-logo {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
 .muted-text,
 .empty-state,
 .empty-detail {

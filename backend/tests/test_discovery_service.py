@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 from app.seeds.topics import PNMR_PROFILE
-from app.services.discovery import discover_github_entities_for_profile
+from app.services.discovery import discover_entities_for_profile
 from app.storage.entities import list_entities, list_topic_entity_matches
 
 
-def test_discover_github_entities_for_profile_persists_matched_repositories(
+def test_discover_entities_for_profile_persists_matched_repositories(
     monkeypatch,
     tmp_path,
 ) -> None:
-    from app.services import discovery
+    from app.sources.github import discovery as github_discovery
     from app.models.signal import RawSignal
 
     def fake_discover_repository_candidates(queries: tuple[str, ...]) -> list[RawSignal]:
@@ -57,13 +57,13 @@ def test_discover_github_entities_for_profile_persists_matched_repositories(
         ]
 
     monkeypatch.setattr(
-        discovery,
+        github_discovery,
         "discover_repository_candidates",
         fake_discover_repository_candidates,
     )
 
     db_path = tmp_path / "discovery.sqlite3"
-    result = discover_github_entities_for_profile(PNMR_PROFILE, db_path=db_path)
+    result = discover_entities_for_profile(PNMR_PROFILE, db_path=db_path)
 
     entities = list_entities(source="github", db_path=db_path)
     matches = list_topic_entity_matches("pnmr", db_path=db_path)

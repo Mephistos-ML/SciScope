@@ -4,19 +4,23 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import threading
-import time
 
-from app.config import AUTO_SCAN_INTERVAL_SECONDS
+from app.config import (
+    DISCOVERY_INTERVAL_SECONDS,
+    MONITORING_INTERVAL_SECONDS,
+    POLLING_FREQUENCY_SECONDS,
+)
 from app.models.signal import RawSignal
 from app.runtime.state import STATE
-from app.services.discovery import discover_github_entities_for_profile
+from app.services.discovery import discover_entities_for_profile
 from app.services.matching import match_signal_to_profile
-from app.services.monitoring import (
+from app.sources.github.monitor import load_github_signals_for_profile
+from app.sources.github.state import (
     describe_release_checkpoints,
     describe_watched_github_repositories,
-    load_github_signals_for_profile,
+    sync_github_baseline_for_profile,
 )
 from app.services.normalization import normalize_raw_signal
 from app.services.topic_registry import get_active_profile, get_active_topic
@@ -45,19 +49,7 @@ class SignalView:
 
 
 def start_monitoring() -> None:
-    """Start the background auto-scan loop and run one immediate scan."""
-
-    active_profile = get_active_profile()
-
-    try:
-        discovery_result = discover_github_entities_for_profile(active_profile)
-        STATE.last_discovery_result = discovery_result.to_payload()
-        STATE.last_discovery_at = datetime.now(UTC)
-        STATE.last_discovery_error = None
-    except Exception as exc:
-        STATE.last_discovery_error = str(exc)
-        STATE.last_discovery_at = datetime.now(UTC)
-        STATE.last_scan_error = f"GitHub discovery failed: {exc}"
+    """Start the scheduler, run discovery, and initialize monitoring baselines."""
 
     if not STATE.auto_scan_started:
         STATE.monitoring_started_at = datetime.now(UTC)
@@ -72,7 +64,8 @@ def start_monitoring() -> None:
     elif STATE.monitoring_started_at is None:
         STATE.monitoring_started_at = datetime.now(UTC)
 
-    run_scan_cycle()
+    run_discovery_cycle()
+    run_baseline_sync()
 
 
 def stop_monitoring() -> None:
@@ -115,13 +108,15 @@ def get_status_payload() -> dict[str, object]:
     active_topic = get_active_topic()
     active_profile = get_active_profile()
     signals = list_signal_views()
-    watched_repositories = describe_watched_github_repositories(active_profile.topic_slug)
-    release_checkpoints = describe_release_checkpoints(active_profile.topic_slug)
+    watched_entities = describe_watched_github_repositories(active_profile.topic_slug)
+    source_checkpoints = describe_release_checkpoints(active_profile.topic_slug)
     return {
         "topicSlug": active_profile.topic_slug,
         "topicLabel": active_topic.label,
         "autoScanStarted": STATE.auto_scan_started,
-        "autoScanIntervalSeconds": AUTO_SCAN_INTERVAL_SECONDS,
+        "autoScanIntervalSeconds": MONITORING_INTERVAL_SECONDS,
+        "monitoringIntervalSeconds": MONITORING_INTERVAL_SECONDS,
+        "discoveryIntervalSeconds": DISCOVERY_INTERVAL_SECONDS,
         "lastScanAt": (
             STATE.last_scan_at.isoformat(timespec="seconds")
             if STATE.last_scan_at
@@ -140,11 +135,34 @@ def get_status_payload() -> dict[str, object]:
             if isinstance(STATE.last_discovery_result, dict)
             else []
         ),
-        "watchedRepositories": watched_repositories,
-        "releaseCheckpoints": release_checkpoints,
+        "watchedEntities": watched_entities,
+        "sourceCheckpoints": source_checkpoints,
         "totalSignals": len(signals),
         "matchedSignals": sum(1 for signal in signals if signal.matched),
     }
+
+
+def run_discovery_cycle() -> None:
+    """Run one discovery cycle."""
+
+    active_profile = get_active_profile()
+
+    try:
+        discovery_result = discover_entities_for_profile(active_profile)
+        STATE.last_discovery_result = discovery_result.to_payload()
+        STATE.last_discovery_at = datetime.now(UTC)
+        STATE.last_discovery_error = None
+    except Exception as exc:
+        STATE.last_discovery_error = str(exc)
+        STATE.last_discovery_at = datetime.now(UTC)
+        STATE.last_scan_error = f"Discovery failed: {exc}"
+
+
+def run_baseline_sync() -> None:
+    """Initialize checkpoints for newly admitted source entities."""
+
+    active_profile = get_active_profile()
+    sync_github_baseline_for_profile(active_profile)
 
 
 def get_signal_list_payload() -> dict[str, object]:
@@ -214,7 +232,7 @@ def _run_scan_cycle_unlocked() -> None:
             for raw_signal in live_signals
         )
     except Exception as exc:
-        message = f"GitHub source failed to load: {exc}"
+        message = f"Source failed to load: {exc}"
         STATE.last_scan_error = (
             f"{STATE.last_scan_error}; {message}"
             if STATE.last_scan_error
@@ -263,8 +281,14 @@ def _run_scan_cycle_unlocked() -> None:
 
 def _auto_scan_loop() -> None:
     stop_event = STATE.auto_scan_stop_event
-    while not stop_event.wait(AUTO_SCAN_INTERVAL_SECONDS):
-        run_scan_cycle()
+    while not stop_event.wait(POLLING_FREQUENCY_SECONDS):
+        with STATE.scan_lock:
+            if _should_run_discovery():
+                run_discovery_cycle()
+                run_baseline_sync()
+
+            if _should_run_monitoring():
+                _run_scan_cycle_unlocked()
 
 
 def _build_signal_view(
@@ -304,3 +328,25 @@ def _load_seen_ids_by_source(signals: list[SignalView]) -> dict[str, set[str]]:
         source: load_seen_signal_ids(source)
         for source in grouped_sources
     }
+
+
+def _should_run_discovery() -> bool:
+    """Return whether the next daily discovery cycle is due."""
+
+    if STATE.last_discovery_at is None:
+        return True
+
+    return datetime.now(UTC) - STATE.last_discovery_at >= timedelta(
+        seconds=DISCOVERY_INTERVAL_SECONDS
+    )
+
+
+def _should_run_monitoring() -> bool:
+    """Return whether the next source monitoring cycle is due."""
+
+    if STATE.last_scan_at is None:
+        return True
+
+    return datetime.now(UTC) - STATE.last_scan_at >= timedelta(
+        seconds=MONITORING_INTERVAL_SECONDS
+    )

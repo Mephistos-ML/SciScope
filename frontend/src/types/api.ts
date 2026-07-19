@@ -9,8 +9,8 @@ export type StatusPayload = {
   lastDiscoveryError: string | null;
   lastDiscoveryResult: DiscoveryResultPayload | null;
   discoveryQueries: string[];
-  watchedRepositories: WatchedRepositoryPayload[];
-  releaseCheckpoints: ReleaseCheckpointPayload[];
+  watchedEntities: WatchedEntityPayload[];
+  sourceCheckpoints: SourceCheckpointPayload[];
   totalSignals: number;
   matchedSignals: number;
 };
@@ -23,7 +23,7 @@ export type DiscoveryResultPayload = {
   matchedEntityCount: number;
 };
 
-export type WatchedRepositoryPayload = {
+export type WatchedEntityPayload = {
   entityId: string;
   repo: string | null;
   url: string;
@@ -32,7 +32,7 @@ export type WatchedRepositoryPayload = {
   language: string | null;
 };
 
-export type ReleaseCheckpointPayload = {
+export type SourceCheckpointPayload = {
   entityId: string;
   repo: string | null;
   checkpointKey: string;
