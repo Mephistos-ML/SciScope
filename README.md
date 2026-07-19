@@ -77,12 +77,12 @@ High-level backend flow:
   - current bootstrap topic and profile data
 - `services/topic_registry.py`
   - resolves the active topic/profile for the local runtime
-- `sources/github/discovery.py`
-  - searches GitHub repositories for profile-derived queries
+- `sources/repositories/runtime.py`
+  - coordinates repository-family discovery and monitoring across concrete adapters
 - `services/discovery.py`
   - stores relevant repositories as watched entities
-- `services/monitoring.py`
-  - monitors watched repositories for new releases
+- `sources/repositories/github/` and `sources/repositories/gitlab/`
+  - implement repository discovery and release monitoring per source
 - `services/runtime.py`
   - orchestrates start/stop, scan cycles, status payloads, and signal views
 - `storage/`
