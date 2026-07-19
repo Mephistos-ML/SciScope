@@ -8,7 +8,7 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 from app.config import APP_VERSION
-from app.sources.github.auth import build_auth_headers
+from app.sources.repositories.github.auth import build_auth_headers
 
 
 GITHUB_API_BASE = "https://api.github.com"

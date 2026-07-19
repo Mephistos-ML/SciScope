@@ -11,7 +11,8 @@ def test_discover_entities_for_profile_persists_matched_repositories(
     monkeypatch,
     tmp_path,
 ) -> None:
-    from app.sources.github import discovery as github_discovery
+    from app.sources.repositories.github import discovery as github_discovery
+    from app.sources.repositories.gitlab import discovery as gitlab_discovery
     from app.models.signal import RawSignal
 
     def fake_discover_repository_candidates(queries: tuple[str, ...]) -> list[RawSignal]:
@@ -60,6 +61,11 @@ def test_discover_entities_for_profile_persists_matched_repositories(
         github_discovery,
         "discover_repository_candidates",
         fake_discover_repository_candidates,
+    )
+    monkeypatch.setattr(
+        gitlab_discovery,
+        "discover_repository_candidates",
+        lambda queries: [],
     )
 
     db_path = tmp_path / "discovery.sqlite3"

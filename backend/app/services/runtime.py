@@ -16,11 +16,11 @@ from app.models.signal import RawSignal
 from app.runtime.state import STATE
 from app.services.discovery import discover_entities_for_profile
 from app.services.matching import match_signal_to_profile
-from app.sources.github.monitor import load_github_signals_for_profile
-from app.sources.github.state import (
-    describe_release_checkpoints,
-    describe_watched_github_repositories,
-    sync_github_baseline_for_profile,
+from app.sources.repositories.runtime import (
+    describe_repository_checkpoints,
+    describe_watched_repositories,
+    load_repository_signals_for_profile,
+    sync_repository_baseline_for_profile,
 )
 from app.services.normalization import normalize_raw_signal
 from app.services.topic_registry import get_active_profile, get_active_topic
@@ -108,8 +108,8 @@ def get_status_payload() -> dict[str, object]:
     active_topic = get_active_topic()
     active_profile = get_active_profile()
     signals = list_signal_views()
-    watched_entities = describe_watched_github_repositories(active_profile.topic_slug)
-    source_checkpoints = describe_release_checkpoints(active_profile.topic_slug)
+    watched_entities = describe_watched_repositories(active_profile.topic_slug)
+    source_checkpoints = describe_repository_checkpoints(active_profile.topic_slug)
     return {
         "topicSlug": active_profile.topic_slug,
         "topicLabel": active_topic.label,
@@ -162,7 +162,7 @@ def run_baseline_sync() -> None:
     """Initialize checkpoints for newly admitted source entities."""
 
     active_profile = get_active_profile()
-    sync_github_baseline_for_profile(active_profile)
+    sync_repository_baseline_for_profile(active_profile)
 
 
 def get_signal_list_payload() -> dict[str, object]:
@@ -226,13 +226,13 @@ def _run_scan_cycle_unlocked() -> None:
         STATE.last_scan_error = f"Replay fixtures failed to load: {exc}"
 
     try:
-        live_signals = load_github_signals_for_profile(active_profile)
+        live_signals = load_repository_signals_for_profile(active_profile)
         signals.extend(
             _build_signal_view(raw_signal, active_profile=active_profile)
             for raw_signal in live_signals
         )
     except Exception as exc:
-        message = f"Source failed to load: {exc}"
+        message = f"Repository source failed to load: {exc}"
         STATE.last_scan_error = (
             f"{STATE.last_scan_error}; {message}"
             if STATE.last_scan_error

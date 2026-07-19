@@ -6,8 +6,8 @@ from datetime import UTC, datetime
 
 from app.models.entity import Entity, TopicEntityMatch
 from app.models.signal import RawSignal
-from app.sources.github import monitor as github_monitor
-from app.sources.github import state as github_state
+from app.sources.repositories.github import monitor as github_monitor
+from app.sources.repositories.github import state as github_state
 
 
 def test_load_watched_github_repositories_uses_topic_memory(monkeypatch) -> None:
@@ -134,7 +134,7 @@ def test_load_live_github_signals_uses_entity_checkpoint_when_present(monkeypatc
         lambda entity, latest_published_at, fallback_started_after: github_state.EntityCheckpoint(
             entity_id=entity.entity_id,
             source="github",
-            checkpoint_key=github_state.LATEST_RELEASE_CHECKPOINT_KEY,
+            checkpoint_key=github_state.REPOSITORY_RELEASE_CHECKPOINT_KEY,
             checkpoint_value="2026-07-18T09:30:00+00:00",
             updated_at=datetime(2026, 7, 18, 9, 31, tzinfo=UTC),
         ),

@@ -83,10 +83,10 @@ def test_status_and_signal_endpoints_return_json(monkeypatch) -> None:
 
     monkeypatch.setattr(runtime, "get_active_topic", _build_active_topic)
     monkeypatch.setattr(runtime, "get_active_profile", _build_active_profile)
-    monkeypatch.setattr(runtime, "describe_watched_github_repositories", lambda topic_slug: [])
-    monkeypatch.setattr(runtime, "describe_release_checkpoints", lambda topic_slug: [])
+    monkeypatch.setattr(runtime, "describe_watched_repositories", lambda topic_slug: [])
+    monkeypatch.setattr(runtime, "describe_repository_checkpoints", lambda topic_slug: [])
     monkeypatch.setattr(runtime, "load_replay_signals", lambda: [_build_raw_signal("demo")])
-    monkeypatch.setattr(runtime, "load_github_signals_for_profile", lambda profile: [])
+    monkeypatch.setattr(runtime, "load_repository_signals_for_profile", lambda profile: [])
     monkeypatch.setattr(runtime, "load_seen_signal_ids", lambda source: set())
     monkeypatch.setattr(runtime, "upsert_raw_signals", lambda signals: None)
 

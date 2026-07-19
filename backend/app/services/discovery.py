@@ -6,7 +6,7 @@ from pathlib import Path
 
 from app.models.discovery import DiscoveryResult
 from app.models.topic import ResearchProfile
-from app.sources.github.discovery import discover_github_entities_for_profile
+from app.sources.repositories.runtime import discover_repository_entities_for_profile
 from app.storage.seen_signals import DB_PATH
 
 
@@ -17,4 +17,4 @@ def discover_entities_for_profile(
 ) -> DiscoveryResult:
     """Discover source entities relevant to one research profile."""
 
-    return discover_github_entities_for_profile(profile, db_path=db_path)
+    return discover_repository_entities_for_profile(profile, db_path=db_path)

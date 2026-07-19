@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from app.sources.github import auth as github_auth
-from app.sources.github import client as github_client
+from app.sources.repositories.github import auth as github_auth
+from app.sources.repositories.github import client as github_client
 
 
 def test_build_auth_headers_returns_empty_mapping_without_token(monkeypatch) -> None:

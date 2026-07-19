@@ -6,14 +6,16 @@ from datetime import UTC, datetime
 
 from app.models.entity import Entity, EntityCheckpoint
 from app.models.topic import ResearchProfile
+from app.sources.repositories.common import (
+    REPOSITORY_RELEASE_CHECKPOINT_KEY,
+    read_repository_name,
+)
 from app.storage.entities import (
     get_entity_checkpoint,
     list_entities_by_ids,
     list_topic_entity_matches,
     upsert_entity_checkpoints,
 )
-
-LATEST_RELEASE_CHECKPOINT_KEY = "latest_release_published_at"
 
 
 def sync_github_baseline_for_profile(profile: ResearchProfile) -> None:
@@ -23,13 +25,13 @@ def sync_github_baseline_for_profile(profile: ResearchProfile) -> None:
     checkpoints_to_upsert: list[EntityCheckpoint] = []
 
     for entity in watched_repositories:
-        repo_name = read_repo_name(entity)
+        repo_name = read_repository_name(entity)
         if repo_name is None:
             continue
 
         checkpoint = get_entity_checkpoint(
             entity.entity_id,
-            LATEST_RELEASE_CHECKPOINT_KEY,
+            REPOSITORY_RELEASE_CHECKPOINT_KEY,
         )
         if checkpoint is not None:
             continue
@@ -39,7 +41,7 @@ def sync_github_baseline_for_profile(profile: ResearchProfile) -> None:
             EntityCheckpoint(
                 entity_id=entity.entity_id,
                 source=entity.source,
-                checkpoint_key=LATEST_RELEASE_CHECKPOINT_KEY,
+                checkpoint_key=REPOSITORY_RELEASE_CHECKPOINT_KEY,
                 checkpoint_value=now.isoformat(),
                 updated_at=now,
             )
@@ -59,7 +61,7 @@ def load_watched_github_repository_entities(topic_slug: str) -> tuple[Entity, ..
     for entity in entities:
         if entity.source != "github" or entity.entity_type != "repository":
             continue
-        if read_repo_name(entity) is not None:
+        if read_repository_name(entity) is not None:
             repos.append(entity)
     return tuple(repos)
 
@@ -71,7 +73,8 @@ def describe_watched_github_repositories(topic_slug: str) -> list[dict[str, obje
     return [
         {
             "entityId": entity.entity_id,
-            "repo": read_repo_name(entity),
+            "source": entity.source,
+            "repo": read_repository_name(entity),
             "url": entity.url,
             "stars": entity.metadata.get("stars"),
             "query": entity.metadata.get("query"),
@@ -89,13 +92,14 @@ def describe_release_checkpoints(topic_slug: str) -> list[dict[str, object]]:
     for entity in repositories:
         checkpoint = get_entity_checkpoint(
             entity.entity_id,
-            LATEST_RELEASE_CHECKPOINT_KEY,
+            REPOSITORY_RELEASE_CHECKPOINT_KEY,
         )
         checkpoints.append(
             {
                 "entityId": entity.entity_id,
-                "repo": read_repo_name(entity),
-                "checkpointKey": LATEST_RELEASE_CHECKPOINT_KEY,
+                "source": entity.source,
+                "repo": read_repository_name(entity),
+                "checkpointKey": REPOSITORY_RELEASE_CHECKPOINT_KEY,
                 "checkpointValue": (
                     checkpoint.checkpoint_value if checkpoint is not None else None
                 ),
@@ -110,18 +114,6 @@ def describe_release_checkpoints(topic_slug: str) -> list[dict[str, object]]:
     return checkpoints
 
 
-def read_repo_name(entity: Entity) -> str | None:
-    """Read a normalized repo full name from one entity."""
-
-    repo_name = entity.metadata.get("repo")
-    if not isinstance(repo_name, str) or not repo_name.strip():
-        repo_name = entity.canonical_name
-    repo_name = repo_name.strip()
-    if repo_name:
-        return repo_name
-    return None
-
-
 def resolve_release_checkpoint(
     entity: Entity,
     *,
@@ -131,30 +123,9 @@ def resolve_release_checkpoint(
 
     checkpoint = get_entity_checkpoint(
         entity.entity_id,
-        LATEST_RELEASE_CHECKPOINT_KEY,
+        REPOSITORY_RELEASE_CHECKPOINT_KEY,
     )
     if checkpoint is not None:
         return datetime.fromisoformat(checkpoint.checkpoint_value).astimezone(UTC)
 
     return baseline_started_after
-
-
-def build_release_checkpoint(
-    entity: Entity,
-    *,
-    latest_published_at: datetime | None,
-    fallback_started_after: datetime,
-) -> EntityCheckpoint | None:
-    """Build the next release cursor for one watched entity."""
-
-    checkpoint_value = latest_published_at or fallback_started_after
-    if checkpoint_value is None:
-        return None
-
-    return EntityCheckpoint(
-        entity_id=entity.entity_id,
-        source=entity.source,
-        checkpoint_key=LATEST_RELEASE_CHECKPOINT_KEY,
-        checkpoint_value=checkpoint_value.astimezone(UTC).isoformat(),
-        updated_at=datetime.now(UTC),
-    )

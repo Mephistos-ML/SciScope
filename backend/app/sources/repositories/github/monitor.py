@@ -5,15 +5,21 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.models.signal import RawSignal
-from app.sources.github.client import GITHUB_API_BASE, fetch_json
-from app.sources.github.state import (
-    build_release_checkpoint,
+from app.runtime.state import STATE
+from app.sources.repositories.common import (
+    RepositoryRelease,
+    build_repository_release_checkpoint,
+    build_repository_release_signal,
+    read_repository_name,
+)
+from app.sources.repositories.github.client import GITHUB_API_BASE, fetch_json
+from app.sources.repositories.github.state import (
     load_watched_github_repository_entities,
-    read_repo_name,
     resolve_release_checkpoint,
 )
-from app.runtime.state import STATE
 from app.storage.entities import upsert_entity_checkpoints
+
+build_release_checkpoint = build_repository_release_checkpoint
 
 
 def load_repo_activity(
@@ -38,7 +44,7 @@ def load_github_signals_for_profile(profile) -> list[RawSignal]:
     checkpoints_to_upsert = []
 
     for entity in watched_repositories:
-        repo_name = read_repo_name(entity)
+        repo_name = read_repository_name(entity)
         if repo_name is None:
             continue
 
@@ -63,7 +69,7 @@ def load_github_signals_for_profile(profile) -> list[RawSignal]:
             ),
             default=started_after,
         )
-        checkpoint = build_release_checkpoint(
+        checkpoint = build_repository_release_checkpoint(
             entity,
             latest_published_at=latest_published_at,
             fallback_started_after=started_after,
@@ -102,26 +108,20 @@ def _load_release_signals(
         tag_name = str(item.get("tag_name") or "")
         release_id = str(item.get("id") or tag_name or title)
 
-        signals.append(
-            RawSignal(
-                source="github",
-                source_type="github_release",
-                item_id=f"{repo_full_name}:release:{release_id}",
-                title=f"{repo_full_name} release {title}",
-                url=str(
-                    item.get("html_url")
-                    or f"https://github.com/{repo_full_name}/releases"
-                ),
-                published_at=published_at,
-                raw_text=f"{title}\n\n{body}\n\n{tag_name}".strip(),
-                payload={
-                    "signal_kind": "github_release",
-                    "repo": repo_full_name,
-                    "tag_name": tag_name,
-                    "source_type": "github_release",
-                },
-            )
+        release = RepositoryRelease(
+            source="github",
+            repo_full_name=repo_full_name,
+            release_id=release_id,
+            title=title,
+            url=str(
+                item.get("html_url")
+                or f"https://github.com/{repo_full_name}/releases"
+            ),
+            published_at=published_at,
+            tag_name=tag_name,
+            body=body,
         )
+        signals.append(build_repository_release_signal(release))
 
     return signals
 
