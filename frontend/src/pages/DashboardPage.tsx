@@ -330,8 +330,10 @@ export function DashboardPage() {
               <div className="debug-list">
                 {status.watchedEntities.map((entity) => (
                   <article className="debug-item" key={entity.entityId}>
-                    <strong>{entity.repo ?? entity.entityId}</strong>
-                    <SourceBadge source="github" />
+                    <div className="debug-item-header">
+                      <strong>{entity.repo ?? entity.entityId}</strong>
+                      <SourceBadge source={entity.source} />
+                    </div>
                     <span>{entity.language ?? "unknown language"}</span>
                     <span>{entity.stars ?? 0} stars</span>
                     <span>query: {entity.query ?? "n/a"}</span>
@@ -349,8 +351,10 @@ export function DashboardPage() {
               <div className="debug-list">
                 {status.sourceCheckpoints.map((checkpoint) => (
                   <article className="debug-item" key={checkpoint.entityId}>
-                    <strong>{checkpoint.repo ?? checkpoint.entityId}</strong>
-                    <SourceBadge source="github" />
+                    <div className="debug-item-header">
+                      <strong>{checkpoint.repo ?? checkpoint.entityId}</strong>
+                      <SourceBadge source={checkpoint.source} />
+                    </div>
                     <span>{checkpoint.checkpointValue ?? "no checkpoint yet"}</span>
                     <span>{checkpoint.updatedAt ?? "not updated"}</span>
                   </article>

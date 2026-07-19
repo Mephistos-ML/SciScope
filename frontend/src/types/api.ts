@@ -25,6 +25,7 @@ export type DiscoveryResultPayload = {
 
 export type WatchedEntityPayload = {
   entityId: string;
+  source: string;
   repo: string | null;
   url: string;
   stars: number | null;
@@ -34,6 +35,7 @@ export type WatchedEntityPayload = {
 
 export type SourceCheckpointPayload = {
   entityId: string;
+  source: string;
   repo: string | null;
   checkpointKey: string;
   checkpointValue: string | null;

@@ -21,11 +21,8 @@ PNMR_PROFILE = ResearchProfile(
         "paramagnetic nmr",
         "pseudocontact shift",
         "pcs",
-        "paramagnetic relaxation enhancement",
-        "pre",
         "magnetic susceptibility tensor",
         "susceptibility tensor",
-        "lanthanide tag",
     ),
     synonyms=(
         "para nmr",

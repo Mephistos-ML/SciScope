@@ -342,6 +342,13 @@ td {
   border: 1px solid rgba(17, 17, 17, 0.08);
 }
 
+.debug-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .debug-item span {
   color: #555555;
   font-size: 0.92rem;
