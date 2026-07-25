@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from app.seeds.topics import PNMR_PROFILE
+from tests.fixtures.profiles import PNMR_PROFILE
 from app.services.discovery import discover_entities_for_profile
-from app.storage.entities import list_entities, list_topic_entity_matches
+from app.storage.entities import list_entities, list_subscription_entity_matches
 
 
 def test_discover_entities_for_profile_persists_matched_repositories(
@@ -72,7 +72,7 @@ def test_discover_entities_for_profile_persists_matched_repositories(
     result = discover_entities_for_profile(PNMR_PROFILE, db_path=db_path)
 
     entities = list_entities(source="github", db_path=db_path)
-    matches = list_topic_entity_matches("pnmr", db_path=db_path)
+    matches = list_subscription_entity_matches("pnmr", db_path=db_path)
 
     assert result.topic_slug == "pnmr"
     assert result.candidate_count == 2

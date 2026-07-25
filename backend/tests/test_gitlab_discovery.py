@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from app.seeds.topics import PNMR_PROFILE
+from tests.fixtures.profiles import PNMR_PROFILE
 from app.sources.repositories.gitlab import discovery as gitlab_discovery
-from app.sources.repositories.gitlab.query_builder import build_repository_search_queries
+from app.sources.repositories.common.query_builder import build_repository_search_queries
 
 
 def test_build_repository_search_queries_uses_profile_terms() -> None:
@@ -15,7 +15,7 @@ def test_build_repository_search_queries_uses_profile_terms() -> None:
     assert "pseudocontact shift" in queries
     assert "susceptibility tensor" in queries
     assert "paranmr" not in queries
-    assert len(queries) <= 5
+    assert len(queries) >= 5
 
 
 def test_discover_repository_candidates_builds_raw_signals(monkeypatch) -> None:

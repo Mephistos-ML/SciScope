@@ -70,19 +70,19 @@ def load_repository_signals_for_profile(profile: ResearchProfile) -> list[RawSig
     ]
 
 
-def describe_watched_repositories(topic_slug: str) -> list[dict[str, object]]:
+def describe_watched_repositories(subscription_id: str) -> list[dict[str, object]]:
     """Return watched repository debug metadata across repository sources."""
 
     return [
-        *describe_watched_github_repositories(topic_slug),
-        *describe_watched_gitlab_repositories(topic_slug),
+        *describe_watched_github_repositories(subscription_id),
+        *describe_watched_gitlab_repositories(subscription_id),
     ]
 
 
-def describe_repository_checkpoints(topic_slug: str) -> list[dict[str, object]]:
+def describe_repository_checkpoints(subscription_id: str) -> list[dict[str, object]]:
     """Return repository checkpoint debug metadata across repository sources."""
 
     return [
-        *describe_github_release_checkpoints(topic_slug),
-        *describe_gitlab_release_checkpoints(topic_slug),
+        *describe_github_release_checkpoints(subscription_id),
+        *describe_gitlab_release_checkpoints(subscription_id),
     ]

@@ -13,20 +13,20 @@ from app.sources.repositories.common import (
     RepositoryCandidate,
     build_repository_candidate_signal,
     build_repository_entity,
-    build_repository_topic_match,
+    build_repository_subscription_match,
 )
 from app.sources.repositories.common.query_builder import build_repository_search_queries
 from app.sources.repositories.gitlab.client import GITLAB_API_BASE, fetch_json
 from app.services.matching import match_signal_to_profile
 from app.services.normalization import normalize_raw_signal
-from app.storage.entities import upsert_entities, upsert_topic_entity_matches
+from app.storage.entities import upsert_entities, upsert_subscription_entity_matches
 from app.storage.seen_signals import DB_PATH
 
 
 def discover_repository_candidates(
     queries: Sequence[str],
     *,
-    per_query_limit: int = 5,
+    per_query_limit: int = 10,
 ) -> list[RawSignal]:
     """Search GitLab projects for topic-derived queries."""
 
@@ -90,15 +90,15 @@ def discover_gitlab_entities_for_profile(
 
         entities.append(build_repository_entity(raw_signal))
         matches.append(
-            build_repository_topic_match(
+            build_repository_subscription_match(
                 raw_signal,
-                topic_slug=profile.topic_slug,
+                subscription_id=profile.topic_slug,
                 match=match,
             )
         )
 
     upsert_entities(entities, db_path=db_path)
-    upsert_topic_entity_matches(matches, db_path=db_path)
+    upsert_subscription_entity_matches(matches, db_path=db_path)
 
     return DiscoveryResult(
         topic_slug=profile.topic_slug,
