@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
-from app.models.entity import Entity, EntityCheckpoint, TopicEntityMatch
+from app.models.entity import Entity, EntityCheckpoint, SubscriptionEntityMatch
 from app.models.signal import RawSignal, SignalMatch
 from app.sources.repositories.common.models import RepositoryCandidate, RepositoryRelease
 
@@ -61,17 +61,17 @@ def build_repository_entity(raw_signal: RawSignal) -> Entity:
     )
 
 
-def build_repository_topic_match(
+def build_repository_subscription_match(
     raw_signal: RawSignal,
     *,
-    topic_slug: str,
+    subscription_id: str,
     match: SignalMatch,
-) -> TopicEntityMatch:
-    """Build one topic/entity relevance record for an admitted repository."""
+) -> SubscriptionEntityMatch:
+    """Build one subscription/entity relevance record for an admitted repository."""
 
     repo_name = str(raw_signal.payload.get("repo") or raw_signal.title)
-    return TopicEntityMatch(
-        topic_slug=topic_slug,
+    return SubscriptionEntityMatch(
+        subscription_id=subscription_id,
         entity_id=raw_signal.item_id,
         source=raw_signal.source,
         matched_terms=match.matched_terms,
@@ -108,6 +108,7 @@ def build_repository_release_signal(release: RepositoryRelease) -> RawSignal:
 
 
 def build_repository_release_checkpoint(
+    subscription_id: str,
     entity: Entity,
     *,
     latest_published_at: datetime | None,
@@ -120,6 +121,7 @@ def build_repository_release_checkpoint(
         return None
 
     return EntityCheckpoint(
+        subscription_id=subscription_id,
         entity_id=entity.entity_id,
         source=entity.source,
         checkpoint_key=REPOSITORY_RELEASE_CHECKPOINT_KEY,

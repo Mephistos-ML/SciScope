@@ -49,6 +49,7 @@ def load_github_signals_for_profile(profile) -> list[RawSignal]:
             continue
 
         started_after = resolve_release_checkpoint(
+            profile.topic_slug,
             entity,
             baseline_started_after=baseline_started_after,
         )
@@ -70,6 +71,7 @@ def load_github_signals_for_profile(profile) -> list[RawSignal]:
             default=started_after,
         )
         checkpoint = build_repository_release_checkpoint(
+            profile.topic_slug,
             entity,
             latest_published_at=latest_published_at,
             fallback_started_after=started_after,

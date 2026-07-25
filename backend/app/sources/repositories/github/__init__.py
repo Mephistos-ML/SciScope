@@ -8,7 +8,7 @@ from app.sources.repositories.github.monitor import (
     load_github_signals_for_profile,
     load_repo_activity,
 )
-from app.sources.repositories.github.query_builder import build_repository_search_queries
+from app.sources.repositories.common.query_builder import build_repository_search_queries
 from app.sources.repositories.github.state import (
     describe_release_checkpoints,
     describe_watched_github_repositories,

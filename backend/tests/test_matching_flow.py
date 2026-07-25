@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.models.signal import RawSignal
-from app.seeds.topics import PNMR_PROFILE
+from tests.fixtures.profiles import PNMR_PROFILE
 from app.services.matching import match_signal_to_profile
 from app.services.normalization import normalize_raw_signal
 

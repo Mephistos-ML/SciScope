@@ -13,7 +13,7 @@ from app.sources.repositories.common import (
 from app.storage.entities import (
     get_entity_checkpoint,
     list_entities_by_ids,
-    list_topic_entity_matches,
+    list_subscription_entity_matches,
     upsert_entity_checkpoints,
 )
 
@@ -30,6 +30,7 @@ def sync_github_baseline_for_profile(profile: ResearchProfile) -> None:
             continue
 
         checkpoint = get_entity_checkpoint(
+            profile.topic_slug,
             entity.entity_id,
             REPOSITORY_RELEASE_CHECKPOINT_KEY,
         )
@@ -39,6 +40,7 @@ def sync_github_baseline_for_profile(profile: ResearchProfile) -> None:
         now = datetime.now(UTC)
         checkpoints_to_upsert.append(
             EntityCheckpoint(
+                subscription_id=profile.topic_slug,
                 entity_id=entity.entity_id,
                 source=entity.source,
                 checkpoint_key=REPOSITORY_RELEASE_CHECKPOINT_KEY,
@@ -50,10 +52,10 @@ def sync_github_baseline_for_profile(profile: ResearchProfile) -> None:
     upsert_entity_checkpoints(checkpoints_to_upsert)
 
 
-def load_watched_github_repository_entities(topic_slug: str) -> tuple[Entity, ...]:
-    """Load watched GitHub repository entities for one topic."""
+def load_watched_github_repository_entities(subscription_id: str) -> tuple[Entity, ...]:
+    """Load watched GitHub repository entities for one subscription."""
 
-    matches = list_topic_entity_matches(topic_slug)
+    matches = list_subscription_entity_matches(subscription_id)
     entity_ids = [match.entity_id for match in matches if match.source == "github"]
     entities = list_entities_by_ids(entity_ids)
 
@@ -66,10 +68,10 @@ def load_watched_github_repository_entities(topic_slug: str) -> tuple[Entity, ..
     return tuple(repos)
 
 
-def describe_watched_github_repositories(topic_slug: str) -> list[dict[str, object]]:
+def describe_watched_github_repositories(subscription_id: str) -> list[dict[str, object]]:
     """Return watched repository metadata for debug visibility."""
 
-    repositories = load_watched_github_repository_entities(topic_slug)
+    repositories = load_watched_github_repository_entities(subscription_id)
     return [
         {
             "entityId": entity.entity_id,
@@ -84,13 +86,14 @@ def describe_watched_github_repositories(topic_slug: str) -> list[dict[str, obje
     ]
 
 
-def describe_release_checkpoints(topic_slug: str) -> list[dict[str, object]]:
+def describe_release_checkpoints(subscription_id: str) -> list[dict[str, object]]:
     """Return release checkpoint state for watched repositories."""
 
-    repositories = load_watched_github_repository_entities(topic_slug)
+    repositories = load_watched_github_repository_entities(subscription_id)
     checkpoints: list[dict[str, object]] = []
     for entity in repositories:
         checkpoint = get_entity_checkpoint(
+            subscription_id,
             entity.entity_id,
             REPOSITORY_RELEASE_CHECKPOINT_KEY,
         )
@@ -115,6 +118,7 @@ def describe_release_checkpoints(topic_slug: str) -> list[dict[str, object]]:
 
 
 def resolve_release_checkpoint(
+    subscription_id: str,
     entity: Entity,
     *,
     baseline_started_after: datetime | None,
@@ -122,6 +126,7 @@ def resolve_release_checkpoint(
     """Resolve the monitoring cursor for one watched entity."""
 
     checkpoint = get_entity_checkpoint(
+        subscription_id,
         entity.entity_id,
         REPOSITORY_RELEASE_CHECKPOINT_KEY,
     )

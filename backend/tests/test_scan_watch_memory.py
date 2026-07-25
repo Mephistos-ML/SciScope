@@ -1,10 +1,10 @@
-"""Tests for loading watched repositories from persistent topic memory."""
+"""Tests for loading watched repositories from persistent subscription memory."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from app.models.entity import Entity, TopicEntityMatch
+from app.models.entity import Entity, SubscriptionEntityMatch
 from app.models.signal import RawSignal
 from app.sources.repositories.github import monitor as github_monitor
 from app.sources.repositories.github import state as github_state
@@ -13,10 +13,10 @@ from app.sources.repositories.github import state as github_state
 def test_load_watched_github_repositories_uses_topic_memory(monkeypatch) -> None:
     monkeypatch.setattr(
         github_state,
-        "list_topic_entity_matches",
-        lambda topic_slug: [
-            TopicEntityMatch(
-                topic_slug=topic_slug,
+        "list_subscription_entity_matches",
+        lambda subscription_id: [
+            SubscriptionEntityMatch(
+                subscription_id=subscription_id,
                 entity_id="github:repo:Mephistos-ML/paranmr",
                 source="github",
                 score=5.0,
@@ -60,7 +60,7 @@ def test_load_live_github_signals_reads_repositories_from_watch_memory(
     monkeypatch.setattr(
         github_monitor,
         "load_watched_github_repository_entities",
-        lambda topic_slug: (repo_entity,),
+        lambda subscription_id: (repo_entity,),
     )
     monkeypatch.setattr(
         github_monitor.STATE,
@@ -70,7 +70,7 @@ def test_load_live_github_signals_reads_repositories_from_watch_memory(
     monkeypatch.setattr(
         github_monitor,
         "resolve_release_checkpoint",
-        lambda entity, baseline_started_after: baseline_started_after,
+        lambda subscription_id, entity, baseline_started_after: baseline_started_after,
     )
     monkeypatch.setattr(
         github_monitor,
@@ -102,7 +102,7 @@ def test_load_live_github_signals_reads_repositories_from_watch_memory(
     monkeypatch.setattr(github_monitor, "load_repo_activity", fake_load_repo_activity)
 
     signals = github_monitor.load_github_signals_for_profile(
-        type("Profile", (), {"topic_slug": "pnmr"})(),
+        type("Profile", (), {"topic_slug": "sub_pnmr"})(),
     )
 
     assert len(signals) == 1
@@ -121,17 +121,20 @@ def test_load_live_github_signals_uses_entity_checkpoint_when_present(monkeypatc
     monkeypatch.setattr(
         github_monitor,
         "load_watched_github_repository_entities",
-        lambda topic_slug: (repo_entity,),
+        lambda subscription_id: (repo_entity,),
     )
     monkeypatch.setattr(
         github_monitor,
         "resolve_release_checkpoint",
-        lambda entity, baseline_started_after: datetime(2026, 7, 18, 9, 30, tzinfo=UTC),
+        lambda subscription_id, entity, baseline_started_after: datetime(
+            2026, 7, 18, 9, 30, tzinfo=UTC
+        ),
     )
     monkeypatch.setattr(
         github_monitor,
         "build_release_checkpoint",
-        lambda entity, latest_published_at, fallback_started_after: github_state.EntityCheckpoint(
+        lambda subscription_id, entity, latest_published_at, fallback_started_after: github_state.EntityCheckpoint(
+            subscription_id=subscription_id,
             entity_id=entity.entity_id,
             source="github",
             checkpoint_key=github_state.REPOSITORY_RELEASE_CHECKPOINT_KEY,
@@ -153,7 +156,7 @@ def test_load_live_github_signals_uses_entity_checkpoint_when_present(monkeypatc
     monkeypatch.setattr(github_monitor, "load_repo_activity", fake_load_repo_activity)
 
     github_monitor.load_github_signals_for_profile(
-        type("Profile", (), {"topic_slug": "pnmr"})(),
+        type("Profile", (), {"topic_slug": "sub_pnmr"})(),
     )
 
     assert called == [datetime(2026, 7, 18, 9, 30, tzinfo=UTC)]

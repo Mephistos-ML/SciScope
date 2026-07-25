@@ -14,7 +14,7 @@ from app.sources.repositories.common import (
     build_repository_entity,
     build_repository_release_checkpoint,
     build_repository_release_signal,
-    build_repository_topic_match,
+    build_repository_subscription_match,
     read_repository_name,
 )
 
@@ -63,9 +63,9 @@ def test_build_repository_entity_and_match_reuse_repository_metadata() -> None:
     )
 
     entity = build_repository_entity(signal)
-    topic_match = build_repository_topic_match(
+    topic_match = build_repository_subscription_match(
         signal,
-        topic_slug="pnmr",
+        subscription_id="sub_pnmr",
         match=match,
     )
 
@@ -97,6 +97,7 @@ def test_build_repository_release_signal_and_checkpoint_use_shared_contract() ->
 
     signal = build_repository_release_signal(release)
     checkpoint = build_repository_release_checkpoint(
+        "sub_pnmr",
         entity,
         latest_published_at=release.published_at,
         fallback_started_after=datetime(2026, 7, 18, 10, 0, tzinfo=UTC),
@@ -105,6 +106,7 @@ def test_build_repository_release_signal_and_checkpoint_use_shared_contract() ->
     assert signal.item_id == "Mephistos-ML/paranmr:release:12"
     assert signal.payload["repo"] == "Mephistos-ML/paranmr"
     assert checkpoint is not None
+    assert checkpoint.subscription_id == "sub_pnmr"
     assert checkpoint.checkpoint_key == REPOSITORY_RELEASE_CHECKPOINT_KEY
 
 

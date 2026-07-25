@@ -1,10 +1,10 @@
-"""Tests for GitLab watch-memory monitoring and checkpoints."""
+"""Tests for GitLab subscription-memory monitoring and checkpoints."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from app.models.entity import Entity, TopicEntityMatch
+from app.models.entity import Entity, SubscriptionEntityMatch
 from app.models.signal import RawSignal
 from app.sources.repositories.gitlab import monitor as gitlab_monitor
 from app.sources.repositories.gitlab import state as gitlab_state
@@ -13,10 +13,10 @@ from app.sources.repositories.gitlab import state as gitlab_state
 def test_load_watched_gitlab_repositories_uses_topic_memory(monkeypatch) -> None:
     monkeypatch.setattr(
         gitlab_state,
-        "list_topic_entity_matches",
-        lambda topic_slug: [
-            TopicEntityMatch(
-                topic_slug=topic_slug,
+        "list_subscription_entity_matches",
+        lambda subscription_id: [
+            SubscriptionEntityMatch(
+                subscription_id=subscription_id,
                 entity_id="gitlab:repo:Mephistos-ML/paranmr",
                 source="gitlab",
                 score=5.0,
@@ -60,7 +60,7 @@ def test_load_live_gitlab_signals_reads_repositories_from_watch_memory(
     monkeypatch.setattr(
         gitlab_monitor,
         "load_watched_gitlab_repository_entities",
-        lambda topic_slug: (repo_entity,),
+        lambda subscription_id: (repo_entity,),
     )
     monkeypatch.setattr(
         gitlab_monitor.STATE,
@@ -70,7 +70,7 @@ def test_load_live_gitlab_signals_reads_repositories_from_watch_memory(
     monkeypatch.setattr(
         gitlab_monitor,
         "resolve_release_checkpoint",
-        lambda entity, baseline_started_after: baseline_started_after,
+        lambda subscription_id, entity, baseline_started_after: baseline_started_after,
     )
     monkeypatch.setattr(
         gitlab_monitor,
@@ -102,7 +102,7 @@ def test_load_live_gitlab_signals_reads_repositories_from_watch_memory(
     monkeypatch.setattr(gitlab_monitor, "load_repo_activity", fake_load_repo_activity)
 
     signals = gitlab_monitor.load_gitlab_signals_for_profile(
-        type("Profile", (), {"topic_slug": "pnmr"})(),
+        type("Profile", (), {"topic_slug": "sub_pnmr"})(),
     )
 
     assert len(signals) == 1
@@ -121,17 +121,20 @@ def test_load_live_gitlab_signals_uses_entity_checkpoint_when_present(monkeypatc
     monkeypatch.setattr(
         gitlab_monitor,
         "load_watched_gitlab_repository_entities",
-        lambda topic_slug: (repo_entity,),
+        lambda subscription_id: (repo_entity,),
     )
     monkeypatch.setattr(
         gitlab_monitor,
         "resolve_release_checkpoint",
-        lambda entity, baseline_started_after: datetime(2026, 7, 18, 9, 30, tzinfo=UTC),
+        lambda subscription_id, entity, baseline_started_after: datetime(
+            2026, 7, 18, 9, 30, tzinfo=UTC
+        ),
     )
     monkeypatch.setattr(
         gitlab_monitor,
         "build_release_checkpoint",
-        lambda entity, latest_published_at, fallback_started_after: gitlab_state.EntityCheckpoint(
+        lambda subscription_id, entity, latest_published_at, fallback_started_after: gitlab_state.EntityCheckpoint(
+            subscription_id=subscription_id,
             entity_id=entity.entity_id,
             source="gitlab",
             checkpoint_key=gitlab_state.REPOSITORY_RELEASE_CHECKPOINT_KEY,
@@ -153,7 +156,7 @@ def test_load_live_gitlab_signals_uses_entity_checkpoint_when_present(monkeypatc
     monkeypatch.setattr(gitlab_monitor, "load_repo_activity", fake_load_repo_activity)
 
     gitlab_monitor.load_gitlab_signals_for_profile(
-        type("Profile", (), {"topic_slug": "pnmr"})(),
+        type("Profile", (), {"topic_slug": "sub_pnmr"})(),
     )
 
     assert called == [datetime(2026, 7, 18, 9, 30, tzinfo=UTC)]
