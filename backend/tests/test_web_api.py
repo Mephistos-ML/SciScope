@@ -4,20 +4,30 @@ from __future__ import annotations
 
 import io
 import json
+from pathlib import Path
+import tempfile
 
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile, ResearchTopic
 from app.runtime.state import STATE
 from app.services import runtime
 from app.api.routes import application
+from app.storage import entities as entity_storage
+from app.storage import subscriptions as subscription_storage
 
 
 def _request(
     path: str,
     *,
     method: str = "GET",
+    payload: dict[str, object] | None = None,
 ) -> tuple[str, dict[str, str], bytes]:
     captured: dict[str, object] = {}
+    body_bytes = (
+        json.dumps(payload).encode("utf-8")
+        if payload is not None
+        else b""
+    )
 
     def start_response(
         status: str,
@@ -29,7 +39,8 @@ def _request(
     environ = {
         "REQUEST_METHOD": method,
         "PATH_INFO": path,
-        "wsgi.input": io.BytesIO(),
+        "CONTENT_LENGTH": str(len(body_bytes)),
+        "wsgi.input": io.BytesIO(body_bytes),
     }
     body = b"".join(application(environ, start_response))
     return (
@@ -69,8 +80,17 @@ def _build_active_profile() -> ResearchProfile:
     return ResearchProfile(topic_slug="pnmr", core_terms=("paramagnetic nmr", "pcs"))
 
 
+def _build_runtime_profiles() -> tuple[ResearchProfile, ...]:
+    return (_build_active_profile(),)
+
+
+def _build_runtime_topics() -> tuple[ResearchTopic, ...]:
+    return (_build_active_topic(),)
+
+
 def test_status_and_signal_endpoints_return_json(monkeypatch) -> None:
     STATE.signals.clear()
+    STATE.current_user_id = None
     STATE.monitoring_started_at = None
     STATE.last_scan_at = None
     STATE.last_scan_error = None
@@ -81,8 +101,8 @@ def test_status_and_signal_endpoints_return_json(monkeypatch) -> None:
     STATE.auto_scan_stop_event.clear()
     STATE.auto_scan_thread = None
 
-    monkeypatch.setattr(runtime, "get_active_topic", _build_active_topic)
-    monkeypatch.setattr(runtime, "get_active_profile", _build_active_profile)
+    monkeypatch.setattr(runtime, "list_runtime_profiles", _build_runtime_profiles)
+    monkeypatch.setattr(runtime, "list_runtime_topics", _build_runtime_topics)
     monkeypatch.setattr(runtime, "describe_watched_repositories", lambda topic_slug: [])
     monkeypatch.setattr(runtime, "describe_repository_checkpoints", lambda topic_slug: [])
     monkeypatch.setattr(runtime, "load_replay_signals", lambda: [_build_raw_signal("demo")])
@@ -185,3 +205,58 @@ def test_missing_signal_returns_404_json() -> None:
     assert headers["Content-Type"] == "application/json; charset=utf-8"
     payload = json.loads(body)
     assert payload["error"] == "Signal not found"
+
+
+def test_dev_login_and_subscription_endpoints(monkeypatch) -> None:
+    STATE.current_user_id = None
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        db_path = Path(temp_dir) / "subscriptions.sqlite3"
+        monkeypatch.setattr(subscription_storage, "DB_PATH", db_path)
+        monkeypatch.setattr(entity_storage, "DB_PATH", db_path)
+
+        status, _, body = _request("/api/me")
+        assert status == "200 OK"
+        assert json.loads(body) == {"user": None}
+
+        status, _, body = _request("/api/subscriptions")
+        assert status == "401 Unauthorized"
+        assert json.loads(body)["error"] == "Authentication required"
+
+        status, _, body = _request("/api/auth/dev-login", method="POST")
+        assert status == "200 OK"
+        payload = json.loads(body)
+        assert payload["user"]["userId"] == "local-dev-user"
+
+        status, _, body = _request(
+            "/api/subscriptions",
+            method="POST",
+            payload={
+                "topicDescription": "paramagnetic NMR software",
+                "manualQueries": ["pcs", "relaxation"],
+            },
+        )
+        assert status == "201 Created"
+        created = json.loads(body)
+        assert created["topicDescription"] == "paramagnetic NMR software"
+        assert created["manualQueries"] == ["pcs", "relaxation"]
+
+        status, _, body = _request("/api/subscriptions")
+        assert status == "200 OK"
+        listed = json.loads(body)
+        assert len(listed["items"]) == 1
+        assert listed["items"][0]["topicDescription"] == "paramagnetic NMR software"
+
+        subscription_id = listed["items"][0]["subscriptionId"]
+        status, _, body = _request(f"/api/subscriptions/{subscription_id}", method="DELETE")
+        assert status == "200 OK"
+        assert json.loads(body) == {"deleted": True}
+
+        status, _, body = _request("/api/subscriptions")
+        assert status == "200 OK"
+        listed = json.loads(body)
+        assert listed["items"] == []
+
+        status, _, body = _request("/api/logout", method="POST")
+        assert status == "200 OK"
+        assert json.loads(body) == {"user": None}
