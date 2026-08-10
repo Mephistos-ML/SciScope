@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from tests.conftest import build_test_database_url
 from app.models.entity import Entity, EntityCheckpoint, SubscriptionEntityMatch
 from app.storage.entities import (
     get_entity_checkpoint,
@@ -17,7 +18,7 @@ from app.storage.entities import (
 
 
 def test_upsert_entities_persists_global_entities(tmp_path) -> None:
-    db_path = tmp_path / "entities.sqlite3"
+    database_url = build_test_database_url(tmp_path / "entities.sqlite3")
 
     upsert_entities(
         [
@@ -30,10 +31,10 @@ def test_upsert_entities_persists_global_entities(tmp_path) -> None:
                 metadata={"stars": 12},
             )
         ],
-        db_path=db_path,
+        database_url=database_url,
     )
 
-    entities = list_entities(source="github", db_path=db_path)
+    entities = list_entities(source="github", database_url=database_url)
 
     assert len(entities) == 1
     assert entities[0].entity_id == "github:repo:Mephistos-ML/paranmr"
@@ -42,7 +43,7 @@ def test_upsert_entities_persists_global_entities(tmp_path) -> None:
 
 
 def test_upsert_subscription_entity_matches_persists_subscription_memory(tmp_path) -> None:
-    db_path = tmp_path / "entities.sqlite3"
+    database_url = build_test_database_url(tmp_path / "entities.sqlite3")
 
     upsert_subscription_entity_matches(
         [
@@ -56,10 +57,10 @@ def test_upsert_subscription_entity_matches_persists_subscription_memory(tmp_pat
                 metadata={"origin": "seed"},
             )
         ],
-        db_path=db_path,
+        database_url=database_url,
     )
 
-    matches = list_subscription_entity_matches("sub_pnmr", db_path=db_path)
+    matches = list_subscription_entity_matches("sub_pnmr", database_url=database_url)
 
     assert len(matches) == 1
     assert matches[0].entity_id == "github:repo:Mephistos-ML/paranmr"
@@ -69,7 +70,7 @@ def test_upsert_subscription_entity_matches_persists_subscription_memory(tmp_pat
 
 
 def test_upsert_entity_checkpoints_persists_monitoring_cursor(tmp_path) -> None:
-    db_path = tmp_path / "entities.sqlite3"
+    database_url = build_test_database_url(tmp_path / "entities.sqlite3")
     updated_at = datetime(2026, 7, 18, 9, 30, tzinfo=UTC)
 
     upsert_entity_checkpoints(
@@ -83,13 +84,13 @@ def test_upsert_entity_checkpoints_persists_monitoring_cursor(tmp_path) -> None:
                 updated_at=updated_at,
             )
         ],
-        db_path=db_path,
+        database_url=database_url,
     )
 
     checkpoints = list_entity_checkpoints(
         "sub_pnmr",
         "github:repo:Mephistos-ML/paranmr",
-        db_path=db_path,
+        database_url=database_url,
     )
 
     assert len(checkpoints) == 1
@@ -99,7 +100,7 @@ def test_upsert_entity_checkpoints_persists_monitoring_cursor(tmp_path) -> None:
 
 
 def test_get_entity_checkpoint_returns_single_cursor(tmp_path) -> None:
-    db_path = tmp_path / "entities.sqlite3"
+    database_url = build_test_database_url(tmp_path / "entities.sqlite3")
     updated_at = datetime(2026, 7, 18, 11, 0, tzinfo=UTC)
 
     upsert_entity_checkpoints(
@@ -113,14 +114,14 @@ def test_get_entity_checkpoint_returns_single_cursor(tmp_path) -> None:
                 updated_at=updated_at,
             )
         ],
-        db_path=db_path,
+        database_url=database_url,
     )
 
     checkpoint = get_entity_checkpoint(
         "sub_pnmr",
         "github:repo:Mephistos-ML/paranmr",
         "latest_release_published_at",
-        db_path=db_path,
+        database_url=database_url,
     )
 
     assert checkpoint is not None

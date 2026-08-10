@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from pathlib import Path
 from urllib.parse import quote_plus
 
+from app.config import DATABASE_URL
 from app.models.discovery import DiscoveryResult
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile
@@ -21,7 +21,6 @@ from app.sources.repositories.common.query_builder import build_repository_searc
 from app.services.matching import match_signal_to_profile
 from app.services.normalization import normalize_raw_signal
 from app.storage.entities import upsert_entities, upsert_subscription_entity_matches
-from app.storage.seen_signals import DB_PATH
 
 
 def discover_repository_candidates(
@@ -79,10 +78,11 @@ def discover_repository_candidates(
 def discover_github_entities_for_profile(
     profile: ResearchProfile,
     *,
-    db_path: Path = DB_PATH,
+    database_url: str | None = None,
 ) -> DiscoveryResult:
     """Discover GitHub repositories relevant to one research profile."""
 
+    resolved_database_url = database_url or DATABASE_URL
     queries = build_repository_search_queries(profile)
     candidates = discover_repository_candidates(queries)
 
@@ -106,8 +106,8 @@ def discover_github_entities_for_profile(
             )
         )
 
-    upsert_entities(entities, db_path=db_path)
-    upsert_subscription_entity_matches(matches, db_path=db_path)
+    upsert_entities(entities, database_url=resolved_database_url)
+    upsert_subscription_entity_matches(matches, database_url=resolved_database_url)
 
     return DiscoveryResult(
         topic_slug=profile.topic_slug,

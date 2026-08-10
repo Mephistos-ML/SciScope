@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import tempfile
 
+from tests.conftest import build_test_database_url
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile, ResearchTopic
 from app.runtime.state import STATE
@@ -211,9 +212,9 @@ def test_dev_login_and_subscription_endpoints(monkeypatch) -> None:
     STATE.current_user_id = None
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        db_path = Path(temp_dir) / "subscriptions.sqlite3"
-        monkeypatch.setattr(subscription_storage, "DB_PATH", db_path)
-        monkeypatch.setattr(entity_storage, "DB_PATH", db_path)
+        database_url = build_test_database_url(Path(temp_dir) / "subscriptions.sqlite3")
+        monkeypatch.setattr(subscription_storage, "DATABASE_URL", database_url)
+        monkeypatch.setattr(entity_storage, "DATABASE_URL", database_url)
 
         status, _, body = _request("/api/me")
         assert status == "200 OK"

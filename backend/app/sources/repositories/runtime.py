@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
+from app.config import DATABASE_URL
 from app.models.discovery import DiscoveryResult
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile
@@ -21,19 +20,19 @@ from app.sources.repositories.gitlab.state import (
     describe_watched_gitlab_repositories,
     sync_gitlab_baseline_for_profile,
 )
-from app.storage.seen_signals import DB_PATH
 
 
 def discover_repository_entities_for_profile(
     profile: ResearchProfile,
     *,
-    db_path: Path = DB_PATH,
+    database_url: str | None = None,
 ) -> DiscoveryResult:
     """Discover repository entities across all configured repository sources."""
 
+    resolved_database_url = database_url or DATABASE_URL
     results = [
-        discover_github_entities_for_profile(profile, db_path=db_path),
-        discover_gitlab_entities_for_profile(profile, db_path=db_path),
+        discover_github_entities_for_profile(profile, database_url=resolved_database_url),
+        discover_gitlab_entities_for_profile(profile, database_url=resolved_database_url),
     ]
 
     merged_queries: list[str] = []

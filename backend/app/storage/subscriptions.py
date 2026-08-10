@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-import json
-import sqlite3
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 
-from app.storage.seen_signals import DB_PATH
+from sqlalchemy import delete, select
+
+from app.config import DATABASE_URL
+from app.db.models import SubscriptionRecordModel
+from app.db.session import session_scope
 
 
 @dataclass(frozen=True)
@@ -24,164 +25,105 @@ class SubscriptionRecord:
     created_at: str
 
 
-def init_subscription_storage(db_path: Path | None = None) -> None:
-    """Initialise subscription tables."""
-
-    db_path = db_path or DB_PATH
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with sqlite3.connect(db_path) as connection:
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS subscriptions (
-                subscription_id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                topic_description TEXT NOT NULL,
-                manual_keywords_json TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            )
-            """
-        )
-
-
 def create_subscription(
     *,
     user_id: str,
     topic_description: str,
     manual_keywords: Sequence[str],
-    db_path: Path | None = None,
+    database_url: str | None = None,
 ) -> SubscriptionRecord:
     """Create one subscription for a saved search."""
 
-    db_path = db_path or DB_PATH
-    init_subscription_storage(db_path)
-    record = SubscriptionRecord(
+    resolved_database_url = database_url or DATABASE_URL
+    created_at = _utc_now()
+    record = SubscriptionRecordModel(
         subscription_id=f"sub_{uuid.uuid4().hex[:12]}",
         user_id=user_id,
         topic_description=topic_description,
-        manual_keywords=tuple(manual_keywords),
-        created_at=_utc_now_iso(),
+        manual_keywords_json=[str(keyword) for keyword in manual_keywords],
+        created_at=created_at,
     )
 
-    with sqlite3.connect(db_path) as connection:
-        connection.execute(
-            """
-            INSERT INTO subscriptions (
-                subscription_id,
-                user_id,
-                topic_description,
-                manual_keywords_json,
-                created_at
-            )
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (
-                record.subscription_id,
-                record.user_id,
-                record.topic_description,
-                json.dumps(record.manual_keywords, ensure_ascii=False),
-                record.created_at,
-            ),
-        )
+    with session_scope(resolved_database_url) as session:
+        session.add(record)
 
-    return record
+    return _to_subscription_record(record)
 
 
 def list_subscriptions_for_user(
     user_id: str,
     *,
-    db_path: Path | None = None,
+    database_url: str | None = None,
 ) -> list[SubscriptionRecord]:
     """List subscriptions for one user, newest first."""
 
-    db_path = db_path or DB_PATH
-    init_subscription_storage(db_path)
+    resolved_database_url = database_url or DATABASE_URL
+    statement = (
+        select(SubscriptionRecordModel)
+        .where(SubscriptionRecordModel.user_id == user_id)
+        .order_by(SubscriptionRecordModel.created_at.desc())
+    )
 
-    with sqlite3.connect(db_path) as connection:
-        rows = connection.execute(
-            """
-            SELECT subscription_id, user_id, topic_description, manual_keywords_json, created_at
-            FROM subscriptions
-            WHERE user_id = ?
-            ORDER BY created_at DESC
-            """,
-            (user_id,),
-        ).fetchall()
-
-    return [
-        SubscriptionRecord(
-            subscription_id=row[0],
-            user_id=row[1],
-            topic_description=row[2],
-            manual_keywords=tuple(_loads_json_list(row[3])),
-            created_at=row[4],
-        )
-        for row in rows
-    ]
+    with session_scope(resolved_database_url) as session:
+        rows = session.scalars(statement).all()
+    return [_to_subscription_record(row) for row in rows]
 
 
 def get_subscription_for_user(
     user_id: str,
     subscription_id: str,
     *,
-    db_path: Path | None = None,
+    database_url: str | None = None,
 ) -> SubscriptionRecord | None:
     """Load one user-owned subscription."""
 
-    db_path = db_path or DB_PATH
-    init_subscription_storage(db_path)
+    resolved_database_url = database_url or DATABASE_URL
+    statement = (
+        select(SubscriptionRecordModel)
+        .where(SubscriptionRecordModel.user_id == user_id)
+        .where(SubscriptionRecordModel.subscription_id == subscription_id)
+    )
 
-    with sqlite3.connect(db_path) as connection:
-        row = connection.execute(
-            """
-            SELECT subscription_id, user_id, topic_description, manual_keywords_json, created_at
-            FROM subscriptions
-            WHERE user_id = ? AND subscription_id = ?
-            """,
-            (user_id, subscription_id),
-        ).fetchone()
-
+    with session_scope(resolved_database_url) as session:
+        row = session.scalar(statement)
     if row is None:
         return None
-
-    return SubscriptionRecord(
-        subscription_id=row[0],
-        user_id=row[1],
-        topic_description=row[2],
-        manual_keywords=tuple(_loads_json_list(row[3])),
-        created_at=row[4],
-    )
+    return _to_subscription_record(row)
 
 
 def delete_subscription_for_user(
     user_id: str,
     subscription_id: str,
     *,
-    db_path: Path | None = None,
+    database_url: str | None = None,
 ) -> bool:
     """Delete one user-owned subscription."""
 
-    db_path = db_path or DB_PATH
-    init_subscription_storage(db_path)
-
-    with sqlite3.connect(db_path) as connection:
-        cursor = connection.execute(
-            """
-            DELETE FROM subscriptions
-            WHERE user_id = ? AND subscription_id = ?
-            """,
-            (user_id, subscription_id),
+    resolved_database_url = database_url or DATABASE_URL
+    with session_scope(resolved_database_url) as session:
+        result = session.execute(
+            delete(SubscriptionRecordModel)
+            .where(SubscriptionRecordModel.user_id == user_id)
+            .where(SubscriptionRecordModel.subscription_id == subscription_id)
         )
-
-    return cursor.rowcount > 0
-
-
-def _utc_now_iso() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
+    return result.rowcount > 0
 
 
-def _loads_json_list(value: str) -> list[str]:
-    loaded = json.loads(value)
-    if isinstance(loaded, list):
-        return [str(item) for item in loaded]
-    return []
+def _to_subscription_record(record: SubscriptionRecordModel) -> SubscriptionRecord:
+    return SubscriptionRecord(
+        subscription_id=record.subscription_id,
+        user_id=record.user_id,
+        topic_description=record.topic_description,
+        manual_keywords=tuple(str(item) for item in (record.manual_keywords_json or [])),
+        created_at=_ensure_utc(record.created_at).isoformat(timespec="seconds"),
+    )
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _ensure_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)

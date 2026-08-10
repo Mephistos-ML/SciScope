@@ -3,6 +3,11 @@ name = "sciscope"
 version = "0.1.0"
 description = "Scientific signal monitoring for narrow research topics."
 requires-python = ">=3.11"
+dependencies = [
+    "SQLAlchemy>=2.0,<2.1",
+    "alembic>=1.19,<1.20",
+    "psycopg[binary]>=3.3,<3.4",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

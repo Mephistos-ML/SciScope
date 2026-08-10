@@ -17,4 +17,13 @@ os.environ.setdefault(
     "CORS_ORIGINS",
     "http://localhost:5173,https://sciscope.uk,https://www.sciscope.uk",
 )
-os.environ.setdefault("DATABASE_URL", "sqlite:///backend/data/test-sciscope.sqlite3")
+os.environ.setdefault(
+    "DATABASE_URL",
+    "sqlite+pysqlite:///backend/data/test-sciscope.sqlite3",
+)
+
+
+def build_test_database_url(path: Path) -> str:
+    """Build one SQLAlchemy SQLite URL for an on-disk test database."""
+
+    return f"sqlite+pysqlite:///{path}"

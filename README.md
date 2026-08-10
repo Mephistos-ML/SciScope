@@ -118,12 +118,15 @@ Backend:
 
 ```bash
 cd /Users/mephistos/git/SciScope
+python3 -m venv .venv
+./.venv/bin/pip install -e .
 export APP_ENV=development
 export APP_HOST=127.0.0.1
 export APP_PORT=8000
 export CORS_ORIGINS=http://localhost:5173
-export DATABASE_URL=sqlite:///backend/data/sciscope.sqlite3
-python3 backend/app/main.py
+export DATABASE_URL=postgresql+psycopg://sciscope:sciscope@localhost:5432/sciscope
+./.venv/bin/alembic upgrade head
+./.venv/bin/python backend/app/main.py
 ```
 
 Frontend:

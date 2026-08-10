@@ -43,28 +43,10 @@ def _read_required_csv_env(name: str) -> tuple[str, ...]:
     return values
 
 
-def _build_db_path(database_url: str) -> Path:
-    sqlite_prefix = "sqlite:///"
-    if not database_url.startswith(sqlite_prefix):
-        raise RuntimeError(
-            "DATABASE_URL must currently use sqlite:///path/to/sciscope.sqlite3"
-        )
-
-    raw_path = database_url.removeprefix(sqlite_prefix).strip()
-    if not raw_path:
-        raise RuntimeError("DATABASE_URL must include a SQLite file path")
-
-    db_path = Path(raw_path)
-    if not db_path.is_absolute():
-        db_path = PROJECT_ROOT / db_path
-    return db_path
-
-
 APP_ENV = _read_required_env("APP_ENV")
 APP_HOST = _read_required_env("APP_HOST")
 APP_PORT = _read_required_int_env("APP_PORT")
 CORS_ORIGINS = _read_required_csv_env("CORS_ORIGINS")
 DATABASE_URL = _read_required_env("DATABASE_URL")
-DB_PATH = _build_db_path(DATABASE_URL)
 GITHUB_TOKEN = _read_optional_env("GITHUB_TOKEN")
 GITLAB_TOKEN = _read_optional_env("GITLAB_TOKEN")
