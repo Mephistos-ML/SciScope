@@ -1,25 +1,36 @@
-app = "sciscope-api"
-primary_region = "ams"
+# fly.toml app configuration file generated for sciscope-api on 2026-08-10T16:45:04Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'sciscope-api'
+primary_region = 'fra'
 
 [build]
-dockerfile = "backend/Dockerfile"
+  dockerfile = 'backend/Dockerfile'
 
 [env]
-APP_ENV = "production"
-APP_HOST = "0.0.0.0"
-APP_PORT = "8000"
-CORS_ORIGINS = "https://sciscope.uk,https://www.sciscope.uk"
+  APP_ENV = 'production'
+  APP_HOST = '0.0.0.0'
+  APP_PORT = '8000'
+  CORS_ORIGINS = 'https://sciscope.uk,https://www.sciscope.uk'
 
 [http_service]
-internal_port = 8000
-force_https = true
-auto_stop_machines = "stop"
-auto_start_machines = true
-min_machines_running = 0
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
 
-[[http_service.checks]]
-grace_period = "10s"
-interval = "15s"
-method = "GET"
-path = "/ready"
-timeout = "5s"
+  [[http_service.checks]]
+    interval = '15s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/ready'
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 1024
