@@ -1,0 +1,1 @@
+"""Repository-style source adapters."""

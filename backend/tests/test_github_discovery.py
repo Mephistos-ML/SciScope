@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from app.seeds.topics import PNMR_PROFILE
-from app.sources.github import discovery as github_discovery
-from app.sources.github.query_builder import build_repository_search_queries
+from tests.fixtures.profiles import PNMR_PROFILE
+from app.sources.repositories.github import discovery as github_discovery
+from app.sources.repositories.common.query_builder import build_repository_search_queries
 
 
 def test_build_repository_search_queries_uses_profile_terms() -> None:
@@ -14,9 +14,8 @@ def test_build_repository_search_queries_uses_profile_terms() -> None:
     assert "paramagnetic nmr" in queries
     assert "pseudocontact shift" in queries
     assert "susceptibility tensor" in queries
-    assert "paramagnetic relaxation enhancement" in queries
     assert "paranmr" not in queries
-    assert len(queries) <= 5
+    assert len(queries) >= 5
 
 
 def test_discover_repository_candidates_builds_raw_signals(monkeypatch) -> None:

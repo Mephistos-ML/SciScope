@@ -1,0 +1,25 @@
+app = "sciscope-api"
+primary_region = "ams"
+
+[build]
+dockerfile = "backend/Dockerfile"
+
+[env]
+APP_ENV = "production"
+APP_HOST = "0.0.0.0"
+APP_PORT = "8000"
+CORS_ORIGINS = "https://sciscope.uk,https://www.sciscope.uk"
+
+[http_service]
+internal_port = 8000
+force_https = true
+auto_stop_machines = "stop"
+auto_start_machines = true
+min_machines_running = 0
+
+[[http_service.checks]]
+grace_period = "10s"
+interval = "15s"
+method = "GET"
+path = "/ready"
+timeout = "5s"

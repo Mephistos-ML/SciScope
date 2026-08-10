@@ -1,424 +1,335 @@
-"""Persistence for watched entities and topic-specific entity memory."""
+"""Persistence for watched entities and subscription-scoped entity memory."""
 
 from __future__ import annotations
 
-import json
-import sqlite3
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from pathlib import Path
 
-from app.models.entity import Entity, EntityCheckpoint, TopicEntityMatch
-from app.storage.seen_signals import DB_PATH
+from sqlalchemy import delete, select
 
-
-def init_entity_storage(db_path: Path = DB_PATH) -> None:
-    """Initialise entity-related tables."""
-
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with sqlite3.connect(db_path) as connection:
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS entities (
-                entity_id TEXT PRIMARY KEY,
-                source TEXT NOT NULL,
-                entity_type TEXT NOT NULL,
-                canonical_name TEXT NOT NULL,
-                url TEXT NOT NULL,
-                metadata_json TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            )
-            """
-        )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS topic_entity_matches (
-                topic_slug TEXT NOT NULL,
-                entity_id TEXT NOT NULL,
-                source TEXT NOT NULL,
-                score REAL NOT NULL,
-                active INTEGER NOT NULL,
-                reason TEXT NOT NULL,
-                matched_terms_json TEXT NOT NULL,
-                excluded_terms_json TEXT NOT NULL,
-                metadata_json TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                PRIMARY KEY (topic_slug, entity_id)
-            )
-            """
-        )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS entity_checkpoints (
-                entity_id TEXT NOT NULL,
-                source TEXT NOT NULL,
-                checkpoint_key TEXT NOT NULL,
-                checkpoint_value TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                PRIMARY KEY (entity_id, checkpoint_key)
-            )
-            """
-        )
+from app.config import DATABASE_URL
+from app.db.models import (
+    EntityCheckpointRecord,
+    EntityRecord,
+    SubscriptionEntityMatchRecord,
+)
+from app.db.session import session_scope
+from app.models.entity import Entity, EntityCheckpoint, SubscriptionEntityMatch
 
 
 def upsert_entities(
     entities: Sequence[Entity],
-    db_path: Path = DB_PATH,
+    *,
+    database_url: str | None = None,
 ) -> None:
     """Insert or update global entities."""
 
     if not entities:
         return
 
-    init_entity_storage(db_path)
-    timestamp = _utc_now_iso()
-    rows = [
-        (
-            entity.entity_id,
-            entity.source,
-            entity.entity_type,
-            entity.canonical_name,
-            entity.url,
-            json.dumps(entity.metadata, ensure_ascii=False, sort_keys=True),
-            timestamp,
-            timestamp,
-        )
-        for entity in entities
-    ]
+    resolved_database_url = database_url or DATABASE_URL
+    timestamp = _utc_now()
+    with session_scope(resolved_database_url) as session:
+        for entity in entities:
+            record = session.get(EntityRecord, entity.entity_id)
+            if record is None:
+                session.add(
+                    EntityRecord(
+                        entity_id=entity.entity_id,
+                        source=entity.source,
+                        entity_type=entity.entity_type,
+                        canonical_name=entity.canonical_name,
+                        url=entity.url,
+                        metadata_json=dict(entity.metadata),
+                        created_at=timestamp,
+                        updated_at=timestamp,
+                    )
+                )
+                continue
 
-    with sqlite3.connect(db_path) as connection:
-        connection.executemany(
-            """
-            INSERT INTO entities (
-                entity_id,
-                source,
-                entity_type,
-                canonical_name,
-                url,
-                metadata_json,
-                created_at,
-                updated_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(entity_id) DO UPDATE SET
-                source = excluded.source,
-                entity_type = excluded.entity_type,
-                canonical_name = excluded.canonical_name,
-                url = excluded.url,
-                metadata_json = excluded.metadata_json,
-                updated_at = excluded.updated_at
-            """,
-            rows,
-        )
+            record.source = entity.source
+            record.entity_type = entity.entity_type
+            record.canonical_name = entity.canonical_name
+            record.url = entity.url
+            record.metadata_json = dict(entity.metadata)
+            record.updated_at = timestamp
 
 
 def list_entities(
     *,
     source: str | None = None,
     entity_type: str | None = None,
-    db_path: Path = DB_PATH,
+    database_url: str | None = None,
 ) -> list[Entity]:
     """List global entities with optional source/type filters."""
 
-    init_entity_storage(db_path)
-
-    conditions: list[str] = []
-    params: list[object] = []
+    resolved_database_url = database_url or DATABASE_URL
+    statement = select(EntityRecord)
     if source is not None:
-        conditions.append("source = ?")
-        params.append(source)
+        statement = statement.where(EntityRecord.source == source)
     if entity_type is not None:
-        conditions.append("entity_type = ?")
-        params.append(entity_type)
+        statement = statement.where(EntityRecord.entity_type == entity_type)
+    statement = statement.order_by(EntityRecord.canonical_name.asc())
 
-    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    query = f"""
-        SELECT entity_id, source, entity_type, canonical_name, url, metadata_json
-        FROM entities
-        {where_clause}
-        ORDER BY canonical_name ASC
-    """
-
-    with sqlite3.connect(db_path) as connection:
-        rows = connection.execute(query, params).fetchall()
-
-    return [
-        Entity(
-            entity_id=row[0],
-            source=row[1],
-            entity_type=row[2],
-            canonical_name=row[3],
-            url=row[4],
-            metadata=_loads_json_dict(row[5]),
-        )
-        for row in rows
-    ]
+    with session_scope(resolved_database_url) as session:
+        rows = session.scalars(statement).all()
+    return [_to_entity(row) for row in rows]
 
 
 def list_entities_by_ids(
     entity_ids: Sequence[str],
     *,
-    db_path: Path = DB_PATH,
+    database_url: str | None = None,
 ) -> list[Entity]:
     """Load entities by id while preserving the requested subset."""
 
     if not entity_ids:
         return []
 
-    init_entity_storage(db_path)
+    resolved_database_url = database_url or DATABASE_URL
+    statement = (
+        select(EntityRecord)
+        .where(EntityRecord.entity_id.in_(tuple(entity_ids)))
+        .order_by(EntityRecord.canonical_name.asc())
+    )
 
-    placeholders = ", ".join("?" for _ in entity_ids)
-    query = f"""
-        SELECT entity_id, source, entity_type, canonical_name, url, metadata_json
-        FROM entities
-        WHERE entity_id IN ({placeholders})
-        ORDER BY canonical_name ASC
-    """
-
-    with sqlite3.connect(db_path) as connection:
-        rows = connection.execute(query, list(entity_ids)).fetchall()
-
-    return [
-        Entity(
-            entity_id=row[0],
-            source=row[1],
-            entity_type=row[2],
-            canonical_name=row[3],
-            url=row[4],
-            metadata=_loads_json_dict(row[5]),
-        )
-        for row in rows
-    ]
+    with session_scope(resolved_database_url) as session:
+        rows = session.scalars(statement).all()
+    return [_to_entity(row) for row in rows]
 
 
-def upsert_topic_entity_matches(
-    matches: Sequence[TopicEntityMatch],
-    db_path: Path = DB_PATH,
+def upsert_subscription_entity_matches(
+    matches: Sequence[SubscriptionEntityMatch],
+    *,
+    database_url: str | None = None,
 ) -> None:
-    """Insert or update topic-to-entity relevance matches."""
+    """Insert or update subscription-to-entity relevance matches."""
 
     if not matches:
         return
 
-    init_entity_storage(db_path)
-    timestamp = _utc_now_iso()
-    rows = [
-        (
-            match.topic_slug,
-            match.entity_id,
-            match.source,
-            match.score,
-            int(match.active),
-            match.reason,
-            json.dumps(match.matched_terms, ensure_ascii=False),
-            json.dumps(match.excluded_terms, ensure_ascii=False),
-            json.dumps(match.metadata, ensure_ascii=False, sort_keys=True),
-            timestamp,
-            timestamp,
-        )
-        for match in matches
-    ]
-
-    with sqlite3.connect(db_path) as connection:
-        connection.executemany(
-            """
-            INSERT INTO topic_entity_matches (
-                topic_slug,
-                entity_id,
-                source,
-                score,
-                active,
-                reason,
-                matched_terms_json,
-                excluded_terms_json,
-                metadata_json,
-                created_at,
-                updated_at
+    resolved_database_url = database_url or DATABASE_URL
+    timestamp = _utc_now()
+    with session_scope(resolved_database_url) as session:
+        for match in matches:
+            record = session.get(
+                SubscriptionEntityMatchRecord,
+                (match.subscription_id, match.entity_id),
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(topic_slug, entity_id) DO UPDATE SET
-                source = excluded.source,
-                score = excluded.score,
-                active = excluded.active,
-                reason = excluded.reason,
-                matched_terms_json = excluded.matched_terms_json,
-                excluded_terms_json = excluded.excluded_terms_json,
-                metadata_json = excluded.metadata_json,
-                updated_at = excluded.updated_at
-            """,
-            rows,
-        )
+            if record is None:
+                session.add(
+                    SubscriptionEntityMatchRecord(
+                        subscription_id=match.subscription_id,
+                        entity_id=match.entity_id,
+                        source=match.source,
+                        score=match.score,
+                        active=match.active,
+                        reason=match.reason,
+                        matched_terms_json=list(match.matched_terms),
+                        excluded_terms_json=list(match.excluded_terms),
+                        metadata_json=dict(match.metadata),
+                        created_at=timestamp,
+                        updated_at=timestamp,
+                    )
+                )
+                continue
+
+            record.source = match.source
+            record.score = match.score
+            record.active = match.active
+            record.reason = match.reason
+            record.matched_terms_json = list(match.matched_terms)
+            record.excluded_terms_json = list(match.excluded_terms)
+            record.metadata_json = dict(match.metadata)
+            record.updated_at = timestamp
 
 
-def list_topic_entity_matches(
-    topic_slug: str,
+def list_subscription_entity_matches(
+    subscription_id: str,
     *,
     active_only: bool = True,
-    db_path: Path = DB_PATH,
-) -> list[TopicEntityMatch]:
-    """List entity matches for one topic."""
+    database_url: str | None = None,
+) -> list[SubscriptionEntityMatch]:
+    """List entity matches for one subscription."""
 
-    init_entity_storage(db_path)
-
-    query = """
-        SELECT
-            topic_slug,
-            entity_id,
-            source,
-            score,
-            active,
-            reason,
-            matched_terms_json,
-            excluded_terms_json,
-            metadata_json
-        FROM topic_entity_matches
-        WHERE topic_slug = ?
-    """
-    params: list[object] = [topic_slug]
+    resolved_database_url = database_url or DATABASE_URL
+    statement = select(SubscriptionEntityMatchRecord).where(
+        SubscriptionEntityMatchRecord.subscription_id == subscription_id
+    )
     if active_only:
-        query += " AND active = 1"
-    query += " ORDER BY score DESC, entity_id ASC"
+        statement = statement.where(SubscriptionEntityMatchRecord.active.is_(True))
+    statement = statement.order_by(
+        SubscriptionEntityMatchRecord.score.desc(),
+        SubscriptionEntityMatchRecord.entity_id.asc(),
+    )
 
-    with sqlite3.connect(db_path) as connection:
-        rows = connection.execute(query, params).fetchall()
+    with session_scope(resolved_database_url) as session:
+        rows = session.scalars(statement).all()
+    return [_to_subscription_entity_match(row) for row in rows]
 
-    return [
-        TopicEntityMatch(
-            topic_slug=row[0],
-            entity_id=row[1],
-            source=row[2],
-            score=float(row[3]),
-            active=bool(row[4]),
-            reason=row[5],
-            matched_terms=tuple(_loads_json_list(row[6])),
-            excluded_terms=tuple(_loads_json_list(row[7])),
-            metadata=_loads_json_dict(row[8]),
+
+def delete_subscription_entity_matches(
+    subscription_id: str,
+    *,
+    database_url: str | None = None,
+) -> list[str]:
+    """Delete all entity matches for one subscription and return affected entity ids."""
+
+    resolved_database_url = database_url or DATABASE_URL
+    with session_scope(resolved_database_url) as session:
+        entity_ids = session.scalars(
+            select(SubscriptionEntityMatchRecord.entity_id).where(
+                SubscriptionEntityMatchRecord.subscription_id == subscription_id
+            )
+        ).all()
+        session.execute(
+            delete(SubscriptionEntityMatchRecord).where(
+                SubscriptionEntityMatchRecord.subscription_id == subscription_id
+            )
         )
-        for row in rows
-    ]
+    return [str(entity_id) for entity_id in entity_ids]
 
 
 def upsert_entity_checkpoints(
     checkpoints: Sequence[EntityCheckpoint],
-    db_path: Path = DB_PATH,
+    *,
+    database_url: str | None = None,
 ) -> None:
     """Insert or update monitoring checkpoints for entities."""
 
     if not checkpoints:
         return
 
-    init_entity_storage(db_path)
-    rows = [
-        (
-            checkpoint.entity_id,
-            checkpoint.source,
-            checkpoint.checkpoint_key,
-            checkpoint.checkpoint_value,
-            checkpoint.updated_at.astimezone(UTC).isoformat(),
-        )
-        for checkpoint in checkpoints
-    ]
-
-    with sqlite3.connect(db_path) as connection:
-        connection.executemany(
-            """
-            INSERT INTO entity_checkpoints (
-                entity_id,
-                source,
-                checkpoint_key,
-                checkpoint_value,
-                updated_at
+    resolved_database_url = database_url or DATABASE_URL
+    with session_scope(resolved_database_url) as session:
+        for checkpoint in checkpoints:
+            record = session.get(
+                EntityCheckpointRecord,
+                (
+                    checkpoint.subscription_id,
+                    checkpoint.entity_id,
+                    checkpoint.checkpoint_key,
+                ),
             )
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(entity_id, checkpoint_key) DO UPDATE SET
-                source = excluded.source,
-                checkpoint_value = excluded.checkpoint_value,
-                updated_at = excluded.updated_at
-            """,
-            rows,
+            normalized_updated_at = _ensure_utc(checkpoint.updated_at)
+            if record is None:
+                session.add(
+                    EntityCheckpointRecord(
+                        subscription_id=checkpoint.subscription_id,
+                        entity_id=checkpoint.entity_id,
+                        source=checkpoint.source,
+                        checkpoint_key=checkpoint.checkpoint_key,
+                        checkpoint_value=checkpoint.checkpoint_value,
+                        updated_at=normalized_updated_at,
+                    )
+                )
+                continue
+
+            record.source = checkpoint.source
+            record.checkpoint_value = checkpoint.checkpoint_value
+            record.updated_at = normalized_updated_at
+
+
+def delete_entity_checkpoints_for_subscription(
+    subscription_id: str,
+    *,
+    database_url: str | None = None,
+) -> None:
+    """Delete all checkpoints for one subscription."""
+
+    resolved_database_url = database_url or DATABASE_URL
+    with session_scope(resolved_database_url) as session:
+        session.execute(
+            delete(EntityCheckpointRecord).where(
+                EntityCheckpointRecord.subscription_id == subscription_id
+            )
         )
 
 
 def list_entity_checkpoints(
+    subscription_id: str,
     entity_id: str,
     *,
-    db_path: Path = DB_PATH,
+    database_url: str | None = None,
 ) -> list[EntityCheckpoint]:
-    """List checkpoints for one entity."""
+    """List checkpoints for one subscription-owned entity."""
 
-    init_entity_storage(db_path)
+    resolved_database_url = database_url or DATABASE_URL
+    statement = (
+        select(EntityCheckpointRecord)
+        .where(EntityCheckpointRecord.subscription_id == subscription_id)
+        .where(EntityCheckpointRecord.entity_id == entity_id)
+        .order_by(EntityCheckpointRecord.checkpoint_key.asc())
+    )
 
-    with sqlite3.connect(db_path) as connection:
-        rows = connection.execute(
-            """
-            SELECT entity_id, source, checkpoint_key, checkpoint_value, updated_at
-            FROM entity_checkpoints
-            WHERE entity_id = ?
-            ORDER BY checkpoint_key ASC
-            """,
-            (entity_id,),
-        ).fetchall()
-
-    return [
-        EntityCheckpoint(
-            entity_id=row[0],
-            source=row[1],
-            checkpoint_key=row[2],
-            checkpoint_value=row[3],
-            updated_at=datetime.fromisoformat(row[4]),
-        )
-        for row in rows
-    ]
+    with session_scope(resolved_database_url) as session:
+        rows = session.scalars(statement).all()
+    return [_to_entity_checkpoint(row) for row in rows]
 
 
 def get_entity_checkpoint(
+    subscription_id: str,
     entity_id: str,
     checkpoint_key: str,
     *,
-    db_path: Path = DB_PATH,
+    database_url: str | None = None,
 ) -> EntityCheckpoint | None:
-    """Load one checkpoint for one entity."""
+    """Load one checkpoint for one subscription-owned entity."""
 
-    init_entity_storage(db_path)
-
-    with sqlite3.connect(db_path) as connection:
-        row = connection.execute(
-            """
-            SELECT entity_id, source, checkpoint_key, checkpoint_value, updated_at
-            FROM entity_checkpoints
-            WHERE entity_id = ? AND checkpoint_key = ?
-            """,
-            (entity_id, checkpoint_key),
-        ).fetchone()
-
+    resolved_database_url = database_url or DATABASE_URL
+    with session_scope(resolved_database_url) as session:
+        row = session.get(
+            EntityCheckpointRecord,
+            (subscription_id, entity_id, checkpoint_key),
+        )
     if row is None:
         return None
+    return _to_entity_checkpoint(row)
 
-    return EntityCheckpoint(
-        entity_id=row[0],
-        source=row[1],
-        checkpoint_key=row[2],
-        checkpoint_value=row[3],
-        updated_at=datetime.fromisoformat(row[4]),
+
+def _to_entity(record: EntityRecord) -> Entity:
+    return Entity(
+        entity_id=record.entity_id,
+        source=record.source,
+        entity_type=record.entity_type,
+        canonical_name=record.canonical_name,
+        url=record.url,
+        metadata=dict(record.metadata_json or {}),
     )
 
 
-def _utc_now_iso() -> str:
-    return datetime.now(UTC).isoformat()
+def _to_subscription_entity_match(
+    record: SubscriptionEntityMatchRecord,
+) -> SubscriptionEntityMatch:
+    return SubscriptionEntityMatch(
+        subscription_id=record.subscription_id,
+        entity_id=record.entity_id,
+        source=record.source,
+        score=float(record.score),
+        active=bool(record.active),
+        reason=record.reason,
+        matched_terms=tuple(str(item) for item in (record.matched_terms_json or [])),
+        excluded_terms=tuple(str(item) for item in (record.excluded_terms_json or [])),
+        metadata=dict(record.metadata_json or {}),
+    )
 
 
-def _loads_json_dict(raw: str) -> dict[str, object]:
-    value = json.loads(raw)
-    if isinstance(value, dict):
-        return value
-    return {}
+def _to_entity_checkpoint(record: EntityCheckpointRecord) -> EntityCheckpoint:
+    return EntityCheckpoint(
+        subscription_id=record.subscription_id,
+        entity_id=record.entity_id,
+        source=record.source,
+        checkpoint_key=record.checkpoint_key,
+        checkpoint_value=record.checkpoint_value,
+        updated_at=_ensure_utc(record.updated_at),
+    )
 
 
-def _loads_json_list(raw: str) -> list[str]:
-    value = json.loads(raw)
-    if isinstance(value, list):
-        return [str(item) for item in value]
-    return []
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _ensure_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)

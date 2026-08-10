@@ -1,42 +1,20 @@
-"""Web API tests for the first backend split migration."""
+"""Web API tests for the FastAPI backend transport."""
 
 from __future__ import annotations
 
-import io
-import json
+from pathlib import Path
+import tempfile
 
+from fastapi.testclient import TestClient
+
+from tests.conftest import build_test_database_url
+from app.api.app import app
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile, ResearchTopic
 from app.runtime.state import STATE
 from app.services import runtime
-from app.api.routes import application
-
-
-def _request(
-    path: str,
-    *,
-    method: str = "GET",
-) -> tuple[str, dict[str, str], bytes]:
-    captured: dict[str, object] = {}
-
-    def start_response(
-        status: str,
-        headers: list[tuple[str, str]],
-    ) -> None:
-        captured["status"] = status
-        captured["headers"] = dict(headers)
-
-    environ = {
-        "REQUEST_METHOD": method,
-        "PATH_INFO": path,
-        "wsgi.input": io.BytesIO(),
-    }
-    body = b"".join(application(environ, start_response))
-    return (
-        str(captured["status"]),
-        dict(captured["headers"]),
-        body,
-    )
+from app.storage import entities as entity_storage
+from app.storage import subscriptions as subscription_storage
 
 
 def _build_raw_signal(item_id: str) -> RawSignal:
@@ -69,8 +47,17 @@ def _build_active_profile() -> ResearchProfile:
     return ResearchProfile(topic_slug="pnmr", core_terms=("paramagnetic nmr", "pcs"))
 
 
+def _build_runtime_profiles() -> tuple[ResearchProfile, ...]:
+    return (_build_active_profile(),)
+
+
+def _build_runtime_topics() -> tuple[ResearchTopic, ...]:
+    return (_build_active_topic(),)
+
+
 def test_status_and_signal_endpoints_return_json(monkeypatch) -> None:
     STATE.signals.clear()
+    STATE.current_user_id = None
     STATE.monitoring_started_at = None
     STATE.last_scan_at = None
     STATE.last_scan_error = None
@@ -81,49 +68,59 @@ def test_status_and_signal_endpoints_return_json(monkeypatch) -> None:
     STATE.auto_scan_stop_event.clear()
     STATE.auto_scan_thread = None
 
-    monkeypatch.setattr(runtime, "get_active_topic", _build_active_topic)
-    monkeypatch.setattr(runtime, "get_active_profile", _build_active_profile)
-    monkeypatch.setattr(runtime, "describe_watched_github_repositories", lambda topic_slug: [])
-    monkeypatch.setattr(runtime, "describe_release_checkpoints", lambda topic_slug: [])
+    monkeypatch.setattr(runtime, "list_runtime_profiles", _build_runtime_profiles)
+    monkeypatch.setattr(runtime, "list_runtime_topics", _build_runtime_topics)
+    monkeypatch.setattr(runtime, "describe_watched_repositories", lambda topic_slug: [])
+    monkeypatch.setattr(runtime, "describe_repository_checkpoints", lambda topic_slug: [])
     monkeypatch.setattr(runtime, "load_replay_signals", lambda: [_build_raw_signal("demo")])
-    monkeypatch.setattr(runtime, "load_github_signals_for_profile", lambda profile: [])
+    monkeypatch.setattr(runtime, "load_repository_signals_for_profile", lambda profile: [])
     monkeypatch.setattr(runtime, "load_seen_signal_ids", lambda source: set())
     monkeypatch.setattr(runtime, "upsert_raw_signals", lambda signals: None)
 
     runtime.run_scan_cycle()
 
-    status, headers, body = _request("/api/status")
-    assert status == "200 OK"
-    assert headers["Content-Type"] == "application/json; charset=utf-8"
-    status_payload = json.loads(body)
-    assert status_payload["topicSlug"] == "pnmr"
-    assert status_payload["discoveryQueries"] == []
-    assert status_payload["watchedEntities"] == []
-    assert status_payload["sourceCheckpoints"] == []
-    assert status_payload["totalSignals"] == 1
-    assert status_payload["matchedSignals"] == 1
+    with TestClient(app) as client:
+        response = client.get("/api/status")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/json"
+        status_payload = response.json()
+        assert status_payload["topicSlug"] == "pnmr"
+        assert status_payload["discoveryQueries"] == []
+        assert status_payload["watchedEntities"] == []
+        assert status_payload["sourceCheckpoints"] == []
+        assert status_payload["totalSignals"] == 1
+        assert status_payload["matchedSignals"] == 1
 
-    status, _, body = _request("/api/signals")
-    assert status == "200 OK"
-    signal_list = json.loads(body)
-    assert len(signal_list["items"]) == 1
-    assert signal_list["items"][0]["itemId"] == "demo"
+        response = client.get("/api/signals")
+        assert response.status_code == 200
+        signal_list = response.json()
+        assert len(signal_list["items"]) == 1
+        assert signal_list["items"][0]["itemId"] == "demo"
 
-    status, _, body = _request("/api/signals/demo")
-    assert status == "200 OK"
-    detail_payload = json.loads(body)
-    assert detail_payload["itemId"] == "demo"
-    assert detail_payload["matched"] is True
+        response = client.get("/api/signals/demo")
+        assert response.status_code == 200
+        detail_payload = response.json()
+        assert detail_payload["itemId"] == "demo"
+        assert detail_payload["matched"] is True
 
 
-def test_root_returns_service_description() -> None:
-    status, headers, body = _request("/")
+def test_root_health_and_ready_endpoints() -> None:
+    with TestClient(app) as client:
+        response = client.get("/")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/json"
+        payload = response.json()
+        assert payload["service"] == "sciscope-api"
+        assert "/api/signals" in payload["endpoints"]
+        assert "/ready" in payload["endpoints"]
 
-    assert status == "200 OK"
-    assert headers["Content-Type"] == "application/json; charset=utf-8"
-    payload = json.loads(body)
-    assert payload["service"] == "sciscope-api"
-    assert "/api/signals" in payload["endpoints"]
+        response = client.get("/health")
+        assert response.status_code == 200
+        assert response.text == "ok"
+
+        response = client.get("/ready")
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
 
 
 def test_api_start_endpoint_returns_status_json(monkeypatch) -> None:
@@ -142,11 +139,12 @@ def test_api_start_endpoint_returns_status_json(monkeypatch) -> None:
         },
     )
 
-    status, headers, body = _request("/api/start", method="POST")
+    with TestClient(app) as client:
+        response = client.post("/api/start")
 
-    assert status == "200 OK"
-    assert headers["Content-Type"] == "application/json; charset=utf-8"
-    payload = json.loads(body)
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+    payload = response.json()
     assert payload["topicSlug"] == "pnmr"
     assert payload["autoScanStarted"] is True
 
@@ -167,11 +165,12 @@ def test_api_stop_endpoint_returns_status_json(monkeypatch) -> None:
         },
     )
 
-    status, headers, body = _request("/api/stop", method="POST")
+    with TestClient(app) as client:
+        response = client.post("/api/stop")
 
-    assert status == "200 OK"
-    assert headers["Content-Type"] == "application/json; charset=utf-8"
-    payload = json.loads(body)
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+    payload = response.json()
     assert payload["topicSlug"] == "pnmr"
     assert payload["autoScanStarted"] is False
 
@@ -179,9 +178,65 @@ def test_api_stop_endpoint_returns_status_json(monkeypatch) -> None:
 def test_missing_signal_returns_404_json() -> None:
     STATE.signals.clear()
 
-    status, headers, body = _request("/api/signals/missing")
+    with TestClient(app) as client:
+        response = client.get("/api/signals/missing")
 
-    assert status == "404 Not Found"
-    assert headers["Content-Type"] == "application/json; charset=utf-8"
-    payload = json.loads(body)
+    assert response.status_code == 404
+    assert response.headers["content-type"] == "application/json"
+    payload = response.json()
     assert payload["error"] == "Signal not found"
+
+
+def test_dev_login_and_subscription_endpoints(monkeypatch) -> None:
+    STATE.current_user_id = None
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        database_url = build_test_database_url(Path(temp_dir) / "subscriptions.sqlite3")
+        monkeypatch.setattr(subscription_storage, "DATABASE_URL", database_url)
+        monkeypatch.setattr(entity_storage, "DATABASE_URL", database_url)
+
+        with TestClient(app) as client:
+            response = client.get("/api/me")
+            assert response.status_code == 200
+            assert response.json() == {"user": None}
+
+            response = client.get("/api/subscriptions")
+            assert response.status_code == 401
+            assert response.json()["error"] == "Authentication required"
+
+            response = client.post("/api/auth/dev-login")
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["user"]["userId"] == "local-dev-user"
+
+            response = client.post(
+                "/api/subscriptions",
+                json={
+                    "topicDescription": "paramagnetic NMR software",
+                    "manualQueries": ["pcs", "relaxation"],
+                },
+            )
+            assert response.status_code == 201
+            created = response.json()
+            assert created["topicDescription"] == "paramagnetic NMR software"
+            assert created["manualQueries"] == ["pcs", "relaxation"]
+
+            response = client.get("/api/subscriptions")
+            assert response.status_code == 200
+            listed = response.json()
+            assert len(listed["items"]) == 1
+            assert listed["items"][0]["topicDescription"] == "paramagnetic NMR software"
+
+            subscription_id = listed["items"][0]["subscriptionId"]
+            response = client.delete(f"/api/subscriptions/{subscription_id}")
+            assert response.status_code == 200
+            assert response.json() == {"deleted": True}
+
+            response = client.get("/api/subscriptions")
+            assert response.status_code == 200
+            listed = response.json()
+            assert listed["items"] == []
+
+            response = client.post("/api/logout")
+            assert response.status_code == 200
+            assert response.json() == {"user": None}

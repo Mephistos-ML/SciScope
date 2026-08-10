@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from app.sources.github import monitor as github_monitor
+from app.sources.repositories.github import monitor as github_monitor
 
 
 def test_load_repo_activity_builds_release_signals(monkeypatch) -> None:

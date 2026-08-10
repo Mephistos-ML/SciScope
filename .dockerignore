@@ -1,0 +1,12 @@
+.git
+.gitignore
+.venv
+.pytest_cache
+__pycache__
+*.py[cod]
+.DS_Store
+frontend
+docs
+data
+node_modules
+*.sqlite3

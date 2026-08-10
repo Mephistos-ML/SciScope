@@ -1,15 +1,16 @@
-"""Build GitHub discovery queries from generic research profiles."""
+"""Shared repository-family query building."""
 
 from __future__ import annotations
 
 from app.models.topic import ResearchProfile
 
 
-MAX_DISCOVERY_QUERIES = 5
-
-
 def build_repository_search_queries(profile: ResearchProfile) -> tuple[str, ...]:
-    """Build GitHub search queries directly from profile terms."""
+    """Build repository search queries directly from profile terms.
+
+    Manual queries are currently treated as already-normalized profile terms,
+    so this builder only trims and deduplicates them.
+    """
 
     candidates = [
         *profile.core_terms,
@@ -21,7 +22,7 @@ def build_repository_search_queries(profile: ResearchProfile) -> tuple[str, ...]
     seen: set[str] = set()
     for term in candidates:
         normalized = " ".join(term.split()).strip()
-        if not _is_usable_github_query(normalized):
+        if not normalized:
             continue
 
         folded = normalized.casefold()
@@ -30,21 +31,5 @@ def build_repository_search_queries(profile: ResearchProfile) -> tuple[str, ...]
 
         seen.add(folded)
         queries.append(normalized)
-        if len(queries) >= MAX_DISCOVERY_QUERIES:
-            break
 
     return tuple(queries)
-
-
-def _is_usable_github_query(term: str) -> bool:
-    if not term:
-        return False
-
-    if len(term) < 5:
-        return False
-
-    # Drop short abbreviations like PCS/PRE that are too noisy on GitHub.
-    if " " not in term and len(term) < 8:
-        return False
-
-    return True

@@ -1,4 +1,4 @@
-"""Domain models for watched entities and topic-specific memory."""
+"""Domain models for watched entities and subscription-scoped memory."""
 
 from __future__ import annotations
 
@@ -27,10 +27,10 @@ class Entity:
 
 
 @dataclass(frozen=True)
-class TopicEntityMatch:
-    """A topic-specific relevance link to one global entity."""
+class SubscriptionEntityMatch:
+    """A subscription-specific relevance link to one global entity."""
 
-    topic_slug: str
+    subscription_id: str
     entity_id: str
     source: str
     matched_terms: tuple[str, ...] = ()
@@ -45,6 +45,7 @@ class TopicEntityMatch:
 class EntityCheckpoint:
     """Source-specific monitoring checkpoint for one watched entity."""
 
+    subscription_id: str
     entity_id: str
     source: str
     checkpoint_key: str

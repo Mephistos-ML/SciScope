@@ -1,6 +1,6 @@
 export type StatusPayload = {
-  topicSlug: string;
-  topicLabel: string;
+  topicSlug: string | null;
+  topicLabel: string | null;
   autoScanStarted: boolean;
   autoScanIntervalSeconds: number;
   lastScanAt: string | null;
@@ -15,6 +15,16 @@ export type StatusPayload = {
   matchedSignals: number;
 };
 
+export type Viewer = {
+  userId: string;
+  email: string;
+  displayName: string;
+};
+
+export type ViewerPayload = {
+  user: Viewer | null;
+};
+
 export type DiscoveryResultPayload = {
   topicSlug: string;
   queries: string[];
@@ -25,6 +35,7 @@ export type DiscoveryResultPayload = {
 
 export type WatchedEntityPayload = {
   entityId: string;
+  source: string;
   repo: string | null;
   url: string;
   stars: number | null;
@@ -34,6 +45,7 @@ export type WatchedEntityPayload = {
 
 export type SourceCheckpointPayload = {
   entityId: string;
+  source: string;
   repo: string | null;
   checkpointKey: string;
   checkpointValue: string | null;
@@ -71,4 +83,36 @@ export type SignalDetailPayload = {
   normalizedText: string;
   metadata: Record<string, unknown>;
   isNew: boolean;
+};
+
+export type SubscriptionItem = {
+  subscriptionId: string;
+  topicDescription: string;
+  manualQueries: string[];
+  createdAt: string;
+};
+
+export type SubscriptionListPayload = {
+  items: SubscriptionItem[];
+};
+
+export type ExploreResultItem = {
+  itemId: string;
+  source: string;
+  fullName: string;
+  url: string;
+  description: string;
+  language: string | null;
+  stars: number | null;
+  query: string | null;
+  score: number;
+  reason: string;
+  matchedTerms: string[];
+};
+
+export type ExploreSearchPayload = {
+  topicDescription: string;
+  manualQueries: string[];
+  queries: string[];
+  items: ExploreResultItem[];
 };

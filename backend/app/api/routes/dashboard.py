@@ -10,12 +10,19 @@ def get_root_payload() -> dict[str, object]:
         "service": "sciscope-api",
         "status": "ok",
         "endpoints": [
+            "/api/me",
+            "/api/auth/dev-login",
+            "/api/logout",
+            "/api/explore/search",
             "/api/status",
             "/api/signals",
             "/api/signals/{id}",
+            "/api/subscriptions",
+            "/api/subscriptions/{id}",
             "/api/start",
             "/api/stop",
             "/health",
+            "/ready",
         ],
     }
 

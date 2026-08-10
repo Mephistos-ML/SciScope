@@ -1,4 +1,4 @@
-"""Seed topics and research profiles for early V0 bootstrap."""
+"""Static research-profile fixtures for backend tests."""
 
 from __future__ import annotations
 
@@ -21,11 +21,8 @@ PNMR_PROFILE = ResearchProfile(
         "paramagnetic nmr",
         "pseudocontact shift",
         "pcs",
-        "paramagnetic relaxation enhancement",
-        "pre",
         "magnetic susceptibility tensor",
         "susceptibility tensor",
-        "lanthanide tag",
     ),
     synonyms=(
         "para nmr",
@@ -58,22 +55,7 @@ PNMR_PROFILE = ResearchProfile(
         "PCS PRE lanthanide assignment",
         "paramagnetic NMR software release",
     ),
+    metadata={
+        "demo": "pnmr",
+    },
 )
-
-
-def get_seed_topic(topic_slug: str) -> ResearchTopic:
-    """Return one built-in topic seed for early V0 development."""
-
-    if topic_slug == PNMR_TOPIC.slug:
-        return PNMR_TOPIC
-
-    raise KeyError(f"Unknown seeded topic: {topic_slug}")
-
-
-def get_seed_profile(topic_slug: str) -> ResearchProfile:
-    """Return one built-in research profile for early V0 development."""
-
-    if topic_slug == PNMR_PROFILE.topic_slug:
-        return PNMR_PROFILE
-
-    raise KeyError(f"Unknown seeded profile: {topic_slug}")

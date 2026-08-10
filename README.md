@@ -32,7 +32,7 @@ Current working scope:
 - seeded topic: `pnmr`
 - seeded research profile for paramagnetic NMR
 - GitHub repository discovery from profile terms
-- persistent watched repository memory in SQLite
+- persistent watched repository memory in Postgres
 - per-repository release checkpoints
 - continuous monitoring loop for GitHub releases
 - local dashboard for signals and pipeline debugging
@@ -77,12 +77,12 @@ High-level backend flow:
   - current bootstrap topic and profile data
 - `services/topic_registry.py`
   - resolves the active topic/profile for the local runtime
-- `sources/github/discovery.py`
-  - searches GitHub repositories for profile-derived queries
+- `sources/repositories/runtime.py`
+  - coordinates repository-family discovery and monitoring across concrete adapters
 - `services/discovery.py`
   - stores relevant repositories as watched entities
-- `services/monitoring.py`
-  - monitors watched repositories for new releases
+- `sources/repositories/github/` and `sources/repositories/gitlab/`
+  - implement repository discovery and release monitoring per source
 - `services/runtime.py`
   - orchestrates start/stop, scan cycles, status payloads, and signal views
 - `storage/`
@@ -117,15 +117,24 @@ This is still a pNMR-tuned engineering proof of concept, not a finished product.
 Backend:
 
 ```bash
-cd /Users/mephistos/git/SciScope
-python3 backend/app/main.py
+cd /Users/ernestborysenko/git/SciScope
+python3 -m venv .venv
+./.venv/bin/pip install -e .
+export APP_ENV=development
+export APP_HOST=127.0.0.1
+export APP_PORT=8000
+export CORS_ORIGINS=http://localhost:5173
+export DATABASE_URL=postgresql+psycopg://sciscope:sciscope@localhost:5432/sciscope
+./.venv/bin/alembic upgrade head
+./.venv/bin/python -m app.main
 ```
 
 Frontend:
 
 ```bash
-cd /Users/mephistos/git/SciScope/frontend
+cd /Users/ernestborysenko/git/SciScope/frontend
 npm install
+cp .env.example .env
 npm run dev
 ```
 
@@ -156,5 +165,6 @@ The immediate milestone for this repository is:
 
 - Python backend: `>=3.11`
 - Frontend: Vite + React + TypeScript
-- Local state currently lives in SQLite
-- Architecture notes live in [docs/architecture.md](/Users/mephistos/git/SciScope/docs/architecture.md)
+- Persistent state now runs through Postgres via SQLAlchemy + Alembic
+- Architecture notes live in [docs/architecture.md](/Users/ernestborysenko/git/SciScope/docs/architecture.md)
+- Public frontend deploy should run with `VITE_AUTH_MODE=disabled` until the real sign-in flow replaces the temporary developer login

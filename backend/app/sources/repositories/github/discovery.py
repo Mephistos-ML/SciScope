@@ -3,25 +3,30 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from pathlib import Path
 from urllib.parse import quote_plus
 
+from app.config import DATABASE_URL
 from app.models.discovery import DiscoveryResult
-from app.models.entity import Entity, TopicEntityMatch
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile
-from app.sources.github.client import GITHUB_API_BASE, fetch_json
-from app.sources.github.query_builder import build_repository_search_queries
+from app.sources.repositories.common import (
+    RepositoryCandidate,
+    build_repository_candidate_signal,
+    build_repository_entity,
+    build_repository_subscription_match,
+    build_repository_text,
+)
+from app.sources.repositories.github.client import GITHUB_API_BASE, fetch_json
+from app.sources.repositories.common.query_builder import build_repository_search_queries
 from app.services.matching import match_signal_to_profile
 from app.services.normalization import normalize_raw_signal
-from app.storage.entities import upsert_entities, upsert_topic_entity_matches
-from app.storage.seen_signals import DB_PATH
+from app.storage.entities import upsert_entities, upsert_subscription_entity_matches
 
 
 def discover_repository_candidates(
     queries: Sequence[str],
     *,
-    per_query_limit: int = 5,
+    per_query_limit: int = 10,
 ) -> list[RawSignal]:
     """Search GitHub repositories for topic-derived queries."""
 
@@ -54,31 +59,18 @@ def discover_repository_candidates(
             if isinstance(owner, dict):
                 owner_login = str(owner.get("login") or "")
 
-            signals.append(
-                RawSignal(
-                    source="github",
-                    source_type="github_repository",
-                    item_id=f"github:repo:{full_name}",
-                    title=full_name,
-                    url=str(item.get("html_url") or f"https://github.com/{full_name}"),
-                    published_at=None,
-                    raw_text=_build_repository_text(
-                        full_name=full_name,
-                        description=description,
-                        topics=topic_list,
-                        language=language,
-                    ),
-                    payload={
-                        "signal_kind": "github_repository",
-                        "repo": full_name,
-                        "author": owner_login,
-                        "topics": topic_list,
-                        "language": language,
-                        "stars": stars,
-                        "query": query,
-                    },
-                )
+            candidate = RepositoryCandidate(
+                source="github",
+                full_name=full_name,
+                url=str(item.get("html_url") or f"https://github.com/{full_name}"),
+                query=query,
+                description=description,
+                owner_login=owner_login,
+                language=language,
+                stars=stars,
+                topics=tuple(topic_list),
             )
+            signals.append(build_repository_candidate_signal(candidate))
 
     return signals
 
@@ -86,16 +78,17 @@ def discover_repository_candidates(
 def discover_github_entities_for_profile(
     profile: ResearchProfile,
     *,
-    db_path: Path = DB_PATH,
+    database_url: str | None = None,
 ) -> DiscoveryResult:
     """Discover GitHub repositories relevant to one research profile."""
 
+    resolved_database_url = database_url or DATABASE_URL
     queries = build_repository_search_queries(profile)
     candidates = discover_repository_candidates(queries)
 
     deduped_candidates = _dedupe_repository_candidates(candidates)
-    entities: list[Entity] = []
-    matches: list[TopicEntityMatch] = []
+    entities = []
+    matches = []
 
     for raw_signal in deduped_candidates.values():
         normalized_signal = normalize_raw_signal(raw_signal)
@@ -104,42 +97,17 @@ def discover_github_entities_for_profile(
         if not match.matched:
             continue
 
-        repo_name = str(raw_signal.payload.get("repo") or raw_signal.title)
-        entities.append(
-            Entity(
-                entity_id=raw_signal.item_id,
-                source=raw_signal.source,
-                entity_type="repository",
-                canonical_name=repo_name,
-                url=raw_signal.url,
-                metadata={
-                    "repo": repo_name,
-                    "query": raw_signal.payload.get("query"),
-                    "topics": raw_signal.payload.get("topics", []),
-                    "language": raw_signal.payload.get("language"),
-                    "stars": raw_signal.payload.get("stars"),
-                },
-            )
-        )
+        entities.append(build_repository_entity(raw_signal))
         matches.append(
-            TopicEntityMatch(
-                topic_slug=profile.topic_slug,
-                entity_id=raw_signal.item_id,
-                source=raw_signal.source,
-                matched_terms=match.matched_terms,
-                excluded_terms=match.excluded_terms,
-                score=match.score,
-                active=True,
-                reason=match.reason,
-                metadata={
-                    "repo": repo_name,
-                    "query": raw_signal.payload.get("query"),
-                },
+            build_repository_subscription_match(
+                raw_signal,
+                subscription_id=profile.topic_slug,
+                match=match,
             )
         )
 
-    upsert_entities(entities, db_path=db_path)
-    upsert_topic_entity_matches(matches, db_path=db_path)
+    upsert_entities(entities, database_url=resolved_database_url)
+    upsert_subscription_entity_matches(matches, database_url=resolved_database_url)
 
     return DiscoveryResult(
         topic_slug=profile.topic_slug,
@@ -174,18 +142,3 @@ def _dedupe_repository_candidates(
             deduped[signal.item_id] = signal
 
     return deduped
-
-
-def _build_repository_text(
-    *,
-    full_name: str,
-    description: str,
-    topics: Sequence[str],
-    language: str,
-) -> str:
-    parts: list[str] = [full_name, description]
-    if topics:
-        parts.append(" ".join(topic.strip() for topic in topics if topic.strip()))
-    if language.strip():
-        parts.append(language.strip())
-    return "\n".join(part.strip() for part in parts if part.strip())

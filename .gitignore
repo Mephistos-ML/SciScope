@@ -1,7 +1,14 @@
 .DS_Store
+.env
+.env.*
+!.env.example
+.venv/
 .pytest_cache/
 __pycache__/
 *.py[cod]
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
 frontend/node_modules/
 frontend/.vite/
 frontend/dist/
@@ -9,3 +16,4 @@ frontend/*.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts
 backend/data/sciscope.sqlite3
+data/test-*.sqlite3

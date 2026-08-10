@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
-from app.seeds.topics import PNMR_PROFILE
+from tests.fixtures.profiles import PNMR_PROFILE
+from tests.conftest import build_test_database_url
 from app.services.discovery import discover_entities_for_profile
-from app.storage.entities import list_entities, list_topic_entity_matches
+from app.storage.entities import list_entities, list_subscription_entity_matches
 
 
 def test_discover_entities_for_profile_persists_matched_repositories(
     monkeypatch,
     tmp_path,
 ) -> None:
-    from app.sources.github import discovery as github_discovery
+    from app.sources.repositories.github import discovery as github_discovery
+    from app.sources.repositories.gitlab import discovery as gitlab_discovery
     from app.models.signal import RawSignal
 
     def fake_discover_repository_candidates(queries: tuple[str, ...]) -> list[RawSignal]:
@@ -61,12 +63,17 @@ def test_discover_entities_for_profile_persists_matched_repositories(
         "discover_repository_candidates",
         fake_discover_repository_candidates,
     )
+    monkeypatch.setattr(
+        gitlab_discovery,
+        "discover_repository_candidates",
+        lambda queries: [],
+    )
 
-    db_path = tmp_path / "discovery.sqlite3"
-    result = discover_entities_for_profile(PNMR_PROFILE, db_path=db_path)
+    database_url = build_test_database_url(tmp_path / "discovery.sqlite3")
+    result = discover_entities_for_profile(PNMR_PROFILE, database_url=database_url)
 
-    entities = list_entities(source="github", db_path=db_path)
-    matches = list_topic_entity_matches("pnmr", db_path=db_path)
+    entities = list_entities(source="github", database_url=database_url)
+    matches = list_subscription_entity_matches("pnmr", database_url=database_url)
 
     assert result.topic_slug == "pnmr"
     assert result.candidate_count == 2
