@@ -11,13 +11,14 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.api.routes import application
+from app.config import APP_HOST, APP_PORT
 
 
 def main() -> None:
-    """Run the local SciScope backend API."""
+    """Run the SciScope backend API."""
 
-    host = "127.0.0.1"
-    port = 8000
+    host = APP_HOST
+    port = APP_PORT
     print(f"SciScope backend running at http://{host}:{port}")
     try:
         with make_server(host, port, application) as server:

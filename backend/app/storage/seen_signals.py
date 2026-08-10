@@ -12,9 +12,8 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
+from app.config import DB_PATH
 from app.models.signal import RawSignal
-
-DB_PATH = Path(__file__).resolve().parents[2] / "data" / "sciscope.sqlite3"
 
 
 def init_db(db_path: Path = DB_PATH) -> None:

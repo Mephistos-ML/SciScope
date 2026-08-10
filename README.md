@@ -118,6 +118,11 @@ Backend:
 
 ```bash
 cd /Users/mephistos/git/SciScope
+export APP_ENV=development
+export APP_HOST=127.0.0.1
+export APP_PORT=8000
+export CORS_ORIGINS=http://localhost:5173
+export DATABASE_URL=sqlite:///backend/data/sciscope.sqlite3
 python3 backend/app/main.py
 ```
 
@@ -126,6 +131,7 @@ Frontend:
 ```bash
 cd /Users/mephistos/git/SciScope/frontend
 npm install
+cp .env.example .env
 npm run dev
 ```
 
