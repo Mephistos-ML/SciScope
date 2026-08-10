@@ -6,9 +6,10 @@ import {
   fetchMe,
   fetchSubscriptions,
   runExploreSearch,
-  signInDev,
+  signInWithDevSession,
   signOut,
 } from "../lib/api";
+import { frontendConfig } from "../lib/config";
 import { AppHeader } from "../components/AppHeader";
 import { ExplorePage } from "../pages/ExplorePage";
 import { FeedPage } from "../pages/FeedPage";
@@ -21,6 +22,7 @@ import type {
 type AppView = "explore" | "feed";
 
 export function App() {
+  const { authMode } = frontendConfig;
   const [activeView, setActiveView] = useState<AppView>("explore");
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [results, setResults] = useState<ExploreResultItem[]>([]);
@@ -72,10 +74,15 @@ export function App() {
   }, [viewer]);
 
   async function handleSignIn() {
+    if (authMode !== "dev") {
+      setErrorMessage("Authentication is not enabled in this environment yet.");
+      return;
+    }
+
     setSigningIn(true);
     setErrorMessage(null);
     try {
-      const payload = await signInDev();
+      const payload = await signInWithDevSession();
       setViewer(payload.user);
       setActiveView("explore");
     } catch (error) {
@@ -121,6 +128,11 @@ export function App() {
 
   async function handleSubscribe() {
     if (!viewer) {
+      setErrorMessage(
+        authMode === "dev"
+          ? "Sign in before creating a subscription."
+          : "Authentication is not enabled in this environment yet.",
+      );
       return;
     }
 
@@ -172,6 +184,7 @@ export function App() {
     <>
       <AppHeader
         activeView={activeView}
+        authMode={authMode}
         onNavigate={setActiveView}
         onSignIn={() => void handleSignIn()}
         onSignOut={() => void handleSignOut()}
@@ -181,9 +194,15 @@ export function App() {
       />
 
       {errorMessage ? <section className="error-banner global-banner">{errorMessage}</section> : null}
+      {!viewer && authMode !== "dev" ? (
+        <section className="info-banner global-banner">
+          Explore mode is public. Saved subscriptions will unlock after the real authentication flow is added.
+        </section>
+      ) : null}
 
       {activeView === "explore" ? (
         <ExplorePage
+          authMode={authMode}
           canSubscribe={Boolean(viewer)}
           createPending={createPending}
           queryInput={queryInput}
@@ -199,6 +218,7 @@ export function App() {
         />
       ) : (
         <FeedPage
+          authMode={authMode}
           deletePending={deletePending}
           selectedSubscriptionId={selectedSubscriptionId}
           subscriptions={subscriptions}

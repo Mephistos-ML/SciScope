@@ -1,7 +1,9 @@
+import type { AuthMode } from "../lib/config";
 import type { ExploreResultItem, ViewerPayload } from "../types/api";
 import { SourceBadge } from "../components/SourceBadge";
 
 type ExplorePageProps = {
+  authMode: AuthMode;
   canSubscribe: boolean;
   createPending: boolean;
   queryInput: string;
@@ -17,6 +19,7 @@ type ExplorePageProps = {
 };
 
 export function ExplorePage({
+  authMode,
   canSubscribe,
   createPending,
   queryInput,
@@ -85,7 +88,9 @@ export function ExplorePage({
             <p className="field-hint">
               {viewer
                 ? "Save this topic to your feed."
-                : "Sign in to save this topic to your feed."}
+                : authMode === "dev"
+                  ? "Developer sign-in is required before you can save this topic."
+                  : "Authentication is disabled in this environment, so subscriptions stay read-only for now."}
             </p>
           </div>
         </div>

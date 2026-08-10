@@ -117,7 +117,7 @@ This is still a pNMR-tuned engineering proof of concept, not a finished product.
 Backend:
 
 ```bash
-cd /Users/mephistos/git/SciScope
+cd /Users/ernestborysenko/git/SciScope
 python3 -m venv .venv
 ./.venv/bin/pip install -e .
 export APP_ENV=development
@@ -132,7 +132,7 @@ export DATABASE_URL=postgresql+psycopg://sciscope:sciscope@localhost:5432/scisco
 Frontend:
 
 ```bash
-cd /Users/mephistos/git/SciScope/frontend
+cd /Users/ernestborysenko/git/SciScope/frontend
 npm install
 cp .env.example .env
 npm run dev
@@ -166,4 +166,5 @@ The immediate milestone for this repository is:
 - Python backend: `>=3.11`
 - Frontend: Vite + React + TypeScript
 - Persistent state now runs through Postgres via SQLAlchemy + Alembic
-- Architecture notes live in [docs/architecture.md](/Users/mephistos/git/SciScope/docs/architecture.md)
+- Architecture notes live in [docs/architecture.md](/Users/ernestborysenko/git/SciScope/docs/architecture.md)
+- Public frontend deploy should run with `VITE_AUTH_MODE=disabled` until the real sign-in flow replaces the temporary developer login

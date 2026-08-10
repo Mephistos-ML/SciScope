@@ -7,114 +7,151 @@ import type {
   SubscriptionListPayload,
   ViewerPayload,
 } from "../types/api";
+import { frontendConfig } from "./config";
 
-const API_BASE_URL = readApiBaseUrl();
+type ApiErrorPayload = {
+  error?: string;
+  detail?: string;
+};
 
-async function readJson<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`);
+class ApiError extends Error {
+  constructor(message: string, readonly status: number | null = null) {
+    super(message);
+    this.name = "ApiError";
   }
-
-  return (await response.json()) as T;
-}
-
-function readApiBaseUrl(): string {
-  const value = import.meta.env.VITE_API_BASE_URL;
-  if (typeof value !== "string" || value.trim() === "") {
-    throw new Error("Missing required frontend environment variable: VITE_API_BASE_URL");
-  }
-
-  return value.replace(/\/+$/, "");
 }
 
 function buildApiUrl(path: string): string {
-  return `${API_BASE_URL}${path}`;
+  return `${frontendConfig.apiBaseUrl}${path}`;
+}
+
+async function parseResponseJson<T>(response: Response): Promise<T> {
+  return (await response.json()) as T;
+}
+
+async function readErrorMessage(response: Response): Promise<string> {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    const payload = await parseResponseJson<ApiErrorPayload>(response);
+    if (typeof payload.error === "string" && payload.error.trim() !== "") {
+      return payload.error;
+    }
+
+    if (typeof payload.detail === "string" && payload.detail.trim() !== "") {
+      return payload.detail;
+    }
+  }
+
+  return `Request failed with status ${response.status}`;
+}
+
+async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), frontendConfig.requestTimeoutMs);
+
+  try {
+    const headers = new Headers(init?.headers);
+    headers.set("Accept", "application/json");
+
+    const response = await fetch(buildApiUrl(path), {
+      ...init,
+      headers,
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new ApiError(await readErrorMessage(response), response.status);
+    }
+
+    return await parseResponseJson<T>(response);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiError("The API request timed out. Please try again.");
+    }
+
+    throw new ApiError("The SciScope API is unreachable right now. Please try again.");
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 export async function fetchStatus(): Promise<StatusPayload> {
-  const response = await fetch(buildApiUrl("/api/status"));
-  return readJson<StatusPayload>(response);
+  return requestJson<StatusPayload>("/api/status");
 }
 
 export async function fetchMe(): Promise<ViewerPayload> {
-  const response = await fetch(buildApiUrl("/api/me"));
-  return readJson<ViewerPayload>(response);
+  return requestJson<ViewerPayload>("/api/me");
 }
 
-export async function signInDev(): Promise<ViewerPayload> {
-  const response = await fetch(buildApiUrl("/api/auth/dev-login"), {
+export async function signInWithDevSession(): Promise<ViewerPayload> {
+  return requestJson<ViewerPayload>("/api/auth/dev-login", {
     method: "POST",
   });
-  return readJson<ViewerPayload>(response);
 }
 
 export async function signOut(): Promise<ViewerPayload> {
-  const response = await fetch(buildApiUrl("/api/logout"), {
+  return requestJson<ViewerPayload>("/api/logout", {
     method: "POST",
   });
-  return readJson<ViewerPayload>(response);
 }
 
 export async function fetchSubscriptions(): Promise<SubscriptionListPayload> {
-  const response = await fetch(buildApiUrl("/api/subscriptions"));
-  return readJson<SubscriptionListPayload>(response);
+  return requestJson<SubscriptionListPayload>("/api/subscriptions");
 }
 
 export async function createSubscription(payload: {
   topicDescription: string;
   manualQueries: string[];
 }): Promise<SubscriptionItem> {
-  const response = await fetch(buildApiUrl("/api/subscriptions"), {
+  return requestJson<SubscriptionItem>("/api/subscriptions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
   });
-  return readJson<SubscriptionItem>(response);
 }
 
 export async function deleteSubscription(subscriptionId: string): Promise<{ deleted: true }> {
-  const response = await fetch(buildApiUrl(`/api/subscriptions/${subscriptionId}`), {
+  return requestJson<{ deleted: true }>(`/api/subscriptions/${subscriptionId}`, {
     method: "DELETE",
   });
-  return readJson<{ deleted: true }>(response);
 }
 
 export async function runExploreSearch(payload: {
   topicDescription: string;
   manualQueries: string[];
 }): Promise<ExploreSearchPayload> {
-  const response = await fetch(buildApiUrl("/api/explore/search"), {
+  return requestJson<ExploreSearchPayload>("/api/explore/search", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
   });
-  return readJson<ExploreSearchPayload>(response);
 }
 
 export async function fetchSignals(): Promise<SignalListPayload> {
-  const response = await fetch(buildApiUrl("/api/signals"));
-  return readJson<SignalListPayload>(response);
+  return requestJson<SignalListPayload>("/api/signals");
 }
 
 export async function fetchSignalDetail(itemId: string): Promise<SignalDetailPayload> {
-  const response = await fetch(buildApiUrl(`/api/signals/${itemId}`));
-  return readJson<SignalDetailPayload>(response);
+  return requestJson<SignalDetailPayload>(`/api/signals/${itemId}`);
 }
 
 export async function startScan(): Promise<StatusPayload> {
-  const response = await fetch(buildApiUrl("/api/start"), {
+  return requestJson<StatusPayload>("/api/start", {
     method: "POST",
   });
-  return readJson<StatusPayload>(response);
 }
 
 export async function stopScan(): Promise<StatusPayload> {
-  const response = await fetch(buildApiUrl("/api/stop"), {
+  return requestJson<StatusPayload>("/api/stop", {
     method: "POST",
   });
-  return readJson<StatusPayload>(response);
 }

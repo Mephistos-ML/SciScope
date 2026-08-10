@@ -144,6 +144,17 @@ a {
   background: #f5f5f5;
 }
 
+.info-banner {
+  padding: 16px 18px;
+  border: 2px solid #000000;
+  border-radius: 22px;
+  background: #fff5cc;
+}
+
+.viewer-strip-muted {
+  background: #f5f5f5;
+}
+
 .app-shell {
   padding: 8px 0 40px;
 }

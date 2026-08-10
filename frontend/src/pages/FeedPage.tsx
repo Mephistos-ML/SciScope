@@ -1,6 +1,8 @@
+import type { AuthMode } from "../lib/config";
 import type { SubscriptionItem, ViewerPayload } from "../types/api";
 
 type FeedPageProps = {
+  authMode: AuthMode;
   deletePending: boolean;
   selectedSubscriptionId: string | null;
   subscriptions: SubscriptionItem[];
@@ -10,6 +12,7 @@ type FeedPageProps = {
 };
 
 export function FeedPage({
+  authMode,
   deletePending,
   selectedSubscriptionId,
   subscriptions,
@@ -28,7 +31,9 @@ export function FeedPage({
             <p className="section-kicker">My Feed</p>
             <h2 className="section-title">Sign in to save topics and follow updates.</h2>
             <p className="section-copy">
-              Your saved topics appear here as subscriptions with their own update streams.
+              {authMode === "dev"
+                ? "Your saved topics appear here as subscriptions with their own update streams."
+                : "Authentication is disabled in this environment, so this feed stays locked until the real sign-in flow is added."}
             </p>
           </div>
         </section>
