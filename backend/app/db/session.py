@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import DATABASE_URL
@@ -32,6 +34,7 @@ def get_engine(database_url: str | None = None) -> Engine:
     if engine is not None:
         return engine
 
+    _prepare_sqlite_directory(resolved_url)
     engine_kwargs: dict[str, object] = {"future": True}
     if resolved_url.startswith("sqlite"):
         engine_kwargs["connect_args"] = {"check_same_thread": False}
@@ -68,6 +71,28 @@ def get_session_factory(database_url: str | None = None) -> sessionmaker[Session
     )
     _SESSION_FACTORY_CACHE[resolved_url] = session_factory
     return session_factory
+
+
+def _prepare_sqlite_directory(database_url: str) -> None:
+    if not database_url.startswith("sqlite"):
+        return
+
+    url = make_url(database_url)
+    if url.database in (None, "", ":memory:"):
+        return
+
+    db_path = Path(url.database)
+    if not db_path.is_absolute():
+        db_path = Path.cwd() / db_path
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def check_database_connection(database_url: str | None = None) -> None:
+    """Verify that the configured database accepts a simple query."""
+
+    resolved_url = resolve_database_url(database_url)
+    with get_engine(resolved_url).connect() as connection:
+        connection.execute(text("SELECT 1"))
 
 
 @contextmanager

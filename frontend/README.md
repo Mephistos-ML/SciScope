@@ -5,18 +5,20 @@ React + TypeScript dashboard for SciScope.
 ## Local dev
 
 1. Install Node.js 20+.
-2. Run the Python backend on `http://127.0.0.1:8000`.
+2. Run the backend API on `http://127.0.0.1:8000`.
 3. From `frontend/` run:
 
 ```bash
 npm install
+cp .env.example .env
 npm run dev
 ```
 
-Vite proxies `/api` requests to the local Python backend.
+Set `VITE_API_BASE_URL=http://127.0.0.1:8000` in `frontend/.env`.
 
 Backend entrypoint:
 
 ```bash
-python3 /Users/mephistos/git/SciScope/backend/app/main.py
+cd /Users/mephistos/git/SciScope
+./.venv/bin/python -m app.main
 ```

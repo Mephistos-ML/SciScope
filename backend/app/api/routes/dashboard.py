@@ -22,6 +22,7 @@ def get_root_payload() -> dict[str, object]:
             "/api/start",
             "/api/stop",
             "/health",
+            "/ready",
         ],
     }
 

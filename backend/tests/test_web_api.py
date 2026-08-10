@@ -1,54 +1,20 @@
-"""Web API tests for the first backend split migration."""
+"""Web API tests for the FastAPI backend transport."""
 
 from __future__ import annotations
 
-import io
-import json
 from pathlib import Path
 import tempfile
 
+from fastapi.testclient import TestClient
+
 from tests.conftest import build_test_database_url
+from app.api.app import app
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile, ResearchTopic
 from app.runtime.state import STATE
 from app.services import runtime
-from app.api.routes import application
 from app.storage import entities as entity_storage
 from app.storage import subscriptions as subscription_storage
-
-
-def _request(
-    path: str,
-    *,
-    method: str = "GET",
-    payload: dict[str, object] | None = None,
-) -> tuple[str, dict[str, str], bytes]:
-    captured: dict[str, object] = {}
-    body_bytes = (
-        json.dumps(payload).encode("utf-8")
-        if payload is not None
-        else b""
-    )
-
-    def start_response(
-        status: str,
-        headers: list[tuple[str, str]],
-    ) -> None:
-        captured["status"] = status
-        captured["headers"] = dict(headers)
-
-    environ = {
-        "REQUEST_METHOD": method,
-        "PATH_INFO": path,
-        "CONTENT_LENGTH": str(len(body_bytes)),
-        "wsgi.input": io.BytesIO(body_bytes),
-    }
-    body = b"".join(application(environ, start_response))
-    return (
-        str(captured["status"]),
-        dict(captured["headers"]),
-        body,
-    )
 
 
 def _build_raw_signal(item_id: str) -> RawSignal:
@@ -113,38 +79,48 @@ def test_status_and_signal_endpoints_return_json(monkeypatch) -> None:
 
     runtime.run_scan_cycle()
 
-    status, headers, body = _request("/api/status")
-    assert status == "200 OK"
-    assert headers["Content-Type"] == "application/json; charset=utf-8"
-    status_payload = json.loads(body)
-    assert status_payload["topicSlug"] == "pnmr"
-    assert status_payload["discoveryQueries"] == []
-    assert status_payload["watchedEntities"] == []
-    assert status_payload["sourceCheckpoints"] == []
-    assert status_payload["totalSignals"] == 1
-    assert status_payload["matchedSignals"] == 1
+    with TestClient(app) as client:
+        response = client.get("/api/status")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/json"
+        status_payload = response.json()
+        assert status_payload["topicSlug"] == "pnmr"
+        assert status_payload["discoveryQueries"] == []
+        assert status_payload["watchedEntities"] == []
+        assert status_payload["sourceCheckpoints"] == []
+        assert status_payload["totalSignals"] == 1
+        assert status_payload["matchedSignals"] == 1
 
-    status, _, body = _request("/api/signals")
-    assert status == "200 OK"
-    signal_list = json.loads(body)
-    assert len(signal_list["items"]) == 1
-    assert signal_list["items"][0]["itemId"] == "demo"
+        response = client.get("/api/signals")
+        assert response.status_code == 200
+        signal_list = response.json()
+        assert len(signal_list["items"]) == 1
+        assert signal_list["items"][0]["itemId"] == "demo"
 
-    status, _, body = _request("/api/signals/demo")
-    assert status == "200 OK"
-    detail_payload = json.loads(body)
-    assert detail_payload["itemId"] == "demo"
-    assert detail_payload["matched"] is True
+        response = client.get("/api/signals/demo")
+        assert response.status_code == 200
+        detail_payload = response.json()
+        assert detail_payload["itemId"] == "demo"
+        assert detail_payload["matched"] is True
 
 
-def test_root_returns_service_description() -> None:
-    status, headers, body = _request("/")
+def test_root_health_and_ready_endpoints() -> None:
+    with TestClient(app) as client:
+        response = client.get("/")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/json"
+        payload = response.json()
+        assert payload["service"] == "sciscope-api"
+        assert "/api/signals" in payload["endpoints"]
+        assert "/ready" in payload["endpoints"]
 
-    assert status == "200 OK"
-    assert headers["Content-Type"] == "application/json; charset=utf-8"
-    payload = json.loads(body)
-    assert payload["service"] == "sciscope-api"
-    assert "/api/signals" in payload["endpoints"]
+        response = client.get("/health")
+        assert response.status_code == 200
+        assert response.text == "ok"
+
+        response = client.get("/ready")
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
 
 
 def test_api_start_endpoint_returns_status_json(monkeypatch) -> None:
@@ -163,11 +139,12 @@ def test_api_start_endpoint_returns_status_json(monkeypatch) -> None:
         },
     )
 
-    status, headers, body = _request("/api/start", method="POST")
+    with TestClient(app) as client:
+        response = client.post("/api/start")
 
-    assert status == "200 OK"
-    assert headers["Content-Type"] == "application/json; charset=utf-8"
-    payload = json.loads(body)
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+    payload = response.json()
     assert payload["topicSlug"] == "pnmr"
     assert payload["autoScanStarted"] is True
 
@@ -188,11 +165,12 @@ def test_api_stop_endpoint_returns_status_json(monkeypatch) -> None:
         },
     )
 
-    status, headers, body = _request("/api/stop", method="POST")
+    with TestClient(app) as client:
+        response = client.post("/api/stop")
 
-    assert status == "200 OK"
-    assert headers["Content-Type"] == "application/json; charset=utf-8"
-    payload = json.loads(body)
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+    payload = response.json()
     assert payload["topicSlug"] == "pnmr"
     assert payload["autoScanStarted"] is False
 
@@ -200,11 +178,12 @@ def test_api_stop_endpoint_returns_status_json(monkeypatch) -> None:
 def test_missing_signal_returns_404_json() -> None:
     STATE.signals.clear()
 
-    status, headers, body = _request("/api/signals/missing")
+    with TestClient(app) as client:
+        response = client.get("/api/signals/missing")
 
-    assert status == "404 Not Found"
-    assert headers["Content-Type"] == "application/json; charset=utf-8"
-    payload = json.loads(body)
+    assert response.status_code == 404
+    assert response.headers["content-type"] == "application/json"
+    payload = response.json()
     assert payload["error"] == "Signal not found"
 
 
@@ -216,48 +195,48 @@ def test_dev_login_and_subscription_endpoints(monkeypatch) -> None:
         monkeypatch.setattr(subscription_storage, "DATABASE_URL", database_url)
         monkeypatch.setattr(entity_storage, "DATABASE_URL", database_url)
 
-        status, _, body = _request("/api/me")
-        assert status == "200 OK"
-        assert json.loads(body) == {"user": None}
+        with TestClient(app) as client:
+            response = client.get("/api/me")
+            assert response.status_code == 200
+            assert response.json() == {"user": None}
 
-        status, _, body = _request("/api/subscriptions")
-        assert status == "401 Unauthorized"
-        assert json.loads(body)["error"] == "Authentication required"
+            response = client.get("/api/subscriptions")
+            assert response.status_code == 401
+            assert response.json()["error"] == "Authentication required"
 
-        status, _, body = _request("/api/auth/dev-login", method="POST")
-        assert status == "200 OK"
-        payload = json.loads(body)
-        assert payload["user"]["userId"] == "local-dev-user"
+            response = client.post("/api/auth/dev-login")
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["user"]["userId"] == "local-dev-user"
 
-        status, _, body = _request(
-            "/api/subscriptions",
-            method="POST",
-            payload={
-                "topicDescription": "paramagnetic NMR software",
-                "manualQueries": ["pcs", "relaxation"],
-            },
-        )
-        assert status == "201 Created"
-        created = json.loads(body)
-        assert created["topicDescription"] == "paramagnetic NMR software"
-        assert created["manualQueries"] == ["pcs", "relaxation"]
+            response = client.post(
+                "/api/subscriptions",
+                json={
+                    "topicDescription": "paramagnetic NMR software",
+                    "manualQueries": ["pcs", "relaxation"],
+                },
+            )
+            assert response.status_code == 201
+            created = response.json()
+            assert created["topicDescription"] == "paramagnetic NMR software"
+            assert created["manualQueries"] == ["pcs", "relaxation"]
 
-        status, _, body = _request("/api/subscriptions")
-        assert status == "200 OK"
-        listed = json.loads(body)
-        assert len(listed["items"]) == 1
-        assert listed["items"][0]["topicDescription"] == "paramagnetic NMR software"
+            response = client.get("/api/subscriptions")
+            assert response.status_code == 200
+            listed = response.json()
+            assert len(listed["items"]) == 1
+            assert listed["items"][0]["topicDescription"] == "paramagnetic NMR software"
 
-        subscription_id = listed["items"][0]["subscriptionId"]
-        status, _, body = _request(f"/api/subscriptions/{subscription_id}", method="DELETE")
-        assert status == "200 OK"
-        assert json.loads(body) == {"deleted": True}
+            subscription_id = listed["items"][0]["subscriptionId"]
+            response = client.delete(f"/api/subscriptions/{subscription_id}")
+            assert response.status_code == 200
+            assert response.json() == {"deleted": True}
 
-        status, _, body = _request("/api/subscriptions")
-        assert status == "200 OK"
-        listed = json.loads(body)
-        assert listed["items"] == []
+            response = client.get("/api/subscriptions")
+            assert response.status_code == 200
+            listed = response.json()
+            assert listed["items"] == []
 
-        status, _, body = _request("/api/logout", method="POST")
-        assert status == "200 OK"
-        assert json.loads(body) == {"user": None}
+            response = client.post("/api/logout")
+            assert response.status_code == 200
+            assert response.json() == {"user": None}

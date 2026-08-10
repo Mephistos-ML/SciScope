@@ -32,7 +32,7 @@ Current working scope:
 - seeded topic: `pnmr`
 - seeded research profile for paramagnetic NMR
 - GitHub repository discovery from profile terms
-- persistent watched repository memory in SQLite
+- persistent watched repository memory in Postgres
 - per-repository release checkpoints
 - continuous monitoring loop for GitHub releases
 - local dashboard for signals and pipeline debugging
@@ -126,7 +126,7 @@ export APP_PORT=8000
 export CORS_ORIGINS=http://localhost:5173
 export DATABASE_URL=postgresql+psycopg://sciscope:sciscope@localhost:5432/sciscope
 ./.venv/bin/alembic upgrade head
-./.venv/bin/python backend/app/main.py
+./.venv/bin/python -m app.main
 ```
 
 Frontend:
@@ -165,5 +165,5 @@ The immediate milestone for this repository is:
 
 - Python backend: `>=3.11`
 - Frontend: Vite + React + TypeScript
-- Local state currently lives in SQLite
+- Persistent state now runs through Postgres via SQLAlchemy + Alembic
 - Architecture notes live in [docs/architecture.md](/Users/mephistos/git/SciScope/docs/architecture.md)

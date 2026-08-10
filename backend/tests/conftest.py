@@ -19,7 +19,7 @@ os.environ.setdefault(
 )
 os.environ.setdefault(
     "DATABASE_URL",
-    "sqlite+pysqlite:///backend/data/test-sciscope.sqlite3",
+    "sqlite+pysqlite:///data/test-sciscope.sqlite3",
 )
 
 
