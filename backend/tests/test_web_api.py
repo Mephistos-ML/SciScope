@@ -248,6 +248,7 @@ def test_dev_login_and_subscription_endpoints(monkeypatch) -> None:
             assert response.status_code == 201
             created = response.json()
             assert created["topicDescription"] == "paramagnetic NMR software"
+            assert created["queryStrategy"] == "generated"
             assert "paramagnetic NMR software" in created["queries"]
 
             response = client.get("/api/subscriptions")
@@ -255,6 +256,7 @@ def test_dev_login_and_subscription_endpoints(monkeypatch) -> None:
             listed = response.json()
             assert len(listed["items"]) == 1
             assert listed["items"][0]["topicDescription"] == "paramagnetic NMR software"
+            assert listed["items"][0]["queryStrategy"] == "generated"
             assert "paramagnetic NMR software" in listed["items"][0]["queries"]
 
             subscription_id = listed["items"][0]["subscriptionId"]
@@ -302,6 +304,7 @@ def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatc
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/json"
     payload = response.json()
+    assert payload["queryStrategy"] == "generated"
     assert "Paramagnetic NMR analysis workflows" in payload["queries"]
     assert len(payload["items"]) == 1
     assert payload["items"][0]["itemId"] == "github:repo:Mephistos-ML/paranmr"
@@ -364,3 +367,73 @@ def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
             "error": "GitLab repository search is unavailable right now.",
         },
     ]
+
+
+def test_explore_search_uses_query_overrides(monkeypatch) -> None:
+    captured_queries: list[str] = []
+
+    def fake_discover_github_repository_candidates(queries) -> list[RawSignal]:
+        captured_queries.extend(list(queries))
+        return [
+            _build_explore_repository_signal(
+                "github:repo:Mephistos-ML/paranmr",
+                query=str(queries[0]),
+            )
+        ]
+
+    monkeypatch.setattr(
+        "app.services.explore.discover_github_repository_candidates",
+        fake_discover_github_repository_candidates,
+    )
+    monkeypatch.setattr(
+        "app.services.explore.discover_gitlab_repository_candidates",
+        lambda queries: [],
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={
+                "topicDescription": "Paramagnetic NMR analysis workflows",
+                "queryOverrides": ["  pcs tensor fitting  ", "paramagnetic nmr repos"],
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["queryStrategy"] == "override"
+    assert payload["queries"] == ["pcs tensor fitting", "paramagnetic nmr repos"]
+    assert captured_queries == ["pcs tensor fitting", "paramagnetic nmr repos"]
+
+
+def test_subscription_endpoint_persists_query_overrides(monkeypatch) -> None:
+    STATE.current_user_id = None
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        database_url = build_test_database_url(Path(temp_dir) / "subscriptions.sqlite3")
+        migrate_test_database(database_url)
+        monkeypatch.setattr(subscription_storage, "DATABASE_URL", database_url)
+        monkeypatch.setattr(entity_storage, "DATABASE_URL", database_url)
+
+        with TestClient(app) as client:
+            login_response = client.post("/api/auth/dev-login")
+            assert login_response.status_code == 200
+
+            create_response = client.post(
+                "/api/subscriptions",
+                json={
+                    "topicDescription": "Paramagnetic NMR analysis workflows",
+                    "queryOverrides": ["pcs tensor fitting", "paramagnetic nmr repos"],
+                },
+            )
+
+            assert create_response.status_code == 201
+            created = create_response.json()
+            assert created["queryStrategy"] == "override"
+            assert created["queries"] == ["pcs tensor fitting", "paramagnetic nmr repos"]
+
+            list_response = client.get("/api/subscriptions")
+            assert list_response.status_code == 200
+            listed = list_response.json()
+            assert listed["items"][0]["queryStrategy"] == "override"
+            assert listed["items"][0]["queries"] == ["pcs tensor fitting", "paramagnetic nmr repos"]

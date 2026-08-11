@@ -27,12 +27,14 @@ def create_subscription_response(payload: dict[str, object]) -> dict[str, object
         return None
 
     topic_description = str(payload.get("topicDescription") or "").strip()
+    query_overrides = payload.get("queryOverrides") or []
     if not topic_description:
         topic_description = "Untitled topic"
 
     return create_subscription_payload(
         user,
         topic_description=topic_description,
+        query_overrides=tuple(query_overrides) if isinstance(query_overrides, list) else (),
     )
 
 

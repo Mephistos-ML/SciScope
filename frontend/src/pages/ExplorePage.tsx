@@ -7,9 +7,12 @@ type ExplorePageProps = {
   canSubscribe: boolean;
   createPending: boolean;
   lastQueries: string[];
+  lastQueryStrategy: "generated" | "override" | null;
+  onQueryOverridesInputChange: (value: string) => void;
   onRunSearch: () => void;
   onSubscribe: () => void;
   onTopicInputChange: (value: string) => void;
+  queryOverridesInput: string;
   results: ExploreResultItem[];
   searchPending: boolean;
   topicInput: string;
@@ -21,9 +24,12 @@ export function ExplorePage({
   canSubscribe,
   createPending,
   lastQueries,
+  lastQueryStrategy,
+  onQueryOverridesInputChange,
   onRunSearch,
   onSubscribe,
   onTopicInputChange,
+  queryOverridesInput,
   results,
   searchPending,
   topicInput,
@@ -53,6 +59,17 @@ export function ExplorePage({
             placeholder="Track repositories around paramagnetic NMR analysis workflows."
           />
 
+          <label className="field-label" htmlFor="query-overrides">
+            Query overrides (optional)
+          </label>
+          <textarea
+            id="query-overrides"
+            className="text-field text-area"
+            value={queryOverridesInput}
+            onChange={(event) => onQueryOverridesInputChange(event.target.value)}
+            placeholder={"paramagnetic nmr\npcs tensor fitting"}
+          />
+
           <div className="query-actions">
             <button
               className="outline-button"
@@ -70,6 +87,9 @@ export function ExplorePage({
             >
               {createPending ? "Saving..." : "Subscribe"}
             </button>
+            <p className="field-hint">
+              When present, overrides replace the generated repository queries. Use one query per line for testing and provider validation.
+            </p>
             <p className="field-hint">
               {viewer
                 ? "Save this topic to your feed."
@@ -90,13 +110,22 @@ export function ExplorePage({
             </div>
             <div className="query-chip-row">
               {lastQueries.length > 0 ? (
-                lastQueries.map((query) => (
-                  <span className="query-chip" key={query}>
-                    {query}
-                  </span>
-                ))
+                <>
+                  <p className="field-hint">
+                    {lastQueryStrategy === "override"
+                      ? "Using operator overrides"
+                      : "Using generated queries"}
+                  </p>
+                  {lastQueries.map((query) => (
+                    <span className="query-chip" key={query}>
+                      {query}
+                    </span>
+                  ))}
+                </>
               ) : (
-                <p className="empty-copy">Run a search to see the generated queries sent to GitHub and GitLab.</p>
+                <p className="empty-copy">
+                  Run a search to see the generated or overridden queries sent to GitHub and GitLab.
+                </p>
               )}
             </div>
           </div>
@@ -116,7 +145,9 @@ export function ExplorePage({
                 </div>
               ))
             ) : (
-              <p className="empty-copy">No repositories yet. Run a search from the topic description.</p>
+              <p className="empty-copy">
+                No repositories yet. Run a search from the topic description or with explicit overrides.
+              </p>
             )}
           </div>
         </article>

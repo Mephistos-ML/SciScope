@@ -27,9 +27,13 @@ export function App() {
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [results, setResults] = useState<ExploreResultItem[]>([]);
   const [lastQueries, setLastQueries] = useState<string[]>([]);
+  const [lastQueryStrategy, setLastQueryStrategy] = useState<"generated" | "override" | null>(
+    null,
+  );
   const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>([]);
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
   const [topicInput, setTopicInput] = useState("Paramagnetic NMR analysis workflows");
+  const [queryOverridesInput, setQueryOverridesInput] = useState("");
   const [signingIn, setSigningIn] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [searchPending, setSearchPending] = useState(false);
@@ -111,9 +115,11 @@ export function App() {
     try {
       const payload = await runExploreSearch({
         topicDescription: topicInput.trim(),
+        queryOverrides: parseQueryOverrides(queryOverridesInput),
       });
       setResults(payload.items);
       setLastQueries(payload.queries);
+      setLastQueryStrategy(payload.queryStrategy);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to run search.");
     } finally {
@@ -136,6 +142,7 @@ export function App() {
     try {
       const subscription = await createSubscription({
         topicDescription: topicInput.trim(),
+        queryOverrides: parseQueryOverrides(queryOverridesInput),
       });
       setSubscriptions((current) => [subscription, ...current]);
       setSelectedSubscriptionId(subscription.subscriptionId);
@@ -197,9 +204,12 @@ export function App() {
           canSubscribe={Boolean(viewer)}
           createPending={createPending}
           lastQueries={lastQueries}
+          lastQueryStrategy={lastQueryStrategy}
+          onQueryOverridesInputChange={setQueryOverridesInput}
           onRunSearch={() => void handleRunSearch()}
           onSubscribe={() => void handleSubscribe()}
           onTopicInputChange={setTopicInput}
+          queryOverridesInput={queryOverridesInput}
           results={results}
           searchPending={searchPending}
           topicInput={topicInput}
@@ -218,4 +228,11 @@ export function App() {
       )}
     </>
   );
+}
+
+function parseQueryOverrides(value: string): string[] {
+  return value
+    .split("\n")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
 }

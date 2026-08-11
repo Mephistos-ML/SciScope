@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.api.routes import auth as auth_routes
 from app.api.routes import control as control_routes
@@ -25,12 +25,14 @@ class ExploreSearchRequest(BaseModel):
     """Request body for one topic-driven explore search."""
 
     topicDescription: str = ""
+    queryOverrides: list[str] = Field(default_factory=list)
 
 
 class CreateSubscriptionRequest(BaseModel):
     """Request body for one saved topic subscription."""
 
     topicDescription: str = ""
+    queryOverrides: list[str] = Field(default_factory=list)
 
 
 @asynccontextmanager

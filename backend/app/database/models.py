@@ -97,5 +97,6 @@ class SubscriptionRecordModel(Base):
     subscription_id: Mapped[str] = mapped_column(String, primary_key=True)
     user_id: Mapped[str] = mapped_column(String, nullable=False)
     topic_description: Mapped[str] = mapped_column(Text, nullable=False)
+    query_strategy: Mapped[str] = mapped_column(String, nullable=False, default="generated")
     query_terms_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

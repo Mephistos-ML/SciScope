@@ -5,7 +5,7 @@ from __future__ import annotations
 from app.services.auth import User
 from app.models.topic import ResearchTopic
 from app.services.profile_builder import build_profile
-from app.sources.repositories.common.query_builder import build_repository_search_queries
+from app.services.search_queries import build_repository_query_plan
 from app.storage.entities import (
     delete_entity_checkpoints_for_subscription,
     delete_subscription_entity_matches,
@@ -26,6 +26,7 @@ def list_subscription_payloads(user: User) -> dict[str, object]:
             {
                 "subscriptionId": item.subscription_id,
                 "topicDescription": item.topic_description,
+                "queryStrategy": item.query_strategy,
                 "queries": list(item.query_terms),
                 "createdAt": item.created_at,
             }
@@ -38,6 +39,7 @@ def create_subscription_payload(
     user: User,
     *,
     topic_description: str,
+    query_overrides: tuple[str, ...] = (),
 ) -> dict[str, object]:
     """Persist and serialize one new subscription."""
 
@@ -47,16 +49,21 @@ def create_subscription_payload(
         description=topic_description,
     )
     profile = build_profile(topic)
-    queries = tuple(build_repository_search_queries(profile))
+    query_plan = build_repository_query_plan(
+        profile,
+        query_overrides=query_overrides,
+    )
     subscription = create_subscription(
         user_id=user.user_id,
         topic_description=topic_description,
-        query_terms=queries,
+        query_strategy=query_plan.strategy,
+        query_terms=query_plan.queries,
     )
     return {
         "subscriptionId": subscription.subscription_id,
         "topicDescription": subscription.topic_description,
-        "queries": list(queries),
+        "queryStrategy": subscription.query_strategy,
+        "queries": list(subscription.query_terms),
         "createdAt": subscription.created_at,
     }
 

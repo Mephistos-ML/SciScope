@@ -7,12 +7,10 @@ from collections.abc import Sequence
 
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile, ResearchTopic
-from app.services.profile_builder import build_profile
 from app.services.matching import match_signal_to_profile
 from app.services.normalization import normalize_raw_signal
-from app.sources.repositories.common.query_builder import (
-    build_repository_search_queries,
-)
+from app.services.profile_builder import build_profile
+from app.services.search_queries import build_repository_query_plan
 from app.sources.repositories.github.discovery import (
     discover_repository_candidates as discover_github_repository_candidates,
 )
@@ -41,20 +39,25 @@ class ExploreSearchUnavailableError(RuntimeError):
 def run_explore_search(
     *,
     topic_description: str,
+    query_overrides: Sequence[str] = (),
 ) -> dict[str, object]:
     """Run a read-only repository search from one topic description."""
 
     profile = _build_explore_profile(topic_description)
-    queries = build_repository_search_queries(profile)
-    if not queries:
+    query_plan = build_repository_query_plan(
+        profile,
+        query_overrides=query_overrides,
+    )
+    if not query_plan.queries:
         return {
             "topicDescription": topic_description,
+            "queryStrategy": query_plan.strategy,
             "queries": [],
             "items": [],
             "sourceStatuses": [],
         }
 
-    candidates, source_statuses = _discover_candidates_across_sources(queries)
+    candidates, source_statuses = _discover_candidates_across_sources(query_plan.queries)
     deduped = _dedupe_by_item_id(candidates)
 
     items: list[dict[str, object]] = []
@@ -90,7 +93,8 @@ def run_explore_search(
 
     return {
         "topicDescription": topic_description,
-        "queries": list(queries),
+        "queryStrategy": query_plan.strategy,
+        "queries": list(query_plan.queries),
         "items": items,
         "sourceStatuses": source_statuses,
     }

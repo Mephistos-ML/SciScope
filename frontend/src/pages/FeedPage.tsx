@@ -67,7 +67,13 @@ export function FeedPage({
                     type="button"
                   >
                     <strong>{subscription.topicDescription}</strong>
-                    <p>{subscription.queries.join(", ") || "No generated queries yet"}</p>
+                    <p>
+                      {subscription.queryStrategy === "override"
+                        ? "Override queries"
+                        : "Generated queries"}
+                      {": "}
+                      {subscription.queries.join(", ") || "No queries yet"}
+                    </p>
                   </button>
                   <button
                     className="subscription-delete"
@@ -93,7 +99,13 @@ export function FeedPage({
 
               <div className="detail-panel-block">
                 <h4>Queries</h4>
-                <p>{selectedSubscription.queries.join(", ") || "No generated queries yet"}</p>
+                <p>
+                  {selectedSubscription.queryStrategy === "override"
+                    ? "Override queries"
+                    : "Generated queries"}
+                  {": "}
+                  {selectedSubscription.queries.join(", ") || "No queries yet"}
+                </p>
               </div>
 
               <div className="detail-panel-block">
