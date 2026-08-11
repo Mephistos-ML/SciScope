@@ -56,6 +56,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
 
     const response = await fetch(buildApiUrl(path), {
       ...init,
+      credentials: "include",
       headers,
       signal: controller.signal,
     });
@@ -88,10 +89,8 @@ export async function fetchMe(): Promise<ViewerPayload> {
   return requestJson<ViewerPayload>("/api/me");
 }
 
-export async function signInWithDevSession(): Promise<ViewerPayload> {
-  return requestJson<ViewerPayload>("/api/auth/dev-login", {
-    method: "POST",
-  });
+export function beginGoogleSignIn(): void {
+  window.location.assign(buildApiUrl("/api/auth/google/start"));
 }
 
 export async function signOut(): Promise<ViewerPayload> {

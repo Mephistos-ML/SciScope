@@ -11,7 +11,8 @@ def get_root_payload() -> dict[str, object]:
         "status": "ok",
         "endpoints": [
             "/api/me",
-            "/api/auth/dev-login",
+            "/api/auth/google/start",
+            "/api/auth/google/callback",
             "/api/logout",
             "/api/explore/search",
             "/api/status",

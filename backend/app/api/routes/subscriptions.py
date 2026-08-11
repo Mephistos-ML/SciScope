@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from fastapi import Request
+
 from app.services.auth import get_current_user
 from app.services.subscriptions import (
     create_subscription_payload,
@@ -10,19 +12,22 @@ from app.services.subscriptions import (
 )
 
 
-def get_subscription_list_response() -> dict[str, object] | None:
+def get_subscription_list_response(request: Request) -> dict[str, object] | None:
     """Return saved subscriptions for the signed-in user."""
 
-    user = get_current_user()
+    user = get_current_user(request)
     if user is None:
         return None
     return list_subscription_payloads(user)
 
 
-def create_subscription_response(payload: dict[str, object]) -> dict[str, object] | None:
+def create_subscription_response(
+    request: Request,
+    payload: dict[str, object],
+) -> dict[str, object] | None:
     """Create one subscription for the signed-in user."""
 
-    user = get_current_user()
+    user = get_current_user(request)
     if user is None:
         return None
 
@@ -40,10 +45,10 @@ def create_subscription_response(payload: dict[str, object]) -> dict[str, object
     )
 
 
-def delete_subscription_response(subscription_id: str) -> bool | None:
+def delete_subscription_response(request: Request, subscription_id: str) -> bool | None:
     """Delete one saved subscription for the signed-in user."""
 
-    user = get_current_user()
+    user = get_current_user(request)
     if user is None:
         return None
 

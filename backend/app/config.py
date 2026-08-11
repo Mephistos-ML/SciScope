@@ -46,6 +46,22 @@ def _read_required_int_env(name: str) -> int:
         ) from exc
 
 
+def _read_bool_env(name: str, default: bool) -> bool:
+    raw_value = _read_optional_env(name)
+    if not raw_value:
+        return default
+
+    normalized = raw_value.lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+
+    raise RuntimeError(
+        f"Environment variable {name} must be a boolean, got {raw_value!r}"
+    )
+
+
 def _read_required_csv_env(name: str) -> tuple[str, ...]:
     raw_value = _read_required_env(name)
     values = tuple(item.strip() for item in raw_value.split(",") if item.strip())
@@ -63,6 +79,15 @@ APP_HOST = _read_required_env("APP_HOST")
 APP_PORT = _read_required_int_env("APP_PORT")
 CORS_ORIGINS = _read_required_csv_env("CORS_ORIGINS")
 DATABASE_URL = _read_required_env("DATABASE_URL")
+AUTH_SESSION_COOKIE_NAME = _read_optional_env("AUTH_SESSION_COOKIE_NAME") or "sciscope_session"
+AUTH_SESSION_COOKIE_DOMAIN = _read_optional_env("AUTH_SESSION_COOKIE_DOMAIN")
+AUTH_SESSION_TTL_SECONDS = int(_read_optional_env("AUTH_SESSION_TTL_SECONDS") or "2592000")
+AUTH_SESSION_SECURE = _read_bool_env("AUTH_SESSION_SECURE", APP_ENV == "production")
+AUTH_SESSION_SAMESITE = (_read_optional_env("AUTH_SESSION_SAMESITE") or "lax").lower()
+FRONTEND_BASE_URL = _read_optional_env("FRONTEND_BASE_URL")
+GOOGLE_CLIENT_ID = _read_optional_env("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = _read_optional_env("GOOGLE_CLIENT_SECRET")
+GOOGLE_OAUTH_REDIRECT_URI = _read_optional_env("GOOGLE_OAUTH_REDIRECT_URI")
 GITHUB_AUTH_MODE = _read_optional_env("GITHUB_AUTH_MODE") or "disabled"
 GITHUB_APP_ID = _read_optional_env("GITHUB_APP_ID")
 GITHUB_APP_INSTALLATION_ID = _read_optional_env("GITHUB_APP_INSTALLATION_ID")
@@ -70,3 +95,11 @@ GITHUB_APP_PRIVATE_KEY = _read_optional_env("GITHUB_APP_PRIVATE_KEY")
 GITLAB_AUTH_MODE = _read_optional_env("GITLAB_AUTH_MODE") or "disabled"
 GITLAB_BASE_URL = _read_optional_env("GITLAB_BASE_URL") or "https://gitlab.com"
 GITLAB_SERVICE_ACCOUNT_TOKEN = _read_optional_env("GITLAB_SERVICE_ACCOUNT_TOKEN")
+
+if AUTH_SESSION_TTL_SECONDS <= 0:
+    raise RuntimeError("AUTH_SESSION_TTL_SECONDS must be a positive integer")
+
+if AUTH_SESSION_SAMESITE not in {"lax", "strict", "none"}:
+    raise RuntimeError(
+        "AUTH_SESSION_SAMESITE must be one of: lax, strict, none"
+    )

@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from app.models.topic import ResearchProfile, ResearchTopic
-from app.services.auth import get_current_user
 from app.services.profile_builder import build_profile
-from app.storage.subscriptions import list_subscriptions_for_user
+from app.storage.subscriptions import list_all_subscriptions
 
 
 def list_runtime_topics() -> tuple[ResearchTopic, ...]:
@@ -46,7 +45,4 @@ def list_runtime_profiles() -> tuple[ResearchProfile, ...]:
 
 
 def _list_user_subscriptions():
-    user = get_current_user()
-    if user is None:
-        return ()
-    return tuple(list_subscriptions_for_user(user.user_id))
+    return tuple(list_all_subscriptions())

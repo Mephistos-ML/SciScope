@@ -1,8 +1,5 @@
-export type AuthMode = "disabled" | "dev";
-
 type FrontendConfig = {
   apiBaseUrl: string;
-  authMode: AuthMode;
   requestTimeoutMs: number;
 };
 
@@ -14,18 +11,6 @@ function readRequiredEnv(name: string, value: unknown): string {
   }
 
   return value.trim();
-}
-
-function readAuthMode(): AuthMode {
-  const value = readRequiredEnv("VITE_AUTH_MODE", import.meta.env.VITE_AUTH_MODE);
-
-  if (value === "disabled" || value === "dev") {
-    return value;
-  }
-
-  throw new Error(
-    `Unsupported VITE_AUTH_MODE value "${value}". Expected "disabled" or "dev".`,
-  );
 }
 
 function readApiBaseUrl(): string {
@@ -53,6 +38,5 @@ function readRequestTimeoutMs(): number {
 
 export const frontendConfig: FrontendConfig = Object.freeze({
   apiBaseUrl: readApiBaseUrl(),
-  authMode: readAuthMode(),
   requestTimeoutMs: readRequestTimeoutMs(),
 });
