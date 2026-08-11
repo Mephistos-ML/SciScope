@@ -35,10 +35,10 @@ def build_test_database_url(path: Path) -> str:
 def migrate_test_database(database_url: str) -> None:
     """Apply Alembic migrations to one test database."""
 
-    alembic_config = Config(str(REPO_ROOT / "alembic.ini"))
+    alembic_config = Config(str(BACKEND_ROOT / "alembic.ini"))
     alembic_config.set_main_option(
         "script_location",
-        str(REPO_ROOT / "alembic"),
+        str(BACKEND_ROOT / "alembic"),
     )
     alembic_config.set_main_option(
         "prepend_sys_path",

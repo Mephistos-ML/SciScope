@@ -125,7 +125,7 @@ export APP_HOST=127.0.0.1
 export APP_PORT=8000
 export CORS_ORIGINS=http://localhost:5173
 export DATABASE_URL=postgresql+psycopg://sciscope:sciscope@localhost:5432/sciscope
-./.venv/bin/alembic upgrade head
+./.venv/bin/alembic -c backend/alembic.ini upgrade head
 ./.venv/bin/python -m app.main
 ```
 
@@ -133,7 +133,7 @@ Important:
 
 - the backend does not auto-create tables at startup
 - schema changes are applied only through Alembic migrations
-- production deploys should run `alembic upgrade head` before new app instances start serving traffic
+- production deploys should run `alembic -c backend/alembic.ini upgrade head` before new app instances start serving traffic
 
 Frontend:
 

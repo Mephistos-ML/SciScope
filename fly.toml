@@ -5,7 +5,7 @@ primary_region = "ams"
 dockerfile = "backend/Dockerfile"
 
 [deploy]
-  release_command = "alembic upgrade head"
+  release_command = "alembic -c backend/alembic.ini upgrade head"
 
 [env]
 APP_ENV = "production"
