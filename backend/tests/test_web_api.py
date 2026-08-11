@@ -39,6 +39,35 @@ def _build_raw_signal(item_id: str) -> RawSignal:
     )
 
 
+def _build_explore_repository_signal(
+    item_id: str,
+    *,
+    source: str = "github",
+    query: str = "paramagnetic nmr",
+) -> RawSignal:
+    return RawSignal(
+        source=source,
+        source_type=f"{source}_repository",
+        item_id=item_id,
+        title="Mephistos-ML/paranmr",
+        url="https://github.com/Mephistos-ML/paranmr",
+        published_at=None,
+        raw_text=(
+            "Mephistos-ML/paranmr\n"
+            "Paramagnetic NMR software for susceptibility tensor fitting "
+            "and PCS workflows."
+        ),
+        payload={
+            "signal_kind": f"{source}_repository",
+            "repo": "Mephistos-ML/paranmr",
+            "query": query,
+            "topics": ["paramagnetic-nmr", "pcs"],
+            "language": "Python",
+            "stars": 14,
+        },
+    )
+
+
 def _build_active_topic() -> ResearchTopic:
     return ResearchTopic(slug="pnmr", label="Paramagnetic NMR")
 
@@ -240,3 +269,99 @@ def test_dev_login_and_subscription_endpoints(monkeypatch) -> None:
             response = client.post("/api/logout")
             assert response.status_code == 200
             assert response.json() == {"user": None}
+
+
+def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.explore.discover_github_repository_candidates",
+        lambda queries: [
+            _build_explore_repository_signal(
+                "github:repo:Mephistos-ML/paranmr",
+                query=str(queries[0]),
+            )
+        ],
+    )
+
+    def fail_gitlab(_queries) -> list[RawSignal]:
+        raise RuntimeError("GitLab upstream failed")
+
+    monkeypatch.setattr(
+        "app.services.explore.discover_gitlab_repository_candidates",
+        fail_gitlab,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={
+                "topicDescription": "Paramagnetic NMR analysis workflows",
+                "manualQueries": ["paramagnetic nmr"],
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+    payload = response.json()
+    assert payload["queries"] == ["paramagnetic nmr"]
+    assert len(payload["items"]) == 1
+    assert payload["items"][0]["itemId"] == "github:repo:Mephistos-ML/paranmr"
+    assert payload["items"][0]["source"] == "github"
+    assert payload["sourceStatuses"] == [
+        {
+            "source": "github",
+            "status": "ok",
+            "candidateCount": 1,
+            "error": None,
+        },
+        {
+            "source": "gitlab",
+            "status": "error",
+            "candidateCount": 0,
+            "error": "GitLab repository search is unavailable right now.",
+        },
+    ]
+
+
+def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
+    def fail_github(_queries) -> list[RawSignal]:
+        raise RuntimeError("GitHub upstream failed")
+
+    def fail_gitlab(_queries) -> list[RawSignal]:
+        raise RuntimeError("GitLab upstream failed")
+
+    monkeypatch.setattr(
+        "app.services.explore.discover_github_repository_candidates",
+        fail_github,
+    )
+    monkeypatch.setattr(
+        "app.services.explore.discover_gitlab_repository_candidates",
+        fail_gitlab,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={
+                "topicDescription": "Paramagnetic NMR analysis workflows",
+                "manualQueries": ["paramagnetic nmr"],
+            },
+        )
+
+    assert response.status_code == 502
+    assert response.headers["content-type"] == "application/json"
+    payload = response.json()
+    assert payload["error"] == "Repository search is temporarily unavailable across all providers."
+    assert payload["sourceStatuses"] == [
+        {
+            "source": "github",
+            "status": "error",
+            "candidateCount": 0,
+            "error": "GitHub repository search is unavailable right now.",
+        },
+        {
+            "source": "gitlab",
+            "status": "error",
+            "candidateCount": 0,
+            "error": "GitLab repository search is unavailable right now.",
+        },
+    ]

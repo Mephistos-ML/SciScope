@@ -18,6 +18,7 @@ from app.api.routes import signals as signal_routes
 from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS
 from app.db.session import check_database_connection, init_database
+from app.services.explore import ExploreSearchUnavailableError
 
 
 class ExploreSearchRequest(BaseModel):
@@ -59,6 +60,22 @@ async def handle_http_exception(_request: Request, exc: HTTPException) -> JSONRe
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": str(exc.detail)},
+    )
+
+
+@app.exception_handler(ExploreSearchUnavailableError)
+async def handle_explore_search_unavailable(
+    _request: Request,
+    exc: ExploreSearchUnavailableError,
+) -> JSONResponse:
+    """Return structured source diagnostics when every provider fails."""
+
+    return JSONResponse(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        content={
+            "error": str(exc),
+            "sourceStatuses": exc.source_statuses,
+        },
     )
 
 

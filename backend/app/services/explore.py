@@ -2,12 +2,31 @@
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable, Sequence
+
+from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile
 from app.services.normalization import normalize_raw_signal
 from app.services.matching import match_signal_to_profile
 from app.sources.repositories.github.discovery import discover_repository_candidates as discover_github_repository_candidates
 from app.sources.repositories.gitlab.discovery import discover_repository_candidates as discover_gitlab_repository_candidates
 from app.sources.repositories.common.query_builder import build_repository_search_queries
+
+logger = logging.getLogger(__name__)
+
+SOURCE_DISPLAY_NAMES = {
+    "github": "GitHub",
+    "gitlab": "GitLab",
+}
+
+
+class ExploreSearchUnavailableError(RuntimeError):
+    """Raised when every repository provider fails for one explore search."""
+
+    def __init__(self, source_statuses: list[dict[str, object]]) -> None:
+        super().__init__("Repository search is temporarily unavailable across all providers.")
+        self.source_statuses = source_statuses
 
 
 def run_explore_search(
@@ -19,11 +38,16 @@ def run_explore_search(
 
     profile = _build_explore_profile(manual_queries)
     queries = build_repository_search_queries(profile)
+    if not queries:
+        return {
+            "topicDescription": topic_description,
+            "manualQueries": manual_queries,
+            "queries": [],
+            "items": [],
+            "sourceStatuses": [],
+        }
 
-    candidates = [
-        *discover_github_repository_candidates(queries),
-        *discover_gitlab_repository_candidates(queries),
-    ]
+    candidates, source_statuses = _discover_candidates_across_sources(queries)
     deduped = _dedupe_by_item_id(candidates)
 
     items: list[dict[str, object]] = []
@@ -62,6 +86,7 @@ def run_explore_search(
         "manualQueries": manual_queries,
         "queries": list(queries),
         "items": items,
+        "sourceStatuses": source_statuses,
     }
 
 
@@ -93,3 +118,51 @@ def _read_candidate_description(raw_text: str) -> str:
     if len(parts) >= 2:
         return parts[1]
     return ""
+
+
+def _discover_candidates_across_sources(
+    queries: Sequence[str],
+) -> tuple[list[RawSignal], list[dict[str, object]]]:
+    candidates: list[RawSignal] = []
+    source_statuses: list[dict[str, object]] = []
+    successful_sources = 0
+
+    for source_name, discover_candidates in (
+        ("github", discover_github_repository_candidates),
+        ("gitlab", discover_gitlab_repository_candidates),
+    ):
+        try:
+            source_candidates = list(discover_candidates(queries))
+        except Exception:
+            logger.exception(
+                "Repository source %s failed during explore search.",
+                source_name,
+            )
+            source_statuses.append(
+                {
+                    "source": source_name,
+                    "status": "error",
+                    "candidateCount": 0,
+                    "error": (
+                        f"{SOURCE_DISPLAY_NAMES[source_name]} repository search is "
+                        "unavailable right now."
+                    ),
+                }
+            )
+            continue
+
+        successful_sources += 1
+        candidates.extend(source_candidates)
+        source_statuses.append(
+            {
+                "source": source_name,
+                "status": "ok",
+                "candidateCount": len(source_candidates),
+                "error": None,
+            }
+        )
+
+    if successful_sources == 0:
+        raise ExploreSearchUnavailableError(source_statuses)
+
+    return candidates, source_statuses
