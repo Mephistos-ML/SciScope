@@ -17,7 +17,7 @@ from app.api.routes import explore as explore_routes
 from app.api.routes import signals as signal_routes
 from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS
-from app.db.session import check_database_connection, init_database
+from app.db.session import check_database_connection
 from app.services.explore import ExploreSearchUnavailableError
 
 
@@ -37,9 +37,9 @@ class CreateSubscriptionRequest(BaseModel):
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """Initialize durable dependencies before serving traffic."""
+    """Fail fast if the configured database is unavailable at startup."""
 
-    init_database()
+    check_database_connection()
     yield
 
 

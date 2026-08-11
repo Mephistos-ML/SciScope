@@ -4,6 +4,9 @@ primary_region = "ams"
 [build]
 dockerfile = "backend/Dockerfile"
 
+[deploy]
+  release_command = "alembic upgrade head"
+
 [env]
 APP_ENV = "production"
 APP_HOST = "0.0.0.0"

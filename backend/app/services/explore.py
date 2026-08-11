@@ -3,15 +3,21 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile
-from app.services.normalization import normalize_raw_signal
 from app.services.matching import match_signal_to_profile
-from app.sources.repositories.github.discovery import discover_repository_candidates as discover_github_repository_candidates
-from app.sources.repositories.gitlab.discovery import discover_repository_candidates as discover_gitlab_repository_candidates
-from app.sources.repositories.common.query_builder import build_repository_search_queries
+from app.services.normalization import normalize_raw_signal
+from app.sources.repositories.common.query_builder import (
+    build_repository_search_queries,
+)
+from app.sources.repositories.github.discovery import (
+    discover_repository_candidates as discover_github_repository_candidates,
+)
+from app.sources.repositories.gitlab.discovery import (
+    discover_repository_candidates as discover_gitlab_repository_candidates,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +31,9 @@ class ExploreSearchUnavailableError(RuntimeError):
     """Raised when every repository provider fails for one explore search."""
 
     def __init__(self, source_statuses: list[dict[str, object]]) -> None:
-        super().__init__("Repository search is temporarily unavailable across all providers.")
+        super().__init__(
+            "Repository search is temporarily unavailable across all providers."
+        )
         self.source_statuses = source_statuses
 
 

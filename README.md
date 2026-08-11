@@ -129,6 +129,12 @@ export DATABASE_URL=postgresql+psycopg://sciscope:sciscope@localhost:5432/scisco
 ./.venv/bin/python -m app.main
 ```
 
+Important:
+
+- the backend does not auto-create tables at startup
+- schema changes are applied only through Alembic migrations
+- production deploys should run `alembic upgrade head` before new app instances start serving traffic
+
 Frontend:
 
 ```bash

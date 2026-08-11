@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from tests.conftest import build_test_database_url
+from tests.conftest import build_test_database_url, migrate_test_database
 from app.models.entity import Entity, EntityCheckpoint, SubscriptionEntityMatch
 from app.storage.entities import (
     get_entity_checkpoint,
@@ -19,6 +19,7 @@ from app.storage.entities import (
 
 def test_upsert_entities_persists_global_entities(tmp_path) -> None:
     database_url = build_test_database_url(tmp_path / "entities.sqlite3")
+    migrate_test_database(database_url)
 
     upsert_entities(
         [
@@ -44,6 +45,7 @@ def test_upsert_entities_persists_global_entities(tmp_path) -> None:
 
 def test_upsert_subscription_entity_matches_persists_subscription_memory(tmp_path) -> None:
     database_url = build_test_database_url(tmp_path / "entities.sqlite3")
+    migrate_test_database(database_url)
 
     upsert_subscription_entity_matches(
         [
@@ -71,6 +73,7 @@ def test_upsert_subscription_entity_matches_persists_subscription_memory(tmp_pat
 
 def test_upsert_entity_checkpoints_persists_monitoring_cursor(tmp_path) -> None:
     database_url = build_test_database_url(tmp_path / "entities.sqlite3")
+    migrate_test_database(database_url)
     updated_at = datetime(2026, 7, 18, 9, 30, tzinfo=UTC)
 
     upsert_entity_checkpoints(
@@ -101,6 +104,7 @@ def test_upsert_entity_checkpoints_persists_monitoring_cursor(tmp_path) -> None:
 
 def test_get_entity_checkpoint_returns_single_cursor(tmp_path) -> None:
     database_url = build_test_database_url(tmp_path / "entities.sqlite3")
+    migrate_test_database(database_url)
     updated_at = datetime(2026, 7, 18, 11, 0, tzinfo=UTC)
 
     upsert_entity_checkpoints(

@@ -7,7 +7,7 @@ import tempfile
 
 from fastapi.testclient import TestClient
 
-from tests.conftest import build_test_database_url
+from tests.conftest import build_test_database_url, migrate_test_database
 from app.api.app import app
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile, ResearchTopic
@@ -221,6 +221,7 @@ def test_dev_login_and_subscription_endpoints(monkeypatch) -> None:
 
     with tempfile.TemporaryDirectory() as temp_dir:
         database_url = build_test_database_url(Path(temp_dir) / "subscriptions.sqlite3")
+        migrate_test_database(database_url)
         monkeypatch.setattr(subscription_storage, "DATABASE_URL", database_url)
         monkeypatch.setattr(entity_storage, "DATABASE_URL", database_url)
 
