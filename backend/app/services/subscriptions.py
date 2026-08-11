@@ -39,7 +39,7 @@ def create_subscription_payload(
     user: User,
     *,
     topic_description: str,
-    query_overrides: tuple[str, ...] = (),
+    profile_query_terms: tuple[str, ...] = (),
 ) -> dict[str, object]:
     """Persist and serialize one new subscription."""
 
@@ -48,11 +48,11 @@ def create_subscription_payload(
         label=topic_description or "Untitled topic",
         description=topic_description,
     )
-    profile = build_profile(topic)
-    query_plan = build_repository_query_plan(
-        profile,
-        query_overrides=query_overrides,
+    profile = build_profile(
+        topic,
+        profile_query_terms=profile_query_terms,
     )
+    query_plan = build_repository_query_plan(profile)
     subscription = create_subscription(
         user_id=user.user_id,
         topic_description=topic_description,

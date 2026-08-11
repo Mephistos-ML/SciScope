@@ -30,7 +30,17 @@ def list_runtime_profiles() -> tuple[ResearchProfile, ...]:
 
     subscriptions = _list_user_subscriptions()
     if subscriptions:
-        return tuple(build_profile(topic) for topic in list_runtime_topics())
+        return tuple(
+            build_profile(
+                ResearchTopic(
+                    slug=subscription.subscription_id,
+                    label=subscription.topic_description.strip() or "Saved topic",
+                    description=subscription.topic_description,
+                ),
+                profile_query_terms=subscription.query_terms,
+            )
+            for subscription in subscriptions
+        )
 
     return ()
 

@@ -68,9 +68,9 @@ export function FeedPage({
                   >
                     <strong>{subscription.topicDescription}</strong>
                     <p>
-                      {subscription.queryStrategy === "override"
-                        ? "Override queries"
-                        : "Generated queries"}
+                      {subscription.queryStrategy === "profile_terms"
+                        ? "Research profile terms"
+                        : "Pending AI profile"}
                       {": "}
                       {subscription.queries.join(", ") || "No queries yet"}
                     </p>
@@ -100,9 +100,9 @@ export function FeedPage({
               <div className="detail-panel-block">
                 <h4>Queries</h4>
                 <p>
-                  {selectedSubscription.queryStrategy === "override"
-                    ? "Override queries"
-                    : "Generated queries"}
+                  {selectedSubscription.queryStrategy === "profile_terms"
+                    ? "Research profile terms"
+                    : "Pending AI profile"}
                   {": "}
                   {selectedSubscription.queries.join(", ") || "No queries yet"}
                 </p>

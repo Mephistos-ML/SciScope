@@ -25,14 +25,14 @@ class ExploreSearchRequest(BaseModel):
     """Request body for one topic-driven explore search."""
 
     topicDescription: str = ""
-    queryOverrides: list[str] = Field(default_factory=list)
+    profileQueryTerms: list[str] = Field(default_factory=list)
 
 
 class CreateSubscriptionRequest(BaseModel):
     """Request body for one saved topic subscription."""
 
     topicDescription: str = ""
-    queryOverrides: list[str] = Field(default_factory=list)
+    profileQueryTerms: list[str] = Field(default_factory=list)
 
 
 @asynccontextmanager

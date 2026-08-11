@@ -7,12 +7,12 @@ type ExplorePageProps = {
   canSubscribe: boolean;
   createPending: boolean;
   lastQueries: string[];
-  lastQueryStrategy: "generated" | "override" | null;
-  onQueryOverridesInputChange: (value: string) => void;
+  lastQueryStrategy: "profile_terms" | "pending_ai" | null;
+  onProfileQueryTermsInputChange: (value: string) => void;
   onRunSearch: () => void;
   onSubscribe: () => void;
   onTopicInputChange: (value: string) => void;
-  queryOverridesInput: string;
+  profileQueryTermsInput: string;
   results: ExploreResultItem[];
   searchPending: boolean;
   topicInput: string;
@@ -25,11 +25,11 @@ export function ExplorePage({
   createPending,
   lastQueries,
   lastQueryStrategy,
-  onQueryOverridesInputChange,
+  onProfileQueryTermsInputChange,
   onRunSearch,
   onSubscribe,
   onTopicInputChange,
-  queryOverridesInput,
+  profileQueryTermsInput,
   results,
   searchPending,
   topicInput,
@@ -42,8 +42,8 @@ export function ExplorePage({
           <p className="section-kicker">Explore</p>
           <h2 className="section-title">Find the most relevant repositories for a research topic.</h2>
           <p className="section-copy">
-            Describe the topic, review the generated repository queries, and save it as a
-            subscription when you want ongoing updates.
+            Describe the topic now. Until the AI profile layer lands, provide structured
+            research profile query terms manually to simulate the agent output.
           </p>
         </div>
 
@@ -59,14 +59,14 @@ export function ExplorePage({
             placeholder="Track repositories around paramagnetic NMR analysis workflows."
           />
 
-          <label className="field-label" htmlFor="query-overrides">
-            Query overrides (optional)
+          <label className="field-label" htmlFor="profile-query-terms">
+            Research profile query terms (temporary)
           </label>
           <textarea
-            id="query-overrides"
+            id="profile-query-terms"
             className="text-field text-area"
-            value={queryOverridesInput}
-            onChange={(event) => onQueryOverridesInputChange(event.target.value)}
+            value={profileQueryTermsInput}
+            onChange={(event) => onProfileQueryTermsInputChange(event.target.value)}
             placeholder={"paramagnetic nmr\npcs tensor fitting"}
           />
 
@@ -88,7 +88,7 @@ export function ExplorePage({
               {createPending ? "Saving..." : "Subscribe"}
             </button>
             <p className="field-hint">
-              When present, overrides replace the generated repository queries. Use one query per line for testing and provider validation.
+              One term per line. These terms currently stand in for the structured query output that the AI layer will later generate from the topic description.
             </p>
             <p className="field-hint">
               {viewer
@@ -112,9 +112,9 @@ export function ExplorePage({
               {lastQueries.length > 0 ? (
                 <>
                   <p className="field-hint">
-                    {lastQueryStrategy === "override"
-                      ? "Using operator overrides"
-                      : "Using generated queries"}
+                    {lastQueryStrategy === "profile_terms"
+                      ? "Using research profile query terms"
+                      : "Waiting for AI profile generation"}
                   </p>
                   {lastQueries.map((query) => (
                     <span className="query-chip" key={query}>
@@ -124,7 +124,7 @@ export function ExplorePage({
                 </>
               ) : (
                 <p className="empty-copy">
-                  Run a search to see the generated or overridden queries sent to GitHub and GitLab.
+                  Run a search to see the queries produced from the current research profile terms.
                 </p>
               )}
             </div>
@@ -146,7 +146,7 @@ export function ExplorePage({
               ))
             ) : (
               <p className="empty-copy">
-                No repositories yet. Run a search from the topic description or with explicit overrides.
+                No repositories yet. Without research profile terms, the topic stays in pending-AI mode.
               </p>
             )}
           </div>

@@ -39,15 +39,15 @@ class ExploreSearchUnavailableError(RuntimeError):
 def run_explore_search(
     *,
     topic_description: str,
-    query_overrides: Sequence[str] = (),
+    profile_query_terms: Sequence[str] = (),
 ) -> dict[str, object]:
     """Run a read-only repository search from one topic description."""
 
-    profile = _build_explore_profile(topic_description)
-    query_plan = build_repository_query_plan(
-        profile,
-        query_overrides=query_overrides,
+    profile = _build_explore_profile(
+        topic_description,
+        profile_query_terms=profile_query_terms,
     )
+    query_plan = build_repository_query_plan(profile)
     if not query_plan.queries:
         return {
             "topicDescription": topic_description,
@@ -100,13 +100,18 @@ def run_explore_search(
     }
 
 
-def _build_explore_profile(topic_description: str) -> ResearchProfile:
+def _build_explore_profile(
+    topic_description: str,
+    *,
+    profile_query_terms: Sequence[str] = (),
+) -> ResearchProfile:
     return build_profile(
         ResearchTopic(
             slug="explore",
             label=topic_description or "Untitled topic",
             description=topic_description,
-        )
+        ),
+        profile_query_terms=profile_query_terms,
     )
 
 

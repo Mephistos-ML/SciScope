@@ -7,6 +7,7 @@ from alembic.config import Config
 import os
 from pathlib import Path
 import sys
+import tempfile
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = BACKEND_ROOT.parent
@@ -22,7 +23,7 @@ os.environ.setdefault(
 )
 os.environ.setdefault(
     "DATABASE_URL",
-    "sqlite+pysqlite:///data/test-sciscope.sqlite3",
+    f"sqlite+pysqlite:///{Path(tempfile.gettempdir()) / 'sciscope-test-bootstrap.sqlite3'}",
 )
 
 

@@ -88,7 +88,7 @@ export type SignalDetailPayload = {
 export type SubscriptionItem = {
   subscriptionId: string;
   topicDescription: string;
-  queryStrategy: "generated" | "override";
+  queryStrategy: "profile_terms" | "pending_ai";
   queries: string[];
   createdAt: string;
 };
@@ -113,7 +113,7 @@ export type ExploreResultItem = {
 
 export type ExploreSearchPayload = {
   topicDescription: string;
-  queryStrategy: "generated" | "override";
+  queryStrategy: "profile_terms" | "pending_ai";
   queries: string[];
   items: ExploreResultItem[];
 };

@@ -27,13 +27,13 @@ export function App() {
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [results, setResults] = useState<ExploreResultItem[]>([]);
   const [lastQueries, setLastQueries] = useState<string[]>([]);
-  const [lastQueryStrategy, setLastQueryStrategy] = useState<"generated" | "override" | null>(
+  const [lastQueryStrategy, setLastQueryStrategy] = useState<"profile_terms" | "pending_ai" | null>(
     null,
   );
   const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>([]);
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
   const [topicInput, setTopicInput] = useState("Paramagnetic NMR analysis workflows");
-  const [queryOverridesInput, setQueryOverridesInput] = useState("");
+  const [profileQueryTermsInput, setProfileQueryTermsInput] = useState("");
   const [signingIn, setSigningIn] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [searchPending, setSearchPending] = useState(false);
@@ -115,7 +115,7 @@ export function App() {
     try {
       const payload = await runExploreSearch({
         topicDescription: topicInput.trim(),
-        queryOverrides: parseQueryOverrides(queryOverridesInput),
+        profileQueryTerms: parseProfileQueryTerms(profileQueryTermsInput),
       });
       setResults(payload.items);
       setLastQueries(payload.queries);
@@ -142,7 +142,7 @@ export function App() {
     try {
       const subscription = await createSubscription({
         topicDescription: topicInput.trim(),
-        queryOverrides: parseQueryOverrides(queryOverridesInput),
+        profileQueryTerms: parseProfileQueryTerms(profileQueryTermsInput),
       });
       setSubscriptions((current) => [subscription, ...current]);
       setSelectedSubscriptionId(subscription.subscriptionId);
@@ -205,11 +205,11 @@ export function App() {
           createPending={createPending}
           lastQueries={lastQueries}
           lastQueryStrategy={lastQueryStrategy}
-          onQueryOverridesInputChange={setQueryOverridesInput}
+          onProfileQueryTermsInputChange={setProfileQueryTermsInput}
           onRunSearch={() => void handleRunSearch()}
           onSubscribe={() => void handleSubscribe()}
           onTopicInputChange={setTopicInput}
-          queryOverridesInput={queryOverridesInput}
+          profileQueryTermsInput={profileQueryTermsInput}
           results={results}
           searchPending={searchPending}
           topicInput={topicInput}
@@ -230,7 +230,7 @@ export function App() {
   );
 }
 
-function parseQueryOverrides(value: string): string[] {
+function parseProfileQueryTerms(value: string): string[] {
   return value
     .split("\n")
     .map((item) => item.trim())

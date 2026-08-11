@@ -24,7 +24,7 @@ def upgrade() -> None:
             "query_strategy",
             sa.String(),
             nullable=False,
-            server_default="generated",
+            server_default="pending_ai",
         ),
     )
 

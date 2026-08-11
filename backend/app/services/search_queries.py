@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -11,7 +10,7 @@ from app.sources.repositories.common.query_builder import (
     build_repository_search_queries,
 )
 
-QueryStrategy = Literal["generated", "override"]
+QueryStrategy = Literal["profile_terms", "pending_ai"]
 
 
 @dataclass(frozen=True)
@@ -24,26 +23,24 @@ class RepositoryQueryPlan:
 
 def build_repository_query_plan(
     profile: ResearchProfile,
-    *,
-    query_overrides: Sequence[str] = (),
 ) -> RepositoryQueryPlan:
-    """Resolve repository queries from the topic profile or explicit overrides."""
+    """Resolve repository queries from one already-built research profile."""
 
-    normalized_overrides = normalize_query_overrides(query_overrides)
-    if normalized_overrides:
+    queries = tuple(build_repository_search_queries(profile))
+    if queries:
         return RepositoryQueryPlan(
-            queries=normalized_overrides,
-            strategy="override",
+            queries=queries,
+            strategy="profile_terms",
         )
 
     return RepositoryQueryPlan(
-        queries=tuple(build_repository_search_queries(profile)),
-        strategy="generated",
+        queries=(),
+        strategy="pending_ai",
     )
 
 
-def normalize_query_overrides(values: Sequence[str]) -> tuple[str, ...]:
-    """Normalize one optional operator override list."""
+def normalize_profile_query_terms(values: tuple[str, ...] | list[str]) -> tuple[str, ...]:
+    """Normalize one structured query-term list."""
 
     normalized_values: list[str] = []
     seen: set[str] = set()
