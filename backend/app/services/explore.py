@@ -1,4 +1,4 @@
-"""Explore search built from manual queries only."""
+"""Explore search built from topic descriptions."""
 
 from __future__ import annotations
 
@@ -6,7 +6,8 @@ import logging
 from collections.abc import Sequence
 
 from app.models.signal import RawSignal
-from app.models.topic import ResearchProfile
+from app.models.topic import ResearchProfile, ResearchTopic
+from app.services.profile_builder import build_profile
 from app.services.matching import match_signal_to_profile
 from app.services.normalization import normalize_raw_signal
 from app.sources.repositories.common.query_builder import (
@@ -40,16 +41,14 @@ class ExploreSearchUnavailableError(RuntimeError):
 def run_explore_search(
     *,
     topic_description: str,
-    manual_queries: list[str],
 ) -> dict[str, object]:
-    """Run a read-only repository search from manual queries."""
+    """Run a read-only repository search from one topic description."""
 
-    profile = _build_explore_profile(manual_queries)
+    profile = _build_explore_profile(topic_description)
     queries = build_repository_search_queries(profile)
     if not queries:
         return {
             "topicDescription": topic_description,
-            "manualQueries": manual_queries,
             "queries": [],
             "items": [],
             "sourceStatuses": [],
@@ -91,17 +90,19 @@ def run_explore_search(
 
     return {
         "topicDescription": topic_description,
-        "manualQueries": manual_queries,
         "queries": list(queries),
         "items": items,
         "sourceStatuses": source_statuses,
     }
 
 
-def _build_explore_profile(manual_queries: list[str]) -> ResearchProfile:
-    return ResearchProfile(
-        topic_slug="explore",
-        core_terms=tuple(manual_queries),
+def _build_explore_profile(topic_description: str) -> ResearchProfile:
+    return build_profile(
+        ResearchTopic(
+            slug="explore",
+            label=topic_description or "Untitled topic",
+            description=topic_description,
+        )
     )
 
 

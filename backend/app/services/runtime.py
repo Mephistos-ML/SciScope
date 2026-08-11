@@ -14,9 +14,9 @@ from app.config import (
 )
 from app.models.signal import RawSignal
 from app.runtime.state import STATE
-from app.services.discovery import discover_entities_for_profile
 from app.services.matching import match_signal_to_profile
 from app.sources.repositories.runtime import (
+    discover_repository_entities_for_profile,
     describe_repository_checkpoints,
     describe_watched_repositories,
     load_repository_signals_for_profile,
@@ -166,7 +166,7 @@ def run_discovery_cycle() -> None:
 
     try:
         discovery_results = [
-            discover_entities_for_profile(profile)
+            discover_repository_entities_for_profile(profile)
             for profile in list_runtime_profiles()
         ]
         STATE.last_discovery_result = _build_discovery_summary_payload(discovery_results)

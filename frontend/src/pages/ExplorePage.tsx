@@ -6,9 +6,7 @@ type ExplorePageProps = {
   authMode: AuthMode;
   canSubscribe: boolean;
   createPending: boolean;
-  queryInput: string;
   lastQueries: string[];
-  onQueryInputChange: (value: string) => void;
   onRunSearch: () => void;
   onSubscribe: () => void;
   onTopicInputChange: (value: string) => void;
@@ -22,9 +20,7 @@ export function ExplorePage({
   authMode,
   canSubscribe,
   createPending,
-  queryInput,
   lastQueries,
-  onQueryInputChange,
   onRunSearch,
   onSubscribe,
   onTopicInputChange,
@@ -40,8 +36,8 @@ export function ExplorePage({
           <p className="section-kicker">Explore</p>
           <h2 className="section-title">Find the most relevant repositories for a research topic.</h2>
           <p className="section-copy">
-            Describe the topic, refine the queries, and save it as a subscription when you want
-            ongoing updates.
+            Describe the topic, review the generated repository queries, and save it as a
+            subscription when you want ongoing updates.
           </p>
         </div>
 
@@ -55,17 +51,6 @@ export function ExplorePage({
             value={topicInput}
             onChange={(event) => onTopicInputChange(event.target.value)}
             placeholder="Track repositories around paramagnetic NMR analysis workflows."
-          />
-
-          <label className="field-label" htmlFor="manual-query-input">
-            Manual queries
-          </label>
-          <input
-            id="manual-query-input"
-            className="text-field"
-            value={queryInput}
-            onChange={(event) => onQueryInputChange(event.target.value)}
-            placeholder="pcs, paramagnetic nmr, tensor fitting"
           />
 
           <div className="query-actions">
@@ -111,7 +96,7 @@ export function ExplorePage({
                   </span>
                 ))
               ) : (
-                <p className="empty-copy">Run a search to see the exact queries sent to GitHub and GitLab.</p>
+                <p className="empty-copy">Run a search to see the generated queries sent to GitHub and GitLab.</p>
               )}
             </div>
           </div>
@@ -131,7 +116,7 @@ export function ExplorePage({
                 </div>
               ))
             ) : (
-              <p className="empty-copy">No repositories yet. Run a search from the manual queries.</p>
+              <p className="empty-copy">No repositories yet. Run a search from the topic description.</p>
             )}
           </div>
         </article>

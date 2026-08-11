@@ -27,18 +27,12 @@ def create_subscription_response(payload: dict[str, object]) -> dict[str, object
         return None
 
     topic_description = str(payload.get("topicDescription") or "").strip()
-    manual_queries = [
-        str(term).strip()
-        for term in payload.get("manualQueries", [])
-        if str(term).strip()
-    ]
     if not topic_description:
         topic_description = "Untitled topic"
 
     return create_subscription_payload(
         user,
         topic_description=topic_description,
-        manual_keywords=manual_queries,
     )
 
 

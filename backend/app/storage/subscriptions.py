@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -21,7 +20,7 @@ class SubscriptionRecord:
     subscription_id: str
     user_id: str
     topic_description: str
-    manual_keywords: tuple[str, ...]
+    query_terms: tuple[str, ...]
     created_at: str
 
 
@@ -29,7 +28,7 @@ def create_subscription(
     *,
     user_id: str,
     topic_description: str,
-    manual_keywords: Sequence[str],
+    query_terms: tuple[str, ...],
     database_url: str | None = None,
 ) -> SubscriptionRecord:
     """Create one subscription for a saved search."""
@@ -40,7 +39,7 @@ def create_subscription(
         subscription_id=f"sub_{uuid.uuid4().hex[:12]}",
         user_id=user_id,
         topic_description=topic_description,
-        manual_keywords_json=[str(keyword) for keyword in manual_keywords],
+        query_terms_json=list(query_terms),
         created_at=created_at,
     )
 
@@ -114,7 +113,7 @@ def _to_subscription_record(record: SubscriptionRecordModel) -> SubscriptionReco
         subscription_id=record.subscription_id,
         user_id=record.user_id,
         topic_description=record.topic_description,
-        manual_keywords=tuple(str(item) for item in (record.manual_keywords_json or [])),
+        query_terms=tuple(str(item) for item in (record.query_terms_json or [])),
         created_at=_ensure_utc(record.created_at).isoformat(timespec="seconds"),
     )
 

@@ -30,7 +30,6 @@ export function App() {
   const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>([]);
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
   const [topicInput, setTopicInput] = useState("Paramagnetic NMR analysis workflows");
-  const [queryInput, setQueryInput] = useState("pcs, paramagnetic nmr, tensor fitting");
   const [signingIn, setSigningIn] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [searchPending, setSearchPending] = useState(false);
@@ -112,10 +111,6 @@ export function App() {
     try {
       const payload = await runExploreSearch({
         topicDescription: topicInput.trim(),
-        manualQueries: queryInput
-          .split(",")
-          .map((term) => term.trim())
-          .filter(Boolean),
       });
       setResults(payload.items);
       setLastQueries(payload.queries);
@@ -141,10 +136,6 @@ export function App() {
     try {
       const subscription = await createSubscription({
         topicDescription: topicInput.trim(),
-        manualQueries: queryInput
-          .split(",")
-          .map((term) => term.trim())
-          .filter(Boolean),
       });
       setSubscriptions((current) => [subscription, ...current]);
       setSelectedSubscriptionId(subscription.subscriptionId);
@@ -205,9 +196,7 @@ export function App() {
           authMode={authMode}
           canSubscribe={Boolean(viewer)}
           createPending={createPending}
-          queryInput={queryInput}
           lastQueries={lastQueries}
-          onQueryInputChange={setQueryInput}
           onRunSearch={() => void handleRunSearch()}
           onSubscribe={() => void handleSubscribe()}
           onTopicInputChange={setTopicInput}

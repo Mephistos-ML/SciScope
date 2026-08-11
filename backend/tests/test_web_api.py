@@ -243,19 +243,19 @@ def test_dev_login_and_subscription_endpoints(monkeypatch) -> None:
                 "/api/subscriptions",
                 json={
                     "topicDescription": "paramagnetic NMR software",
-                    "manualQueries": ["pcs", "relaxation"],
                 },
             )
             assert response.status_code == 201
             created = response.json()
             assert created["topicDescription"] == "paramagnetic NMR software"
-            assert created["manualQueries"] == ["pcs", "relaxation"]
+            assert "paramagnetic NMR software" in created["queries"]
 
             response = client.get("/api/subscriptions")
             assert response.status_code == 200
             listed = response.json()
             assert len(listed["items"]) == 1
             assert listed["items"][0]["topicDescription"] == "paramagnetic NMR software"
+            assert "paramagnetic NMR software" in listed["items"][0]["queries"]
 
             subscription_id = listed["items"][0]["subscriptionId"]
             response = client.delete(f"/api/subscriptions/{subscription_id}")
@@ -296,14 +296,13 @@ def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatc
             "/api/explore/search",
             json={
                 "topicDescription": "Paramagnetic NMR analysis workflows",
-                "manualQueries": ["paramagnetic nmr"],
             },
         )
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/json"
     payload = response.json()
-    assert payload["queries"] == ["paramagnetic nmr"]
+    assert "Paramagnetic NMR analysis workflows" in payload["queries"]
     assert len(payload["items"]) == 1
     assert payload["items"][0]["itemId"] == "github:repo:Mephistos-ML/paranmr"
     assert payload["items"][0]["source"] == "github"
@@ -344,7 +343,6 @@ def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
             "/api/explore/search",
             json={
                 "topicDescription": "Paramagnetic NMR analysis workflows",
-                "manualQueries": ["paramagnetic nmr"],
             },
         )
 

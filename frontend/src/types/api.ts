@@ -88,7 +88,7 @@ export type SignalDetailPayload = {
 export type SubscriptionItem = {
   subscriptionId: string;
   topicDescription: string;
-  manualQueries: string[];
+  queries: string[];
   createdAt: string;
 };
 
@@ -112,7 +112,6 @@ export type ExploreResultItem = {
 
 export type ExploreSearchPayload = {
   topicDescription: string;
-  manualQueries: string[];
   queries: string[];
   items: ExploreResultItem[];
 };

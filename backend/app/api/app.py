@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.api.routes import auth as auth_routes
 from app.api.routes import control as control_routes
@@ -22,17 +22,15 @@ from app.services.explore import ExploreSearchUnavailableError
 
 
 class ExploreSearchRequest(BaseModel):
-    """Request body for one manual explore search."""
+    """Request body for one topic-driven explore search."""
 
     topicDescription: str = ""
-    manualQueries: list[str] = Field(default_factory=list)
 
 
 class CreateSubscriptionRequest(BaseModel):
-    """Request body for one saved subscription."""
+    """Request body for one saved topic subscription."""
 
     topicDescription: str = ""
-    manualQueries: list[str] = Field(default_factory=list)
 
 
 @asynccontextmanager
