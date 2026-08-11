@@ -1,9 +1,7 @@
-import type { AuthMode } from "../lib/config";
 import type { ViewerPayload } from "../types/api";
 
 type AppHeaderProps = {
   activeView: "explore" | "feed";
-  authMode: AuthMode;
   onNavigate: (view: "explore" | "feed") => void;
   onSignIn: () => void;
   onSignOut: () => void;
@@ -14,7 +12,6 @@ type AppHeaderProps = {
 
 export function AppHeader({
   activeView,
-  authMode,
   onNavigate,
   onSignIn,
   onSignOut,
@@ -59,19 +56,15 @@ export function AppHeader({
               {signingOut ? "Signing out..." : "Sign out"}
             </button>
           </div>
-        ) : authMode === "dev" ? (
+        ) : (
           <button
             className="solid-button"
             onClick={onSignIn}
             disabled={signingIn}
             type="button"
           >
-            {signingIn ? "Connecting..." : "Developer sign-in"}
+            {signingIn ? "Connecting..." : "Continue with Google"}
           </button>
-        ) : (
-          <div className="viewer-strip viewer-strip-muted">
-            <span>Authentication not enabled</span>
-          </div>
         )}
       </div>
     </header>

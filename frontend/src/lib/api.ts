@@ -89,10 +89,8 @@ export async function fetchMe(): Promise<ViewerPayload> {
   return requestJson<ViewerPayload>("/api/me");
 }
 
-export async function signInWithDevSession(): Promise<ViewerPayload> {
-  return requestJson<ViewerPayload>("/api/auth/dev-login", {
-    method: "POST",
-  });
+export function beginGoogleSignIn(): void {
+  window.location.assign(buildApiUrl("/api/auth/google/start"));
 }
 
 export async function signOut(): Promise<ViewerPayload> {

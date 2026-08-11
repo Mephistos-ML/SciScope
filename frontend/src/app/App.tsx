@@ -1,15 +1,14 @@
 import { useEffect, useState } from "react";
 
 import {
+  beginGoogleSignIn,
   createSubscription,
   deleteSubscription,
   fetchMe,
   fetchSubscriptions,
   runExploreSearch,
-  signInWithDevSession,
   signOut,
 } from "../lib/api";
-import { frontendConfig } from "../lib/config";
 import { AppHeader } from "../components/AppHeader";
 import { ExplorePage } from "../pages/ExplorePage";
 import { FeedPage } from "../pages/FeedPage";
@@ -22,7 +21,6 @@ import type {
 type AppView = "explore" | "feed";
 
 export function App() {
-  const { authMode } = frontendConfig;
   const [activeView, setActiveView] = useState<AppView>("explore");
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [results, setResults] = useState<ExploreResultItem[]>([]);
@@ -42,6 +40,12 @@ export function App() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    const authError = readAuthErrorFromUrl();
+    if (authError) {
+      setErrorMessage(mapAuthErrorMessage(authError));
+      clearAuthErrorFromUrl();
+    }
+
     async function loadInitialState() {
       try {
         const viewerPayload = await fetchMe();
@@ -77,21 +81,16 @@ export function App() {
   }, [viewer]);
 
   async function handleSignIn() {
-    if (authMode !== "dev") {
-      setErrorMessage("Authentication is not enabled in this environment yet.");
-      return;
-    }
-
     setSigningIn(true);
     setErrorMessage(null);
     try {
-      const payload = await signInWithDevSession();
-      setViewer(payload.user);
-      setActiveView("explore");
+      beginGoogleSignIn();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to sign in.");
-    } finally {
       setSigningIn(false);
+      return;
+    } finally {
+      window.setTimeout(() => setSigningIn(false), 1000);
     }
   }
 
@@ -129,11 +128,7 @@ export function App() {
 
   async function handleSubscribe() {
     if (!viewer) {
-      setErrorMessage(
-        authMode === "dev"
-          ? "Sign in before creating a subscription."
-          : "Authentication is not enabled in this environment yet.",
-      );
+      setErrorMessage("Sign in with Google before creating a subscription.");
       return;
     }
 
@@ -182,7 +177,6 @@ export function App() {
     <>
       <AppHeader
         activeView={activeView}
-        authMode={authMode}
         onNavigate={setActiveView}
         onSignIn={() => void handleSignIn()}
         onSignOut={() => void handleSignOut()}
@@ -192,15 +186,14 @@ export function App() {
       />
 
       {errorMessage ? <section className="error-banner global-banner">{errorMessage}</section> : null}
-      {!viewer && authMode !== "dev" ? (
+      {!viewer ? (
         <section className="info-banner global-banner">
-          Explore mode is public. Saved subscriptions will unlock after the real authentication flow is added.
+          Explore mode is public. Sign in with Google to save subscriptions and build your feed.
         </section>
       ) : null}
 
       {activeView === "explore" ? (
         <ExplorePage
-          authMode={authMode}
           canSubscribe={Boolean(viewer)}
           createPending={createPending}
           lastQueries={lastQueries}
@@ -217,7 +210,6 @@ export function App() {
         />
       ) : (
         <FeedPage
-          authMode={authMode}
           deletePending={deletePending}
           selectedSubscriptionId={selectedSubscriptionId}
           subscriptions={subscriptions}
@@ -235,4 +227,33 @@ function parseProfileQueryTerms(value: string): string[] {
     .split("\n")
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
+}
+
+function readAuthErrorFromUrl(): string | null {
+  const currentUrl = new URL(window.location.href);
+  const value = currentUrl.searchParams.get("authError")?.trim();
+  return value || null;
+}
+
+function clearAuthErrorFromUrl(): void {
+  const currentUrl = new URL(window.location.href);
+  currentUrl.searchParams.delete("authError");
+  window.history.replaceState({}, "", currentUrl.toString());
+}
+
+function mapAuthErrorMessage(authError: string): string {
+  switch (authError) {
+    case "google_access_denied":
+      return "Google sign-in was cancelled before access was granted.";
+    case "google_session_expired":
+      return "Google sign-in expired before it completed. Please try again.";
+    case "google_state_mismatch":
+      return "Google sign-in could not be verified securely. Please try again.";
+    case "google_missing_code":
+      return "Google sign-in returned without an authorization code.";
+    case "google_auth_failed":
+      return "Google sign-in failed on the server. Please try again.";
+    default:
+      return "Google sign-in failed. Please try again.";
+  }
 }
