@@ -11,6 +11,7 @@ from app.services.matching import match_signal_to_profile
 from app.services.normalization import normalize_raw_signal
 from app.services.profile_builder import build_profile
 from app.services.search_queries import build_repository_query_plan
+from app.sources.repositories.common import RepositorySourceError, build_source_status
 from app.sources.repositories.github.discovery import (
     discover_repository_candidates as discover_github_repository_candidates,
 )
@@ -151,33 +152,48 @@ def _discover_candidates_across_sources(
     ):
         try:
             source_candidates = list(discover_candidates(queries))
+        except RepositorySourceError as exc:
+            logger.warning(
+                "Repository source %s is unavailable for explore search: %s",
+                source_name,
+                exc.public_message,
+            )
+            source_statuses.append(
+                build_source_status(
+                    source=source_name,
+                    status=exc.status,
+                    candidate_count=0,
+                    error=exc.public_message,
+                )
+            )
+            continue
         except Exception:
             logger.exception(
                 "Repository source %s failed during explore search.",
                 source_name,
             )
             source_statuses.append(
-                {
-                    "source": source_name,
-                    "status": "error",
-                    "candidateCount": 0,
-                    "error": (
+                build_source_status(
+                    source=source_name,
+                    status="error",
+                    candidate_count=0,
+                    error=(
                         f"{SOURCE_DISPLAY_NAMES[source_name]} repository search is "
                         "unavailable right now."
                     ),
-                }
+                )
             )
             continue
 
         successful_sources += 1
         candidates.extend(source_candidates)
         source_statuses.append(
-            {
-                "source": source_name,
-                "status": "ok",
-                "candidateCount": len(source_candidates),
-                "error": None,
-            }
+            build_source_status(
+                source=source_name,
+                status="ok",
+                candidate_count=len(source_candidates),
+                error=None,
+            )
         )
 
     if successful_sources == 0:

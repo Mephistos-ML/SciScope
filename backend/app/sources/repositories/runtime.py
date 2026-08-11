@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
+
 from app.config import DATABASE_URL
 from app.models.discovery import DiscoveryResult
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile
+from app.sources.repositories.common import RepositorySourceError
 from app.sources.repositories.github.discovery import discover_github_entities_for_profile
 from app.sources.repositories.github.monitor import load_github_signals_for_profile
 from app.sources.repositories.github.state import (
@@ -21,6 +24,8 @@ from app.sources.repositories.gitlab.state import (
     sync_gitlab_baseline_for_profile,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def discover_repository_entities_for_profile(
     profile: ResearchProfile,
@@ -30,10 +35,32 @@ def discover_repository_entities_for_profile(
     """Discover repository entities across all configured repository sources."""
 
     resolved_database_url = database_url or DATABASE_URL
-    results = [
-        discover_github_entities_for_profile(profile, database_url=resolved_database_url),
-        discover_gitlab_entities_for_profile(profile, database_url=resolved_database_url),
-    ]
+    results: list[DiscoveryResult] = []
+
+    for source_name, discover_entities in (
+        ("github", discover_github_entities_for_profile),
+        ("gitlab", discover_gitlab_entities_for_profile),
+    ):
+        try:
+            results.append(
+                discover_entities(profile, database_url=resolved_database_url)
+            )
+        except RepositorySourceError as exc:
+            logger.warning(
+                "Repository discovery source %s skipped: %s",
+                source_name,
+                exc.public_message,
+            )
+        except Exception:
+            logger.exception(
+                "Repository discovery source %s failed unexpectedly.",
+                source_name,
+            )
+
+    if not results:
+        raise RuntimeError(
+            "Repository discovery is unavailable because every repository source failed."
+        )
 
     merged_queries: list[str] = []
     seen_queries: set[str] = set()
@@ -56,17 +83,48 @@ def discover_repository_entities_for_profile(
 def sync_repository_baseline_for_profile(profile: ResearchProfile) -> None:
     """Initialize monitoring baselines across repository sources."""
 
-    sync_github_baseline_for_profile(profile)
-    sync_gitlab_baseline_for_profile(profile)
+    for source_name, sync_baseline in (
+        ("github", sync_github_baseline_for_profile),
+        ("gitlab", sync_gitlab_baseline_for_profile),
+    ):
+        try:
+            sync_baseline(profile)
+        except RepositorySourceError as exc:
+            logger.warning(
+                "Repository baseline sync skipped for %s: %s",
+                source_name,
+                exc.public_message,
+            )
+        except Exception:
+            logger.exception(
+                "Repository baseline sync failed for %s.",
+                source_name,
+            )
 
 
 def load_repository_signals_for_profile(profile: ResearchProfile) -> list[RawSignal]:
     """Load live repository release signals across repository sources."""
 
-    return [
-        *load_github_signals_for_profile(profile),
-        *load_gitlab_signals_for_profile(profile),
-    ]
+    signals: list[RawSignal] = []
+    for source_name, load_signals in (
+        ("github", load_github_signals_for_profile),
+        ("gitlab", load_gitlab_signals_for_profile),
+    ):
+        try:
+            signals.extend(load_signals(profile))
+        except RepositorySourceError as exc:
+            logger.warning(
+                "Repository monitoring source %s skipped: %s",
+                source_name,
+                exc.public_message,
+            )
+        except Exception:
+            logger.exception(
+                "Repository monitoring source %s failed unexpectedly.",
+                source_name,
+            )
+
+    return signals
 
 
 def describe_watched_repositories(subscription_id: str) -> list[dict[str, object]]:

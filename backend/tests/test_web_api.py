@@ -13,6 +13,7 @@ from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile, ResearchTopic
 from app.runtime.state import STATE
 from app.services import runtime
+from app.sources.repositories.common import RepositorySourceError
 from app.storage import entities as entity_storage
 from app.storage import subscriptions as subscription_storage
 
@@ -367,6 +368,57 @@ def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
             "status": "error",
             "candidateCount": 0,
             "error": "GitLab repository search is unavailable right now.",
+        },
+    ]
+
+
+def test_explore_search_returns_source_auth_statuses(monkeypatch) -> None:
+    def fail_github(_queries) -> list[RawSignal]:
+        raise RepositorySourceError(
+            source="github",
+            status="misconfigured",
+            public_message="GitHub repository search is misconfigured.",
+        )
+
+    def fail_gitlab(_queries) -> list[RawSignal]:
+        raise RepositorySourceError(
+            source="gitlab",
+            status="unauthorized",
+            public_message="GitLab repository access is unauthorized right now.",
+        )
+
+    monkeypatch.setattr(
+        "app.services.explore.discover_github_repository_candidates",
+        fail_github,
+    )
+    monkeypatch.setattr(
+        "app.services.explore.discover_gitlab_repository_candidates",
+        fail_gitlab,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={
+                "topicDescription": "Paramagnetic NMR analysis workflows",
+                "profileQueryTerms": ["paramagnetic nmr", "pcs tensor fitting"],
+            },
+        )
+
+    assert response.status_code == 502
+    payload = response.json()
+    assert payload["sourceStatuses"] == [
+        {
+            "source": "github",
+            "status": "misconfigured",
+            "candidateCount": 0,
+            "error": "GitHub repository search is misconfigured.",
+        },
+        {
+            "source": "gitlab",
+            "status": "unauthorized",
+            "candidateCount": 0,
+            "error": "GitLab repository access is unauthorized right now.",
         },
     ]
 
