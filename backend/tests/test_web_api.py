@@ -15,6 +15,7 @@ from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile, ResearchTopic
 from app.runtime.state import STATE
 from app.services import runtime
+from app.services import auth as auth_service
 from app.services.auth import create_authenticated_session
 from app.sources.repositories.common import RepositorySourceError
 from app.storage import auth as auth_storage
@@ -220,7 +221,7 @@ def test_missing_signal_returns_404_json() -> None:
     assert payload["error"] == "Signal not found"
 
 
-def test_dev_login_and_subscription_endpoints(monkeypatch) -> None:
+def test_session_auth_and_subscription_endpoints(monkeypatch) -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         database_url = build_test_database_url(Path(temp_dir) / "subscriptions.sqlite3")
         migrate_test_database(database_url)
@@ -259,6 +260,7 @@ def test_dev_login_and_subscription_endpoints(monkeypatch) -> None:
             assert me_response.status_code == 200
             payload = me_response.json()
             assert payload["user"]["userId"] == "user_test_subscriptions"
+            assert payload["user"]["avatarUrl"] is None
 
             response = client.post(
                 "/api/subscriptions",
@@ -294,6 +296,115 @@ def test_dev_login_and_subscription_endpoints(monkeypatch) -> None:
             assert response.status_code == 200
             assert response.json() == {"user": None}
             assert client.get("/api/me").json() == {"user": None}
+
+
+def test_google_auth_start_redirects_to_google(monkeypatch) -> None:
+    monkeypatch.setattr(auth_service, "GOOGLE_CLIENT_ID", "google-client-id")
+    monkeypatch.setattr(auth_service, "GOOGLE_CLIENT_SECRET", "google-client-secret")
+    monkeypatch.setattr(
+        auth_service,
+        "GOOGLE_OAUTH_REDIRECT_URI",
+        "https://api.sciscope.uk/api/auth/google/callback",
+    )
+    monkeypatch.setattr(auth_service, "FRONTEND_BASE_URL", "https://sciscope.uk")
+
+    with TestClient(app) as client:
+        response = client.get("/api/auth/google/start", follow_redirects=False)
+
+    assert response.status_code == 302
+    location = response.headers["location"]
+    assert location.startswith("https://accounts.google.com/o/oauth2/v2/auth?")
+    assert "client_id=google-client-id" in location
+    assert "redirect_uri=https%3A%2F%2Fapi.sciscope.uk%2Fapi%2Fauth%2Fgoogle%2Fcallback" in location
+    assert "scope=openid+email+profile" in location
+    set_cookie_header = response.headers.get_list("set-cookie")
+    assert any(auth_service.GOOGLE_OAUTH_STATE_COOKIE_NAME in header for header in set_cookie_header)
+    assert any(auth_service.GOOGLE_OAUTH_NONCE_COOKIE_NAME in header for header in set_cookie_header)
+
+
+def test_google_auth_callback_creates_user_session(monkeypatch) -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        database_url = build_test_database_url(Path(temp_dir) / "google-auth.sqlite3")
+        migrate_test_database(database_url)
+        monkeypatch.setattr(auth_storage, "DATABASE_URL", database_url)
+        monkeypatch.setattr(auth_service, "GOOGLE_CLIENT_ID", "google-client-id")
+        monkeypatch.setattr(auth_service, "GOOGLE_CLIENT_SECRET", "google-client-secret")
+        monkeypatch.setattr(
+            auth_service,
+            "GOOGLE_OAUTH_REDIRECT_URI",
+            "https://api.sciscope.uk/api/auth/google/callback",
+        )
+        monkeypatch.setattr(auth_service, "FRONTEND_BASE_URL", "https://sciscope.uk")
+
+        def fake_exchange(code: str) -> dict[str, object]:
+            assert code == "good-code"
+            return {"id_token": "fake-id-token"}
+
+        def fake_verify(id_token: str, *, expected_nonce: str) -> auth_service.GoogleIdentity:
+            assert id_token == "fake-id-token"
+            assert expected_nonce == "nonce-123"
+            return auth_service.GoogleIdentity(
+                subject="google-subject-123",
+                email="scientist@example.com",
+                display_name="Research Scientist",
+                avatar_url="https://example.com/avatar.png",
+            )
+
+        monkeypatch.setattr(auth_service, "_exchange_google_code_for_tokens", fake_exchange)
+        monkeypatch.setattr(auth_service, "_verify_google_identity", fake_verify)
+
+        with TestClient(app) as client:
+            client.cookies.set(auth_service.GOOGLE_OAUTH_STATE_COOKIE_NAME, "state-123")
+            client.cookies.set(auth_service.GOOGLE_OAUTH_NONCE_COOKIE_NAME, "nonce-123")
+
+            callback_response = client.get(
+                "/api/auth/google/callback?state=state-123&code=good-code",
+                follow_redirects=False,
+            )
+
+            assert callback_response.status_code == 302
+            assert callback_response.headers["location"] == "https://sciscope.uk"
+
+            me_response = client.get("/api/me")
+            assert me_response.status_code == 200
+            assert me_response.json() == {
+                "user": {
+                    "userId": me_response.json()["user"]["userId"],
+                    "email": "scientist@example.com",
+                    "displayName": "Research Scientist",
+                    "avatarUrl": "https://example.com/avatar.png",
+                }
+            }
+
+            oauth_account = auth_storage.get_oauth_account_by_provider_subject(
+                "google",
+                "google-subject-123",
+                database_url=database_url,
+            )
+            assert oauth_account is not None
+
+
+def test_google_auth_callback_redirects_with_error_when_state_is_invalid(monkeypatch) -> None:
+    monkeypatch.setattr(auth_service, "GOOGLE_CLIENT_ID", "google-client-id")
+    monkeypatch.setattr(auth_service, "GOOGLE_CLIENT_SECRET", "google-client-secret")
+    monkeypatch.setattr(
+        auth_service,
+        "GOOGLE_OAUTH_REDIRECT_URI",
+        "https://api.sciscope.uk/api/auth/google/callback",
+    )
+    monkeypatch.setattr(auth_service, "FRONTEND_BASE_URL", "https://sciscope.uk")
+
+    with TestClient(app) as client:
+        client.cookies.set(auth_service.GOOGLE_OAUTH_STATE_COOKIE_NAME, "expected-state")
+        client.cookies.set(auth_service.GOOGLE_OAUTH_NONCE_COOKIE_NAME, "expected-nonce")
+
+        response = client.get(
+            "/api/auth/google/callback?state=wrong-state&code=good-code",
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "https://sciscope.uk?authError=google_state_mismatch"
 
 
 def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatch) -> None:

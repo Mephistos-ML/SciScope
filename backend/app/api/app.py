@@ -108,6 +108,20 @@ def get_me(request: Request) -> dict[str, object]:
     return auth_routes.get_me_response(request)
 
 
+@app.get("/api/auth/google/start")
+def start_google_auth() -> Response:
+    """Start Google OAuth for one browser session."""
+
+    return auth_routes.start_google_auth_response()
+
+
+@app.get("/api/auth/google/callback")
+def complete_google_auth(request: Request) -> Response:
+    """Complete Google OAuth and create one first-party session."""
+
+    return auth_routes.finish_google_auth_response(request)
+
+
 @app.post("/api/logout")
 def sign_out(request: Request, response: Response) -> dict[str, object]:
     """Clear the current user."""
