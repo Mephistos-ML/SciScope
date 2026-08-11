@@ -6,12 +6,12 @@ import os
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+BACKEND_ROOT = PROJECT_ROOT / "backend"
 
 APP_VERSION = "0.1.0"
 DISCOVERY_INTERVAL_SECONDS = 86400  # 24 hours
 MONITORING_INTERVAL_SECONDS = 7200  # 2 hours
 POLLING_FREQUENCY_SECONDS = 30  # scheduler polling frequency: 30 seconds
-REPLAY_FIXTURES_PATH = PROJECT_ROOT / "data" / "replay_signals.json"
 
 
 def _read_required_env(name: str) -> str:
@@ -23,6 +23,17 @@ def _read_required_env(name: str) -> str:
 
 def _read_optional_env(name: str) -> str:
     return os.getenv(name, "").strip()
+
+
+def _read_optional_path_env(name: str, default: Path) -> Path:
+    raw_value = _read_optional_env(name)
+    if not raw_value:
+        return default
+
+    path = Path(raw_value)
+    if path.is_absolute():
+        return path
+    return (PROJECT_ROOT / path).resolve()
 
 
 def _read_required_int_env(name: str) -> int:
@@ -43,10 +54,19 @@ def _read_required_csv_env(name: str) -> tuple[str, ...]:
     return values
 
 
+REPLAY_FIXTURES_PATH = _read_optional_path_env(
+    "REPLAY_FIXTURES_PATH",
+    BACKEND_ROOT / "tests" / "fixtures" / "replay_signals.json",
+)
 APP_ENV = _read_required_env("APP_ENV")
 APP_HOST = _read_required_env("APP_HOST")
 APP_PORT = _read_required_int_env("APP_PORT")
 CORS_ORIGINS = _read_required_csv_env("CORS_ORIGINS")
 DATABASE_URL = _read_required_env("DATABASE_URL")
-GITHUB_TOKEN = _read_optional_env("GITHUB_TOKEN")
-GITLAB_TOKEN = _read_optional_env("GITLAB_TOKEN")
+GITHUB_AUTH_MODE = _read_optional_env("GITHUB_AUTH_MODE") or "disabled"
+GITHUB_APP_ID = _read_optional_env("GITHUB_APP_ID")
+GITHUB_APP_INSTALLATION_ID = _read_optional_env("GITHUB_APP_INSTALLATION_ID")
+GITHUB_APP_PRIVATE_KEY = _read_optional_env("GITHUB_APP_PRIVATE_KEY")
+GITLAB_AUTH_MODE = _read_optional_env("GITLAB_AUTH_MODE") or "disabled"
+GITLAB_BASE_URL = _read_optional_env("GITLAB_BASE_URL") or "https://gitlab.com"
+GITLAB_SERVICE_ACCOUNT_TOKEN = _read_optional_env("GITLAB_SERVICE_ACCOUNT_TOKEN")

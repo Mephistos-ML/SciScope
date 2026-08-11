@@ -1,5 +1,6 @@
 """GitHub repository source namespace."""
 
+from app.sources.repositories.github.auth import build_auth_headers
 from app.sources.repositories.github.discovery import (
     discover_github_entities_for_profile,
     discover_repository_candidates,
@@ -16,6 +17,7 @@ from app.sources.repositories.github.state import (
 )
 
 __all__ = [
+    "build_auth_headers",
     "build_repository_search_queries",
     "describe_release_checkpoints",
     "describe_watched_github_repositories",

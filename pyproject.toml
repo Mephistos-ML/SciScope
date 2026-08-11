@@ -9,6 +9,7 @@ dependencies = [
     "psycopg[binary]>=3.3,<3.4",
     "fastapi>=0.141,<0.142",
     "uvicorn>=0.52,<0.53",
+    "PyJWT[crypto]>=2.10,<2.11",
 ]
 
 [build-system]

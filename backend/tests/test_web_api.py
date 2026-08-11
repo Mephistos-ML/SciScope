@@ -7,12 +7,13 @@ import tempfile
 
 from fastapi.testclient import TestClient
 
-from tests.conftest import build_test_database_url
+from tests.conftest import build_test_database_url, migrate_test_database
 from app.api.app import app
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile, ResearchTopic
 from app.runtime.state import STATE
 from app.services import runtime
+from app.sources.repositories.common import RepositorySourceError
 from app.storage import entities as entity_storage
 from app.storage import subscriptions as subscription_storage
 
@@ -35,6 +36,35 @@ def _build_raw_signal(item_id: str) -> RawSignal:
             "files": [
                 "paranmr/core/fitting/tensor.py",
             ],
+        },
+    )
+
+
+def _build_explore_repository_signal(
+    item_id: str,
+    *,
+    source: str = "github",
+    query: str = "paramagnetic nmr",
+) -> RawSignal:
+    return RawSignal(
+        source=source,
+        source_type=f"{source}_repository",
+        item_id=item_id,
+        title="Mephistos-ML/paranmr",
+        url="https://github.com/Mephistos-ML/paranmr",
+        published_at=None,
+        raw_text=(
+            "Mephistos-ML/paranmr\n"
+            "Paramagnetic NMR software for susceptibility tensor fitting "
+            "and PCS workflows."
+        ),
+        payload={
+            "signal_kind": f"{source}_repository",
+            "repo": "Mephistos-ML/paranmr",
+            "query": query,
+            "topics": ["paramagnetic-nmr", "pcs"],
+            "language": "Python",
+            "stars": 14,
         },
     )
 
@@ -192,6 +222,7 @@ def test_dev_login_and_subscription_endpoints(monkeypatch) -> None:
 
     with tempfile.TemporaryDirectory() as temp_dir:
         database_url = build_test_database_url(Path(temp_dir) / "subscriptions.sqlite3")
+        migrate_test_database(database_url)
         monkeypatch.setattr(subscription_storage, "DATABASE_URL", database_url)
         monkeypatch.setattr(entity_storage, "DATABASE_URL", database_url)
 
@@ -213,19 +244,21 @@ def test_dev_login_and_subscription_endpoints(monkeypatch) -> None:
                 "/api/subscriptions",
                 json={
                     "topicDescription": "paramagnetic NMR software",
-                    "manualQueries": ["pcs", "relaxation"],
                 },
             )
             assert response.status_code == 201
             created = response.json()
             assert created["topicDescription"] == "paramagnetic NMR software"
-            assert created["manualQueries"] == ["pcs", "relaxation"]
+            assert created["queryStrategy"] == "pending_ai"
+            assert created["queries"] == []
 
             response = client.get("/api/subscriptions")
             assert response.status_code == 200
             listed = response.json()
             assert len(listed["items"]) == 1
             assert listed["items"][0]["topicDescription"] == "paramagnetic NMR software"
+            assert listed["items"][0]["queryStrategy"] == "pending_ai"
+            assert listed["items"][0]["queries"] == []
 
             subscription_id = listed["items"][0]["subscriptionId"]
             response = client.delete(f"/api/subscriptions/{subscription_id}")
@@ -240,3 +273,238 @@ def test_dev_login_and_subscription_endpoints(monkeypatch) -> None:
             response = client.post("/api/logout")
             assert response.status_code == 200
             assert response.json() == {"user": None}
+
+
+def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.explore.discover_github_repository_candidates",
+        lambda queries: [
+            _build_explore_repository_signal(
+                "github:repo:Mephistos-ML/paranmr",
+                query=str(queries[0]),
+            )
+        ],
+    )
+
+    def fail_gitlab(_queries) -> list[RawSignal]:
+        raise RuntimeError("GitLab upstream failed")
+
+    monkeypatch.setattr(
+        "app.services.explore.discover_gitlab_repository_candidates",
+        fail_gitlab,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={
+                "topicDescription": "Paramagnetic NMR analysis workflows",
+                "profileQueryTerms": ["paramagnetic nmr", "pcs tensor fitting"],
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+    payload = response.json()
+    assert payload["queryStrategy"] == "profile_terms"
+    assert payload["queries"] == ["paramagnetic nmr", "pcs tensor fitting"]
+    assert len(payload["items"]) == 1
+    assert payload["items"][0]["itemId"] == "github:repo:Mephistos-ML/paranmr"
+    assert payload["items"][0]["source"] == "github"
+    assert payload["sourceStatuses"] == [
+        {
+            "source": "github",
+            "status": "ok",
+            "candidateCount": 1,
+            "error": None,
+        },
+        {
+            "source": "gitlab",
+            "status": "error",
+            "candidateCount": 0,
+            "error": "GitLab repository search is unavailable right now.",
+        },
+    ]
+
+
+def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
+    def fail_github(_queries) -> list[RawSignal]:
+        raise RuntimeError("GitHub upstream failed")
+
+    def fail_gitlab(_queries) -> list[RawSignal]:
+        raise RuntimeError("GitLab upstream failed")
+
+    monkeypatch.setattr(
+        "app.services.explore.discover_github_repository_candidates",
+        fail_github,
+    )
+    monkeypatch.setattr(
+        "app.services.explore.discover_gitlab_repository_candidates",
+        fail_gitlab,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={
+                "topicDescription": "Paramagnetic NMR analysis workflows",
+                "profileQueryTerms": ["paramagnetic nmr", "pcs tensor fitting"],
+            },
+        )
+
+    assert response.status_code == 502
+    assert response.headers["content-type"] == "application/json"
+    payload = response.json()
+    assert payload["error"] == "Repository search is temporarily unavailable across all providers."
+    assert payload["sourceStatuses"] == [
+        {
+            "source": "github",
+            "status": "error",
+            "candidateCount": 0,
+            "error": "GitHub repository search is unavailable right now.",
+        },
+        {
+            "source": "gitlab",
+            "status": "error",
+            "candidateCount": 0,
+            "error": "GitLab repository search is unavailable right now.",
+        },
+    ]
+
+
+def test_explore_search_returns_source_auth_statuses(monkeypatch) -> None:
+    def fail_github(_queries) -> list[RawSignal]:
+        raise RepositorySourceError(
+            source="github",
+            status="misconfigured",
+            public_message="GitHub repository search is misconfigured.",
+        )
+
+    def fail_gitlab(_queries) -> list[RawSignal]:
+        raise RepositorySourceError(
+            source="gitlab",
+            status="unauthorized",
+            public_message="GitLab repository access is unauthorized right now.",
+        )
+
+    monkeypatch.setattr(
+        "app.services.explore.discover_github_repository_candidates",
+        fail_github,
+    )
+    monkeypatch.setattr(
+        "app.services.explore.discover_gitlab_repository_candidates",
+        fail_gitlab,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={
+                "topicDescription": "Paramagnetic NMR analysis workflows",
+                "profileQueryTerms": ["paramagnetic nmr", "pcs tensor fitting"],
+            },
+        )
+
+    assert response.status_code == 502
+    payload = response.json()
+    assert payload["sourceStatuses"] == [
+        {
+            "source": "github",
+            "status": "misconfigured",
+            "candidateCount": 0,
+            "error": "GitHub repository search is misconfigured.",
+        },
+        {
+            "source": "gitlab",
+            "status": "unauthorized",
+            "candidateCount": 0,
+            "error": "GitLab repository access is unauthorized right now.",
+        },
+    ]
+
+
+def test_explore_search_returns_pending_ai_without_profile_terms() -> None:
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={
+                "topicDescription": "Paramagnetic NMR analysis workflows",
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["queryStrategy"] == "pending_ai"
+    assert payload["queries"] == []
+    assert payload["items"] == []
+    assert payload["sourceStatuses"] == []
+
+
+def test_explore_search_uses_profile_query_terms(monkeypatch) -> None:
+    captured_queries: list[str] = []
+
+    def fake_discover_github_repository_candidates(queries) -> list[RawSignal]:
+        captured_queries.extend(list(queries))
+        return [
+            _build_explore_repository_signal(
+                "github:repo:Mephistos-ML/paranmr",
+                query=str(queries[0]),
+            )
+        ]
+
+    monkeypatch.setattr(
+        "app.services.explore.discover_github_repository_candidates",
+        fake_discover_github_repository_candidates,
+    )
+    monkeypatch.setattr(
+        "app.services.explore.discover_gitlab_repository_candidates",
+        lambda queries: [],
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={
+                "topicDescription": "Paramagnetic NMR analysis workflows",
+                "profileQueryTerms": ["  pcs tensor fitting  ", "paramagnetic nmr repos"],
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["queryStrategy"] == "profile_terms"
+    assert payload["queries"] == ["pcs tensor fitting", "paramagnetic nmr repos"]
+    assert captured_queries == ["pcs tensor fitting", "paramagnetic nmr repos"]
+
+
+def test_subscription_endpoint_persists_profile_query_terms(monkeypatch) -> None:
+    STATE.current_user_id = None
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        database_url = build_test_database_url(Path(temp_dir) / "subscriptions.sqlite3")
+        migrate_test_database(database_url)
+        monkeypatch.setattr(subscription_storage, "DATABASE_URL", database_url)
+        monkeypatch.setattr(entity_storage, "DATABASE_URL", database_url)
+
+        with TestClient(app) as client:
+            login_response = client.post("/api/auth/dev-login")
+            assert login_response.status_code == 200
+
+            create_response = client.post(
+                "/api/subscriptions",
+                json={
+                    "topicDescription": "Paramagnetic NMR analysis workflows",
+                    "profileQueryTerms": ["pcs tensor fitting", "paramagnetic nmr repos"],
+                },
+            )
+
+            assert create_response.status_code == 201
+            created = create_response.json()
+            assert created["queryStrategy"] == "profile_terms"
+            assert created["queries"] == ["pcs tensor fitting", "paramagnetic nmr repos"]
+
+            list_response = client.get("/api/subscriptions")
+            assert list_response.status_code == 200
+            listed = list_response.json()
+            assert listed["items"][0]["queryStrategy"] == "profile_terms"
+            assert listed["items"][0]["queries"] == ["pcs tensor fitting", "paramagnetic nmr repos"]

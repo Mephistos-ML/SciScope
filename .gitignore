@@ -6,6 +6,7 @@
 .pytest_cache/
 __pycache__/
 *.py[cod]
+*.egg-info/
 frontend/.env
 frontend/.env.*
 !frontend/.env.example
@@ -15,5 +16,3 @@ frontend/dist/
 frontend/*.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts
-backend/data/sciscope.sqlite3
-data/test-*.sqlite3

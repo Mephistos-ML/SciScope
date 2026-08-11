@@ -9,17 +9,18 @@ from app.config import DATABASE_URL
 from app.models.discovery import DiscoveryResult
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile
+from app.services.matching import match_signal_to_profile
+from app.services.normalization import normalize_raw_signal
 from app.sources.repositories.common import (
     RepositoryCandidate,
     build_repository_candidate_signal,
     build_repository_entity,
     build_repository_subscription_match,
-    build_repository_text,
+)
+from app.sources.repositories.common.query_builder import (
+    build_repository_search_queries,
 )
 from app.sources.repositories.github.client import GITHUB_API_BASE, fetch_json
-from app.sources.repositories.common.query_builder import build_repository_search_queries
-from app.services.matching import match_signal_to_profile
-from app.services.normalization import normalize_raw_signal
 from app.storage.entities import upsert_entities, upsert_subscription_entity_matches
 
 
@@ -32,7 +33,9 @@ def discover_repository_candidates(
 
     signals: list[RawSignal] = []
     for query in queries:
-        search_url = _build_repository_search_url(query, per_query_limit=per_query_limit)
+        search_url = _build_repository_search_url(
+            query, per_query_limit=per_query_limit
+        )
         payload = fetch_json(search_url)
         if not isinstance(payload, dict):
             continue
@@ -51,7 +54,9 @@ def discover_repository_candidates(
 
             description = str(item.get("description") or "")
             topics = item.get("topics")
-            topic_list = [str(value) for value in topics] if isinstance(topics, list) else []
+            topic_list = (
+                [str(value) for value in topics] if isinstance(topics, list) else []
+            )
             language = str(item.get("language") or "")
             stars = int(item.get("stargazers_count") or 0)
             owner = item.get("owner")

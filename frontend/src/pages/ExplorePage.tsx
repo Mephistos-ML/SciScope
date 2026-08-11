@@ -6,12 +6,13 @@ type ExplorePageProps = {
   authMode: AuthMode;
   canSubscribe: boolean;
   createPending: boolean;
-  queryInput: string;
   lastQueries: string[];
-  onQueryInputChange: (value: string) => void;
+  lastQueryStrategy: "profile_terms" | "pending_ai" | null;
+  onProfileQueryTermsInputChange: (value: string) => void;
   onRunSearch: () => void;
   onSubscribe: () => void;
   onTopicInputChange: (value: string) => void;
+  profileQueryTermsInput: string;
   results: ExploreResultItem[];
   searchPending: boolean;
   topicInput: string;
@@ -22,12 +23,13 @@ export function ExplorePage({
   authMode,
   canSubscribe,
   createPending,
-  queryInput,
   lastQueries,
-  onQueryInputChange,
+  lastQueryStrategy,
+  onProfileQueryTermsInputChange,
   onRunSearch,
   onSubscribe,
   onTopicInputChange,
+  profileQueryTermsInput,
   results,
   searchPending,
   topicInput,
@@ -40,8 +42,8 @@ export function ExplorePage({
           <p className="section-kicker">Explore</p>
           <h2 className="section-title">Find the most relevant repositories for a research topic.</h2>
           <p className="section-copy">
-            Describe the topic, refine the queries, and save it as a subscription when you want
-            ongoing updates.
+            Describe the topic now. Until the AI profile layer lands, provide structured
+            research profile query terms manually to simulate the agent output.
           </p>
         </div>
 
@@ -57,15 +59,15 @@ export function ExplorePage({
             placeholder="Track repositories around paramagnetic NMR analysis workflows."
           />
 
-          <label className="field-label" htmlFor="manual-query-input">
-            Manual queries
+          <label className="field-label" htmlFor="profile-query-terms">
+            Research profile query terms (temporary)
           </label>
-          <input
-            id="manual-query-input"
-            className="text-field"
-            value={queryInput}
-            onChange={(event) => onQueryInputChange(event.target.value)}
-            placeholder="pcs, paramagnetic nmr, tensor fitting"
+          <textarea
+            id="profile-query-terms"
+            className="text-field text-area"
+            value={profileQueryTermsInput}
+            onChange={(event) => onProfileQueryTermsInputChange(event.target.value)}
+            placeholder={"paramagnetic nmr\npcs tensor fitting"}
           />
 
           <div className="query-actions">
@@ -86,6 +88,9 @@ export function ExplorePage({
               {createPending ? "Saving..." : "Subscribe"}
             </button>
             <p className="field-hint">
+              One term per line. These terms currently stand in for the structured query output that the AI layer will later generate from the topic description.
+            </p>
+            <p className="field-hint">
               {viewer
                 ? "Save this topic to your feed."
                 : authMode === "dev"
@@ -105,13 +110,22 @@ export function ExplorePage({
             </div>
             <div className="query-chip-row">
               {lastQueries.length > 0 ? (
-                lastQueries.map((query) => (
-                  <span className="query-chip" key={query}>
-                    {query}
-                  </span>
-                ))
+                <>
+                  <p className="field-hint">
+                    {lastQueryStrategy === "profile_terms"
+                      ? "Using research profile query terms"
+                      : "Waiting for AI profile generation"}
+                  </p>
+                  {lastQueries.map((query) => (
+                    <span className="query-chip" key={query}>
+                      {query}
+                    </span>
+                  ))}
+                </>
               ) : (
-                <p className="empty-copy">Run a search to see the exact queries sent to GitHub and GitLab.</p>
+                <p className="empty-copy">
+                  Run a search to see the queries produced from the current research profile terms.
+                </p>
               )}
             </div>
           </div>
@@ -131,7 +145,9 @@ export function ExplorePage({
                 </div>
               ))
             ) : (
-              <p className="empty-copy">No repositories yet. Run a search from the manual queries.</p>
+              <p className="empty-copy">
+                No repositories yet. Without research profile terms, the topic stays in pending-AI mode.
+              </p>
             )}
           </div>
         </article>

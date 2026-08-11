@@ -1,29 +1,64 @@
-"""Explore search built from manual queries only."""
+"""Explore search built from topic descriptions."""
 
 from __future__ import annotations
 
-from app.models.topic import ResearchProfile
-from app.services.normalization import normalize_raw_signal
+import logging
+from collections.abc import Sequence
+
+from app.models.signal import RawSignal
+from app.models.topic import ResearchProfile, ResearchTopic
 from app.services.matching import match_signal_to_profile
-from app.sources.repositories.github.discovery import discover_repository_candidates as discover_github_repository_candidates
-from app.sources.repositories.gitlab.discovery import discover_repository_candidates as discover_gitlab_repository_candidates
-from app.sources.repositories.common.query_builder import build_repository_search_queries
+from app.services.normalization import normalize_raw_signal
+from app.services.profile_builder import build_profile
+from app.services.search_queries import build_repository_query_plan
+from app.sources.repositories.common import RepositorySourceError, build_source_status
+from app.sources.repositories.github.discovery import (
+    discover_repository_candidates as discover_github_repository_candidates,
+)
+from app.sources.repositories.gitlab.discovery import (
+    discover_repository_candidates as discover_gitlab_repository_candidates,
+)
+
+logger = logging.getLogger(__name__)
+
+SOURCE_DISPLAY_NAMES = {
+    "github": "GitHub",
+    "gitlab": "GitLab",
+}
+
+
+class ExploreSearchUnavailableError(RuntimeError):
+    """Raised when every repository provider fails for one explore search."""
+
+    def __init__(self, source_statuses: list[dict[str, object]]) -> None:
+        super().__init__(
+            "Repository search is temporarily unavailable across all providers."
+        )
+        self.source_statuses = source_statuses
 
 
 def run_explore_search(
     *,
     topic_description: str,
-    manual_queries: list[str],
+    profile_query_terms: Sequence[str] = (),
 ) -> dict[str, object]:
-    """Run a read-only repository search from manual queries."""
+    """Run a read-only repository search from one topic description."""
 
-    profile = _build_explore_profile(manual_queries)
-    queries = build_repository_search_queries(profile)
+    profile = _build_explore_profile(
+        topic_description,
+        profile_query_terms=profile_query_terms,
+    )
+    query_plan = build_repository_query_plan(profile)
+    if not query_plan.queries:
+        return {
+            "topicDescription": topic_description,
+            "queryStrategy": query_plan.strategy,
+            "queries": [],
+            "items": [],
+            "sourceStatuses": [],
+        }
 
-    candidates = [
-        *discover_github_repository_candidates(queries),
-        *discover_gitlab_repository_candidates(queries),
-    ]
+    candidates, source_statuses = _discover_candidates_across_sources(query_plan.queries)
     deduped = _dedupe_by_item_id(candidates)
 
     items: list[dict[str, object]] = []
@@ -59,16 +94,25 @@ def run_explore_search(
 
     return {
         "topicDescription": topic_description,
-        "manualQueries": manual_queries,
-        "queries": list(queries),
+        "queryStrategy": query_plan.strategy,
+        "queries": list(query_plan.queries),
         "items": items,
+        "sourceStatuses": source_statuses,
     }
 
 
-def _build_explore_profile(manual_queries: list[str]) -> ResearchProfile:
-    return ResearchProfile(
-        topic_slug="explore",
-        core_terms=tuple(manual_queries),
+def _build_explore_profile(
+    topic_description: str,
+    *,
+    profile_query_terms: Sequence[str] = (),
+) -> ResearchProfile:
+    return build_profile(
+        ResearchTopic(
+            slug="explore",
+            label=topic_description or "Untitled topic",
+            description=topic_description,
+        ),
+        profile_query_terms=profile_query_terms,
     )
 
 
@@ -93,3 +137,66 @@ def _read_candidate_description(raw_text: str) -> str:
     if len(parts) >= 2:
         return parts[1]
     return ""
+
+
+def _discover_candidates_across_sources(
+    queries: Sequence[str],
+) -> tuple[list[RawSignal], list[dict[str, object]]]:
+    candidates: list[RawSignal] = []
+    source_statuses: list[dict[str, object]] = []
+    successful_sources = 0
+
+    for source_name, discover_candidates in (
+        ("github", discover_github_repository_candidates),
+        ("gitlab", discover_gitlab_repository_candidates),
+    ):
+        try:
+            source_candidates = list(discover_candidates(queries))
+        except RepositorySourceError as exc:
+            logger.warning(
+                "Repository source %s is unavailable for explore search: %s",
+                source_name,
+                exc.public_message,
+            )
+            source_statuses.append(
+                build_source_status(
+                    source=source_name,
+                    status=exc.status,
+                    candidate_count=0,
+                    error=exc.public_message,
+                )
+            )
+            continue
+        except Exception:
+            logger.exception(
+                "Repository source %s failed during explore search.",
+                source_name,
+            )
+            source_statuses.append(
+                build_source_status(
+                    source=source_name,
+                    status="error",
+                    candidate_count=0,
+                    error=(
+                        f"{SOURCE_DISPLAY_NAMES[source_name]} repository search is "
+                        "unavailable right now."
+                    ),
+                )
+            )
+            continue
+
+        successful_sources += 1
+        candidates.extend(source_candidates)
+        source_statuses.append(
+            build_source_status(
+                source=source_name,
+                status="ok",
+                candidate_count=len(source_candidates),
+                error=None,
+            )
+        )
+
+    if successful_sources == 0:
+        raise ExploreSearchUnavailableError(source_statuses)
+
+    return candidates, source_statuses

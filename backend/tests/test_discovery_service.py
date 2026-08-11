@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from tests.fixtures.profiles import PNMR_PROFILE
-from tests.conftest import build_test_database_url
-from app.services.discovery import discover_entities_for_profile
+from tests.conftest import build_test_database_url, migrate_test_database
+from app.sources.repositories.runtime import discover_repository_entities_for_profile
 from app.storage.entities import list_entities, list_subscription_entity_matches
 
 
-def test_discover_entities_for_profile_persists_matched_repositories(
+def test_discover_repository_entities_for_profile_persists_matched_repositories(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -70,7 +70,11 @@ def test_discover_entities_for_profile_persists_matched_repositories(
     )
 
     database_url = build_test_database_url(tmp_path / "discovery.sqlite3")
-    result = discover_entities_for_profile(PNMR_PROFILE, database_url=database_url)
+    migrate_test_database(database_url)
+    result = discover_repository_entities_for_profile(
+        PNMR_PROFILE,
+        database_url=database_url,
+    )
 
     entities = list_entities(source="github", database_url=database_url)
     matches = list_subscription_entity_matches("pnmr", database_url=database_url)

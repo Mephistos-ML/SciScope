@@ -67,7 +67,13 @@ export function FeedPage({
                     type="button"
                   >
                     <strong>{subscription.topicDescription}</strong>
-                    <p>{subscription.manualQueries.join(", ") || "No manual queries yet"}</p>
+                    <p>
+                      {subscription.queryStrategy === "profile_terms"
+                        ? "Research profile terms"
+                        : "Pending AI profile"}
+                      {": "}
+                      {subscription.queries.join(", ") || "No queries yet"}
+                    </p>
                   </button>
                   <button
                     className="subscription-delete"
@@ -93,7 +99,13 @@ export function FeedPage({
 
               <div className="detail-panel-block">
                 <h4>Queries</h4>
-                <p>{selectedSubscription.manualQueries.join(", ") || "No manual queries yet"}</p>
+                <p>
+                  {selectedSubscription.queryStrategy === "profile_terms"
+                    ? "Research profile terms"
+                    : "Pending AI profile"}
+                  {": "}
+                  {selectedSubscription.queries.join(", ") || "No queries yet"}
+                </p>
               </div>
 
               <div className="detail-panel-block">

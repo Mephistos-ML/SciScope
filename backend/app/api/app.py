@@ -17,28 +17,29 @@ from app.api.routes import explore as explore_routes
 from app.api.routes import signals as signal_routes
 from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS
-from app.db.session import check_database_connection, init_database
+from app.database.session import check_database_connection
+from app.services.explore import ExploreSearchUnavailableError
 
 
 class ExploreSearchRequest(BaseModel):
-    """Request body for one manual explore search."""
+    """Request body for one topic-driven explore search."""
 
     topicDescription: str = ""
-    manualQueries: list[str] = Field(default_factory=list)
+    profileQueryTerms: list[str] = Field(default_factory=list)
 
 
 class CreateSubscriptionRequest(BaseModel):
-    """Request body for one saved subscription."""
+    """Request body for one saved topic subscription."""
 
     topicDescription: str = ""
-    manualQueries: list[str] = Field(default_factory=list)
+    profileQueryTerms: list[str] = Field(default_factory=list)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """Initialize durable dependencies before serving traffic."""
+    """Fail fast if the configured database is unavailable at startup."""
 
-    init_database()
+    check_database_connection()
     yield
 
 
@@ -59,6 +60,22 @@ async def handle_http_exception(_request: Request, exc: HTTPException) -> JSONRe
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": str(exc.detail)},
+    )
+
+
+@app.exception_handler(ExploreSearchUnavailableError)
+async def handle_explore_search_unavailable(
+    _request: Request,
+    exc: ExploreSearchUnavailableError,
+) -> JSONResponse:
+    """Return structured source diagnostics when every provider fails."""
+
+    return JSONResponse(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        content={
+            "error": str(exc),
+            "sourceStatuses": exc.source_statuses,
+        },
     )
 
 

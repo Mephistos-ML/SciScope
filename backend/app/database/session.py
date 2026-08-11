@@ -12,12 +12,9 @@ from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import DATABASE_URL
-from app.db.base import Base
-from app.db import models as _models
 
 _ENGINE_CACHE: dict[str, Engine] = {}
 _SESSION_FACTORY_CACHE: dict[str, sessionmaker[Session]] = {}
-_INITIALIZED_URLS: set[str] = set()
 
 
 def resolve_database_url(database_url: str | None = None) -> str:
@@ -42,17 +39,6 @@ def get_engine(database_url: str | None = None) -> Engine:
     engine = create_engine(resolved_url, **engine_kwargs)
     _ENGINE_CACHE[resolved_url] = engine
     return engine
-
-
-def init_database(database_url: str | None = None) -> None:
-    """Create the configured schema when it does not exist yet."""
-
-    resolved_url = resolve_database_url(database_url)
-    if resolved_url in _INITIALIZED_URLS:
-        return
-
-    Base.metadata.create_all(get_engine(resolved_url))
-    _INITIALIZED_URLS.add(resolved_url)
 
 
 def get_session_factory(database_url: str | None = None) -> sessionmaker[Session]:
@@ -100,7 +86,6 @@ def session_scope(database_url: str | None = None) -> Iterator[Session]:
     """Open one SQLAlchemy session with commit/rollback handling."""
 
     resolved_url = resolve_database_url(database_url)
-    init_database(resolved_url)
     session = get_session_factory(resolved_url)()
     try:
         yield session

@@ -6,13 +6,10 @@ from app.models.topic import ResearchProfile
 
 
 def build_repository_search_queries(profile: ResearchProfile) -> tuple[str, ...]:
-    """Build repository search queries directly from profile terms.
-
-    Manual queries are currently treated as already-normalized profile terms,
-    so this builder only trims and deduplicates them.
-    """
+    """Build repository search queries directly from one normalized profile."""
 
     candidates = [
+        *profile.seed_queries,
         *profile.core_terms,
         *profile.synonyms,
         *profile.related_terms,
