@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
@@ -47,7 +47,7 @@ app = FastAPI(title="SciScope API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(CORS_ORIGINS),
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
@@ -102,24 +102,17 @@ def get_ready() -> dict[str, str]:
 
 
 @app.get("/api/me")
-def get_me() -> dict[str, object]:
+def get_me(request: Request) -> dict[str, object]:
     """Return the current viewer projection."""
 
-    return auth_routes.get_me_response()
-
-
-@app.post("/api/auth/dev-login")
-def sign_in_dev() -> dict[str, object]:
-    """Sign in the local development user."""
-
-    return auth_routes.dev_login_response()
+    return auth_routes.get_me_response(request)
 
 
 @app.post("/api/logout")
-def sign_out() -> dict[str, object]:
+def sign_out(request: Request, response: Response) -> dict[str, object]:
     """Clear the current user."""
 
-    return auth_routes.logout_response()
+    return auth_routes.logout_response(request, response)
 
 
 @app.post("/api/start")
@@ -144,10 +137,10 @@ def run_explore_search(payload: ExploreSearchRequest) -> dict[str, object]:
 
 
 @app.get("/api/subscriptions")
-def get_subscriptions() -> dict[str, object]:
+def get_subscriptions(request: Request) -> dict[str, object]:
     """Return saved subscriptions for the current user."""
 
-    payload = subscription_routes.get_subscription_list_response()
+    payload = subscription_routes.get_subscription_list_response(request)
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -157,10 +150,16 @@ def get_subscriptions() -> dict[str, object]:
 
 
 @app.post("/api/subscriptions", status_code=status.HTTP_201_CREATED)
-def create_subscription(payload: CreateSubscriptionRequest) -> dict[str, object]:
+def create_subscription(
+    request: Request,
+    payload: CreateSubscriptionRequest,
+) -> dict[str, object]:
     """Create one subscription for the current user."""
 
-    response_payload = subscription_routes.create_subscription_response(payload.model_dump())
+    response_payload = subscription_routes.create_subscription_response(
+        request,
+        payload.model_dump(),
+    )
     if response_payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -170,10 +169,10 @@ def create_subscription(payload: CreateSubscriptionRequest) -> dict[str, object]
 
 
 @app.delete("/api/subscriptions/{subscription_id}")
-def delete_subscription(subscription_id: str) -> dict[str, bool]:
+def delete_subscription(request: Request, subscription_id: str) -> dict[str, bool]:
     """Delete one saved subscription for the current user."""
 
-    deleted = subscription_routes.delete_subscription_response(subscription_id)
+    deleted = subscription_routes.delete_subscription_response(request, subscription_id)
     if deleted is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

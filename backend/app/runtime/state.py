@@ -12,7 +12,6 @@ class RuntimeState:
     """Mutable in-memory runtime state for scan results and loop status."""
 
     signals: dict[str, object] = field(default_factory=dict)
-    current_user_id: str | None = None
     monitoring_started_at: datetime | None = None
     last_scan_at: datetime | None = None
     last_scan_error: str | None = None

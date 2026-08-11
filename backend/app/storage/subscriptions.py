@@ -71,6 +71,19 @@ def list_subscriptions_for_user(
     return [_to_subscription_record(row) for row in rows]
 
 
+def list_all_subscriptions(*, database_url: str | None = None) -> list[SubscriptionRecord]:
+    """List all subscriptions across all users, newest first."""
+
+    resolved_database_url = database_url or DATABASE_URL
+    statement = select(SubscriptionRecordModel).order_by(
+        SubscriptionRecordModel.created_at.desc()
+    )
+
+    with session_scope(resolved_database_url) as session:
+        rows = session.scalars(statement).all()
+    return [_to_subscription_record(row) for row in rows]
+
+
 def get_subscription_for_user(
     user_id: str,
     subscription_id: str,

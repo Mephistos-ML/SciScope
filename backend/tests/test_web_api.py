@@ -5,15 +5,19 @@ from __future__ import annotations
 from pathlib import Path
 import tempfile
 
+from fastapi import Response
 from fastapi.testclient import TestClient
 
 from tests.conftest import build_test_database_url, migrate_test_database
 from app.api.app import app
+from app.config import AUTH_SESSION_COOKIE_NAME
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile, ResearchTopic
 from app.runtime.state import STATE
 from app.services import runtime
+from app.services.auth import create_authenticated_session
 from app.sources.repositories.common import RepositorySourceError
+from app.storage import auth as auth_storage
 from app.storage import entities as entity_storage
 from app.storage import subscriptions as subscription_storage
 
@@ -87,7 +91,6 @@ def _build_runtime_topics() -> tuple[ResearchTopic, ...]:
 
 def test_status_and_signal_endpoints_return_json(monkeypatch) -> None:
     STATE.signals.clear()
-    STATE.current_user_id = None
     STATE.monitoring_started_at = None
     STATE.last_scan_at = None
     STATE.last_scan_error = None
@@ -218,11 +221,10 @@ def test_missing_signal_returns_404_json() -> None:
 
 
 def test_dev_login_and_subscription_endpoints(monkeypatch) -> None:
-    STATE.current_user_id = None
-
     with tempfile.TemporaryDirectory() as temp_dir:
         database_url = build_test_database_url(Path(temp_dir) / "subscriptions.sqlite3")
         migrate_test_database(database_url)
+        monkeypatch.setattr(auth_storage, "DATABASE_URL", database_url)
         monkeypatch.setattr(subscription_storage, "DATABASE_URL", database_url)
         monkeypatch.setattr(entity_storage, "DATABASE_URL", database_url)
 
@@ -235,10 +237,28 @@ def test_dev_login_and_subscription_endpoints(monkeypatch) -> None:
             assert response.status_code == 401
             assert response.json()["error"] == "Authentication required"
 
-            response = client.post("/api/auth/dev-login")
+            user = auth_storage.create_user(
+                user_id="user_test_subscriptions",
+                email="test@example.com",
+                display_name="Test User",
+                database_url=database_url,
+            )
+            response = client.get("/api/me")
             assert response.status_code == 200
-            payload = response.json()
-            assert payload["user"]["userId"] == "local-dev-user"
+            assert response.json() == {"user": None}
+
+            response = client.post("/api/logout")
+            assert response.status_code == 200
+            assert response.json() == {"user": None}
+
+            session_response = Response()
+            session_token = create_authenticated_session(user.user_id, session_response)
+            client.cookies.set(AUTH_SESSION_COOKIE_NAME, session_token)
+
+            me_response = client.get("/api/me")
+            assert me_response.status_code == 200
+            payload = me_response.json()
+            assert payload["user"]["userId"] == "user_test_subscriptions"
 
             response = client.post(
                 "/api/subscriptions",
@@ -273,6 +293,7 @@ def test_dev_login_and_subscription_endpoints(monkeypatch) -> None:
             response = client.post("/api/logout")
             assert response.status_code == 200
             assert response.json() == {"user": None}
+            assert client.get("/api/me").json() == {"user": None}
 
 
 def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatch) -> None:
@@ -478,17 +499,23 @@ def test_explore_search_uses_profile_query_terms(monkeypatch) -> None:
 
 
 def test_subscription_endpoint_persists_profile_query_terms(monkeypatch) -> None:
-    STATE.current_user_id = None
-
     with tempfile.TemporaryDirectory() as temp_dir:
         database_url = build_test_database_url(Path(temp_dir) / "subscriptions.sqlite3")
         migrate_test_database(database_url)
+        monkeypatch.setattr(auth_storage, "DATABASE_URL", database_url)
         monkeypatch.setattr(subscription_storage, "DATABASE_URL", database_url)
         monkeypatch.setattr(entity_storage, "DATABASE_URL", database_url)
 
         with TestClient(app) as client:
-            login_response = client.post("/api/auth/dev-login")
-            assert login_response.status_code == 200
+            user = auth_storage.create_user(
+                user_id="user_test_profile_terms",
+                email="profile@example.com",
+                display_name="Profile Terms User",
+                database_url=database_url,
+            )
+            session_response = Response()
+            session_token = create_authenticated_session(user.user_id, session_response)
+            client.cookies.set(AUTH_SESSION_COOKIE_NAME, session_token)
 
             create_response = client.post(
                 "/api/subscriptions",

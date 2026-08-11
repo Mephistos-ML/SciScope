@@ -56,6 +56,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
 
     const response = await fetch(buildApiUrl(path), {
       ...init,
+      credentials: "include",
       headers,
       signal: controller.signal,
     });
