@@ -8,12 +8,12 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, select
 
 from app.config import DATABASE_URL
-from app.db.models import (
+from app.database.models import (
     EntityCheckpointRecord,
     EntityRecord,
     SubscriptionEntityMatchRecord,
 )
-from app.db.session import session_scope
+from app.database.session import session_scope
 from app.models.entity import Entity, EntityCheckpoint, SubscriptionEntityMatch
 
 

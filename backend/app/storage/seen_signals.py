@@ -8,8 +8,8 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 
 from app.config import DATABASE_URL
-from app.db.models import SeenSignalRecord
-from app.db.session import session_scope
+from app.database.models import SeenSignalRecord
+from app.database.session import session_scope
 from app.models.signal import RawSignal
 
 

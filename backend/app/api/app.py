@@ -17,7 +17,7 @@ from app.api.routes import explore as explore_routes
 from app.api.routes import signals as signal_routes
 from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS
-from app.db.session import check_database_connection
+from app.database.session import check_database_connection
 from app.services.explore import ExploreSearchUnavailableError
 
 

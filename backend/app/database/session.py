@@ -40,6 +40,7 @@ def get_engine(database_url: str | None = None) -> Engine:
     _ENGINE_CACHE[resolved_url] = engine
     return engine
 
+
 def get_session_factory(database_url: str | None = None) -> sessionmaker[Session]:
     """Return a cached session factory for one database URL."""
 

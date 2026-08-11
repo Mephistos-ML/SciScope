@@ -9,7 +9,7 @@ from sqlalchemy import DateTime, Float, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import JSON
 
-from app.db.base import Base
+from app.database.base import Base
 
 
 class SeenSignalRecord(Base):
