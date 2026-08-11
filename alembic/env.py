@@ -9,7 +9,21 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from app.database.base import Base
-from app.database import models as _models
+from app.database.models import (
+    EntityCheckpointRecord,
+    EntityRecord,
+    SeenSignalRecord,
+    SubscriptionEntityMatchRecord,
+    SubscriptionRecordModel,
+)
+
+REGISTERED_MODELS = (
+    SeenSignalRecord,
+    EntityRecord,
+    SubscriptionEntityMatchRecord,
+    EntityCheckpointRecord,
+    SubscriptionRecordModel,
+)
 
 config = context.config
 
