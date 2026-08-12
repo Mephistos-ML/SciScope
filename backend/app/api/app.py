@@ -9,7 +9,7 @@ from typing import Literal
 from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.api.routes import auth as auth_routes
 from app.api.routes import control as control_routes
@@ -27,7 +27,6 @@ class ExploreSearchRequest(BaseModel):
 
     topicDescription: str = ""
     searchScope: Literal["repositories", "all"] = "repositories"
-    overrideQueries: list[str] = Field(default_factory=list)
 
 
 class CreateSubscriptionRequest(BaseModel):
@@ -35,7 +34,6 @@ class CreateSubscriptionRequest(BaseModel):
 
     topicDescription: str = ""
     searchScope: Literal["repositories", "all"] = "repositories"
-    overrideQueries: list[str] = Field(default_factory=list)
 
 
 @asynccontextmanager

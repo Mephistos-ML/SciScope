@@ -29,7 +29,6 @@ export function App() {
   const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>([]);
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
   const [topicInput, setTopicInput] = useState("Paramagnetic NMR analysis workflows");
-  const [overrideQueriesInput, setOverrideQueriesInput] = useState("");
   const [searchScope, setSearchScope] = useState<"repositories" | "all">("repositories");
   const [signingIn, setSigningIn] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -114,7 +113,6 @@ export function App() {
       const payload = await runExploreSearch({
         topicDescription: topicInput.trim(),
         searchScope,
-        overrideQueries: parseOverrideQueries(overrideQueriesInput),
       });
       setResults(payload.items);
       setLastAiSearchPlan(payload.aiSearchPlan);
@@ -137,7 +135,6 @@ export function App() {
       const subscription = await createSubscription({
         topicDescription: topicInput.trim(),
         searchScope,
-        overrideQueries: parseOverrideQueries(overrideQueriesInput),
       });
       setSubscriptions((current) => [subscription, ...current]);
       setSelectedSubscriptionId(subscription.subscriptionId);
@@ -197,12 +194,10 @@ export function App() {
           canSubscribe={Boolean(viewer)}
           createPending={createPending}
           lastAiSearchPlan={lastAiSearchPlan}
-          onOverrideQueriesInputChange={setOverrideQueriesInput}
           onRunSearch={() => void handleRunSearch()}
           onSearchScopeChange={setSearchScope}
           onSubscribe={() => void handleSubscribe()}
           onTopicInputChange={setTopicInput}
-          overrideQueriesInput={overrideQueriesInput}
           results={results}
           searchScope={searchScope}
           searchPending={searchPending}
@@ -221,13 +216,6 @@ export function App() {
       )}
     </>
   );
-}
-
-function parseOverrideQueries(value: string): string[] {
-  return value
-    .split("\n")
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
 }
 
 function readAuthErrorFromUrl(): string | null {

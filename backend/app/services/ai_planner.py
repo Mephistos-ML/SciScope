@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import Protocol
 
 from app.models.ai import AiSearchPlan, SearchScope
@@ -19,7 +18,6 @@ class AiSearchPlanner(Protocol):
         *,
         topic_description: str,
         search_scope: SearchScope,
-        override_queries: Sequence[str] = (),
     ) -> AiSearchPlan: ...
 
 
@@ -31,12 +29,10 @@ class BootstrapAiSearchPlanner:
         *,
         topic_description: str,
         search_scope: SearchScope,
-        override_queries: Sequence[str] = (),
     ) -> AiSearchPlan:
         return build_bootstrap_ai_search_plan(
             topic_description=topic_description,
             search_scope=search_scope,
-            override_queries=override_queries,
         )
 
 
@@ -52,7 +48,6 @@ def build_ai_search_plan(
     *,
     topic_description: str,
     search_scope: SearchScope,
-    override_queries: Sequence[str] = (),
 ) -> AiSearchPlan:
     """Build one search plan through the active planner boundary."""
 
@@ -60,5 +55,4 @@ def build_ai_search_plan(
     return planner.build_search_plan(
         topic_description=topic_description,
         search_scope=search_scope,
-        override_queries=override_queries,
     )

@@ -5,12 +5,10 @@ type ExplorePageProps = {
   canSubscribe: boolean;
   createPending: boolean;
   lastAiSearchPlan: AiSearchPlanPayload | null;
-  onOverrideQueriesInputChange: (value: string) => void;
   onRunSearch: () => void;
   onSearchScopeChange: (value: "repositories" | "all") => void;
   onSubscribe: () => void;
   onTopicInputChange: (value: string) => void;
-  overrideQueriesInput: string;
   results: ExploreResultItem[];
   searchScope: "repositories" | "all";
   searchPending: boolean;
@@ -22,12 +20,10 @@ export function ExplorePage({
   canSubscribe,
   createPending,
   lastAiSearchPlan,
-  onOverrideQueriesInputChange,
   onRunSearch,
   onSearchScopeChange,
   onSubscribe,
   onTopicInputChange,
-  overrideQueriesInput,
   results,
   searchScope,
   searchPending,
@@ -41,8 +37,8 @@ export function ExplorePage({
           <p className="section-kicker">Explore</p>
           <h2 className="section-title">Find the most relevant repositories for a research topic.</h2>
           <p className="section-copy">
-            Describe the topic now. Temporary override queries still exist under the hood
-            until the live AI planner lands, but the response contract is already AI-first.
+            Describe the topic, choose the search scope, and let SciScope generate
+            the repository discovery queries for you.
           </p>
         </div>
 
@@ -75,17 +71,6 @@ export function ExplorePage({
             </button>
           </div>
 
-          <label className="field-label" htmlFor="override-queries">
-            Override queries (temporary)
-          </label>
-          <textarea
-            id="override-queries"
-            className="text-field text-area"
-            value={overrideQueriesInput}
-            onChange={(event) => onOverrideQueriesInputChange(event.target.value)}
-            placeholder={"paramagnetic nmr\npcs tensor fitting"}
-          />
-
           <div className="query-actions">
             <button
               className="outline-button"
@@ -104,8 +89,8 @@ export function ExplorePage({
               {createPending ? "Saving..." : "Subscribe"}
             </button>
             <p className="field-hint">
-              One term per line. These are temporary operator overrides until the AI planner
-              generates source-specific queries directly from the topic description.
+              `All` is already available in the contract and will expand beyond repositories
+              as new source families land.
             </p>
             <p className="field-hint">
               {viewer

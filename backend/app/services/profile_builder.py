@@ -5,22 +5,17 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from app.models.topic import ResearchProfile, ResearchTopic
-from app.services.ai_search_plans import normalize_override_queries
+from app.services.ai_search_plans import normalize_search_queries
 
 
 def build_profile(
     topic: ResearchTopic,
     *,
-    override_queries: Sequence[str] = (),
+    profile_query_terms: Sequence[str] = (),
 ) -> ResearchProfile:
-    """Build one research profile from temporary override queries.
+    """Build one research profile from AI-generated query terms."""
 
-    The topic description stays raw source-of-truth text. Until the real AI
-    layer lands, optional override queries simulate the structured output
-    that the agent will eventually produce.
-    """
-
-    normalized_terms = normalize_override_queries(override_queries)
+    normalized_terms = normalize_search_queries(profile_query_terms)
 
     return ResearchProfile(
         topic_slug=topic.slug,
@@ -28,7 +23,7 @@ def build_profile(
         seed_queries=normalized_terms,
         metadata={
             "profileSource": (
-                "override-queries"
+                "ai-generated-search-plan"
                 if normalized_terms
                 else "topic-description-pending-ai"
             ),

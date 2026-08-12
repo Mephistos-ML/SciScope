@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from tests.conftest import build_test_database_url, migrate_test_database
 from app.api.app import app
 from app.config import AUTH_SESSION_COOKIE_NAME
+from app.models.ai import AiSearchPlan, AiSourcePlan
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile, ResearchTopic
 from app.runtime.state import STATE
@@ -80,6 +81,19 @@ def _build_active_topic() -> ResearchTopic:
 
 def _build_active_profile() -> ResearchProfile:
     return ResearchProfile(topic_slug="pnmr", core_terms=("paramagnetic nmr", "pcs"))
+
+
+def _build_ready_repository_ai_plan(*queries: str, search_scope: str = "repositories") -> AiSearchPlan:
+    return AiSearchPlan(
+        search_scope=search_scope,
+        status="ready" if queries else "pending",
+        source_plans=(
+            AiSourcePlan(
+                source_type="repositories",
+                queries=queries,
+            ),
+        ),
+    )
 
 
 def _build_runtime_profiles() -> tuple[ResearchProfile, ...]:
@@ -411,6 +425,13 @@ def test_google_auth_callback_redirects_with_error_when_state_is_invalid(monkeyp
 
 def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatch) -> None:
     monkeypatch.setattr(
+        "app.services.explore.build_ai_search_plan",
+        lambda **_: _build_ready_repository_ai_plan(
+            "paramagnetic nmr",
+            "pcs tensor fitting",
+        ),
+    )
+    monkeypatch.setattr(
         "app.services.explore.discover_github_repository_candidates",
         lambda queries: [
             _build_explore_repository_signal(
@@ -433,7 +454,6 @@ def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatc
             "/api/explore/search",
             json={
                 "topicDescription": "Paramagnetic NMR analysis workflows",
-                "overrideQueries": ["paramagnetic nmr", "pcs tensor fitting"],
             },
         )
 
@@ -466,6 +486,14 @@ def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatc
 
 
 def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.explore.build_ai_search_plan",
+        lambda **_: _build_ready_repository_ai_plan(
+            "paramagnetic nmr",
+            "pcs tensor fitting",
+        ),
+    )
+
     def fail_github(_queries) -> list[RawSignal]:
         raise RuntimeError("GitHub upstream failed")
 
@@ -486,7 +514,6 @@ def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
             "/api/explore/search",
             json={
                 "topicDescription": "Paramagnetic NMR analysis workflows",
-                "overrideQueries": ["paramagnetic nmr", "pcs tensor fitting"],
             },
         )
 
@@ -511,6 +538,14 @@ def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
 
 
 def test_explore_search_returns_source_auth_statuses(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.explore.build_ai_search_plan",
+        lambda **_: _build_ready_repository_ai_plan(
+            "paramagnetic nmr",
+            "pcs tensor fitting",
+        ),
+    )
+
     def fail_github(_queries) -> list[RawSignal]:
         raise RepositorySourceError(
             source="github",
@@ -539,7 +574,6 @@ def test_explore_search_returns_source_auth_statuses(monkeypatch) -> None:
             "/api/explore/search",
             json={
                 "topicDescription": "Paramagnetic NMR analysis workflows",
-                "overrideQueries": ["paramagnetic nmr", "pcs tensor fitting"],
             },
         )
 
@@ -561,7 +595,7 @@ def test_explore_search_returns_source_auth_statuses(monkeypatch) -> None:
     ]
 
 
-def test_explore_search_returns_pending_plan_without_override_queries() -> None:
+def test_explore_search_returns_pending_plan_when_ai_plan_has_no_queries() -> None:
     with TestClient(app) as client:
         response = client.post(
             "/api/explore/search",
@@ -578,8 +612,16 @@ def test_explore_search_returns_pending_plan_without_override_queries() -> None:
     assert payload["items"] == []
     assert payload["sourceStatuses"] == []
 
-def test_explore_search_uses_override_queries(monkeypatch) -> None:
+def test_explore_search_uses_ai_generated_queries(monkeypatch) -> None:
     captured_queries: list[str] = []
+
+    monkeypatch.setattr(
+        "app.services.explore.build_ai_search_plan",
+        lambda **_: _build_ready_repository_ai_plan(
+            "pcs tensor fitting",
+            "paramagnetic nmr repos",
+        ),
+    )
 
     def fake_discover_github_repository_candidates(queries) -> list[RawSignal]:
         captured_queries.extend(list(queries))
@@ -604,7 +646,6 @@ def test_explore_search_uses_override_queries(monkeypatch) -> None:
             "/api/explore/search",
             json={
                 "topicDescription": "Paramagnetic NMR analysis workflows",
-                "overrideQueries": ["  pcs tensor fitting  ", "paramagnetic nmr repos"],
             },
         )
 
@@ -618,19 +659,26 @@ def test_explore_search_uses_override_queries(monkeypatch) -> None:
     assert captured_queries == ["pcs tensor fitting", "paramagnetic nmr repos"]
 
 
-def test_subscription_endpoint_persists_override_queries(monkeypatch) -> None:
+def test_subscription_endpoint_persists_ai_generated_queries(monkeypatch) -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         database_url = build_test_database_url(Path(temp_dir) / "subscriptions.sqlite3")
         migrate_test_database(database_url)
         monkeypatch.setattr(auth_storage, "DATABASE_URL", database_url)
         monkeypatch.setattr(subscription_storage, "DATABASE_URL", database_url)
         monkeypatch.setattr(entity_storage, "DATABASE_URL", database_url)
+        monkeypatch.setattr(
+            "app.services.subscriptions.build_ai_search_plan",
+            lambda **_: _build_ready_repository_ai_plan(
+                "pcs tensor fitting",
+                "paramagnetic nmr repos",
+            ),
+        )
 
         with TestClient(app) as client:
             user = auth_storage.create_user(
-                user_id="user_test_override_queries",
+                user_id="user_test_ai_queries",
                 email="profile@example.com",
-                display_name="Override Queries User",
+                display_name="AI Queries User",
                 database_url=database_url,
             )
             session_response = Response()
@@ -641,7 +689,6 @@ def test_subscription_endpoint_persists_override_queries(monkeypatch) -> None:
                 "/api/subscriptions",
                 json={
                     "topicDescription": "Paramagnetic NMR analysis workflows",
-                    "overrideQueries": ["pcs tensor fitting", "paramagnetic nmr repos"],
                 },
             )
 

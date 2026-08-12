@@ -16,7 +16,6 @@ from app.services.ai_search_plans import (
 from app.services.matching import match_signal_to_profile
 from app.services.normalization import normalize_raw_signal
 from app.services.profile_builder import build_profile
-from app.services.search_queries import build_repository_query_plan
 from app.services.openai_client import (
     OpenAIClientConfigurationError,
     OpenAIResponseError,
@@ -55,7 +54,6 @@ def run_explore_search(
     *,
     topic_description: str,
     search_scope: SearchScope = "repositories",
-    override_queries: Sequence[str] = (),
 ) -> dict[str, object]:
     """Run a read-only repository search from one topic description."""
 
@@ -63,7 +61,6 @@ def run_explore_search(
         ai_search_plan = build_ai_search_plan(
             topic_description=topic_description,
             search_scope=search_scope,
-            override_queries=override_queries,
         )
     except (OpenAIClientConfigurationError, OpenAIResponseError, RuntimeError) as exc:
         raise AiSearchPlanningError(
@@ -82,10 +79,9 @@ def run_explore_search(
 
     profile = _build_explore_profile(
         topic_description,
-        override_queries=repository_queries,
+        profile_query_terms=repository_queries,
     )
-    query_plan = build_repository_query_plan(profile)
-    candidates, source_statuses = _discover_candidates_across_sources(query_plan.queries)
+    candidates, source_statuses = _discover_candidates_across_sources(repository_queries)
     deduped = _dedupe_by_item_id(candidates)
 
     items: list[dict[str, object]] = []
@@ -131,7 +127,7 @@ def run_explore_search(
 def _build_explore_profile(
     topic_description: str,
     *,
-    override_queries: Sequence[str] = (),
+    profile_query_terms: tuple[str, ...] = (),
 ) -> ResearchProfile:
     return build_profile(
         ResearchTopic(
@@ -139,7 +135,7 @@ def _build_explore_profile(
             label=topic_description or "Untitled topic",
             description=topic_description,
         ),
-        override_queries=override_queries,
+        profile_query_terms=profile_query_terms,
     )
 
 

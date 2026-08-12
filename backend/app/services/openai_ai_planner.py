@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import Any, cast
 
 from app import config
 from app.models.ai import AiSearchPlan, AiSourcePlan, SearchScope
-from app.services.ai_search_plans import normalize_override_queries
+from app.services.ai_search_plans import normalize_search_queries
 from app.services.openai_client import build_openai_json_response
 
 _SEARCH_PLAN_JSON_SCHEMA: dict[str, Any] = {
@@ -66,21 +65,7 @@ class OpenAiSearchPlanner:
         *,
         topic_description: str,
         search_scope: SearchScope,
-        override_queries: Sequence[str] = (),
     ) -> AiSearchPlan:
-        normalized_override_queries = normalize_override_queries(override_queries)
-        if normalized_override_queries:
-            return AiSearchPlan(
-                search_scope=search_scope,
-                status="ready",
-                source_plans=(
-                    AiSourcePlan(
-                        source_type="repositories",
-                        queries=normalized_override_queries,
-                    ),
-                ),
-            )
-
         user_prompt = (
             f"Requested search scope: {search_scope}\n"
             f"Topic description:\n{topic_description.strip() or 'Untitled topic'}"
@@ -123,7 +108,7 @@ def _parse_ai_search_plan(
         if not isinstance(raw_queries, list):
             raise RuntimeError("OpenAI planner returned invalid source queries")
 
-        queries = normalize_override_queries(
+        queries = normalize_search_queries(
             str(raw_query)
             for raw_query in raw_queries
         )

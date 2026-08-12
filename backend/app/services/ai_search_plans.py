@@ -1,4 +1,4 @@
-"""Bootstrap AI search-plan helpers."""
+"""AI search-plan helpers."""
 
 from __future__ import annotations
 
@@ -11,27 +11,46 @@ def build_bootstrap_ai_search_plan(
     *,
     topic_description: str,
     search_scope: SearchScope,
-    override_queries: Iterable[str] = (),
 ) -> AiSearchPlan:
-    """Build one temporary search plan before the real LLM planner lands."""
+    """Build one temporary pending search plan before the real LLM planner lands."""
 
     del topic_description
 
-    normalized_queries = normalize_override_queries(override_queries)
+    return AiSearchPlan(
+        search_scope=search_scope,
+        status="pending",
+        source_plans=(
+            AiSourcePlan(
+                source_type="repositories",
+                queries=(),
+            ),
+        ),
+    )
+
+
+def build_ai_search_plan_from_queries(
+    *,
+    search_scope: SearchScope,
+    source_type: str,
+    queries: Iterable[str],
+) -> AiSearchPlan:
+    """Rehydrate one persisted AI search plan from stored source queries."""
+
+    normalized_queries = normalize_search_queries(queries)
     return AiSearchPlan(
         search_scope=search_scope,
         status="ready" if normalized_queries else "pending",
         source_plans=(
             AiSourcePlan(
-                source_type="repositories",
+                source_type=source_type,
                 queries=normalized_queries,
             ),
         ),
     )
 
 
-def normalize_override_queries(values: Iterable[str]) -> tuple[str, ...]:
-    """Normalize one temporary operator-provided query list."""
+def normalize_search_queries(values: Iterable[str]) -> tuple[str, ...]:
+    """Normalize one query list for one AI-generated source plan."""
 
     normalized_values: list[str] = []
     seen: set[str] = set()
