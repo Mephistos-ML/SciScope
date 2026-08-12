@@ -9,10 +9,12 @@ from app.services.openai_ai_planner import OpenAiSearchPlanner
 
 def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
     planner = OpenAiSearchPlanner()
+    captured_prompts: dict[str, str] = {}
 
-    monkeypatch.setattr(
-        "app.services.openai_ai_planner.build_openai_json_response",
-        lambda **_: {
+    def _fake_response(**kwargs):
+        captured_prompts["system"] = kwargs["system_prompt"]
+        captured_prompts["user"] = kwargs["user_prompt"]
+        return {
             "searchScope": "repositories",
             "sourcePlans": [
                 {
@@ -25,7 +27,11 @@ def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
                     ],
                 }
             ],
-        },
+        }
+
+    monkeypatch.setattr(
+        "app.services.openai_ai_planner.build_openai_json_response",
+        _fake_response,
     )
 
     plan = planner.build_search_plan(
@@ -38,6 +44,8 @@ def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
         "paramagnetic nmr software",
         "pcs tensor fitting",
     )
+    assert "controlled broadening" in captured_prompts["system"]
+    assert "Do not return only ultra-specific jargon." in captured_prompts["user"]
 
 
 def test_openai_planner_rejects_scope_drift(monkeypatch) -> None:
