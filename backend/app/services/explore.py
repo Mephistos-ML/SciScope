@@ -63,6 +63,12 @@ def run_explore_search(
             search_scope=search_scope,
         )
     except (OpenAIClientConfigurationError, OpenAIResponseError, RuntimeError) as exc:
+        logger.exception(
+            "AI search planning failed for scope=%s and topic=%r: %s",
+            search_scope,
+            topic_description[:200],
+            exc,
+        )
         raise AiSearchPlanningError(
             "AI search planning is temporarily unavailable."
         ) from exc
