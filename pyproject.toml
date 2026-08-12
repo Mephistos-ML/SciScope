@@ -10,6 +10,7 @@ dependencies = [
     "fastapi>=0.141,<0.142",
     "uvicorn>=0.52,<0.53",
     "PyJWT[crypto]>=2.10,<2.11",
+    "httpx>=0.28,<0.29",
 ]
 
 [build-system]

@@ -19,7 +19,7 @@ from app.api.routes import signals as signal_routes
 from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS
 from app.database.session import check_database_connection
-from app.services.explore import ExploreSearchUnavailableError
+from app.services.explore import AiSearchPlanningError, ExploreSearchUnavailableError
 
 
 class ExploreSearchRequest(BaseModel):
@@ -79,6 +79,19 @@ async def handle_explore_search_unavailable(
             "error": str(exc),
             "sourceStatuses": exc.source_statuses,
         },
+    )
+
+
+@app.exception_handler(AiSearchPlanningError)
+async def handle_ai_search_planning_error(
+    _request: Request,
+    exc: AiSearchPlanningError,
+) -> JSONResponse:
+    """Return a compact error payload when AI planning is unavailable."""
+
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"error": str(exc)},
     )
 
 

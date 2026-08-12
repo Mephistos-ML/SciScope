@@ -6,7 +6,9 @@ from collections.abc import Sequence
 from typing import Protocol
 
 from app.models.ai import AiSearchPlan, SearchScope
+from app.config import AI_PLANNER_MODE
 from app.services.ai_search_plans import build_bootstrap_ai_search_plan
+from app.services.openai_ai_planner import OpenAiSearchPlanner
 
 
 class AiSearchPlanner(Protocol):
@@ -41,6 +43,8 @@ class BootstrapAiSearchPlanner:
 def get_ai_search_planner() -> AiSearchPlanner:
     """Return the active planner implementation for this runtime."""
 
+    if AI_PLANNER_MODE == "openai":
+        return OpenAiSearchPlanner()
     return BootstrapAiSearchPlanner()
 
 

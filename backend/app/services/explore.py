@@ -17,6 +17,10 @@ from app.services.matching import match_signal_to_profile
 from app.services.normalization import normalize_raw_signal
 from app.services.profile_builder import build_profile
 from app.services.search_queries import build_repository_query_plan
+from app.services.openai_client import (
+    OpenAIClientConfigurationError,
+    OpenAIResponseError,
+)
 from app.sources.repositories.common import RepositorySourceError, build_source_status
 from app.sources.repositories.github.discovery import (
     discover_repository_candidates as discover_github_repository_candidates,
@@ -43,6 +47,10 @@ class ExploreSearchUnavailableError(RuntimeError):
         self.source_statuses = source_statuses
 
 
+class AiSearchPlanningError(RuntimeError):
+    """Raised when the AI planner is unavailable."""
+
+
 def run_explore_search(
     *,
     topic_description: str,
@@ -51,11 +59,17 @@ def run_explore_search(
 ) -> dict[str, object]:
     """Run a read-only repository search from one topic description."""
 
-    ai_search_plan = build_ai_search_plan(
-        topic_description=topic_description,
-        search_scope=search_scope,
-        override_queries=override_queries,
-    )
+    try:
+        ai_search_plan = build_ai_search_plan(
+            topic_description=topic_description,
+            search_scope=search_scope,
+            override_queries=override_queries,
+        )
+    except (OpenAIClientConfigurationError, OpenAIResponseError, RuntimeError) as exc:
+        raise AiSearchPlanningError(
+            "AI search planning is temporarily unavailable."
+        ) from exc
+
     repository_queries = read_source_queries(ai_search_plan, source_type="repositories")
     if not repository_queries:
         return {
