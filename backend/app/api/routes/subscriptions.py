@@ -32,15 +32,19 @@ def create_subscription_response(
         return None
 
     topic_description = str(payload.get("topicDescription") or "").strip()
-    profile_query_terms = payload.get("profileQueryTerms") or []
+    search_scope = str(payload.get("searchScope") or "repositories")
+    override_queries = payload.get("overrideQueries") or []
     if not topic_description:
         topic_description = "Untitled topic"
 
     return create_subscription_payload(
         user,
         topic_description=topic_description,
-        profile_query_terms=(
-            tuple(profile_query_terms) if isinstance(profile_query_terms, list) else ()
+        search_scope=(
+            search_scope if search_scope in ("repositories", "all") else "repositories"
+        ),
+        override_queries=(
+            tuple(override_queries) if isinstance(override_queries, list) else ()
         ),
     )
 

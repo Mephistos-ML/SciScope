@@ -1,17 +1,18 @@
-import type { ExploreResultItem, ViewerPayload } from "../types/api";
+import type { AiSearchPlanPayload, ExploreResultItem, ViewerPayload } from "../types/api";
 import { SourceBadge } from "../components/SourceBadge";
 
 type ExplorePageProps = {
   canSubscribe: boolean;
   createPending: boolean;
-  lastQueries: string[];
-  lastQueryStrategy: "profile_terms" | "pending_ai" | null;
-  onProfileQueryTermsInputChange: (value: string) => void;
+  lastAiSearchPlan: AiSearchPlanPayload | null;
+  onOverrideQueriesInputChange: (value: string) => void;
   onRunSearch: () => void;
+  onSearchScopeChange: (value: "repositories" | "all") => void;
   onSubscribe: () => void;
   onTopicInputChange: (value: string) => void;
-  profileQueryTermsInput: string;
+  overrideQueriesInput: string;
   results: ExploreResultItem[];
+  searchScope: "repositories" | "all";
   searchPending: boolean;
   topicInput: string;
   viewer: ViewerPayload["user"];
@@ -20,14 +21,15 @@ type ExplorePageProps = {
 export function ExplorePage({
   canSubscribe,
   createPending,
-  lastQueries,
-  lastQueryStrategy,
-  onProfileQueryTermsInputChange,
+  lastAiSearchPlan,
+  onOverrideQueriesInputChange,
   onRunSearch,
+  onSearchScopeChange,
   onSubscribe,
   onTopicInputChange,
-  profileQueryTermsInput,
+  overrideQueriesInput,
   results,
+  searchScope,
   searchPending,
   topicInput,
   viewer,
@@ -39,8 +41,8 @@ export function ExplorePage({
           <p className="section-kicker">Explore</p>
           <h2 className="section-title">Find the most relevant repositories for a research topic.</h2>
           <p className="section-copy">
-            Describe the topic now. Until the AI profile layer lands, provide structured
-            research profile query terms manually to simulate the agent output.
+            Describe the topic now. Temporary override queries still exist under the hood
+            until the live AI planner lands, but the response contract is already AI-first.
           </p>
         </div>
 
@@ -56,14 +58,31 @@ export function ExplorePage({
             placeholder="Track repositories around paramagnetic NMR analysis workflows."
           />
 
-          <label className="field-label" htmlFor="profile-query-terms">
-            Research profile query terms (temporary)
+          <div className="query-actions">
+            <button
+              className={searchScope === "repositories" ? "solid-button" : "outline-button"}
+              onClick={() => onSearchScopeChange("repositories")}
+              type="button"
+            >
+              Repositories
+            </button>
+            <button
+              className={searchScope === "all" ? "solid-button" : "outline-button"}
+              onClick={() => onSearchScopeChange("all")}
+              type="button"
+            >
+              All
+            </button>
+          </div>
+
+          <label className="field-label" htmlFor="override-queries">
+            Override queries (temporary)
           </label>
           <textarea
-            id="profile-query-terms"
+            id="override-queries"
             className="text-field text-area"
-            value={profileQueryTermsInput}
-            onChange={(event) => onProfileQueryTermsInputChange(event.target.value)}
+            value={overrideQueriesInput}
+            onChange={(event) => onOverrideQueriesInputChange(event.target.value)}
             placeholder={"paramagnetic nmr\npcs tensor fitting"}
           />
 
@@ -85,7 +104,8 @@ export function ExplorePage({
               {createPending ? "Saving..." : "Subscribe"}
             </button>
             <p className="field-hint">
-              One term per line. These terms currently stand in for the structured query output that the AI layer will later generate from the topic description.
+              One term per line. These are temporary operator overrides until the AI planner
+              generates source-specific queries directly from the topic description.
             </p>
             <p className="field-hint">
               {viewer
@@ -104,14 +124,12 @@ export function ExplorePage({
               <h3 className="panel-title">Matched repositories</h3>
             </div>
             <div className="query-chip-row">
-              {lastQueries.length > 0 ? (
+              {lastAiSearchPlan?.sourcePlans[0]?.queries?.length ? (
                 <>
                   <p className="field-hint">
-                    {lastQueryStrategy === "profile_terms"
-                      ? "Using research profile query terms"
-                      : "Waiting for AI profile generation"}
+                    AI-generated search queries
                   </p>
-                  {lastQueries.map((query) => (
+                  {lastAiSearchPlan.sourcePlans[0].queries.map((query) => (
                     <span className="query-chip" key={query}>
                       {query}
                     </span>
@@ -119,7 +137,7 @@ export function ExplorePage({
                 </>
               ) : (
                 <p className="empty-copy">
-                  Run a search to see the queries produced from the current research profile terms.
+                  Run a search to see the queries produced for the current AI search plan.
                 </p>
               )}
             </div>
@@ -141,7 +159,7 @@ export function ExplorePage({
               ))
             ) : (
               <p className="empty-copy">
-                No repositories yet. Without research profile terms, the topic stays in pending-AI mode.
+                No repositories yet. Without generated queries, the search plan stays pending.
               </p>
             )}
           </div>

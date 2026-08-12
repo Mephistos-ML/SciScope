@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,14 +26,16 @@ class ExploreSearchRequest(BaseModel):
     """Request body for one topic-driven explore search."""
 
     topicDescription: str = ""
-    profileQueryTerms: list[str] = Field(default_factory=list)
+    searchScope: Literal["repositories", "all"] = "repositories"
+    overrideQueries: list[str] = Field(default_factory=list)
 
 
 class CreateSubscriptionRequest(BaseModel):
     """Request body for one saved topic subscription."""
 
     topicDescription: str = ""
-    profileQueryTerms: list[str] = Field(default_factory=list)
+    searchScope: Literal["repositories", "all"] = "repositories"
+    overrideQueries: list[str] = Field(default_factory=list)
 
 
 @asynccontextmanager

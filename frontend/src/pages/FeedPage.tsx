@@ -63,11 +63,9 @@ export function FeedPage({
                   >
                     <strong>{subscription.topicDescription}</strong>
                     <p>
-                      {subscription.queryStrategy === "profile_terms"
-                        ? "Research profile terms"
-                        : "Pending AI profile"}
+                      {subscription.searchScope === "all" ? "All sources" : "Repositories"}
                       {": "}
-                      {subscription.queries.join(", ") || "No queries yet"}
+                      {subscription.aiSearchPlan.sourcePlans[0]?.queries.join(", ") || "No queries yet"}
                     </p>
                   </button>
                   <button
@@ -95,11 +93,9 @@ export function FeedPage({
               <div className="detail-panel-block">
                 <h4>Queries</h4>
                 <p>
-                  {selectedSubscription.queryStrategy === "profile_terms"
-                    ? "Research profile terms"
-                    : "Pending AI profile"}
+                  {selectedSubscription.searchScope === "all" ? "All sources" : "Repositories"}
                   {": "}
-                  {selectedSubscription.queries.join(", ") || "No queries yet"}
+                  {selectedSubscription.aiSearchPlan.sourcePlans[0]?.queries.join(", ") || "No queries yet"}
                 </p>
               </div>
 

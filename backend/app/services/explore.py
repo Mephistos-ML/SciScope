@@ -5,8 +5,14 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 
+from app.models.ai import SearchScope
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile, ResearchTopic
+from app.services.ai_search_plans import (
+    build_bootstrap_ai_search_plan,
+    read_source_queries,
+    serialize_ai_search_plan,
+)
 from app.services.matching import match_signal_to_profile
 from app.services.normalization import normalize_raw_signal
 from app.services.profile_builder import build_profile
@@ -40,24 +46,31 @@ class ExploreSearchUnavailableError(RuntimeError):
 def run_explore_search(
     *,
     topic_description: str,
-    profile_query_terms: Sequence[str] = (),
+    search_scope: SearchScope = "repositories",
+    override_queries: Sequence[str] = (),
 ) -> dict[str, object]:
     """Run a read-only repository search from one topic description."""
 
-    profile = _build_explore_profile(
-        topic_description,
-        profile_query_terms=profile_query_terms,
+    ai_search_plan = build_bootstrap_ai_search_plan(
+        topic_description=topic_description,
+        search_scope=search_scope,
+        override_queries=override_queries,
     )
-    query_plan = build_repository_query_plan(profile)
-    if not query_plan.queries:
+    repository_queries = read_source_queries(ai_search_plan, source_type="repositories")
+    if not repository_queries:
         return {
             "topicDescription": topic_description,
-            "queryStrategy": query_plan.strategy,
-            "queries": [],
+            "searchScope": search_scope,
+            "aiSearchPlan": serialize_ai_search_plan(ai_search_plan),
             "items": [],
             "sourceStatuses": [],
         }
 
+    profile = _build_explore_profile(
+        topic_description,
+        override_queries=repository_queries,
+    )
+    query_plan = build_repository_query_plan(profile)
     candidates, source_statuses = _discover_candidates_across_sources(query_plan.queries)
     deduped = _dedupe_by_item_id(candidates)
 
@@ -94,8 +107,8 @@ def run_explore_search(
 
     return {
         "topicDescription": topic_description,
-        "queryStrategy": query_plan.strategy,
-        "queries": list(query_plan.queries),
+        "searchScope": search_scope,
+        "aiSearchPlan": serialize_ai_search_plan(ai_search_plan),
         "items": items,
         "sourceStatuses": source_statuses,
     }
@@ -104,7 +117,7 @@ def run_explore_search(
 def _build_explore_profile(
     topic_description: str,
     *,
-    profile_query_terms: Sequence[str] = (),
+    override_queries: Sequence[str] = (),
 ) -> ResearchProfile:
     return build_profile(
         ResearchTopic(
@@ -112,7 +125,7 @@ def _build_explore_profile(
             label=topic_description or "Untitled topic",
             description=topic_description,
         ),
-        profile_query_terms=profile_query_terms,
+        override_queries=override_queries,
     )
 
 

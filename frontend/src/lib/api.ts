@@ -105,7 +105,8 @@ export async function fetchSubscriptions(): Promise<SubscriptionListPayload> {
 
 export async function createSubscription(payload: {
   topicDescription: string;
-  profileQueryTerms?: string[];
+  searchScope?: "repositories" | "all";
+  overrideQueries?: string[];
 }): Promise<SubscriptionItem> {
   return requestJson<SubscriptionItem>("/api/subscriptions", {
     method: "POST",
@@ -124,7 +125,8 @@ export async function deleteSubscription(subscriptionId: string): Promise<{ dele
 
 export async function runExploreSearch(payload: {
   topicDescription: string;
-  profileQueryTerms?: string[];
+  searchScope?: "repositories" | "all";
+  overrideQueries?: string[];
 }): Promise<ExploreSearchPayload> {
   return requestJson<ExploreSearchPayload>("/api/explore/search", {
     method: "POST",
