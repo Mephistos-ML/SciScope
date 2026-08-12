@@ -8,8 +8,8 @@ from collections.abc import Sequence
 from app.models.ai import SearchScope
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile, ResearchTopic
+from app.services.ai_planner import build_ai_search_plan
 from app.services.ai_search_plans import (
-    build_bootstrap_ai_search_plan,
     read_source_queries,
     serialize_ai_search_plan,
 )
@@ -51,7 +51,7 @@ def run_explore_search(
 ) -> dict[str, object]:
     """Run a read-only repository search from one topic description."""
 
-    ai_search_plan = build_bootstrap_ai_search_plan(
+    ai_search_plan = build_ai_search_plan(
         topic_description=topic_description,
         search_scope=search_scope,
         override_queries=override_queries,

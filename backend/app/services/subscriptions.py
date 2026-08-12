@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from app.models.ai import SearchScope
+from app.services.ai_planner import build_ai_search_plan
 from app.services.auth import User
 from app.services.ai_search_plans import (
-    build_bootstrap_ai_search_plan,
     read_source_queries,
     serialize_ai_search_plan,
 )
@@ -34,7 +34,7 @@ def list_subscription_payloads(user: User) -> dict[str, object]:
                 "topicDescription": item.topic_description,
                 "searchScope": item.search_scope,
                 "aiSearchPlan": serialize_ai_search_plan(
-                    build_bootstrap_ai_search_plan(
+                    build_ai_search_plan(
                         topic_description=item.topic_description,
                         search_scope=_normalize_search_scope(item.search_scope),
                         override_queries=item.query_terms,
@@ -56,7 +56,7 @@ def create_subscription_payload(
 ) -> dict[str, object]:
     """Persist and serialize one new subscription."""
 
-    ai_search_plan = build_bootstrap_ai_search_plan(
+    ai_search_plan = build_ai_search_plan(
         topic_description=topic_description,
         search_scope=search_scope,
         override_queries=override_queries,
