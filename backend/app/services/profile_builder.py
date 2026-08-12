@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from app.models.topic import ResearchProfile, ResearchTopic
-from app.services.search_queries import normalize_profile_query_terms
+from app.services.ai_search_plans import normalize_search_queries
 
 
 def build_profile(
@@ -13,14 +13,9 @@ def build_profile(
     *,
     profile_query_terms: Sequence[str] = (),
 ) -> ResearchProfile:
-    """Build one research profile from structured query terms.
+    """Build one research profile from AI-generated query terms."""
 
-    The topic description stays raw source-of-truth text. Until the real AI
-    layer lands, optional profile query terms simulate the structured output
-    that the agent will eventually produce.
-    """
-
-    normalized_terms = normalize_profile_query_terms(profile_query_terms)
+    normalized_terms = normalize_search_queries(profile_query_terms)
 
     return ResearchProfile(
         topic_slug=topic.slug,
@@ -28,7 +23,7 @@ def build_profile(
         seed_queries=normalized_terms,
         metadata={
             "profileSource": (
-                "profile-query-terms"
+                "ai-generated-search-plan"
                 if normalized_terms
                 else "topic-description-pending-ai"
             ),

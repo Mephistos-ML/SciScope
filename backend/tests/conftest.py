@@ -25,6 +25,7 @@ os.environ.setdefault(
     "DATABASE_URL",
     f"sqlite+pysqlite:///{Path(tempfile.gettempdir()) / 'sciscope-test-bootstrap.sqlite3'}",
 )
+os.environ.setdefault("AI_PLANNER_MODE", "bootstrap")
 
 
 def build_test_database_url(path: Path) -> str:

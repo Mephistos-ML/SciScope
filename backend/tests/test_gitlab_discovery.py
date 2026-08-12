@@ -7,7 +7,7 @@ from app.sources.repositories.gitlab import discovery as gitlab_discovery
 from app.sources.repositories.common.query_builder import build_repository_search_queries
 
 
-def test_build_repository_search_queries_uses_profile_terms() -> None:
+def test_build_repository_search_queries_uses_profile_seed_terms() -> None:
     queries = build_repository_search_queries(PNMR_PROFILE)
 
     assert queries

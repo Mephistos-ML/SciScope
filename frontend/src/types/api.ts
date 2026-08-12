@@ -89,8 +89,8 @@ export type SignalDetailPayload = {
 export type SubscriptionItem = {
   subscriptionId: string;
   topicDescription: string;
-  queryStrategy: "profile_terms" | "pending_ai";
-  queries: string[];
+  searchScope: "repositories" | "all";
+  aiSearchPlan: AiSearchPlanPayload;
   createdAt: string;
 };
 
@@ -114,7 +114,26 @@ export type ExploreResultItem = {
 
 export type ExploreSearchPayload = {
   topicDescription: string;
-  queryStrategy: "profile_terms" | "pending_ai";
-  queries: string[];
+  searchScope: "repositories" | "all";
+  aiSearchPlan: AiSearchPlanPayload;
   items: ExploreResultItem[];
+  sourceStatuses?: SourceStatusPayload[];
+};
+
+export type AiSourcePlanPayload = {
+  sourceType: "repositories";
+  queries: string[];
+};
+
+export type AiSearchPlanPayload = {
+  searchScope: "repositories" | "all";
+  status: "pending" | "ready";
+  sourcePlans: AiSourcePlanPayload[];
+};
+
+export type SourceStatusPayload = {
+  source: string;
+  status: string;
+  candidateCount: number;
+  error: string | null;
 };

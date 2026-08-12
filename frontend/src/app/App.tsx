@@ -13,6 +13,7 @@ import { AppHeader } from "../components/AppHeader";
 import { ExplorePage } from "../pages/ExplorePage";
 import { FeedPage } from "../pages/FeedPage";
 import type {
+  AiSearchPlanPayload,
   ExploreResultItem,
   SubscriptionItem,
   Viewer,
@@ -24,14 +25,11 @@ export function App() {
   const [activeView, setActiveView] = useState<AppView>("explore");
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [results, setResults] = useState<ExploreResultItem[]>([]);
-  const [lastQueries, setLastQueries] = useState<string[]>([]);
-  const [lastQueryStrategy, setLastQueryStrategy] = useState<"profile_terms" | "pending_ai" | null>(
-    null,
-  );
+  const [lastAiSearchPlan, setLastAiSearchPlan] = useState<AiSearchPlanPayload | null>(null);
   const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>([]);
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
   const [topicInput, setTopicInput] = useState("Paramagnetic NMR analysis workflows");
-  const [profileQueryTermsInput, setProfileQueryTermsInput] = useState("");
+  const [searchScope, setSearchScope] = useState<"repositories" | "all">("repositories");
   const [signingIn, setSigningIn] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [searchPending, setSearchPending] = useState(false);
@@ -114,11 +112,10 @@ export function App() {
     try {
       const payload = await runExploreSearch({
         topicDescription: topicInput.trim(),
-        profileQueryTerms: parseProfileQueryTerms(profileQueryTermsInput),
+        searchScope,
       });
       setResults(payload.items);
-      setLastQueries(payload.queries);
-      setLastQueryStrategy(payload.queryStrategy);
+      setLastAiSearchPlan(payload.aiSearchPlan);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to run search.");
     } finally {
@@ -137,7 +134,7 @@ export function App() {
     try {
       const subscription = await createSubscription({
         topicDescription: topicInput.trim(),
-        profileQueryTerms: parseProfileQueryTerms(profileQueryTermsInput),
+        searchScope,
       });
       setSubscriptions((current) => [subscription, ...current]);
       setSelectedSubscriptionId(subscription.subscriptionId);
@@ -196,14 +193,13 @@ export function App() {
         <ExplorePage
           canSubscribe={Boolean(viewer)}
           createPending={createPending}
-          lastQueries={lastQueries}
-          lastQueryStrategy={lastQueryStrategy}
-          onProfileQueryTermsInputChange={setProfileQueryTermsInput}
+          lastAiSearchPlan={lastAiSearchPlan}
           onRunSearch={() => void handleRunSearch()}
+          onSearchScopeChange={setSearchScope}
           onSubscribe={() => void handleSubscribe()}
           onTopicInputChange={setTopicInput}
-          profileQueryTermsInput={profileQueryTermsInput}
           results={results}
+          searchScope={searchScope}
           searchPending={searchPending}
           topicInput={topicInput}
           viewer={viewer}
@@ -220,13 +216,6 @@ export function App() {
       )}
     </>
   );
-}
-
-function parseProfileQueryTerms(value: string): string[] {
-  return value
-    .split("\n")
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
 }
 
 function readAuthErrorFromUrl(): string | null {
