@@ -18,6 +18,36 @@ class OpenAIResponseError(RuntimeError):
     """Raised when OpenAI returns an invalid planner response."""
 
 
+def _extract_response_text(data: dict[str, Any]) -> str:
+    """Extract the first text payload from a raw Responses API response."""
+
+    output_text = data.get("output_text")
+    if isinstance(output_text, str) and output_text.strip():
+        return output_text
+
+    output_items = data.get("output")
+    if not isinstance(output_items, list):
+        raise OpenAIResponseError("OpenAI response did not include output text")
+
+    for output_item in output_items:
+        if not isinstance(output_item, dict):
+            continue
+
+        content_items = output_item.get("content")
+        if not isinstance(content_items, list):
+            continue
+
+        for content_item in content_items:
+            if not isinstance(content_item, dict):
+                continue
+
+            text_value = content_item.get("text")
+            if isinstance(text_value, str) and text_value.strip():
+                return text_value
+
+    raise OpenAIResponseError("OpenAI response did not include output text")
+
+
 def build_openai_json_response(
     *,
     model: str,
@@ -86,9 +116,7 @@ def build_openai_json_response(
         ) from exc
 
     data = response.json()
-    output_text = data.get("output_text")
-    if not isinstance(output_text, str) or not output_text.strip():
-        raise OpenAIResponseError("OpenAI response did not include output_text")
+    output_text = _extract_response_text(data)
 
     try:
         parsed = json.loads(output_text)
