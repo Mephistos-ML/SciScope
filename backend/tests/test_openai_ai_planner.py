@@ -45,7 +45,9 @@ def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
         "pcs tensor fitting",
     )
     assert "controlled broadening" in captured_prompts["system"]
+    assert "source-agnostic" in captured_prompts["system"]
     assert "Do not return only ultra-specific jargon." in captured_prompts["user"]
+    assert "future non-repository sources" in captured_prompts["user"]
 
 
 def test_openai_planner_rejects_scope_drift(monkeypatch) -> None:
