@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any, cast
 
-from app.config import OPENAI_MODEL
+from app import config
 from app.models.ai import AiSearchPlan, AiSourcePlan, SearchScope
 from app.services.ai_search_plans import normalize_override_queries
 from app.services.openai_client import build_openai_json_response
@@ -86,7 +86,7 @@ class OpenAiSearchPlanner:
             f"Topic description:\n{topic_description.strip() or 'Untitled topic'}"
         )
         payload = build_openai_json_response(
-            model=OPENAI_MODEL,
+            model=config.OPENAI_MODEL,
             system_prompt=_SYSTEM_PROMPT,
             user_prompt=user_prompt,
             json_schema=_SEARCH_PLAN_JSON_SCHEMA,
@@ -136,6 +136,10 @@ def _parse_ai_search_plan(
 
     return AiSearchPlan(
         search_scope=cast(SearchScope, search_scope),
-        status="ready" if any(source_plan.queries for source_plan in source_plans) else "pending",
+        status=(
+            "ready"
+            if any(source_plan.queries for source_plan in source_plans)
+            else "pending"
+        ),
         source_plans=tuple(source_plans),
     )

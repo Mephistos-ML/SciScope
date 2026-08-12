@@ -7,7 +7,7 @@ from typing import Any
 
 import httpx
 
-from app.config import OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_TIMEOUT_SECONDS
+from app import config
 
 
 class OpenAIClientConfigurationError(RuntimeError):
@@ -27,7 +27,7 @@ def build_openai_json_response(
 ) -> dict[str, Any]:
     """Create one structured JSON response through the OpenAI Responses API."""
 
-    if not OPENAI_API_KEY:
+    if not config.OPENAI_API_KEY:
         raise OpenAIClientConfigurationError(
             "Missing required environment variable: OPENAI_API_KEY"
         )
@@ -65,10 +65,10 @@ def build_openai_json_response(
     }
 
     with httpx.Client(
-        base_url=OPENAI_BASE_URL.rstrip("/"),
-        timeout=OPENAI_TIMEOUT_SECONDS,
+        base_url=config.OPENAI_BASE_URL.rstrip("/"),
+        timeout=config.OPENAI_TIMEOUT_SECONDS,
         headers={
-            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Authorization": f"Bearer {config.OPENAI_API_KEY}",
             "Content-Type": "application/json",
         },
     ) as client:
