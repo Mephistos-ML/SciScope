@@ -77,8 +77,12 @@ def build_openai_json_response(
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:
+        response_preview = exc.response.text.strip()
+        if len(response_preview) > 1000:
+            response_preview = f"{response_preview[:1000]}..."
         raise OpenAIResponseError(
-            f"OpenAI request failed with status {exc.response.status_code}"
+            "OpenAI request failed with status "
+            f"{exc.response.status_code}: {response_preview or '<empty response>'}"
         ) from exc
 
     data = response.json()
