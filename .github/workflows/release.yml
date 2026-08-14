@@ -46,4 +46,5 @@ jobs:
             --package @semantic-release/git \
             --package @semantic-release/github \
             --package @semantic-release/release-notes-generator \
+            --package conventional-changelog-conventionalcommits \
             semantic-release
