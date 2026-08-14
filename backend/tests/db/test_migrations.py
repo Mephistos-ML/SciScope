@@ -114,4 +114,4 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
             sa.text("SELECT version_num FROM alembic_version")
         ).scalar_one()
 
-    assert version == "0005_direct_repository_subscriptions"
+    assert version == "0005_direct_repo_subscriptions"
