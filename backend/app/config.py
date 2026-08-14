@@ -5,10 +5,10 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from app.__version__ import __version__ as APP_VERSION
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = PROJECT_ROOT / "backend"
-
-APP_VERSION = "0.1.0"
 MONITORING_INTERVAL_SECONDS = 7200  # 2 hours
 POLLING_FREQUENCY_SECONDS = 30  # scheduler polling frequency: 30 seconds
 
