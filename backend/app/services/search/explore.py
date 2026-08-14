@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 
-from app.models.signal import RawSignal
+from app.models.signal import Signal
 from app.services.ai.openai_client import (
     OpenAIClientConfigurationError,
     OpenAIResponseError,
@@ -13,7 +13,6 @@ from app.services.ai.openai_client import (
 from app.services.ai.planner import build_ai_search_plan
 from app.services.ai.search_plans import serialize_ai_search_plan
 from app.services.search.matching import match_signal_to_terms
-from app.services.search.normalization import normalize_raw_signal
 from app.sources.common import RepositorySourceError, build_source_status
 from app.sources.github.discovery import (
     discover_repository_candidates as discover_github_repository_candidates,
@@ -75,22 +74,21 @@ def run_explore_search(
     deduped = _dedupe_by_item_id(candidates)
 
     items: list[dict[str, object]] = []
-    for raw_signal in deduped.values():
-        normalized_signal = normalize_raw_signal(raw_signal)
-        match = match_signal_to_terms(normalized_signal, repository_queries)
+    for signal in deduped.values():
+        match = match_signal_to_terms(signal, repository_queries)
         if not match.matched:
             continue
 
         items.append(
             {
-                "itemId": raw_signal.item_id,
-                "source": raw_signal.source,
-                "fullName": raw_signal.title,
-                "url": raw_signal.url,
-                "description": _read_candidate_description(raw_signal.raw_text),
-                "language": raw_signal.payload.get("language"),
-                "stars": raw_signal.payload.get("stars"),
-                "query": raw_signal.payload.get("query"),
+                "itemId": signal.item_id,
+                "source": signal.source,
+                "fullName": signal.title,
+                "url": signal.url,
+                "description": _read_candidate_description(signal.raw_text),
+                "language": signal.payload.get("language"),
+                "stars": signal.payload.get("stars"),
+                "query": signal.payload.get("query"),
                 "score": match.score,
                 "reason": match.reason,
                 "matchedTerms": list(match.matched_terms),
@@ -138,8 +136,8 @@ def _read_candidate_description(raw_text: str) -> str:
 
 def _discover_candidates_across_sources(
     queries: Sequence[str],
-) -> tuple[list[RawSignal], list[dict[str, object]]]:
-    candidates: list[RawSignal] = []
+) -> tuple[list[Signal], list[dict[str, object]]]:
+    candidates: list[Signal] = []
     source_statuses: list[dict[str, object]] = []
     successful_sources = 0
 

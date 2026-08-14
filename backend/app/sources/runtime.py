@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from app.models.repository import Repository
-from app.models.signal import RawSignal
+from app.models.signal import Signal
 from app.sources.common import RepositorySourceError
 from app.sources.github.monitor import load_github_signals_for_subscription
 from app.sources.github.state import sync_github_baseline
@@ -42,10 +42,10 @@ def sync_repository_baseline(subscription_id: str, repository: Repository) -> No
 def load_repository_signals(
     subscription_id: str,
     repository: Repository,
-) -> list[RawSignal]:
+) -> list[Signal]:
     """Load live repository release signals for one explicit watch."""
 
-    signals: list[RawSignal] = []
+    signals: list[Signal] = []
     for source_name, load_signals in (
         ("github", load_github_signals_for_subscription),
         ("gitlab", load_gitlab_signals_for_subscription),

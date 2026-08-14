@@ -13,7 +13,7 @@ from app.api.app import app
 from app.config import AUTH_SESSION_COOKIE_NAME
 from app.models.ai import AiSearchPlan
 from app.models.repository import Repository
-from app.models.signal import RawSignal
+from app.models.signal import Signal
 from app.runtime.state import STATE
 from app.services.auth import create_authenticated_session
 from app.services.auth import service as auth_service
@@ -25,8 +25,8 @@ from app.storage import subscriptions as subscription_storage
 from app.storage.subscriptions import SubscriptionWatchRecord
 
 
-def _build_raw_signal(item_id: str) -> RawSignal:
-    return RawSignal(
+def _build_raw_signal(item_id: str) -> Signal:
+    return Signal(
         source="github",
         kind="release",
         item_id=item_id,
@@ -46,8 +46,8 @@ def _build_explore_repository_signal(
     *,
     source: str = "github",
     query: str = "paramagnetic nmr",
-) -> RawSignal:
-    return RawSignal(
+) -> Signal:
+    return Signal(
         source=source,
         kind="repository",
         item_id=item_id,
@@ -106,7 +106,7 @@ def test_status_and_signal_endpoints_return_json(monkeypatch) -> None:
     monkeypatch.setattr(runtime, "load_repository_signals", lambda subscription_id, repository: [])
     monkeypatch.setattr(runtime, "list_repository_checkpoints", lambda subscription_id, repository_id: [])
     monkeypatch.setattr(runtime, "load_seen_signal_ids", lambda source: set())
-    monkeypatch.setattr(runtime, "upsert_raw_signals", lambda signals: None)
+    monkeypatch.setattr(runtime, "upsert_signals", lambda signals: None)
 
     runtime.run_scan_cycle()
 

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from app.models.signal import NormalizedSignal, SignalMatch
+from app.models.signal import Signal, SignalMatch
 
 
 def match_signal_to_terms(
-    signal: NormalizedSignal,
+    signal: Signal,
     query_terms: Sequence[str],
 ) -> SignalMatch:
     """Return a simple deterministic match result for V0."""

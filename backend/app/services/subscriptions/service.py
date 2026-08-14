@@ -14,7 +14,7 @@ from app.storage.subscriptions import (
     delete_subscription_for_user,
     list_subscription_watches_for_user,
 )
-from app.models.signal import RawSignal
+from app.models.signal import Signal
 
 
 def list_subscription_payloads(user: User) -> dict[str, object]:
@@ -50,7 +50,7 @@ def create_subscription_payload(
 ) -> dict[str, object]:
     """Persist and serialize one direct repository watch."""
 
-    repository_signal = RawSignal(
+    repository_signal = Signal(
         source=repository_source,
         kind="repository",
         item_id=repository_item_id,

@@ -9,17 +9,17 @@ from app.models.repository import (
     Repository,
     RepositoryCheckpoint,
 )
-from app.models.signal import RawSignal
+from app.models.signal import Signal
 from app.sources.common.models import RepositoryCandidate, RepositoryRelease
 
 
 REPOSITORY_RELEASE_CHECKPOINT_KEY = "latest_release_published_at"
 
 
-def build_repository_candidate_signal(candidate: RepositoryCandidate) -> RawSignal:
-    """Convert one repository candidate into the shared raw-signal shape."""
+def build_repository_candidate_signal(candidate: RepositoryCandidate) -> Signal:
+    """Convert one repository candidate into the shared signal shape."""
 
-    return RawSignal(
+    return Signal(
         source=candidate.source,
         kind="repository",
         item_id=f"{candidate.source}:repo:{candidate.full_name}",
@@ -43,29 +43,29 @@ def build_repository_candidate_signal(candidate: RepositoryCandidate) -> RawSign
     )
 
 
-def build_repository_entity(raw_signal: RawSignal) -> Repository:
-    """Build a watched repository from an admitted raw signal."""
+def build_repository_entity(signal: Signal) -> Repository:
+    """Build a watched repository from one admitted signal."""
 
-    repo_name = str(raw_signal.payload.get("repo") or raw_signal.title)
+    repo_name = str(signal.payload.get("repo") or signal.title)
     return Repository(
-        repository_id=raw_signal.item_id,
-        source=raw_signal.source,
+        repository_id=signal.item_id,
+        source=signal.source,
         full_name=repo_name,
-        url=raw_signal.url,
+        url=signal.url,
         metadata={
             "repo": repo_name,
-            "query": raw_signal.payload.get("query"),
-            "topics": raw_signal.payload.get("topics", []),
-            "language": raw_signal.payload.get("language"),
-            "stars": raw_signal.payload.get("stars"),
+            "query": signal.payload.get("query"),
+            "topics": signal.payload.get("topics", []),
+            "language": signal.payload.get("language"),
+            "stars": signal.payload.get("stars"),
         },
     )
 
 
-def build_repository_release_signal(release: RepositoryRelease) -> RawSignal:
-    """Convert one repository release event into the shared raw-signal shape."""
+def build_repository_release_signal(release: RepositoryRelease) -> Signal:
+    """Convert one repository release event into the shared signal shape."""
 
-    return RawSignal(
+    return Signal(
         source=release.source,
         kind="release",
         item_id=f"{release.repo_full_name}:release:{release.release_id}",

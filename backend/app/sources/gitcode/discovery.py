@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from app.models.signal import RawSignal
+from app.models.signal import Signal
 from app.sources.common import RepositorySourceError
 
 
@@ -12,7 +12,7 @@ def discover_repository_candidates(
     queries: Sequence[str],
     *,
     per_query_limit: int = 10,
-) -> list[RawSignal]:
+) -> list[Signal]:
     """Raise until GitCode repository discovery is implemented."""
 
     del queries, per_query_limit

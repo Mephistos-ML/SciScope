@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.models.repository import Repository
-from app.models.signal import RawSignal
+from app.models.signal import Signal
 from app.runtime.state import STATE
 from app.sources.common import (
     RepositoryRelease,
@@ -24,7 +24,7 @@ def load_repo_activity(
     repo_full_name: str,
     *,
     started_after: datetime | None,
-) -> list[RawSignal]:
+) -> list[Signal]:
     """Load releases created after the monitoring start time."""
 
     if started_after is None:
@@ -36,7 +36,7 @@ def load_repo_activity(
 def load_github_signals_for_subscription(
     subscription_id: str,
     repository: Repository,
-) -> list[RawSignal]:
+) -> list[Signal]:
     """Load live GitHub release signals for one watched repository."""
 
     baseline_started_after = STATE.monitoring_started_at
@@ -80,14 +80,14 @@ def _load_release_signals(
     repo_full_name: str,
     *,
     started_after: datetime,
-) -> list[RawSignal]:
+) -> list[Signal]:
     releases_url = f"{GITHUB_API_BASE}/repos/{repo_full_name}/releases?per_page=10"
     payload = fetch_json(releases_url)
 
     if not isinstance(payload, list):
         return []
 
-    signals: list[RawSignal] = []
+    signals: list[Signal] = []
     for item in payload:
         if not isinstance(item, dict):
             continue

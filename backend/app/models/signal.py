@@ -8,8 +8,8 @@ from typing import Any
 
 
 @dataclass(frozen=True)
-class RawSignal:
-    """Source-scoped signal exactly as SciScope ingests it."""
+class Signal:
+    """Canonical signal shape used across ingestion, matching, and delivery."""
 
     source: str
     kind: str
@@ -18,21 +18,13 @@ class RawSignal:
     url: str
     published_at: datetime | None
     raw_text: str
+    normalized_text: str = ""
     payload: dict[str, Any] = field(default_factory=dict)
 
-
-@dataclass(frozen=True)
-class NormalizedSignal:
-    """Signal ready for topic matching and display."""
-
-    source: str
-    item_id: str
-    kind: str
-    title: str
-    url: str
-    published_at: datetime | None
-    normalized_text: str
-    metadata: dict[str, Any] = field(default_factory=dict)
+    def __post_init__(self) -> None:
+        if self.normalized_text.strip():
+            return
+        object.__setattr__(self, "normalized_text", _build_normalized_text(self))
 
 
 @dataclass(frozen=True)
@@ -45,3 +37,24 @@ class SignalMatch:
     score: float
     matched_terms: tuple[str, ...] = ()
     reason: str = ""
+
+
+def _build_normalized_text(signal: Signal) -> str:
+    parts: list[str] = [
+        signal.title,
+        signal.raw_text,
+    ]
+
+    repo = signal.payload.get("repo")
+    if isinstance(repo, str) and repo.strip():
+        parts.append(repo)
+
+    author = signal.payload.get("author")
+    if isinstance(author, str) and author.strip():
+        parts.append(author)
+
+    files = signal.payload.get("files")
+    if isinstance(files, list):
+        parts.extend(str(file_path) for file_path in files if str(file_path).strip())
+
+    return "\n".join(part.strip() for part in parts if part.strip())

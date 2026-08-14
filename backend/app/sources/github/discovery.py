@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from urllib.parse import quote_plus
 
-from app.models.signal import RawSignal
+from app.models.signal import Signal
 from app.sources.common import (
     RepositoryCandidate,
     build_repository_candidate_signal,
@@ -17,10 +17,10 @@ def discover_repository_candidates(
     queries: Sequence[str],
     *,
     per_query_limit: int = 10,
-) -> list[RawSignal]:
+) -> list[Signal]:
     """Search GitHub repositories for topic-derived queries."""
 
-    signals: list[RawSignal] = []
+    signals: list[Signal] = []
     for query in queries:
         search_url = _build_repository_search_url(
             query, per_query_limit=per_query_limit
@@ -67,6 +67,8 @@ def discover_repository_candidates(
             signals.append(build_repository_candidate_signal(candidate))
 
     return signals
+
+
 def _build_repository_search_url(query: str, *, per_query_limit: int) -> str:
     encoded_query = quote_plus(query)
     return (
@@ -76,9 +78,9 @@ def _build_repository_search_url(query: str, *, per_query_limit: int) -> str:
 
 
 def _dedupe_repository_candidates(
-    candidates: list[RawSignal],
-) -> dict[str, RawSignal]:
-    deduped: dict[str, RawSignal] = {}
+    candidates: list[Signal],
+) -> dict[str, Signal]:
+    deduped: dict[str, Signal] = {}
     for signal in candidates:
         existing = deduped.get(signal.item_id)
         if existing is None:

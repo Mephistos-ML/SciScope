@@ -9,13 +9,12 @@ import threading
 
 from app.config import MONITORING_INTERVAL_SECONDS, POLLING_FREQUENCY_SECONDS
 from app.models.repository import Repository
-from app.models.signal import RawSignal
+from app.models.signal import Signal
 from app.runtime.state import STATE
-from app.services.search.normalization import normalize_raw_signal
 from app.sources.replay import load_replay_signals
 from app.sources.runtime import load_repository_signals, sync_repository_baseline
 from app.storage.repositories import list_repository_checkpoints
-from app.storage.seen_signals import load_seen_signal_ids, upsert_raw_signals
+from app.storage.seen_signals import load_seen_signal_ids, upsert_signals
 from app.storage.subscriptions import (
     SubscriptionWatchRecord,
     list_all_subscription_watches,
@@ -243,7 +242,7 @@ def _run_scan_cycle_unlocked() -> None:
 
     seen_ids_by_source = _load_seen_ids_by_source(signals)
     signal_views: dict[str, SignalView] = {}
-    raw_signals_to_store: list[RawSignal] = []
+    signals_to_store: list[Signal] = []
     for signal in signals:
         seen_ids = seen_ids_by_source.get(signal.source, set())
         signal_views[signal.view_id] = SignalView(
@@ -263,22 +262,23 @@ def _run_scan_cycle_unlocked() -> None:
             metadata=signal.metadata,
             is_new=signal.item_id not in seen_ids,
         )
-        raw_signals_to_store.append(
-            RawSignal(
+        signals_to_store.append(
+            Signal(
                 source=signal.source,
-                kind=str(signal.metadata.get("kind", signal.kind)),
+                kind=signal.kind,
                 item_id=signal.item_id,
                 title=signal.title,
                 url=signal.url,
                 published_at=signal.published_at,
                 raw_text=signal.raw_text,
+                normalized_text=signal.normalized_text,
                 payload=signal.metadata,
             )
         )
 
     STATE.signals.clear()
     STATE.signals.update(signal_views)
-    upsert_raw_signals(raw_signals_to_store)
+    upsert_signals(signals_to_store)
     STATE.last_scan_at = datetime.now(UTC)
 
 
@@ -291,26 +291,24 @@ def _auto_scan_loop() -> None:
 
 
 def _build_signal_view(
-    raw_signal: RawSignal,
+    signal: Signal,
     subscription: SubscriptionWatchRecord,
 ) -> SignalView:
-    normalized_signal = normalize_raw_signal(raw_signal)
-
     return SignalView(
-        view_id=f"{subscription.subscription_id}:{normalized_signal.item_id}",
+        view_id=f"{subscription.subscription_id}:{signal.item_id}",
         subscription_id=subscription.subscription_id,
         repository_id=subscription.repository.repository_id,
         repository_full_name=subscription.repository.full_name,
         selected_query=subscription.selected_query,
-        item_id=normalized_signal.item_id,
-        title=normalized_signal.title,
-        source=normalized_signal.source,
-        kind=normalized_signal.kind,
-        url=normalized_signal.url,
-        published_at=normalized_signal.published_at,
-        raw_text=raw_signal.raw_text,
-        normalized_text=normalized_signal.normalized_text,
-        metadata=normalized_signal.metadata,
+        item_id=signal.item_id,
+        title=signal.title,
+        source=signal.source,
+        kind=signal.kind,
+        url=signal.url,
+        published_at=signal.published_at,
+        raw_text=signal.raw_text,
+        normalized_text=signal.normalized_text,
+        metadata=dict(signal.payload),
         is_new=False,
     )
 
@@ -370,10 +368,10 @@ def _describe_repository_checkpoints(
 
 
 def _signal_belongs_to_repository(
-    raw_signal: RawSignal,
+    signal: Signal,
     repository: Repository,
 ) -> bool:
-    repo_name = raw_signal.payload.get("repo")
+    repo_name = signal.payload.get("repo")
     if isinstance(repo_name, str) and repo_name.strip():
         return repo_name.strip() == repository.full_name
     return False
