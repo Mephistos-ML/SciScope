@@ -14,7 +14,6 @@ SciScope turns a research topic description into a monitored repository watchlis
 
 - Explore is public and search-driven
 - subscriptions are explicit per-repository watches
-- Feed does not run initial discovery
 - repository hostings are the source family
 
 The service is built around one operational assumption:
