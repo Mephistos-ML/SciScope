@@ -7,9 +7,6 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = PROJECT_ROOT / "backend"
-
-APP_VERSION = "0.1.0"
-DISCOVERY_INTERVAL_SECONDS = 86400  # 24 hours
 MONITORING_INTERVAL_SECONDS = 7200  # 2 hours
 POLLING_FREQUENCY_SECONDS = 30  # scheduler polling frequency: 30 seconds
 
@@ -79,7 +76,9 @@ def _read_required_csv_env(name: str) -> tuple[str, ...]:
     raw_value = _read_required_env(name)
     values = tuple(item.strip() for item in raw_value.split(",") if item.strip())
     if not values:
-        raise RuntimeError(f"Environment variable {name} must contain at least one value")
+        raise RuntimeError(
+            f"Environment variable {name} must contain at least one value"
+        )
     return values
 
 
@@ -92,9 +91,13 @@ APP_HOST = _read_required_env("APP_HOST")
 APP_PORT = _read_required_int_env("APP_PORT")
 CORS_ORIGINS = _read_required_csv_env("CORS_ORIGINS")
 DATABASE_URL = _read_required_env("DATABASE_URL")
-AUTH_SESSION_COOKIE_NAME = _read_optional_env("AUTH_SESSION_COOKIE_NAME") or "sciscope_session"
+AUTH_SESSION_COOKIE_NAME = (
+    _read_optional_env("AUTH_SESSION_COOKIE_NAME") or "sciscope_session"
+)
 AUTH_SESSION_COOKIE_DOMAIN = _read_optional_env("AUTH_SESSION_COOKIE_DOMAIN")
-AUTH_SESSION_TTL_SECONDS = int(_read_optional_env("AUTH_SESSION_TTL_SECONDS") or "2592000")
+AUTH_SESSION_TTL_SECONDS = int(
+    _read_optional_env("AUTH_SESSION_TTL_SECONDS") or "2592000"
+)
 AUTH_SESSION_SECURE = _read_bool_env("AUTH_SESSION_SECURE", APP_ENV == "production")
 AUTH_SESSION_SAMESITE = (_read_optional_env("AUTH_SESSION_SAMESITE") or "lax").lower()
 FRONTEND_BASE_URL = _read_optional_env("FRONTEND_BASE_URL")
@@ -118,14 +121,10 @@ if AUTH_SESSION_TTL_SECONDS <= 0:
     raise RuntimeError("AUTH_SESSION_TTL_SECONDS must be a positive integer")
 
 if AUTH_SESSION_SAMESITE not in {"lax", "strict", "none"}:
-    raise RuntimeError(
-        "AUTH_SESSION_SAMESITE must be one of: lax, strict, none"
-    )
+    raise RuntimeError("AUTH_SESSION_SAMESITE must be one of: lax, strict, none")
 
 if AI_PLANNER_MODE not in {"bootstrap", "openai"}:
-    raise RuntimeError(
-        "AI_PLANNER_MODE must be one of: bootstrap, openai"
-    )
+    raise RuntimeError("AI_PLANNER_MODE must be one of: bootstrap, openai")
 
 if OPENAI_TIMEOUT_SECONDS <= 0:
     raise RuntimeError("OPENAI_TIMEOUT_SECONDS must be a positive integer")

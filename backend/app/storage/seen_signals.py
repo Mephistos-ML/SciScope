@@ -10,7 +10,7 @@ from sqlalchemy import select
 from app.config import DATABASE_URL
 from app.database.models import SeenSignalRecord
 from app.database.session import session_scope
-from app.models.signal import RawSignal
+from app.models.signal import Signal
 
 
 def load_seen_signal_ids(
@@ -28,12 +28,12 @@ def load_seen_signal_ids(
     return set(rows)
 
 
-def upsert_raw_signals(
-    signals: Sequence[RawSignal],
+def upsert_signals(
+    signals: Sequence[Signal],
     *,
     database_url: str | None = None,
 ) -> None:
-    """Insert or update raw signals in persistent storage."""
+    """Insert or update signals in persistent storage."""
 
     if not signals:
         return

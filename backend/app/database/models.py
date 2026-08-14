@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import JSON
 
@@ -95,57 +95,34 @@ class SeenSignalRecord(Base):
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
-class EntityRecord(Base):
-    """Globally known watchable entity."""
+class RepositoryRecord(Base):
+    """Globally known watched repository."""
 
-    __tablename__ = "entities"
+    __tablename__ = "repositories"
     __table_args__ = (
-        Index("ix_entities_source_entity_type", "source", "entity_type"),
-        Index("ix_entities_canonical_name", "canonical_name"),
+        Index("ix_repositories_source", "source"),
+        Index("ix_repositories_full_name", "full_name"),
     )
 
-    entity_id: Mapped[str] = mapped_column(String, primary_key=True)
+    repository_id: Mapped[str] = mapped_column(String, primary_key=True)
     source: Mapped[str] = mapped_column(String, nullable=False)
-    entity_type: Mapped[str] = mapped_column(String, nullable=False)
-    canonical_name: Mapped[str] = mapped_column(String, nullable=False)
+    full_name: Mapped[str] = mapped_column(String, nullable=False)
     url: Mapped[str] = mapped_column(Text, nullable=False)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
-class SubscriptionEntityMatchRecord(Base):
-    """Subscription-scoped relevance link to an entity."""
+class RepositoryCheckpointRecord(Base):
+    """Per-subscription monitoring cursor for a repository."""
 
-    __tablename__ = "subscription_entity_matches"
+    __tablename__ = "repository_checkpoints"
     __table_args__ = (
-        Index("ix_subscription_entity_matches_subscription", "subscription_id"),
-        Index("ix_subscription_entity_matches_source", "source"),
+        Index("ix_repository_checkpoints_subscription", "subscription_id"),
     )
 
     subscription_id: Mapped[str] = mapped_column(String, primary_key=True)
-    entity_id: Mapped[str] = mapped_column(String, primary_key=True)
-    source: Mapped[str] = mapped_column(String, nullable=False)
-    score: Mapped[float] = mapped_column(Float, nullable=False)
-    active: Mapped[bool] = mapped_column(nullable=False, default=True)
-    reason: Mapped[str] = mapped_column(Text, nullable=False)
-    matched_terms_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
-    excluded_terms_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
-    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-
-class EntityCheckpointRecord(Base):
-    """Per-subscription monitoring cursor for an entity."""
-
-    __tablename__ = "entity_checkpoints"
-    __table_args__ = (
-        Index("ix_entity_checkpoints_subscription", "subscription_id"),
-    )
-
-    subscription_id: Mapped[str] = mapped_column(String, primary_key=True)
-    entity_id: Mapped[str] = mapped_column(String, primary_key=True)
+    repository_id: Mapped[str] = mapped_column(String, primary_key=True)
     checkpoint_key: Mapped[str] = mapped_column(String, primary_key=True)
     source: Mapped[str] = mapped_column(String, nullable=False)
     checkpoint_value: Mapped[str] = mapped_column(Text, nullable=False)
@@ -158,11 +135,11 @@ class SubscriptionRecordModel(Base):
     __tablename__ = "subscriptions"
     __table_args__ = (
         Index("ix_subscriptions_user_id_created_at", "user_id", "created_at"),
+        Index("ux_subscriptions_user_repository", "user_id", "repository_id", unique=True),
     )
 
     subscription_id: Mapped[str] = mapped_column(String, primary_key=True)
     user_id: Mapped[str] = mapped_column(String, nullable=False)
-    topic_description: Mapped[str] = mapped_column(Text, nullable=False)
-    search_scope: Mapped[str] = mapped_column(String, nullable=False, default="repositories")
-    query_terms_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    repository_id: Mapped[str] = mapped_column(String, nullable=False)
+    selected_query: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

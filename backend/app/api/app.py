@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from app.__version__ import __version__
 from app.api.routes import auth as auth_routes
 from app.api.routes import control as control_routes
 from app.api.routes import dashboard as dashboard_routes
@@ -19,21 +19,23 @@ from app.api.routes import signals as signal_routes
 from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS
 from app.database.session import check_database_connection
-from app.services.explore import AiSearchPlanningError, ExploreSearchUnavailableError
+from app.services.search.explore import (
+    AiSearchPlanningError,
+    ExploreSearchUnavailableError,
+)
 
 
 class ExploreSearchRequest(BaseModel):
     """Request body for one topic-driven explore search."""
 
     topicDescription: str = ""
-    searchScope: Literal["repositories", "all"] = "repositories"
 
 
 class CreateSubscriptionRequest(BaseModel):
-    """Request body for one saved topic subscription."""
+    """Request body for one direct repository subscription."""
 
-    topicDescription: str = ""
-    searchScope: Literal["repositories", "all"] = "repositories"
+    repository: dict[str, str] = Field(default_factory=dict)
+    selectedQuery: str | None = None
 
 
 @asynccontextmanager
@@ -44,7 +46,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     yield
 
 
-app = FastAPI(title="SciScope API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="SciScope API", version=__version__, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(CORS_ORIGINS),

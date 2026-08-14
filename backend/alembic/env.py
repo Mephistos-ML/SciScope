@@ -10,18 +10,16 @@ from sqlalchemy import engine_from_config, pool
 
 from app.database.base import Base
 from app.database.models import (
-    EntityCheckpointRecord,
-    EntityRecord,
+    RepositoryCheckpointRecord,
+    RepositoryRecord,
     SeenSignalRecord,
-    SubscriptionEntityMatchRecord,
     SubscriptionRecordModel,
 )
 
 REGISTERED_MODELS = (
     SeenSignalRecord,
-    EntityRecord,
-    SubscriptionEntityMatchRecord,
-    EntityCheckpointRecord,
+    RepositoryRecord,
+    RepositoryCheckpointRecord,
     SubscriptionRecordModel,
 )
 

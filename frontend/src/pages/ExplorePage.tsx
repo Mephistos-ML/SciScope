@@ -3,30 +3,28 @@ import { SourceBadge } from "../components/SourceBadge";
 
 type ExplorePageProps = {
   canSubscribe: boolean;
-  createPending: boolean;
   lastAiSearchPlan: AiSearchPlanPayload | null;
   onRunSearch: () => void;
-  onSearchScopeChange: (value: "repositories" | "all") => void;
-  onSubscribe: () => void;
+  onSubscribe: (result: ExploreResultItem) => void;
   onTopicInputChange: (value: string) => void;
   results: ExploreResultItem[];
-  searchScope: "repositories" | "all";
   searchPending: boolean;
+  subscribePendingRepositoryId: string | null;
+  subscribedRepositoryIds: string[];
   topicInput: string;
   viewer: ViewerPayload["user"];
 };
 
 export function ExplorePage({
   canSubscribe,
-  createPending,
   lastAiSearchPlan,
   onRunSearch,
-  onSearchScopeChange,
   onSubscribe,
   onTopicInputChange,
   results,
-  searchScope,
   searchPending,
+  subscribePendingRepositoryId,
+  subscribedRepositoryIds,
   topicInput,
   viewer,
 }: ExplorePageProps) {
@@ -37,8 +35,7 @@ export function ExplorePage({
           <p className="section-kicker">Explore</p>
           <h2 className="section-title">Find the most relevant repositories for a research topic.</h2>
           <p className="section-copy">
-            Describe the topic, choose the search scope, and let SciScope generate
-            the repository discovery queries for you.
+            Describe the topic and let SciScope generate repository discovery queries.
           </p>
         </div>
 
@@ -53,24 +50,6 @@ export function ExplorePage({
             onChange={(event) => onTopicInputChange(event.target.value)}
             placeholder="Track repositories around paramagnetic NMR analysis workflows."
           />
-
-          <div className="query-actions">
-            <button
-              className={searchScope === "repositories" ? "solid-button" : "outline-button"}
-              onClick={() => onSearchScopeChange("repositories")}
-              type="button"
-            >
-              Repositories
-            </button>
-            <button
-              className={searchScope === "all" ? "solid-button" : "outline-button"}
-              onClick={() => onSearchScopeChange("all")}
-              type="button"
-            >
-              All
-            </button>
-          </div>
-
           <div className="query-actions">
             <button
               className="outline-button"
@@ -80,21 +59,9 @@ export function ExplorePage({
             >
               {searchPending ? "Running..." : "Run search"}
             </button>
-            <button
-              className="solid-button"
-              disabled={!canSubscribe || createPending}
-              onClick={onSubscribe}
-              type="button"
-            >
-              {createPending ? "Saving..." : "Subscribe"}
-            </button>
-            <p className="field-hint">
-              `All` is already available in the contract and will expand beyond repositories
-              as new source families land.
-            </p>
             <p className="field-hint">
               {viewer
-                ? "Save this topic to your feed."
+                ? "Subscribe to specific repositories directly from the results."
                 : "Sign in with Google before saving this topic to your feed."}
             </p>
           </div>
@@ -109,12 +76,12 @@ export function ExplorePage({
               <h3 className="panel-title">Matched repositories</h3>
             </div>
             <div className="query-chip-row">
-              {lastAiSearchPlan?.sourcePlans[0]?.queries?.length ? (
+              {lastAiSearchPlan?.queries.length ? (
                 <>
                   <p className="field-hint">
                     AI-generated search queries
                   </p>
-                  {lastAiSearchPlan.sourcePlans[0].queries.map((query) => (
+                  {lastAiSearchPlan.queries.map((query) => (
                     <span className="query-chip" key={query}>
                       {query}
                     </span>
@@ -130,18 +97,31 @@ export function ExplorePage({
 
           <div className="signal-list">
             {results.length > 0 ? (
-              results.map((result) => (
-                <div className="signal-row" key={result.itemId}>
-                  <div>
-                    <strong>{result.fullName}</strong>
-                    <p>{result.description || result.reason}</p>
+              results.map((result) => {
+                const isSubscribed = subscribedRepositoryIds.includes(result.itemId);
+                const isPending = subscribePendingRepositoryId === result.itemId;
+
+                return (
+                  <div className="signal-row" key={result.itemId}>
+                    <div>
+                      <strong>{result.fullName}</strong>
+                      <p>{result.description || result.reason}</p>
+                    </div>
+                    <div className="signal-meta">
+                      <SourceBadge href={result.url} source={result.source} />
+                      <span>{result.query}</span>
+                      <button
+                        className={isSubscribed ? "outline-button" : "solid-button"}
+                        disabled={!canSubscribe || isSubscribed || isPending}
+                        onClick={() => onSubscribe(result)}
+                        type="button"
+                      >
+                        {isSubscribed ? "Subscribed" : isPending ? "Saving..." : "Subscribe"}
+                      </button>
+                    </div>
                   </div>
-                  <div className="signal-meta">
-                    <SourceBadge source={result.source} />
-                    <span>{result.query}</span>
-                  </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <p className="empty-copy">
                 No repositories yet. Without generated queries, the search plan stays pending.

@@ -1,48 +1,42 @@
 # Frontend
 
-React + TypeScript dashboard for SciScope.
+React + TypeScript frontend for SciScope.
 
-## Local dev
+Public service:
 
-1. Install Node.js 20+.
-2. Run the backend API on `http://127.0.0.1:8000`.
-3. From `frontend/` run:
+- `https://sciscope.uk/`
 
-```bash
-npm install
-cp .env.example .env
-npm run dev
-```
+UI surfaces:
 
-Set these values in `frontend/.env`:
+- Explore
+  - public repository discovery from a topic description
+- Feed
+  - saved repository subscriptions for signed-in users
 
-```bash
-VITE_API_BASE_URL=http://127.0.0.1:8000
-VITE_AUTH_MODE=dev
-VITE_API_TIMEOUT_MS=45000
-```
+## Frontend Responsibility
 
-`VITE_AUTH_MODE=dev` enables the temporary developer sign-in button against the backend `POST /api/auth/dev-login` endpoint. For any public deployment, keep `VITE_AUTH_MODE=disabled` until the real authentication flow lands.
+The frontend owns:
 
-Backend entrypoint:
+- Explore query input and result rendering
+- per-repository `Subscribe` actions
+- Google sign-in entry
+- subscription list and selected Feed state
+- source badge links to repository URLs
 
-```bash
-cd /Users/ernestborysenko/git/SciScope
-./.venv/bin/python -m app.main
-```
+## Auth Behavior
 
-## Production deploy
+- Explore works without sign-in.
+- Saving subscriptions requires Google OAuth to be configured on the backend.
+- If backend Google OAuth is not configured, the frontend stays in public Explore mode.
 
-Recommended hosting split:
+The frontend uses:
 
-- frontend: Vercel
-- backend API: Fly.io
+- `VITE_API_BASE_URL`
+- `VITE_API_TIMEOUT_MS`
 
-For Vercel:
+## UX Notes
 
-1. Import the repository.
-2. Set the project root to `frontend/`.
-3. Set `VITE_API_BASE_URL` to the public backend URL, for example `https://api.sciscope.uk`.
-4. Set `VITE_AUTH_MODE=disabled` until Google sign-in is implemented.
-5. Set `VITE_API_TIMEOUT_MS=45000` to tolerate Fly cold starts and slower first searches.
-6. Deploy from the `main` branch for production and from feature branches for preview environments.
+- Explore generates repository queries and shows matched repositories.
+- `Subscribe` is per-result and updates the row locally to `Subscribed` after success.
+- Feed focuses on saved repository subscriptions.
+- The backend exposes monitoring and signal APIs.

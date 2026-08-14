@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import Request
+from fastapi import HTTPException, Request, status
 
 from app.services.auth import get_current_user
-from app.services.subscriptions import (
+from app.services.subscriptions.service import (
     create_subscription_payload,
     delete_subscription_payload,
     list_subscription_payloads,
@@ -31,17 +31,32 @@ def create_subscription_response(
     if user is None:
         return None
 
-    topic_description = str(payload.get("topicDescription") or "").strip()
-    search_scope = str(payload.get("searchScope") or "repositories")
-    if not topic_description:
-        topic_description = "Untitled topic"
+    repository_payload = payload.get("repository")
+    repository = repository_payload if isinstance(repository_payload, dict) else {}
+    repository_item_id = str(repository.get("itemId") or "").strip()
+    repository_source = str(repository.get("source") or "").strip()
+    repository_full_name = str(repository.get("fullName") or "").strip()
+    repository_url = str(repository.get("url") or "").strip()
+    selected_query = str(payload.get("selectedQuery") or "").strip() or None
+
+    if (
+        not repository_item_id
+        or not repository_source
+        or not repository_full_name
+        or not repository_url
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Repository subscription payload is incomplete.",
+        )
 
     return create_subscription_payload(
         user,
-        topic_description=topic_description,
-        search_scope=(
-            search_scope if search_scope in ("repositories", "all") else "repositories"
-        ),
+        repository_item_id=repository_item_id,
+        repository_source=repository_source,
+        repository_full_name=repository_full_name,
+        repository_url=repository_url,
+        selected_query=selected_query,
     )
 
 

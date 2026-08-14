@@ -1,21 +1,18 @@
 """SciScope domain models."""
 
-from app.models.ai import AiSearchPlan, AiSourcePlan
-from app.models.discovery import DiscoveryResult
-from app.models.entity import Entity, EntityCheckpoint, SubscriptionEntityMatch
-from app.models.signal import NormalizedSignal, RawSignal, SignalMatch
-from app.models.topic import ResearchProfile, ResearchTopic
+from app.models.ai import AiSearchPlan
+from app.models.repository import (
+    Repository,
+    RepositoryCheckpoint,
+)
+from app.models.signal import Signal, SignalMatch
+from app.models.subscription import Subscription
 
 __all__ = [
     "AiSearchPlan",
-    "AiSourcePlan",
-    "DiscoveryResult",
-    "Entity",
-    "EntityCheckpoint",
-    "NormalizedSignal",
-    "RawSignal",
-    "ResearchProfile",
-    "ResearchTopic",
+    "Repository",
+    "RepositoryCheckpoint",
+    "Signal",
     "SignalMatch",
-    "SubscriptionEntityMatch",
+    "Subscription",
 ]

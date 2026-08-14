@@ -1,100 +1,202 @@
-# SciScope V0 Architecture
+# SciScope Architecture
 
-## Core Flow
+## System Shape
 
-`topic -> profile -> source fetch -> parse -> normalize -> store -> dashboard`
+SciScope is a structured monolith with:
 
-## Architectural Style
+- one backend application
+- one frontend application
+- one database
+- background monitoring inside the backend process
 
-- Structured monolith
-- One repository
-- One application
-- One database
-- Background jobs for ingestion
+The runtime is repository-only.
+
+The runtime hierarchy is centered on repositories, subscriptions, and signals.
+
+## End-to-End Flow
+
+### Explore Flow
+
+`topic description -> AI query plan -> repository discovery -> deterministic matching -> results`
+
+Ownership:
+
+- `services/ai/`
+  - builds search queries from the topic description
+- `sources/github/discovery.py`
+  - loads GitHub repository candidates
+- `sources/gitlab/discovery.py`
+  - loads GitLab repository candidates
+- `services/search/explore.py`
+  - merges source results, matches them against generated queries, and returns Explore payloads
+
+Explore is read-only and does not create subscriptions.
+
+### Subscription Flow
+
+`clicked repository -> repository upsert -> subscription create -> baseline sync`
+
+Ownership:
+
+- `api/routes/subscriptions.py`
+  - validates repo-centric request payloads
+- `services/subscriptions/service.py`
+  - builds a `Repository`, stores it, creates the subscription, and starts baseline sync
+- `storage/repositories.py`
+  - persists repository records and checkpoints
+- `storage/subscriptions.py`
+  - persists direct repository subscriptions
+
+The subscription is the explicit user decision to monitor one repository.
+
+### Monitoring Flow
+
+`subscription watch -> source-specific checkpoint -> release fetch -> Signal -> signal view`
+
+Ownership:
+
+- `services/runtime.py`
+  - background scheduler and signal view assembly
+- `sources/runtime.py`
+  - routes each watch to the correct source adapter
+- `sources/github/monitor.py`
+  - loads GitHub releases for one subscribed repository
+- `sources/gitlab/monitor.py`
+  - loads GitLab releases for one subscribed repository
+- `storage/seen_signals.py`
+  - persists seen signal ids by `(source, item_id)`
+
+The monitoring loop processes repositories from user subscriptions.
 
 ## Stable Boundaries
 
-### Topics
+### API
 
-Owns user-entered research topics and generated research profiles.
+Owns transport.
 
-`profile_builder` is a stateless builder:
+- FastAPI request/response handling
+- auth redirects
+- payload validation
+- no source logic
+- no persistence logic
 
-- input: one `ResearchTopic`
-- output: one `ResearchProfile`
-- no ownership of active profiles, runtime state, or orchestration
-- no source-specific query construction
-- no assumption that only one profile exists in the system
+### AI Planning
+
+Owns query generation.
+
+- input: one topic description
+- output: one query plan
+- no repository storage
+- no subscription creation
+
+### Search
+
+Owns Explore behavior.
+
+- source discovery fan-out
+- deterministic matching
+- result ranking and serialization
+- no subscription persistence
+
+### Subscriptions
+
+Owns explicit repository watches.
+
+- create
+- list
+- delete
+- baseline initialization
 
 ### Sources
 
-Owns source adapters and fetching logic.
+Own repository-hosting adapters.
 
-### Services
+- repository discovery
+- release monitoring
+- source auth
+- checkpoint resolution
 
-Owns profile generation, ingestion orchestration, and normalization.
-
-Multi-profile support is handled around the builder, not inside it:
-
-- storage persists many profiles
-- orchestration selects which profile to process
-- discovery and monitoring run one profile at a time
-
-### Matching
-
-Owns the logic that decides whether a normalized signal matches a research
-profile. This layer starts as deterministic profile matching and can later grow
-into a ranking layer.
+Sources do not decide whether a repository should be subscribed.
 
 ### Storage
 
-Owns persistence for raw signals, normalized signals, and source-scoped seen
-identities.
+Owns persistence contracts.
 
-### Models
+- repositories
+- subscriptions
+- seen signals
+- auth records
 
-Owns persistent domain entities.
+### Runtime
 
-### Jobs
+Owns the monitoring loop.
 
-Owns scheduled tasks and refresh workflows.
+- start / stop
+- periodic scans
+- signal views
+- status payloads
 
-### Web
+## Domain Model
 
-Owns dashboard pages and topic views.
+Core objects:
 
-## V0 Domain Entities
+- `Repository`
+- `Subscription`
+- `Signal`
+- `SignalMatch`
 
-- `ResearchTopic`
-- `ResearchProfile`
-- `Source`
-- `RawSignal`
-- `NormalizedSignal`
+### Repository
 
-## V0 Constraints
+One canonical watched repository with:
 
-- pNMR-first validation
-- generic engine shape
-- no advanced ranking yet
-- dashboard before email delivery
+- `repository_id`
+- `source`
+- `full_name`
+- `url`
+- `metadata`
 
-## Profile Builder Contract
+### Subscription
 
-```python
-build_profile(topic: ResearchTopic) -> ResearchProfile
-```
+One direct watch owned by one user.
 
-Design rules:
+- `subscription_id`
+- `user_id`
+- `repository_id`
+- `selected_query`
+- `created_at`
 
-- `profile_builder` transforms topic input into profile data
-- profile persistence belongs to `storage`
-- profile selection belongs to orchestration services
-- GitHub-specific or source-specific logic belongs to the relevant source layer
-- current seeded profiles are a V0 bootstrap, not the final ownership model
+### Signal
 
-## Borrowed SignalWatch Patterns
+One canonical internal signal object used everywhere.
 
-- source adapters only fetch and normalize
+- source and item identity
+- signal kind
+- title and url
+- published time
+- `raw_text`
+- `normalized_text`
+- `payload`
+
+The `Signal` model stores both raw and normalized text.
+
+## Source Contracts
+
+Repository discovery adapters return candidate repository `Signal` objects.
+
+Monitoring adapters return release `Signal` objects for one subscribed repository.
+
+Both contracts keep these rules:
+
+- source adapter fetches and shapes data
+- source adapter keeps source-specific payload details
 - matching stays outside the source layer
-- source-scoped stable identity prevents duplicates
-- one monitoring cycle should be runnable independently of the UI
+- deduplication anchor is `(source, item_id)`
+
+## Constraints
+
+- Explore is public, Feed is user-owned
+- subscriptions are repository-only
+- monitoring is release-only
+- GitHub and GitLab are active providers
+- Gitee, GitCode, and GitVerse return unavailable or empty results
+- the Feed UI focuses on subscriptions and does not render monitored signal streams

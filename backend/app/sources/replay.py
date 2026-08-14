@@ -8,10 +8,10 @@ from pathlib import Path
 from typing import Any
 
 from app.config import REPLAY_FIXTURES_PATH
-from app.models.signal import RawSignal
+from app.models.signal import Signal
 
 
-def load_replay_signals(fixtures_path: Path = REPLAY_FIXTURES_PATH) -> list[RawSignal]:
+def load_replay_signals(fixtures_path: Path = REPLAY_FIXTURES_PATH) -> list[Signal]:
     """Load replay signals from a local JSON file.
 
     The fixtures file is the intended place for manually curated relevant and
@@ -27,16 +27,16 @@ def load_replay_signals(fixtures_path: Path = REPLAY_FIXTURES_PATH) -> list[RawS
     if not isinstance(payload, list):
         raise ValueError("Replay fixtures must be a JSON list.")
 
-    signals: list[RawSignal] = []
+    signals: list[Signal] = []
     for item in payload:
         if not isinstance(item, dict):
             continue
-        signals.append(_parse_raw_signal(item))
+        signals.append(_parse_signal(item))
 
     return signals
 
 
-def _parse_raw_signal(item: dict[str, Any]) -> RawSignal:
+def _parse_signal(item: dict[str, Any]) -> Signal:
     published_at_raw = item.get("published_at")
     published_at = None
     if isinstance(published_at_raw, str) and published_at_raw.strip():
@@ -46,9 +46,9 @@ def _parse_raw_signal(item: dict[str, Any]) -> RawSignal:
     if not isinstance(payload, dict):
         payload = {}
 
-    return RawSignal(
+    return Signal(
         source=str(item.get("source", "github_replay")),
-        source_type=str(item.get("source_type", "github_commit")),
+        kind=str(item.get("kind") or item.get("source_type") or "commit"),
         item_id=str(item["item_id"]),
         title=str(item["title"]),
         url=str(item["url"]),
