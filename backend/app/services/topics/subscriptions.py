@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from app.services.ai_planner import build_ai_search_plan
-from app.services.auth import User
-from app.services.ai_search_plans import (
+from app.services.ai.planner import build_ai_search_plan
+from app.services.ai.search_plans import (
     build_ai_search_plan_from_queries,
     serialize_ai_search_plan,
 )
+from app.services.auth import User
 from app.storage.entities import (
     delete_entity_checkpoints_for_subscription,
     delete_subscription_entity_matches,

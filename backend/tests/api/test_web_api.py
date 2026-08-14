@@ -15,9 +15,9 @@ from app.models.ai import AiSearchPlan
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile, ResearchTopic
 from app.runtime.state import STATE
-from app.services import runtime
-from app.services import auth as auth_service
 from app.services.auth import create_authenticated_session
+from app.services.auth import service as auth_service
+from app.services import runtime
 from app.sources.repositories.common import RepositorySourceError
 from app.storage import auth as auth_storage
 from app.storage import entities as entity_storage
@@ -417,14 +417,14 @@ def test_google_auth_callback_redirects_with_error_when_state_is_invalid(monkeyp
 
 def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.services.explore.build_ai_search_plan",
+        "app.services.search.explore.build_ai_search_plan",
         lambda **_: _build_ready_repository_ai_plan(
             "paramagnetic nmr",
             "pcs tensor fitting",
         ),
     )
     monkeypatch.setattr(
-        "app.services.explore.discover_github_repository_candidates",
+        "app.services.search.explore.discover_github_repository_candidates",
         lambda queries: [
             _build_explore_repository_signal(
                 "github:repo:Mephistos-ML/paranmr",
@@ -437,7 +437,7 @@ def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatc
         raise RuntimeError("GitLab upstream failed")
 
     monkeypatch.setattr(
-        "app.services.explore.discover_gitlab_repository_candidates",
+        "app.services.search.explore.discover_gitlab_repository_candidates",
         fail_gitlab,
     )
 
@@ -478,7 +478,7 @@ def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatc
 
 def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.services.explore.build_ai_search_plan",
+        "app.services.search.explore.build_ai_search_plan",
         lambda **_: _build_ready_repository_ai_plan(
             "paramagnetic nmr",
             "pcs tensor fitting",
@@ -492,11 +492,11 @@ def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
         raise RuntimeError("GitLab upstream failed")
 
     monkeypatch.setattr(
-        "app.services.explore.discover_github_repository_candidates",
+        "app.services.search.explore.discover_github_repository_candidates",
         fail_github,
     )
     monkeypatch.setattr(
-        "app.services.explore.discover_gitlab_repository_candidates",
+        "app.services.search.explore.discover_gitlab_repository_candidates",
         fail_gitlab,
     )
 
@@ -530,7 +530,7 @@ def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
 
 def test_explore_search_returns_source_auth_statuses(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.services.explore.build_ai_search_plan",
+        "app.services.search.explore.build_ai_search_plan",
         lambda **_: _build_ready_repository_ai_plan(
             "paramagnetic nmr",
             "pcs tensor fitting",
@@ -552,11 +552,11 @@ def test_explore_search_returns_source_auth_statuses(monkeypatch) -> None:
         )
 
     monkeypatch.setattr(
-        "app.services.explore.discover_github_repository_candidates",
+        "app.services.search.explore.discover_github_repository_candidates",
         fail_github,
     )
     monkeypatch.setattr(
-        "app.services.explore.discover_gitlab_repository_candidates",
+        "app.services.search.explore.discover_gitlab_repository_candidates",
         fail_gitlab,
     )
 
@@ -606,7 +606,7 @@ def test_explore_search_uses_ai_generated_queries(monkeypatch) -> None:
     captured_queries: list[str] = []
 
     monkeypatch.setattr(
-        "app.services.explore.build_ai_search_plan",
+        "app.services.search.explore.build_ai_search_plan",
         lambda **_: _build_ready_repository_ai_plan(
             "pcs tensor fitting",
             "paramagnetic nmr repos",
@@ -623,11 +623,11 @@ def test_explore_search_uses_ai_generated_queries(monkeypatch) -> None:
         ]
 
     monkeypatch.setattr(
-        "app.services.explore.discover_github_repository_candidates",
+        "app.services.search.explore.discover_github_repository_candidates",
         fake_discover_github_repository_candidates,
     )
     monkeypatch.setattr(
-        "app.services.explore.discover_gitlab_repository_candidates",
+        "app.services.search.explore.discover_gitlab_repository_candidates",
         lambda queries: [],
     )
 
@@ -657,7 +657,7 @@ def test_subscription_endpoint_persists_ai_generated_queries(monkeypatch) -> Non
         monkeypatch.setattr(subscription_storage, "DATABASE_URL", database_url)
         monkeypatch.setattr(entity_storage, "DATABASE_URL", database_url)
         monkeypatch.setattr(
-            "app.services.subscriptions.build_ai_search_plan",
+            "app.services.topics.subscriptions.build_ai_search_plan",
             lambda **_: _build_ready_repository_ai_plan(
                 "pcs tensor fitting",
                 "paramagnetic nmr repos",

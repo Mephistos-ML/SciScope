@@ -18,7 +18,10 @@ from app.api.routes import signals as signal_routes
 from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS
 from app.database.session import check_database_connection
-from app.services.explore import AiSearchPlanningError, ExploreSearchUnavailableError
+from app.services.search.explore import (
+    AiSearchPlanningError,
+    ExploreSearchUnavailableError,
+)
 
 
 class ExploreSearchRequest(BaseModel):

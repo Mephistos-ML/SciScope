@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.models.topic import ResearchProfile, ResearchTopic
-from app.services.profile_builder import build_profile
+from app.services.topics.profile_builder import build_profile
 from app.storage.subscriptions import list_all_subscriptions
 
 

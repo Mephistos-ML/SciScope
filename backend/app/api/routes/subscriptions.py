@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import Request
 
 from app.services.auth import get_current_user
-from app.services.subscriptions import (
+from app.services.topics.subscriptions import (
     create_subscription_payload,
     delete_subscription_payload,
     list_subscription_payloads,

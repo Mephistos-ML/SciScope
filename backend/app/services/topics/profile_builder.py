@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from app.models.topic import ResearchProfile, ResearchTopic
-from app.services.ai_search_plans import normalize_search_queries
+from app.services.ai.search_plans import normalize_search_queries
 
 
 def build_profile(

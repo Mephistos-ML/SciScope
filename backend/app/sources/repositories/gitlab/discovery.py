@@ -9,6 +9,8 @@ from app.config import DATABASE_URL
 from app.models.discovery import DiscoveryResult
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile
+from app.services.search.matching import match_signal_to_profile
+from app.services.search.normalization import normalize_raw_signal
 from app.sources.repositories.common import (
     RepositoryCandidate,
     build_repository_candidate_signal,
@@ -17,8 +19,6 @@ from app.sources.repositories.common import (
 )
 from app.sources.repositories.common.query_builder import build_repository_search_queries
 from app.sources.repositories.gitlab.client import GITLAB_API_BASE, fetch_json
-from app.services.matching import match_signal_to_profile
-from app.services.normalization import normalize_raw_signal
 from app.storage.entities import upsert_entities, upsert_subscription_entity_matches
 
 

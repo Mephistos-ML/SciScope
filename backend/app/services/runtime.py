@@ -14,18 +14,18 @@ from app.config import (
 )
 from app.models.signal import RawSignal
 from app.runtime.state import STATE
-from app.services.matching import match_signal_to_profile
+from app.services.search.matching import match_signal_to_profile
+from app.services.search.normalization import normalize_raw_signal
+from app.services.topics.registry import (
+    list_runtime_profiles,
+    list_runtime_topics,
+)
 from app.sources.repositories.runtime import (
     discover_repository_entities_for_profile,
     describe_repository_checkpoints,
     describe_watched_repositories,
     load_repository_signals_for_profile,
     sync_repository_baseline_for_profile,
-)
-from app.services.normalization import normalize_raw_signal
-from app.services.topic_registry import (
-    list_runtime_profiles,
-    list_runtime_topics,
 )
 from app.sources.replay import load_replay_signals
 from app.storage.seen_signals import load_seen_signal_ids, upsert_raw_signals

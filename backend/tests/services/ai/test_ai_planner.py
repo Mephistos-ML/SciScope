@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from app import config
 from app.models.ai import AiSearchPlan
-from app.services.ai_planner import build_ai_search_plan
+from app.services.ai.planner import build_ai_search_plan
 
 
 def test_build_ai_search_plan_returns_pending_plan_in_bootstrap_mode() -> None:
@@ -27,7 +27,7 @@ def test_build_ai_search_plan_uses_openai_planner_when_mode_is_openai(
         )
 
     monkeypatch.setattr(
-        "app.services.ai_planner.OpenAiSearchPlanner.build_search_plan",
+        "app.services.ai.planner.OpenAiSearchPlanner.build_search_plan",
         _build_search_plan,
     )
 

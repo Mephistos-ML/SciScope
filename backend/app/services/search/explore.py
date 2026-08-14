@@ -7,15 +7,15 @@ from collections.abc import Sequence
 
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile, ResearchTopic
-from app.services.ai_planner import build_ai_search_plan
-from app.services.ai_search_plans import serialize_ai_search_plan
-from app.services.matching import match_signal_to_profile
-from app.services.normalization import normalize_raw_signal
-from app.services.profile_builder import build_profile
-from app.services.openai_client import (
+from app.services.ai.openai_client import (
     OpenAIClientConfigurationError,
     OpenAIResponseError,
 )
+from app.services.ai.planner import build_ai_search_plan
+from app.services.ai.search_plans import serialize_ai_search_plan
+from app.services.search.matching import match_signal_to_profile
+from app.services.search.normalization import normalize_raw_signal
+from app.services.topics.profile_builder import build_profile
 from app.sources.repositories.common import RepositorySourceError, build_source_status
 from app.sources.repositories.github.discovery import (
     discover_repository_candidates as discover_github_repository_candidates,

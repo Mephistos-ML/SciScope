@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from app import config
-from app.services.openai_client import (
+from app.services.ai.openai_client import (
     OpenAIResponseError,
     build_openai_json_response,
 )

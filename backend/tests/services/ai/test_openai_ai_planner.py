@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.services.openai_ai_planner import OpenAiSearchPlanner
+from app.services.ai.openai_planner import OpenAiSearchPlanner
 
 
 def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
@@ -24,7 +24,7 @@ def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
         }
 
     monkeypatch.setattr(
-        "app.services.openai_ai_planner.build_openai_json_response",
+        "app.services.ai.openai_planner.build_openai_json_response",
         _fake_response,
     )
 
@@ -45,7 +45,7 @@ def test_openai_planner_raises_for_invalid_payload(monkeypatch) -> None:
     planner = OpenAiSearchPlanner()
 
     monkeypatch.setattr(
-        "app.services.openai_ai_planner.build_openai_json_response",
+        "app.services.ai.openai_planner.build_openai_json_response",
         lambda **_: {
             "queries": "not-a-list",
         },

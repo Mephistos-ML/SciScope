@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.services.explore import run_explore_search
+from app.services.search.explore import run_explore_search
 
 
 def search_explore_response(payload: dict[str, object]) -> dict[str, object]:

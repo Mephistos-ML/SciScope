@@ -6,8 +6,8 @@ from typing import Protocol
 
 from app import config
 from app.models.ai import AiSearchPlan
-from app.services.ai_search_plans import build_bootstrap_ai_search_plan
-from app.services.openai_ai_planner import OpenAiSearchPlanner
+from app.services.ai.openai_planner import OpenAiSearchPlanner
+from app.services.ai.search_plans import build_bootstrap_ai_search_plan
 
 
 class AiSearchPlanner(Protocol):
