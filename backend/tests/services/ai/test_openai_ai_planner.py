@@ -35,8 +35,9 @@ def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
         "paramagnetic nmr software",
         "pcs tensor fitting",
     )
-    assert "controlled broadening" in captured_prompts["system"]
-    assert "repository discovery" in captured_prompts["system"]
+    assert "scientific software discovery" in captured_prompts["system"]
+    assert "Prefer 2-term queries." in captured_prompts["system"]
+    assert '"workflow", "pipeline", "Python"' in captured_prompts["system"]
     assert "Do not return only ultra-specific jargon." in captured_prompts["user"]
     assert "used only for repository search" in captured_prompts["user"]
 
