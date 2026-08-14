@@ -110,7 +110,7 @@ export function ExplorePage({
                     <p>{result.description || result.reason}</p>
                   </div>
                   <div className="signal-meta">
-                    <SourceBadge source={result.source} />
+                    <SourceBadge href={result.url} source={result.source} />
                     <span>{result.query}</span>
                   </div>
                 </div>
