@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/Mephistos-ML/SciScope/compare/v1.0.0...v1.0.1) (2026-08-14)
+
+
+### Bug Fixes
+
+* **db:** shorten alembic revision id ([f1368b4](https://github.com/Mephistos-ML/SciScope/commit/f1368b4f105813108afeb1d68a57cf662b3b7fed))
+
 # 1.0.0 (2026-08-14)
 
 
