@@ -13,14 +13,12 @@ from app.database.models import (
     RepositoryCheckpointRecord,
     RepositoryRecord,
     SeenSignalRecord,
-    SubscriptionRepositoryMatchRecord,
     SubscriptionRecordModel,
 )
 
 REGISTERED_MODELS = (
     SeenSignalRecord,
     RepositoryRecord,
-    SubscriptionRepositoryMatchRecord,
     RepositoryCheckpointRecord,
     SubscriptionRecordModel,
 )

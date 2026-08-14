@@ -9,7 +9,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = PROJECT_ROOT / "backend"
 
 APP_VERSION = "0.1.0"
-DISCOVERY_INTERVAL_SECONDS = 86400  # 24 hours
 MONITORING_INTERVAL_SECONDS = 7200  # 2 hours
 POLLING_FREQUENCY_SECONDS = 30  # scheduler polling frequency: 30 seconds
 

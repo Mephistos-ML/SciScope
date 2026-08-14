@@ -104,7 +104,13 @@ export async function fetchSubscriptions(): Promise<SubscriptionListPayload> {
 }
 
 export async function createSubscription(payload: {
-  topicDescription: string;
+  repository: {
+    itemId: string;
+    source: string;
+    fullName: string;
+    url: string;
+  };
+  selectedQuery: string | null;
 }): Promise<SubscriptionItem> {
   return requestJson<SubscriptionItem>("/api/subscriptions", {
     method: "POST",

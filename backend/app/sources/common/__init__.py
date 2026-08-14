@@ -6,7 +6,6 @@ from app.sources.common.factories import (
     build_repository_entity,
     build_repository_release_checkpoint,
     build_repository_release_signal,
-    build_repository_subscription_match,
     build_repository_text,
     read_repository_name,
 )
@@ -28,7 +27,6 @@ __all__ = [
     "build_repository_release_checkpoint",
     "build_repository_release_signal",
     "build_source_status",
-    "build_repository_subscription_match",
     "build_repository_text",
     "read_repository_name",
 ]

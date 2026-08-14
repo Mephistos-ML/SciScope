@@ -15,9 +15,6 @@ class RuntimeState:
     monitoring_started_at: datetime | None = None
     last_scan_at: datetime | None = None
     last_scan_error: str | None = None
-    last_discovery_at: datetime | None = None
-    last_discovery_error: str | None = None
-    last_discovery_result: dict[str, object] | None = None
     auto_scan_started: bool = False
     auto_scan_stop_event: threading.Event = field(default_factory=threading.Event)
     auto_scan_thread: threading.Thread | None = None

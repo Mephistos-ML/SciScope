@@ -6,18 +6,12 @@ from app.sources.gitcode.client import (
     build_user_agent,
     fetch_json,
 )
-from app.sources.gitcode.discovery import (
-    discover_gitcode_repositories_for_profile,
-    discover_repository_candidates,
-)
-from app.sources.gitcode.monitor import (
-    load_gitcode_signals_for_profile,
-    load_repo_activity,
-)
+from app.sources.gitcode.discovery import discover_repository_candidates
+from app.sources.gitcode.monitor import load_gitcode_signals_for_subscription, load_repo_activity
 from app.sources.gitcode.state import (
     describe_release_checkpoints,
-    describe_watched_gitcode_repositories,
-    sync_gitcode_baseline_for_profile,
+    resolve_release_checkpoint,
+    sync_gitcode_baseline,
 )
 
 __all__ = [
@@ -25,11 +19,10 @@ __all__ = [
     "build_auth_headers",
     "build_user_agent",
     "describe_release_checkpoints",
-    "describe_watched_gitcode_repositories",
-    "discover_gitcode_repositories_for_profile",
     "discover_repository_candidates",
     "fetch_json",
-    "load_gitcode_signals_for_profile",
+    "load_gitcode_signals_for_subscription",
     "load_repo_activity",
-    "sync_gitcode_baseline_for_profile",
+    "resolve_release_checkpoint",
+    "sync_gitcode_baseline",
 ]

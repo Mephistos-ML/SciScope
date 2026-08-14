@@ -5,9 +5,15 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.models.signal import RawSignal
-from app.services.search.matching import match_signal_to_profile
+from app.services.search.matching import match_signal_to_terms
 from app.services.search.normalization import normalize_raw_signal
-from tests.fixtures.profiles import PNMR_PROFILE
+
+
+PNMR_QUERY_TERMS = (
+    "susceptibility tensor",
+    "paramagnetic nmr",
+    "structure refinement",
+)
 
 
 def _build_raw_signal(
@@ -47,7 +53,7 @@ def test_seeded_paranmr_signal_matches_pnmr_profile() -> None:
     )
 
     normalized_signal = normalize_raw_signal(raw_signal)
-    match = match_signal_to_profile(normalized_signal, PNMR_PROFILE)
+    match = match_signal_to_terms(normalized_signal, PNMR_QUERY_TERMS)
 
     assert match.matched is True
     assert match.score > 0.0
@@ -71,7 +77,7 @@ def test_related_signal_still_matches_with_lower_specificity() -> None:
     )
 
     normalized_signal = normalize_raw_signal(raw_signal)
-    match = match_signal_to_profile(normalized_signal, PNMR_PROFILE)
+    match = match_signal_to_terms(normalized_signal, PNMR_QUERY_TERMS)
 
     assert match.matched is True
     assert match.score > 0.0
@@ -95,7 +101,7 @@ def test_irrelevant_signal_is_rejected() -> None:
     )
 
     normalized_signal = normalize_raw_signal(raw_signal)
-    match = match_signal_to_profile(normalized_signal, PNMR_PROFILE)
+    match = match_signal_to_terms(normalized_signal, PNMR_QUERY_TERMS)
 
     assert match.matched is False
     assert match.score == 0.0

@@ -90,26 +90,19 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
         column["name"]
         for column in inspector.get_columns("repositories")
     }
-    subscription_match_columns = {
-        column["name"]
-        for column in inspector.get_columns("subscription_repository_matches")
-    }
     checkpoint_columns = {
         column["name"]
         for column in inspector.get_columns("repository_checkpoints")
     }
-    assert "manual_keywords_json" not in subscription_columns
-    assert "query_terms_json" in subscription_columns
-    assert "query_strategy" not in subscription_columns
-    assert "search_scope" not in subscription_columns
+
+    assert "topic_description" not in subscription_columns
+    assert "query_terms_json" not in subscription_columns
+    assert "repository_id" in subscription_columns
+    assert "selected_query" in subscription_columns
+    assert not inspector.has_table("subscription_repository_matches")
     assert inspector.has_table("repositories")
     assert "repository_id" in repository_columns
-    assert "entity_type" not in repository_columns
     assert "full_name" in repository_columns
-    assert inspector.has_table("subscription_repository_matches")
-    assert "repository_id" in subscription_match_columns
-    assert "active" not in subscription_match_columns
-    assert "excluded_terms_json" not in subscription_match_columns
     assert inspector.has_table("repository_checkpoints")
     assert "repository_id" in checkpoint_columns
     assert inspector.has_table("users")
@@ -121,4 +114,4 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
             sa.text("SELECT version_num FROM alembic_version")
         ).scalar_one()
 
-    assert version == "0006_repository_schema_cleanup"
+    assert version == "0007_direct_repository_subscriptions"

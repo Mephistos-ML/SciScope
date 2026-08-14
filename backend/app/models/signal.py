@@ -39,7 +39,6 @@ class NormalizedSignal:
 class SignalMatch:
     """Deterministic match result for V0 profile matching."""
 
-    subscription_id: str
     source: str
     item_id: str
     matched: bool

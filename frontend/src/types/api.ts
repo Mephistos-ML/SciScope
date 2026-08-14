@@ -1,18 +1,13 @@
 export type StatusPayload = {
-  topicSlug: string | null;
-  topicLabel: string | null;
+  subscriptionCount: number;
+  subscriptions: StatusSubscriptionPayload[];
   autoScanStarted: boolean;
   autoScanIntervalSeconds: number;
   lastScanAt: string | null;
   lastScanError: string | null;
-  lastDiscoveryAt: string | null;
-  lastDiscoveryError: string | null;
-  lastDiscoveryResult: DiscoveryResultPayload | null;
-  discoveryQueries: string[];
-  watchedEntities: WatchedEntityPayload[];
+  watchedRepositories: WatchedRepositoryPayload[];
   sourceCheckpoints: SourceCheckpointPayload[];
   totalSignals: number;
-  matchedSignals: number;
 };
 
 export type Viewer = {
@@ -26,28 +21,30 @@ export type ViewerPayload = {
   user: Viewer | null;
 };
 
-export type DiscoveryResultPayload = {
-  topicSlug: string;
-  queries: string[];
-  candidateCount: number;
-  entityCount: number;
-  matchedEntityCount: number;
+export type StatusSubscriptionPayload = {
+  subscriptionId: string;
+  repositoryId: string;
+  source: string;
+  fullName: string;
+  selectedQuery: string | null;
 };
 
-export type WatchedEntityPayload = {
-  entityId: string;
+export type WatchedRepositoryPayload = {
+  subscriptionId: string;
+  repositoryId: string;
   source: string;
-  repo: string | null;
+  fullName: string;
   url: string;
+  selectedQuery: string | null;
   stars: number | null;
-  query: string | null;
   language: string | null;
 };
 
 export type SourceCheckpointPayload = {
-  entityId: string;
+  subscriptionId: string;
+  repositoryId: string;
   source: string;
-  repo: string | null;
+  fullName: string;
   checkpointKey: string;
   checkpointValue: string | null;
   updatedAt: string | null;
@@ -55,13 +52,16 @@ export type SourceCheckpointPayload = {
 
 export type SignalListItem = {
   itemId: string;
+  viewId: string;
+  subscriptionId: string;
+  repositoryId: string;
+  repositoryFullName: string;
+  selectedQuery: string | null;
   title: string;
   source: string;
   signalKind: string;
   url: string;
-  matched: boolean;
-  score: number;
-  reason: string;
+  publishedAt: string | null;
   isNew: boolean;
 };
 
@@ -71,25 +71,33 @@ export type SignalListPayload = {
 
 export type SignalDetailPayload = {
   itemId: string;
+  viewId: string;
+  subscriptionId: string;
+  repositoryId: string;
+  repositoryFullName: string;
+  selectedQuery: string | null;
   title: string;
   source: string;
   signalKind: string;
   url: string;
-  matched: boolean;
-  score: number;
-  reason: string;
-  matchedTerms: string[];
-  excludedTerms: string[];
+  publishedAt: string | null;
   rawText: string;
   normalizedText: string;
   metadata: Record<string, unknown>;
   isNew: boolean;
 };
 
+export type RepositorySummary = {
+  repositoryId: string;
+  source: string;
+  fullName: string;
+  url: string;
+};
+
 export type SubscriptionItem = {
   subscriptionId: string;
-  topicDescription: string;
-  aiSearchPlan: AiSearchPlanPayload;
+  repository: RepositorySummary;
+  selectedQuery: string | null;
   createdAt: string;
 };
 

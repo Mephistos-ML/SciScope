@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from app.models.repository import Repository
 from app.models.signal import RawSignal
-from app.models.subscription import SubscriptionQueryProfile
 from app.runtime.state import STATE
 from app.sources.common import (
     RepositoryRelease,
@@ -14,10 +14,7 @@ from app.sources.common import (
     read_repository_name,
 )
 from app.sources.github.client import GITHUB_API_BASE, fetch_json
-from app.sources.github.state import (
-    load_watched_github_repositories,
-    resolve_release_checkpoint,
-)
+from app.sources.github.state import resolve_release_checkpoint
 from app.storage.repositories import upsert_repository_checkpoints
 
 build_release_checkpoint = build_repository_release_checkpoint
@@ -36,53 +33,46 @@ def load_repo_activity(
     return _load_release_signals(repo_full_name, started_after=started_after)
 
 
-def load_github_signals_for_profile(
-    profile: SubscriptionQueryProfile,
+def load_github_signals_for_subscription(
+    subscription_id: str,
+    repository: Repository,
 ) -> list[RawSignal]:
-    """Load live GitHub release signals for watched repositories."""
+    """Load live GitHub release signals for one watched repository."""
 
     baseline_started_after = STATE.monitoring_started_at
-    watched_repositories = load_watched_github_repositories(profile.subscription_id)
-    signals: list[RawSignal] = []
-    checkpoints_to_upsert = []
+    repo_name = read_repository_name(repository)
+    if repo_name is None:
+        return []
 
-    for repository in watched_repositories:
-        repo_name = read_repository_name(repository)
-        if repo_name is None:
-            continue
+    started_after = resolve_release_checkpoint(
+        subscription_id,
+        repository,
+        baseline_started_after=baseline_started_after,
+    )
+    if started_after is None:
+        return []
 
-        started_after = resolve_release_checkpoint(
-            profile.subscription_id,
-            repository,
-            baseline_started_after=baseline_started_after,
-        )
-        if started_after is None:
-            continue
+    signals = load_repo_activity(
+        repo_name,
+        started_after=started_after,
+    )
+    latest_published_at = max(
+        (
+            signal.published_at
+            for signal in signals
+            if signal.published_at is not None
+        ),
+        default=started_after,
+    )
+    checkpoint = build_repository_release_checkpoint(
+        subscription_id,
+        repository,
+        latest_published_at=latest_published_at,
+        fallback_started_after=started_after,
+    )
+    if checkpoint is not None:
+        upsert_repository_checkpoints((checkpoint,))
 
-        repo_signals = load_repo_activity(
-            repo_name,
-            started_after=started_after,
-        )
-        signals.extend(repo_signals)
-
-        latest_published_at = max(
-            (
-                signal.published_at
-                for signal in repo_signals
-                if signal.published_at is not None
-            ),
-            default=started_after,
-        )
-        checkpoint = build_repository_release_checkpoint(
-            profile.subscription_id,
-            repository,
-            latest_published_at=latest_published_at,
-            fallback_started_after=started_after,
-        )
-        if checkpoint is not None:
-            checkpoints_to_upsert.append(checkpoint)
-
-    upsert_repository_checkpoints(checkpoints_to_upsert)
     return signals
 
 

@@ -6,18 +6,12 @@ from app.sources.gitee.client import (
     build_user_agent,
     fetch_json,
 )
-from app.sources.gitee.discovery import (
-    discover_gitee_repositories_for_profile,
-    discover_repository_candidates,
-)
-from app.sources.gitee.monitor import (
-    load_gitee_signals_for_profile,
-    load_repo_activity,
-)
+from app.sources.gitee.discovery import discover_repository_candidates
+from app.sources.gitee.monitor import load_gitee_signals_for_subscription, load_repo_activity
 from app.sources.gitee.state import (
     describe_release_checkpoints,
-    describe_watched_gitee_repositories,
-    sync_gitee_baseline_for_profile,
+    resolve_release_checkpoint,
+    sync_gitee_baseline,
 )
 
 __all__ = [
@@ -25,11 +19,10 @@ __all__ = [
     "build_auth_headers",
     "build_user_agent",
     "describe_release_checkpoints",
-    "describe_watched_gitee_repositories",
-    "discover_gitee_repositories_for_profile",
     "discover_repository_candidates",
     "fetch_json",
-    "load_gitee_signals_for_profile",
+    "load_gitee_signals_for_subscription",
     "load_repo_activity",
-    "sync_gitee_baseline_for_profile",
+    "resolve_release_checkpoint",
+    "sync_gitee_baseline",
 ]

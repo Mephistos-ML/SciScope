@@ -1,1 +1,1 @@
-"""Subscription query profile and subscription service helpers."""
+"""Subscription service helpers."""

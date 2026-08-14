@@ -1,27 +1,16 @@
-"""GitHub repository discovery and entity admission."""
+"""GitHub repository discovery."""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 from urllib.parse import quote_plus
 
-from app.config import DATABASE_URL
-from app.models.discovery import DiscoveryResult
 from app.models.signal import RawSignal
-from app.models.subscription import SubscriptionQueryProfile
-from app.services.search.matching import match_signal_to_profile
-from app.services.search.normalization import normalize_raw_signal
 from app.sources.common import (
     RepositoryCandidate,
     build_repository_candidate_signal,
-    build_repository_entity,
-    build_repository_subscription_match,
 )
 from app.sources.github.client import GITHUB_API_BASE, fetch_json
-from app.storage.repositories import (
-    upsert_repositories,
-    upsert_subscription_repository_matches,
-)
 
 
 def discover_repository_candidates(
@@ -78,54 +67,6 @@ def discover_repository_candidates(
             signals.append(build_repository_candidate_signal(candidate))
 
     return signals
-
-
-def discover_github_repositories_for_profile(
-    profile: SubscriptionQueryProfile,
-    *,
-    database_url: str | None = None,
-) -> DiscoveryResult:
-    """Discover GitHub repositories relevant to one subscription."""
-
-    resolved_database_url = database_url or DATABASE_URL
-    queries = profile.query_terms
-    candidates = discover_repository_candidates(queries)
-
-    deduped_candidates = _dedupe_repository_candidates(candidates)
-    repositories = []
-    matches = []
-
-    for raw_signal in deduped_candidates.values():
-        normalized_signal = normalize_raw_signal(raw_signal)
-        match = match_signal_to_profile(normalized_signal, profile)
-
-        if not match.matched:
-            continue
-
-        repositories.append(build_repository_entity(raw_signal))
-        matches.append(
-            build_repository_subscription_match(
-                raw_signal,
-                subscription_id=profile.subscription_id,
-                match=match,
-            )
-        )
-
-    upsert_repositories(repositories, database_url=resolved_database_url)
-    upsert_subscription_repository_matches(
-        matches,
-        database_url=resolved_database_url,
-    )
-
-    return DiscoveryResult(
-        subscription_id=profile.subscription_id,
-        queries=queries,
-        candidate_count=len(candidates),
-        repository_count=len(repositories),
-        matched_repository_count=len(matches),
-    )
-
-
 def _build_repository_search_url(query: str, *, per_query_limit: int) -> str:
     encoded_query = quote_plus(query)
     return (

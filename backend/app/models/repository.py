@@ -19,19 +19,6 @@ class Repository:
 
 
 @dataclass(frozen=True)
-class SubscriptionRepositoryMatch:
-    """A subscription-specific relevance link to one repository."""
-
-    subscription_id: str
-    repository_id: str
-    source: str
-    matched_terms: tuple[str, ...] = ()
-    score: float = 0.0
-    reason: str = ""
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
 class RepositoryCheckpoint:
     """Monitoring checkpoint for one watched repository."""
 

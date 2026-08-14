@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from app.models.discovery import DiscoveryResult
 from app.models.signal import RawSignal
-from app.models.subscription import SubscriptionQueryProfile
 from app.sources.common import RepositorySourceError
 
 
@@ -18,21 +16,6 @@ def discover_repository_candidates(
     """Raise until GitVerse repository discovery is implemented."""
 
     del queries, per_query_limit
-    raise RepositorySourceError(
-        source="gitverse",
-        status="disabled",
-        public_message="GitVerse repository search is not implemented yet.",
-    )
-
-
-def discover_gitverse_repositories_for_profile(
-    profile: SubscriptionQueryProfile,
-    *,
-    database_url: str | None = None,
-) -> DiscoveryResult:
-    """Raise until GitVerse entity discovery is implemented."""
-
-    del profile, database_url
     raise RepositorySourceError(
         source="gitverse",
         status="disabled",

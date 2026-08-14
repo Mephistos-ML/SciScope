@@ -3,26 +3,28 @@ import { SourceBadge } from "../components/SourceBadge";
 
 type ExplorePageProps = {
   canSubscribe: boolean;
-  createPending: boolean;
   lastAiSearchPlan: AiSearchPlanPayload | null;
   onRunSearch: () => void;
-  onSubscribe: () => void;
+  onSubscribe: (result: ExploreResultItem) => void;
   onTopicInputChange: (value: string) => void;
   results: ExploreResultItem[];
   searchPending: boolean;
+  subscribePendingRepositoryId: string | null;
+  subscribedRepositoryIds: string[];
   topicInput: string;
   viewer: ViewerPayload["user"];
 };
 
 export function ExplorePage({
   canSubscribe,
-  createPending,
   lastAiSearchPlan,
   onRunSearch,
   onSubscribe,
   onTopicInputChange,
   results,
   searchPending,
+  subscribePendingRepositoryId,
+  subscribedRepositoryIds,
   topicInput,
   viewer,
 }: ExplorePageProps) {
@@ -57,17 +59,9 @@ export function ExplorePage({
             >
               {searchPending ? "Running..." : "Run search"}
             </button>
-            <button
-              className="solid-button"
-              disabled={!canSubscribe || createPending}
-              onClick={onSubscribe}
-              type="button"
-            >
-              {createPending ? "Saving..." : "Subscribe"}
-            </button>
             <p className="field-hint">
               {viewer
-                ? "Save this topic to your feed."
+                ? "Subscribe to specific repositories directly from the results."
                 : "Sign in with Google before saving this topic to your feed."}
             </p>
           </div>
@@ -103,18 +97,31 @@ export function ExplorePage({
 
           <div className="signal-list">
             {results.length > 0 ? (
-              results.map((result) => (
-                <div className="signal-row" key={result.itemId}>
-                  <div>
-                    <strong>{result.fullName}</strong>
-                    <p>{result.description || result.reason}</p>
+              results.map((result) => {
+                const isSubscribed = subscribedRepositoryIds.includes(result.itemId);
+                const isPending = subscribePendingRepositoryId === result.itemId;
+
+                return (
+                  <div className="signal-row" key={result.itemId}>
+                    <div>
+                      <strong>{result.fullName}</strong>
+                      <p>{result.description || result.reason}</p>
+                    </div>
+                    <div className="signal-meta">
+                      <SourceBadge href={result.url} source={result.source} />
+                      <span>{result.query}</span>
+                      <button
+                        className={isSubscribed ? "outline-button" : "solid-button"}
+                        disabled={!canSubscribe || isSubscribed || isPending}
+                        onClick={() => onSubscribe(result)}
+                        type="button"
+                      >
+                        {isSubscribed ? "Subscribed" : isPending ? "Saving..." : "Subscribe"}
+                      </button>
+                    </div>
                   </div>
-                  <div className="signal-meta">
-                    <SourceBadge href={result.url} source={result.source} />
-                    <span>{result.query}</span>
-                  </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <p className="empty-copy">
                 No repositories yet. Without generated queries, the search plan stays pending.

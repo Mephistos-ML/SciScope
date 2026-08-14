@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from app.models.repository import Repository
 from app.models.signal import RawSignal
-from app.models.subscription import SubscriptionQueryProfile
 
 
 def load_repo_activity(
@@ -19,10 +19,11 @@ def load_repo_activity(
     return []
 
 
-def load_gitverse_signals_for_profile(
-    profile: SubscriptionQueryProfile,
+def load_gitverse_signals_for_subscription(
+    subscription_id: str,
+    repository: Repository,
 ) -> list[RawSignal]:
     """Return no signals until the GitVerse source is implemented."""
 
-    del profile
+    del subscription_id, repository
     return []

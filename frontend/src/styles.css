@@ -327,6 +327,11 @@ a {
   min-width: 0;
 }
 
+.signal-meta .solid-button,
+.signal-meta .outline-button {
+  padding: 8px 12px;
+}
+
 .feed-layout {
   grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
 }

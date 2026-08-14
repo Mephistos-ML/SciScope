@@ -1,3 +1,4 @@
+import { SourceBadge } from "../components/SourceBadge";
 import type { SubscriptionItem, ViewerPayload } from "../types/api";
 
 type FeedPageProps = {
@@ -61,10 +62,8 @@ export function FeedPage({
                     onClick={() => onSelectSubscription(subscription.subscriptionId)}
                     type="button"
                   >
-                    <strong>{subscription.topicDescription}</strong>
-                    <p>
-                      {subscription.aiSearchPlan.queries.join(", ") || "No queries yet"}
-                    </p>
+                    <strong>{subscription.repository.fullName}</strong>
+                    <p>{subscription.selectedQuery || subscription.repository.source}</p>
                   </button>
                   <button
                     className="subscription-delete"
@@ -86,18 +85,24 @@ export function FeedPage({
           {selectedSubscription ? (
             <>
               <p className="section-kicker">Selected subscription</p>
-              <h3 className="section-title">{selectedSubscription.topicDescription}</h3>
+              <h3 className="section-title">{selectedSubscription.repository.fullName}</h3>
 
               <div className="detail-panel-block">
-                <h4>Queries</h4>
-                <p>
-                  {selectedSubscription.aiSearchPlan.queries.join(", ") || "No queries yet"}
-                </p>
+                <h4>Repository</h4>
+                <SourceBadge
+                  href={selectedSubscription.repository.url}
+                  source={selectedSubscription.repository.source}
+                />
+              </div>
+
+              <div className="detail-panel-block">
+                <h4>Selected query</h4>
+                <p>{selectedSubscription.selectedQuery || "No query snapshot saved."}</p>
               </div>
 
               <div className="detail-panel-block">
                 <h4>Updates</h4>
-                <p>Updates for this topic will appear here.</p>
+                <p>Updates for this repository will appear here.</p>
               </div>
             </>
           ) : (

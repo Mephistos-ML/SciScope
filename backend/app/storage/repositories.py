@@ -1,4 +1,4 @@
-"""Persistence for watched repositories and subscription-scoped repository memory."""
+"""Persistence for watched repositories and repository checkpoints."""
 
 from __future__ import annotations
 
@@ -11,13 +11,11 @@ from app.config import DATABASE_URL
 from app.database.models import (
     RepositoryCheckpointRecord,
     RepositoryRecord,
-    SubscriptionRepositoryMatchRecord,
 )
 from app.database.session import session_scope
 from app.models.repository import (
     Repository,
     RepositoryCheckpoint,
-    SubscriptionRepositoryMatch,
 )
 
 
@@ -96,90 +94,19 @@ def list_repositories_by_ids(
         rows = session.scalars(statement).all()
     return [_to_repository(row) for row in rows]
 
-
-def upsert_subscription_repository_matches(
-    matches: Sequence[SubscriptionRepositoryMatch],
+def get_repository(
+    repository_id: str,
     *,
     database_url: str | None = None,
-) -> None:
-    """Insert or update subscription-to-repository relevance matches."""
-
-    if not matches:
-        return
-
-    resolved_database_url = database_url or DATABASE_URL
-    timestamp = _utc_now()
-    with session_scope(resolved_database_url) as session:
-        for match in matches:
-            record = session.get(
-                SubscriptionRepositoryMatchRecord,
-                (match.subscription_id, match.repository_id),
-            )
-            if record is None:
-                session.add(
-                    SubscriptionRepositoryMatchRecord(
-                        subscription_id=match.subscription_id,
-                        repository_id=match.repository_id,
-                        source=match.source,
-                        score=match.score,
-                        reason=match.reason,
-                        matched_terms_json=list(match.matched_terms),
-                        metadata_json=dict(match.metadata),
-                        created_at=timestamp,
-                        updated_at=timestamp,
-                    )
-                )
-                continue
-
-            record.source = match.source
-            record.score = match.score
-            record.reason = match.reason
-            record.matched_terms_json = list(match.matched_terms)
-            record.metadata_json = dict(match.metadata)
-            record.updated_at = timestamp
-
-
-def list_subscription_repository_matches(
-    subscription_id: str,
-    *,
-    database_url: str | None = None,
-) -> list[SubscriptionRepositoryMatch]:
-    """List repository matches for one subscription."""
-
-    resolved_database_url = database_url or DATABASE_URL
-    statement = select(SubscriptionRepositoryMatchRecord).where(
-        SubscriptionRepositoryMatchRecord.subscription_id == subscription_id
-    )
-    statement = statement.order_by(
-        SubscriptionRepositoryMatchRecord.score.desc(),
-        SubscriptionRepositoryMatchRecord.repository_id.asc(),
-    )
-
-    with session_scope(resolved_database_url) as session:
-        rows = session.scalars(statement).all()
-    return [_to_subscription_repository_match(row) for row in rows]
-
-
-def delete_subscription_repository_matches(
-    subscription_id: str,
-    *,
-    database_url: str | None = None,
-) -> list[str]:
-    """Delete all repository matches for one subscription and return ids."""
+) -> Repository | None:
+    """Load one repository by id."""
 
     resolved_database_url = database_url or DATABASE_URL
     with session_scope(resolved_database_url) as session:
-        repository_ids = session.scalars(
-            select(SubscriptionRepositoryMatchRecord.repository_id).where(
-                SubscriptionRepositoryMatchRecord.subscription_id == subscription_id
-            )
-        ).all()
-        session.execute(
-            delete(SubscriptionRepositoryMatchRecord).where(
-                SubscriptionRepositoryMatchRecord.subscription_id == subscription_id
-            )
-        )
-    return [str(repository_id) for repository_id in repository_ids]
+        row = session.get(RepositoryRecord, repository_id)
+    if row is None:
+        return None
+    return _to_repository(row)
 
 
 def upsert_repository_checkpoints(
@@ -285,20 +212,6 @@ def _to_repository(record: RepositoryRecord) -> Repository:
         source=record.source,
         full_name=record.full_name,
         url=record.url,
-        metadata=dict(record.metadata_json or {}),
-    )
-
-
-def _to_subscription_repository_match(
-    record: SubscriptionRepositoryMatchRecord,
-) -> SubscriptionRepositoryMatch:
-    return SubscriptionRepositoryMatch(
-        subscription_id=record.subscription_id,
-        repository_id=record.repository_id,
-        source=record.source,
-        score=float(record.score),
-        reason=record.reason,
-        matched_terms=tuple(str(item) for item in (record.matched_terms_json or [])),
         metadata=dict(record.metadata_json or {}),
     )
 

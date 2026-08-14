@@ -1,4 +1,4 @@
-"""Tests for repository persistence and subscription-scoped memory."""
+"""Tests for repository persistence and direct repository watches."""
 
 from __future__ import annotations
 
@@ -8,17 +8,16 @@ from tests.conftest import build_test_database_url, migrate_test_database
 from app.models.repository import (
     Repository,
     RepositoryCheckpoint,
-    SubscriptionRepositoryMatch,
 )
 from app.storage.repositories import (
     get_repository_checkpoint,
+    get_repository,
     list_repositories,
     list_repository_checkpoints,
-    list_subscription_repository_matches,
     upsert_repositories,
     upsert_repository_checkpoints,
-    upsert_subscription_repository_matches,
 )
+from app.storage.subscriptions import create_subscription, list_subscription_watches_for_user
 
 
 def test_upsert_repositories_persists_global_repositories(tmp_path) -> None:
@@ -46,37 +45,41 @@ def test_upsert_repositories_persists_global_repositories(tmp_path) -> None:
     assert repositories[0].metadata["stars"] == 12
 
 
-def test_upsert_subscription_repository_matches_persists_subscription_memory(
-    tmp_path,
-) -> None:
+def test_create_subscription_returns_direct_repository_watch(tmp_path) -> None:
     database_url = build_test_database_url(tmp_path / "entities.sqlite3")
     migrate_test_database(database_url)
 
-    upsert_subscription_repository_matches(
+    upsert_repositories(
         [
-            SubscriptionRepositoryMatch(
-                subscription_id="sub_pnmr",
+            Repository(
                 repository_id="github:repo:Mephistos-ML/paranmr",
                 source="github",
-                score=5.0,
-                matched_terms=("paramagnetic nmr", "pcs"),
-                reason="Matched core terms in repository description.",
-                metadata={"origin": "seed"},
+                full_name="Mephistos-ML/paranmr",
+                url="https://github.com/Mephistos-ML/paranmr",
+                metadata={"stars": 14},
             )
         ],
         database_url=database_url,
     )
 
-    matches = list_subscription_repository_matches(
-        "sub_pnmr",
+    subscription = create_subscription(
+        user_id="user_1",
+        repository_id="github:repo:Mephistos-ML/paranmr",
+        selected_query="paramagnetic nmr",
         database_url=database_url,
     )
+    repository = get_repository(
+        "github:repo:Mephistos-ML/paranmr",
+        database_url=database_url,
+    )
+    watches = list_subscription_watches_for_user("user_1", database_url=database_url)
 
-    assert len(matches) == 1
-    assert matches[0].repository_id == "github:repo:Mephistos-ML/paranmr"
-    assert matches[0].score == 5.0
-    assert matches[0].matched_terms == ("paramagnetic nmr", "pcs")
-    assert matches[0].metadata["origin"] == "seed"
+    assert subscription.repository_id == "github:repo:Mephistos-ML/paranmr"
+    assert subscription.selected_query == "paramagnetic nmr"
+    assert repository is not None
+    assert len(watches) == 1
+    assert watches[0].repository.full_name == "Mephistos-ML/paranmr"
+    assert watches[0].selected_query == "paramagnetic nmr"
 
 
 def test_upsert_repository_checkpoints_persists_monitoring_cursor(tmp_path) -> None:

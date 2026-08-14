@@ -1,21 +1,20 @@
-"""Deterministic V0 matching between signals and research profiles."""
+"""Deterministic V0 matching between signals and query terms."""
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from app.models.signal import NormalizedSignal, SignalMatch
-from app.models.subscription import SubscriptionQueryProfile
 
 
-def match_signal_to_profile(
+def match_signal_to_terms(
     signal: NormalizedSignal,
-    profile: SubscriptionQueryProfile,
+    query_terms: Sequence[str],
 ) -> SignalMatch:
     """Return a simple deterministic match result for V0."""
 
     haystack = signal.normalized_text.casefold()
-    matched_terms = tuple(
-        term for term in profile.query_terms if term.casefold() in haystack
-    )
+    matched_terms = tuple(term for term in query_terms if term.casefold() in haystack)
 
     score = float(len(matched_terms))
     matched = score > 0.0
@@ -26,7 +25,6 @@ def match_signal_to_profile(
         reason = "No profile terms matched."
 
     return SignalMatch(
-        subscription_id=profile.subscription_id,
         source=signal.source,
         item_id=signal.item_id,
         matched=matched,

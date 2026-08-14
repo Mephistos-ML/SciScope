@@ -32,7 +32,9 @@ export function App() {
   const [signingIn, setSigningIn] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [searchPending, setSearchPending] = useState(false);
-  const [createPending, setCreatePending] = useState(false);
+  const [createPendingRepositoryId, setCreatePendingRepositoryId] = useState<string | null>(
+    null,
+  );
   const [deletePending, setDeletePending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -121,25 +123,40 @@ export function App() {
     }
   }
 
-  async function handleSubscribe() {
+  async function handleSubscribe(result: ExploreResultItem) {
     if (!viewer) {
       setErrorMessage("Sign in with Google before creating a subscription.");
       return;
     }
 
-    setCreatePending(true);
+    setCreatePendingRepositoryId(result.itemId);
     setErrorMessage(null);
     try {
       const subscription = await createSubscription({
-        topicDescription: topicInput.trim(),
+        repository: {
+          itemId: result.itemId,
+          source: result.source,
+          fullName: result.fullName,
+          url: result.url,
+        },
+        selectedQuery: result.query,
       });
-      setSubscriptions((current) => [subscription, ...current]);
+      setSubscriptions((current) => {
+        const existingIndex = current.findIndex(
+          (item) => item.repository.repositoryId === subscription.repository.repositoryId,
+        );
+        if (existingIndex >= 0) {
+          const next = [...current];
+          next[existingIndex] = subscription;
+          return next;
+        }
+        return [subscription, ...current];
+      });
       setSelectedSubscriptionId(subscription.subscriptionId);
-      setActiveView("feed");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to create subscription.");
     } finally {
-      setCreatePending(false);
+      setCreatePendingRepositoryId(null);
     }
   }
 
@@ -189,13 +206,14 @@ export function App() {
       {activeView === "explore" ? (
         <ExplorePage
           canSubscribe={Boolean(viewer)}
-          createPending={createPending}
           lastAiSearchPlan={lastAiSearchPlan}
           onRunSearch={() => void handleRunSearch()}
-          onSubscribe={() => void handleSubscribe()}
+          onSubscribe={(result) => void handleSubscribe(result)}
           onTopicInputChange={setTopicInput}
           results={results}
           searchPending={searchPending}
+          subscribePendingRepositoryId={createPendingRepositoryId}
+          subscribedRepositoryIds={subscriptions.map((item) => item.repository.repositoryId)}
           topicInput={topicInput}
           viewer={viewer}
         />

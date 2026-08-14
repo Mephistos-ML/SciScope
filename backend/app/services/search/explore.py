@@ -6,16 +6,14 @@ import logging
 from collections.abc import Sequence
 
 from app.models.signal import RawSignal
-from app.models.subscription import SubscriptionQueryProfile
 from app.services.ai.openai_client import (
     OpenAIClientConfigurationError,
     OpenAIResponseError,
 )
 from app.services.ai.planner import build_ai_search_plan
 from app.services.ai.search_plans import serialize_ai_search_plan
-from app.services.search.matching import match_signal_to_profile
+from app.services.search.matching import match_signal_to_terms
 from app.services.search.normalization import normalize_raw_signal
-from app.services.subscriptions.profiles import build_query_profile
 from app.sources.common import RepositorySourceError, build_source_status
 from app.sources.github.discovery import (
     discover_repository_candidates as discover_github_repository_candidates,
@@ -73,17 +71,13 @@ def run_explore_search(
             "sourceStatuses": [],
         }
 
-    profile = _build_explore_profile(
-        topic_description,
-        query_terms=repository_queries,
-    )
     candidates, source_statuses = _discover_candidates_across_sources(repository_queries)
     deduped = _dedupe_by_item_id(candidates)
 
     items: list[dict[str, object]] = []
     for raw_signal in deduped.values():
         normalized_signal = normalize_raw_signal(raw_signal)
-        match = match_signal_to_profile(normalized_signal, profile)
+        match = match_signal_to_terms(normalized_signal, repository_queries)
         if not match.matched:
             continue
 
@@ -117,18 +111,6 @@ def run_explore_search(
         "items": items,
         "sourceStatuses": source_statuses,
     }
-
-
-def _build_explore_profile(
-    topic_description: str,
-    *,
-    query_terms: tuple[str, ...] = (),
-) -> SubscriptionQueryProfile:
-    return build_query_profile(
-        subscription_id="explore",
-        topic_description=topic_description or "Untitled topic",
-        query_terms=query_terms,
-    )
 
 
 def _dedupe_by_item_id(candidates: list) -> dict[str, object]:

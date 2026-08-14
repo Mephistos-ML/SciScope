@@ -8,9 +8,8 @@ from datetime import UTC, datetime
 from app.models.repository import (
     Repository,
     RepositoryCheckpoint,
-    SubscriptionRepositoryMatch,
 )
-from app.models.signal import RawSignal, SignalMatch
+from app.models.signal import RawSignal
 from app.sources.common.models import RepositoryCandidate, RepositoryRelease
 
 
@@ -59,29 +58,6 @@ def build_repository_entity(raw_signal: RawSignal) -> Repository:
             "topics": raw_signal.payload.get("topics", []),
             "language": raw_signal.payload.get("language"),
             "stars": raw_signal.payload.get("stars"),
-        },
-    )
-
-
-def build_repository_subscription_match(
-    raw_signal: RawSignal,
-    *,
-    subscription_id: str,
-    match: SignalMatch,
-) -> SubscriptionRepositoryMatch:
-    """Build one subscription/repository relevance record."""
-
-    repo_name = str(raw_signal.payload.get("repo") or raw_signal.title)
-    return SubscriptionRepositoryMatch(
-        subscription_id=subscription_id,
-        repository_id=raw_signal.item_id,
-        source=raw_signal.source,
-        matched_terms=match.matched_terms,
-        score=match.score,
-        reason=match.reason,
-        metadata={
-            "repo": repo_name,
-            "query": raw_signal.payload.get("query"),
         },
     )
 
