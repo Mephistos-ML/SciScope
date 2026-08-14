@@ -7,7 +7,7 @@ from app.sources.gitcode.client import (
     fetch_json,
 )
 from app.sources.gitcode.discovery import (
-    discover_gitcode_entities_for_profile,
+    discover_gitcode_repositories_for_profile,
     discover_repository_candidates,
 )
 from app.sources.gitcode.monitor import (
@@ -26,7 +26,7 @@ __all__ = [
     "build_user_agent",
     "describe_release_checkpoints",
     "describe_watched_gitcode_repositories",
-    "discover_gitcode_entities_for_profile",
+    "discover_gitcode_repositories_for_profile",
     "discover_repository_candidates",
     "fetch_json",
     "load_gitcode_signals_for_profile",

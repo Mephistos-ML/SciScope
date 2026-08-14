@@ -7,7 +7,7 @@ from app.sources.gitee.client import (
     fetch_json,
 )
 from app.sources.gitee.discovery import (
-    discover_gitee_entities_for_profile,
+    discover_gitee_repositories_for_profile,
     discover_repository_candidates,
 )
 from app.sources.gitee.monitor import (
@@ -26,7 +26,7 @@ __all__ = [
     "build_user_agent",
     "describe_release_checkpoints",
     "describe_watched_gitee_repositories",
-    "discover_gitee_entities_for_profile",
+    "discover_gitee_repositories_for_profile",
     "discover_repository_candidates",
     "fetch_json",
     "load_gitee_signals_for_profile",

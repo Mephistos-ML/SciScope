@@ -46,7 +46,7 @@ def test_load_watched_gitlab_repositories_uses_subscription_memory(
         ],
     )
 
-    repos = gitlab_state.load_watched_gitlab_repository_entities("pnmr")
+    repos = gitlab_state.load_watched_gitlab_repositories("pnmr")
 
     assert len(repos) == 1
     assert repos[0].full_name == "Mephistos-ML/paranmr"

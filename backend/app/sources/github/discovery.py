@@ -150,6 +150,3 @@ def _dedupe_repository_candidates(
             deduped[signal.item_id] = signal
 
     return deduped
-
-
-discover_github_entities_for_profile = discover_github_repositories_for_profile

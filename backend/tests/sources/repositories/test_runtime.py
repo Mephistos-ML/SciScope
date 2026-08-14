@@ -11,7 +11,7 @@ from app.storage.repositories import (
 )
 
 
-def test_discover_repository_entities_for_profile_persists_matched_repositories(
+def test_discover_repositories_for_profile_persists_matched_repositories(
     monkeypatch,
     tmp_path,
 ) -> None:

@@ -25,7 +25,7 @@ def discover_repository_candidates(
     )
 
 
-def discover_gitcode_entities_for_profile(
+def discover_gitcode_repositories_for_profile(
     profile: SubscriptionQueryProfile,
     *,
     database_url: str | None = None,

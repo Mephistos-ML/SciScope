@@ -136,6 +136,3 @@ def resolve_release_checkpoint(
         return datetime.fromisoformat(checkpoint.checkpoint_value).astimezone(UTC)
 
     return baseline_started_after
-
-
-load_watched_github_repository_entities = load_watched_github_repositories

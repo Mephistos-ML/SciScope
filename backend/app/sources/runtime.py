@@ -147,6 +147,3 @@ def describe_repository_checkpoints(subscription_id: str) -> list[dict[str, obje
         *describe_github_release_checkpoints(subscription_id),
         *describe_gitlab_release_checkpoints(subscription_id),
     ]
-
-
-discover_repository_entities_for_profile = discover_repositories_for_profile

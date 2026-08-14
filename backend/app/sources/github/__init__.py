@@ -2,7 +2,6 @@
 
 from app.sources.github.auth import build_auth_headers
 from app.sources.github.discovery import (
-    discover_github_entities_for_profile,
     discover_github_repositories_for_profile,
     discover_repository_candidates,
 )
@@ -20,7 +19,6 @@ __all__ = [
     "build_auth_headers",
     "describe_release_checkpoints",
     "describe_watched_github_repositories",
-    "discover_github_entities_for_profile",
     "discover_github_repositories_for_profile",
     "discover_repository_candidates",
     "load_github_signals_for_profile",

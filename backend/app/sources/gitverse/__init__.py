@@ -7,7 +7,7 @@ from app.sources.gitverse.client import (
     fetch_json,
 )
 from app.sources.gitverse.discovery import (
-    discover_gitverse_entities_for_profile,
+    discover_gitverse_repositories_for_profile,
     discover_repository_candidates,
 )
 from app.sources.gitverse.monitor import (
@@ -26,7 +26,7 @@ __all__ = [
     "build_user_agent",
     "describe_release_checkpoints",
     "describe_watched_gitverse_repositories",
-    "discover_gitverse_entities_for_profile",
+    "discover_gitverse_repositories_for_profile",
     "discover_repository_candidates",
     "fetch_json",
     "load_gitverse_signals_for_profile",

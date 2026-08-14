@@ -45,6 +45,3 @@ def resolve_release_checkpoint(
 
     del subscription_id, repository
     return baseline_started_after
-
-
-load_watched_gitee_repository_entities = load_watched_gitee_repositories

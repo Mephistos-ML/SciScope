@@ -138,6 +138,3 @@ def _dedupe_repository_candidates(
             deduped[signal.item_id] = signal
 
     return deduped
-
-
-discover_gitlab_entities_for_profile = discover_gitlab_repositories_for_profile
