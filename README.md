@@ -1,179 +1,213 @@
 # SciScope
 
-SciScope is a research signal monitoring system for narrow scientific topics.
+SciScope is a live repository discovery and monitoring service for narrow research workflows.
 
-The long-term goal is simple:
+Public service:
 
-- a researcher describes a niche topic
-- SciScope builds a structured research profile
-- SciScope monitors multiple messy sources
-- SciScope surfaces only the updates that are likely to matter
+- `https://sciscope.uk/`
 
-This repository is the first pNMR-focused proof of concept for that idea.
+SciScope turns a research topic description into a monitored repository watchlist:
 
-## Vision
+`topic description -> AI search queries -> repository results -> explicit subscribe -> release monitoring`
 
-SciScope is not meant to be another generic paper summarizer.
+## Product Snapshot
 
-The target product is a research radar that can answer:
+- Explore is public and search-driven
+- subscriptions are explicit per-repository watches
+- Feed does not run initial discovery
+- repository hostings are the source family
 
-- What changed in my field this week?
-- Which new software, papers, releases, or community signals are relevant to my topic?
-- What should I watch continuously instead of searching manually?
+The service is built around one operational assumption:
 
-The intended shape is:
+- repositories are the monitored object
+- source differences belong to hosting adapters
+- monitoring starts only after an explicit user subscription
 
-`topic -> profile -> discovery -> monitoring -> matching -> dashboard -> digest`
+## What The Service Does
 
-## What Works Now
+- public Explore flow from a free-form topic description
+- AI-generated repository search queries
+- repository discovery on GitHub and GitLab
+- per-result `Subscribe` actions in Explore
+- Google sign-in for saved subscriptions
+- direct repository subscriptions in Postgres
+- repository release checkpoints per subscription
+- background monitoring loop for subscribed repositories
+- signal storage and signal APIs backed by one shared `Signal` model
 
-Current working scope:
+User flow:
 
-- seeded topic: `pnmr`
-- seeded research profile for paramagnetic NMR
-- GitHub repository discovery from profile terms
-- persistent watched repository memory in Postgres
-- per-repository release checkpoints
-- continuous monitoring loop for GitHub releases
-- local dashboard for signals and pipeline debugging
+1. User enters a topic description in Explore.
+2. SciScope generates repository search queries.
+3. GitHub and GitLab return candidate repositories.
+4. User explicitly subscribes to selected repositories.
+5. Backend stores repository watches and initializes monitoring checkpoints.
+6. Monitoring loads release signals for subscribed repositories.
 
-Current proof-of-concept behavior:
+Runtime rules:
 
-1. press `Start`
-2. SciScope builds GitHub search queries from pNMR profile terms
-3. SciScope discovers candidate repositories
-4. relevant repositories are stored as watched entities
-5. SciScope monitors those repositories for new GitHub releases
-6. matching release signals appear in the dashboard
+- Explore does not require sign-in.
+- Feed requires Google sign-in because subscriptions are user-owned.
+- Monitoring is repository-first and does not persist topic descriptions.
+- The frontend does not expose `Start` / `Stop`; the monitoring loop is controlled through backend endpoints.
 
-Important: the current live pipeline is GitHub-first. It does not yet ingest ChemRxiv, conference sites, LinkedIn, or email digests.
+## Engineering Signals
 
-## Why This Project Exists
+- live public product at `sciscope.uk`
+- typed frontend and backend codebase
+- persistent relational storage with Alembic-managed schema
+- Google OAuth for user-owned subscriptions
+- explicit source adapters for GitHub and GitLab
+- background monitoring with persisted release checkpoints
+- one canonical `Signal` model across ingestion, matching, storage, and delivery
+- backend signal and subscription APIs separated from the web UI
+- repository-level subscriptions instead of implicit watchlists
+- test-backed backend code in the repository
 
-The problem is not finding obvious major papers.
+## Core Concepts
 
-The problem is missing small but important signals:
+### Explore
 
-- niche software releases
-- workshop announcements
-- community tools
-- field-specific repositories
-- updates that matter to a narrow research workflow
+Explore is a read-only discovery surface.
 
-SciScope is being built for two connected goals:
+- input: one topic description
+- output: ranked repository results
+- sources: GitHub and GitLab
+- persistence: none
 
-- help researchers notice fresh niche developments earlier
-- help specialised scientific work become more visible to the communities that actually care about it
+### Subscription
 
-That means SciScope is not only a monitoring tool for readers. It is also a discoverability layer for authors, tool builders, labs, and technical community work that would otherwise stay hard to find.
+A subscription is one explicit repository watch.
 
-## Current Architecture
+Stored fields:
 
-SciScope is currently a structured monolith with a split frontend/backend workspace.
+- `subscription_id`
+- `user_id`
+- `repository_id`
+- `selected_query`
+- `created_at`
 
-High-level backend flow:
+`selected_query` is only a snapshot of the query that produced the clicked result. The subscription itself is repository-centric.
 
-- `seeds/`
-  - current bootstrap topic and profile data
-- `services/topic_registry.py`
-  - resolves the active topic/profile for the local runtime
-- `sources/repositories/runtime.py`
-  - coordinates repository-family discovery and monitoring across concrete adapters
-- `services/discovery.py`
-  - stores relevant repositories as watched entities
-- `sources/repositories/github/` and `sources/repositories/gitlab/`
-  - implement repository discovery and release monitoring per source
-- `services/runtime.py`
-  - orchestrates start/stop, scan cycles, status payloads, and signal views
-- `storage/`
-  - persists watched entities, topic matches, checkpoints, and seen signals
+### Signal
+
+SciScope uses one canonical `Signal` model.
+
+It contains:
+
+- source identity
+- signal kind
+- item id
+- title
+- url
+- published time
+- raw text
+- normalized text
+- payload
+
+The backend uses a single `Signal` type that carries both raw and normalized text.
+
+## Architecture
+
+SciScope is a structured monolith with a split frontend/backend workspace.
+
+System shape:
+
+- React + TypeScript frontend
+- FastAPI backend
+- Postgres persistence
+- SQLAlchemy + Alembic for data access and migrations
+- background monitoring inside the backend service
+
+Backend shape:
+
+Main backend areas:
+
+- `backend/app/api/`
+  - FastAPI transport and route wiring
+- `backend/app/services/ai/`
+  - AI query planning from topic descriptions
+- `backend/app/services/search/`
+  - Explore search and deterministic matching
+- `backend/app/services/subscriptions/`
+  - create/list/delete direct repository subscriptions
+- `backend/app/services/runtime.py`
+  - monitoring orchestration and signal views
+- `backend/app/sources/`
+  - repository-hosting adapters and replay fixtures
+- `backend/app/storage/`
+  - repositories, subscriptions, seen signals, auth
+- `backend/alembic/`
+  - database migrations
 
 Key domain objects:
 
-- `ResearchTopic`
-- `ResearchProfile`
-- `Entity`
-- `TopicEntityMatch`
-- `EntityCheckpoint`
-- `RawSignal`
-- `NormalizedSignal`
+- `Repository`
+- `Subscription`
+- `Signal`
+- `SignalMatch`
 
-## Current Limits
+## Source Coverage
 
-What this project does not do yet:
+Active:
 
-- user-created topics
-- LLM-generated research profiles in the live path
-- multi-source ingestion beyond GitHub
+- GitHub repository discovery
+- GitHub release monitoring
+- GitLab repository discovery
+- GitLab release monitoring
+
+Unavailable source modules:
+
+- Gitee
+- GitCode
+- GitVerse
+
+## Service Surfaces
+
+### Web App
+
+- public Explore interface
+- Google-authenticated subscription and Feed interface
+- repository result pages rendered through the frontend app
+
+### Backend API
+
+- Explore search endpoints
+- subscription endpoints
+- signal endpoints
+- monitoring control endpoints
+- Google OAuth session endpoints
+
+## Scope Boundaries
+
+The repository excludes:
+
+- non-repository source families such as papers, conferences, or social feeds
+- automatic subscription creation from Explore results
+- persistent topic objects in the runtime path
 - ranking beyond deterministic term matching
-- email digests
-- authentication
-- subscriptions
+- a finished Feed UI for rendering monitored signals
+- notifications or digests
 
-This is still a pNMR-tuned engineering proof of concept, not a finished product.
+## Useful API Endpoints
 
-## Run Locally
+- `POST /api/explore/search`
+- `GET /api/subscriptions`
+- `POST /api/subscriptions`
+- `DELETE /api/subscriptions/{id}`
+- `GET /api/signals`
+- `GET /api/signals/{id}`
+- `POST /api/start`
+- `POST /api/stop`
 
-Backend:
-
-```bash
-cd /Users/ernestborysenko/git/SciScope
-python3 -m venv .venv
-./.venv/bin/pip install -e .
-export APP_ENV=development
-export APP_HOST=127.0.0.1
-export APP_PORT=8000
-export CORS_ORIGINS=http://localhost:5173
-export DATABASE_URL=postgresql+psycopg://sciscope:sciscope@localhost:5432/sciscope
-export GITHUB_AUTH_MODE=disabled
-export GITLAB_AUTH_MODE=disabled
-./.venv/bin/alembic -c backend/alembic.ini upgrade head
-./.venv/bin/python -m app.main
-```
-
-Important:
-
-- the backend does not auto-create tables at startup
-- schema changes are applied only through Alembic migrations
-- production deploys should run `alembic -c backend/alembic.ini upgrade head` before new app instances start serving traffic
-
-Frontend:
-
-```bash
-cd /Users/ernestborysenko/git/SciScope/frontend
-npm install
-cp .env.example .env
-npm run dev
-```
-
-Open:
-
-```text
-http://localhost:5173
-```
-
-## What To Look For On The Dashboard
-
-After pressing `Start`, a healthy pipeline should show:
-
-- non-empty `Discovery queries`
-- non-empty `Watched repositories`
-- non-empty `Release checkpoints`
-- a populated `Last discovery result`
-
-If a watched repository publishes a new GitHub release after monitoring starts, SciScope should surface it as a signal on the dashboard.
-
-## Near-Term Milestone
-
-The immediate milestone for this repository is:
-
-> SciScope discovers relevant pNMR repositories from topic terms alone, watches them continuously, and catches a real new GitHub release without repository hardcoding.
-
-## Notes
+## Development Notes
 
 - Python backend: `>=3.11`
 - Frontend: Vite + React + TypeScript
-- Persistent state now runs through Postgres via SQLAlchemy + Alembic
-- Repository source auth is moving to `GitHub App` and `GitLab service account token` modes
+- Persistent state runs through Postgres via SQLAlchemy + Alembic
+- Google OAuth gates user-owned subscriptions
 - Architecture notes live in [docs/architecture.md](/Users/ernestborysenko/git/SciScope/docs/architecture.md)
-- Public frontend deploy should run with `VITE_AUTH_MODE=disabled` until the real sign-in flow replaces the temporary developer login
+
+## Author
+
+SciScope is an independent product designed and built end-to-end by Ernest Borysenko.
