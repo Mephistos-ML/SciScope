@@ -11,8 +11,8 @@ from urllib.request import Request, urlopen
 
 import jwt
 
+from app.__version__ import __version__
 from app.config import (
-    APP_VERSION,
     GITHUB_APP_ID,
     GITHUB_APP_INSTALLATION_ID,
     GITHUB_APP_PRIVATE_KEY,
@@ -35,7 +35,7 @@ _INSTALLATION_TOKEN_LOCK = threading.Lock()
 def build_user_agent() -> str:
     """Build the application user agent for outbound GitHub requests."""
 
-    return f"SciScope/{APP_VERSION}"
+    return f"SciScope/{__version__}"
 
 
 def build_auth_headers() -> dict[str, str]:

@@ -7,7 +7,8 @@ import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from app.config import APP_VERSION, GITLAB_BASE_URL
+from app.__version__ import __version__
+from app.config import GITLAB_BASE_URL
 from app.sources.gitlab.auth import build_auth_headers
 from app.sources.common import RepositorySourceError
 
@@ -21,7 +22,7 @@ GITLAB_RETRY_BACKOFF_SECONDS = 1.5
 def build_user_agent() -> str:
     """Build the application user agent for outbound GitLab requests."""
 
-    return f"SciScope/{APP_VERSION}"
+    return f"SciScope/{__version__}"
 
 
 def fetch_json(url: str) -> object:

@@ -7,7 +7,7 @@ import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from app.config import APP_VERSION
+from app.__version__ import __version__
 from app.sources.github.auth import build_auth_headers
 from app.sources.common import RepositorySourceError
 
@@ -21,7 +21,7 @@ GITHUB_RETRY_BACKOFF_SECONDS = 1.5
 def build_user_agent() -> str:
     """Build the application user agent for outbound GitHub requests."""
 
-    return f"SciScope/{APP_VERSION}"
+    return f"SciScope/{__version__}"
 
 
 def fetch_json(url: str) -> object:

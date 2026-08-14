@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.config import APP_VERSION
+from app.__version__ import __version__
 from app.sources.common import RepositorySourceError
 
 
@@ -12,7 +12,7 @@ GITCODE_API_BASE = "https://api.gitcode.com"
 def build_user_agent() -> str:
     """Build the application user agent for outbound GitCode requests."""
 
-    return f"SciScope/{APP_VERSION}"
+    return f"SciScope/{__version__}"
 
 
 def fetch_json(url: str) -> object:
