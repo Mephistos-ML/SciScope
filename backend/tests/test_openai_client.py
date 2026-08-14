@@ -24,10 +24,10 @@ def test_openai_client_parses_text_from_output_content(monkeypatch) -> None:
                 "output": [
                     {
                         "type": "message",
-                        "content": [
+                "content": [
                             {
                                 "type": "output_text",
-                                "text": '{"searchScope":"repositories","sourcePlans":[]}',
+                                "text": '{"queries":[]}',
                             }
                         ],
                     }
@@ -45,7 +45,7 @@ def test_openai_client_parses_text_from_output_content(monkeypatch) -> None:
         json_schema={"type": "object"},
     )
 
-    assert payload == {"searchScope": "repositories", "sourcePlans": []}
+    assert payload == {"queries": []}
 
 
 def test_openai_client_rejects_missing_output_text(monkeypatch) -> None:

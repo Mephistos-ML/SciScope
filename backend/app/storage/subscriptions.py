@@ -20,7 +20,6 @@ class SubscriptionRecord:
     subscription_id: str
     user_id: str
     topic_description: str
-    search_scope: str
     query_terms: tuple[str, ...]
     created_at: str
 
@@ -29,7 +28,6 @@ def create_subscription(
     *,
     user_id: str,
     topic_description: str,
-    search_scope: str,
     query_terms: tuple[str, ...],
     database_url: str | None = None,
 ) -> SubscriptionRecord:
@@ -41,7 +39,6 @@ def create_subscription(
         subscription_id=f"sub_{uuid.uuid4().hex[:12]}",
         user_id=user_id,
         topic_description=topic_description,
-        search_scope=search_scope,
         query_terms_json=list(query_terms),
         created_at=created_at,
     )
@@ -129,7 +126,6 @@ def _to_subscription_record(record: SubscriptionRecordModel) -> SubscriptionReco
         subscription_id=record.subscription_id,
         user_id=record.user_id,
         topic_description=record.topic_description,
-        search_scope=record.search_scope,
         query_terms=tuple(str(item) for item in (record.query_terms_json or [])),
         created_at=_ensure_utc(record.created_at).isoformat(timespec="seconds"),
     )

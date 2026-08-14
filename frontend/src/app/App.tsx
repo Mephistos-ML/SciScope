@@ -29,7 +29,6 @@ export function App() {
   const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>([]);
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
   const [topicInput, setTopicInput] = useState("Paramagnetic NMR analysis workflows");
-  const [searchScope, setSearchScope] = useState<"repositories" | "all">("repositories");
   const [signingIn, setSigningIn] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [searchPending, setSearchPending] = useState(false);
@@ -112,7 +111,6 @@ export function App() {
     try {
       const payload = await runExploreSearch({
         topicDescription: topicInput.trim(),
-        searchScope,
       });
       setResults(payload.items);
       setLastAiSearchPlan(payload.aiSearchPlan);
@@ -134,7 +132,6 @@ export function App() {
     try {
       const subscription = await createSubscription({
         topicDescription: topicInput.trim(),
-        searchScope,
       });
       setSubscriptions((current) => [subscription, ...current]);
       setSelectedSubscriptionId(subscription.subscriptionId);
@@ -195,11 +192,9 @@ export function App() {
           createPending={createPending}
           lastAiSearchPlan={lastAiSearchPlan}
           onRunSearch={() => void handleRunSearch()}
-          onSearchScopeChange={setSearchScope}
           onSubscribe={() => void handleSubscribe()}
           onTopicInputChange={setTopicInput}
           results={results}
-          searchScope={searchScope}
           searchPending={searchPending}
           topicInput={topicInput}
           viewer={viewer}

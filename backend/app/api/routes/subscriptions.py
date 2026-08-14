@@ -32,17 +32,10 @@ def create_subscription_response(
         return None
 
     topic_description = str(payload.get("topicDescription") or "").strip()
-    search_scope = str(payload.get("searchScope") or "repositories")
     if not topic_description:
         topic_description = "Untitled topic"
 
-    return create_subscription_payload(
-        user,
-        topic_description=topic_description,
-        search_scope=(
-            search_scope if search_scope in ("repositories", "all") else "repositories"
-        ),
-    )
+    return create_subscription_payload(user, topic_description=topic_description)
 
 
 def delete_subscription_response(request: Request, subscription_id: str) -> bool | None:

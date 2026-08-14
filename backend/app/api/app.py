@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,14 +25,12 @@ class ExploreSearchRequest(BaseModel):
     """Request body for one topic-driven explore search."""
 
     topicDescription: str = ""
-    searchScope: Literal["repositories", "all"] = "repositories"
 
 
 class CreateSubscriptionRequest(BaseModel):
     """Request body for one saved topic subscription."""
 
     topicDescription: str = ""
-    searchScope: Literal["repositories", "all"] = "repositories"
 
 
 @asynccontextmanager

@@ -15,17 +15,11 @@ def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
         captured_prompts["system"] = kwargs["system_prompt"]
         captured_prompts["user"] = kwargs["user_prompt"]
         return {
-            "searchScope": "repositories",
-            "sourcePlans": [
-                {
-                    "sourceType": "repositories",
-                    "queries": [
-                        "paramagnetic nmr software",
-                        "pcs tensor fitting",
-                        "paramagnetic nmr software",
-                        "  pcs tensor fitting  ",
-                    ],
-                }
+            "queries": [
+                "paramagnetic nmr software",
+                "pcs tensor fitting",
+                "paramagnetic nmr software",
+                "  pcs tensor fitting  ",
             ],
         }
 
@@ -34,43 +28,17 @@ def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
         _fake_response,
     )
 
-    plan = planner.build_search_plan(
-        topic_description="Paramagnetic NMR analysis workflows",
-        search_scope="repositories",
-    )
+    plan = planner.build_search_plan(topic_description="Paramagnetic NMR analysis workflows")
 
     assert plan.status == "ready"
-    assert plan.source_plans[0].queries == (
+    assert plan.queries == (
         "paramagnetic nmr software",
         "pcs tensor fitting",
     )
     assert "controlled broadening" in captured_prompts["system"]
-    assert "source-agnostic" in captured_prompts["system"]
+    assert "repository discovery" in captured_prompts["system"]
     assert "Do not return only ultra-specific jargon." in captured_prompts["user"]
-    assert "future non-repository sources" in captured_prompts["user"]
-
-
-def test_openai_planner_rejects_scope_drift(monkeypatch) -> None:
-    planner = OpenAiSearchPlanner()
-
-    monkeypatch.setattr(
-        "app.services.openai_ai_planner.build_openai_json_response",
-        lambda **_: {
-            "searchScope": "all",
-            "sourcePlans": [
-                {
-                    "sourceType": "repositories",
-                    "queries": ["paramagnetic nmr software"],
-                }
-            ],
-        },
-    )
-
-    with pytest.raises(RuntimeError, match="changed the requested searchScope"):
-        planner.build_search_plan(
-            topic_description="Paramagnetic NMR analysis workflows",
-            search_scope="repositories",
-        )
+    assert "used only for repository search" in captured_prompts["user"]
 
 
 def test_openai_planner_raises_for_invalid_payload(monkeypatch) -> None:
@@ -79,13 +47,9 @@ def test_openai_planner_raises_for_invalid_payload(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.services.openai_ai_planner.build_openai_json_response",
         lambda **_: {
-            "searchScope": "repositories",
-            "sourcePlans": "not-a-list",
+            "queries": "not-a-list",
         },
     )
 
-    with pytest.raises(RuntimeError, match="invalid sourcePlans"):
-        planner.build_search_plan(
-            topic_description="Paramagnetic NMR analysis workflows",
-            search_scope="repositories",
-        )
+    with pytest.raises(RuntimeError, match="invalid queries"):
+        planner.build_search_plan(topic_description="Paramagnetic NMR analysis workflows")

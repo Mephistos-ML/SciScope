@@ -6,11 +6,9 @@ type ExplorePageProps = {
   createPending: boolean;
   lastAiSearchPlan: AiSearchPlanPayload | null;
   onRunSearch: () => void;
-  onSearchScopeChange: (value: "repositories" | "all") => void;
   onSubscribe: () => void;
   onTopicInputChange: (value: string) => void;
   results: ExploreResultItem[];
-  searchScope: "repositories" | "all";
   searchPending: boolean;
   topicInput: string;
   viewer: ViewerPayload["user"];
@@ -21,11 +19,9 @@ export function ExplorePage({
   createPending,
   lastAiSearchPlan,
   onRunSearch,
-  onSearchScopeChange,
   onSubscribe,
   onTopicInputChange,
   results,
-  searchScope,
   searchPending,
   topicInput,
   viewer,
@@ -37,8 +33,7 @@ export function ExplorePage({
           <p className="section-kicker">Explore</p>
           <h2 className="section-title">Find the most relevant repositories for a research topic.</h2>
           <p className="section-copy">
-            Describe the topic, choose the search scope, and let SciScope generate
-            the repository discovery queries for you.
+            Describe the topic and let SciScope generate repository discovery queries.
           </p>
         </div>
 
@@ -53,24 +48,6 @@ export function ExplorePage({
             onChange={(event) => onTopicInputChange(event.target.value)}
             placeholder="Track repositories around paramagnetic NMR analysis workflows."
           />
-
-          <div className="query-actions">
-            <button
-              className={searchScope === "repositories" ? "solid-button" : "outline-button"}
-              onClick={() => onSearchScopeChange("repositories")}
-              type="button"
-            >
-              Repositories
-            </button>
-            <button
-              className={searchScope === "all" ? "solid-button" : "outline-button"}
-              onClick={() => onSearchScopeChange("all")}
-              type="button"
-            >
-              All
-            </button>
-          </div>
-
           <div className="query-actions">
             <button
               className="outline-button"
@@ -89,10 +66,6 @@ export function ExplorePage({
               {createPending ? "Saving..." : "Subscribe"}
             </button>
             <p className="field-hint">
-              `All` is already available in the contract and will expand beyond repositories
-              as new source families land.
-            </p>
-            <p className="field-hint">
               {viewer
                 ? "Save this topic to your feed."
                 : "Sign in with Google before saving this topic to your feed."}
@@ -109,12 +82,12 @@ export function ExplorePage({
               <h3 className="panel-title">Matched repositories</h3>
             </div>
             <div className="query-chip-row">
-              {lastAiSearchPlan?.sourcePlans[0]?.queries?.length ? (
+              {lastAiSearchPlan?.queries.length ? (
                 <>
                   <p className="field-hint">
                     AI-generated search queries
                   </p>
-                  {lastAiSearchPlan.sourcePlans[0].queries.map((query) => (
+                  {lastAiSearchPlan.queries.map((query) => (
                     <span className="query-chip" key={query}>
                       {query}
                     </span>

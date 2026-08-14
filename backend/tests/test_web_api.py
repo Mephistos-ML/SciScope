@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from tests.conftest import build_test_database_url, migrate_test_database
 from app.api.app import app
 from app.config import AUTH_SESSION_COOKIE_NAME
-from app.models.ai import AiSearchPlan, AiSourcePlan
+from app.models.ai import AiSearchPlan
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile, ResearchTopic
 from app.runtime.state import STATE
@@ -83,16 +83,10 @@ def _build_active_profile() -> ResearchProfile:
     return ResearchProfile(topic_slug="pnmr", core_terms=("paramagnetic nmr", "pcs"))
 
 
-def _build_ready_repository_ai_plan(*queries: str, search_scope: str = "repositories") -> AiSearchPlan:
+def _build_ready_repository_ai_plan(*queries: str) -> AiSearchPlan:
     return AiSearchPlan(
-        search_scope=search_scope,
         status="ready" if queries else "pending",
-        source_plans=(
-            AiSourcePlan(
-                source_type="repositories",
-                queries=queries,
-            ),
-        ),
+        queries=queries,
     )
 
 
@@ -285,18 +279,16 @@ def test_session_auth_and_subscription_endpoints(monkeypatch) -> None:
             assert response.status_code == 201
             created = response.json()
             assert created["topicDescription"] == "paramagnetic NMR software"
-            assert created["searchScope"] == "repositories"
             assert created["aiSearchPlan"]["status"] == "pending"
-            assert created["aiSearchPlan"]["sourcePlans"][0]["queries"] == []
+            assert created["aiSearchPlan"]["queries"] == []
 
             response = client.get("/api/subscriptions")
             assert response.status_code == 200
             listed = response.json()
             assert len(listed["items"]) == 1
             assert listed["items"][0]["topicDescription"] == "paramagnetic NMR software"
-            assert listed["items"][0]["searchScope"] == "repositories"
             assert listed["items"][0]["aiSearchPlan"]["status"] == "pending"
-            assert listed["items"][0]["aiSearchPlan"]["sourcePlans"][0]["queries"] == []
+            assert listed["items"][0]["aiSearchPlan"]["queries"] == []
 
             subscription_id = listed["items"][0]["subscriptionId"]
             response = client.delete(f"/api/subscriptions/{subscription_id}")
@@ -460,9 +452,8 @@ def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatc
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/json"
     payload = response.json()
-    assert payload["searchScope"] == "repositories"
     assert payload["aiSearchPlan"]["status"] == "ready"
-    assert payload["aiSearchPlan"]["sourcePlans"][0]["queries"] == [
+    assert payload["aiSearchPlan"]["queries"] == [
         "paramagnetic nmr",
         "pcs tensor fitting",
     ]
@@ -606,9 +597,8 @@ def test_explore_search_returns_pending_plan_when_ai_plan_has_no_queries() -> No
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["searchScope"] == "repositories"
     assert payload["aiSearchPlan"]["status"] == "pending"
-    assert payload["aiSearchPlan"]["sourcePlans"][0]["queries"] == []
+    assert payload["aiSearchPlan"]["queries"] == []
     assert payload["items"] == []
     assert payload["sourceStatuses"] == []
 
@@ -652,7 +642,7 @@ def test_explore_search_uses_ai_generated_queries(monkeypatch) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["aiSearchPlan"]["status"] == "ready"
-    assert payload["aiSearchPlan"]["sourcePlans"][0]["queries"] == [
+    assert payload["aiSearchPlan"]["queries"] == [
         "pcs tensor fitting",
         "paramagnetic nmr repos",
     ]
@@ -694,9 +684,8 @@ def test_subscription_endpoint_persists_ai_generated_queries(monkeypatch) -> Non
 
             assert create_response.status_code == 201
             created = create_response.json()
-            assert created["searchScope"] == "repositories"
             assert created["aiSearchPlan"]["status"] == "ready"
-            assert created["aiSearchPlan"]["sourcePlans"][0]["queries"] == [
+            assert created["aiSearchPlan"]["queries"] == [
                 "pcs tensor fitting",
                 "paramagnetic nmr repos",
             ]
@@ -704,9 +693,8 @@ def test_subscription_endpoint_persists_ai_generated_queries(monkeypatch) -> Non
             list_response = client.get("/api/subscriptions")
             assert list_response.status_code == 200
             listed = list_response.json()
-            assert listed["items"][0]["searchScope"] == "repositories"
             assert listed["items"][0]["aiSearchPlan"]["status"] == "ready"
-            assert listed["items"][0]["aiSearchPlan"]["sourcePlans"][0]["queries"] == [
+            assert listed["items"][0]["aiSearchPlan"]["queries"] == [
                 "pcs tensor fitting",
                 "paramagnetic nmr repos",
             ]

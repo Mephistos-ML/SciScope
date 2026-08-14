@@ -5,14 +5,10 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 
-from app.models.ai import SearchScope
 from app.models.signal import RawSignal
 from app.models.topic import ResearchProfile, ResearchTopic
 from app.services.ai_planner import build_ai_search_plan
-from app.services.ai_search_plans import (
-    read_source_queries,
-    serialize_ai_search_plan,
-)
+from app.services.ai_search_plans import serialize_ai_search_plan
 from app.services.matching import match_signal_to_profile
 from app.services.normalization import normalize_raw_signal
 from app.services.profile_builder import build_profile
@@ -53,19 +49,14 @@ class AiSearchPlanningError(RuntimeError):
 def run_explore_search(
     *,
     topic_description: str,
-    search_scope: SearchScope = "repositories",
 ) -> dict[str, object]:
     """Run a read-only repository search from one topic description."""
 
     try:
-        ai_search_plan = build_ai_search_plan(
-            topic_description=topic_description,
-            search_scope=search_scope,
-        )
+        ai_search_plan = build_ai_search_plan(topic_description=topic_description)
     except (OpenAIClientConfigurationError, OpenAIResponseError, RuntimeError) as exc:
         logger.exception(
-            "AI search planning failed for scope=%s and topic=%r: %s",
-            search_scope,
+            "AI search planning failed for topic=%r: %s",
             topic_description[:200],
             exc,
         )
@@ -73,11 +64,10 @@ def run_explore_search(
             "AI search planning is temporarily unavailable."
         ) from exc
 
-    repository_queries = read_source_queries(ai_search_plan, source_type="repositories")
+    repository_queries = ai_search_plan.queries
     if not repository_queries:
         return {
             "topicDescription": topic_description,
-            "searchScope": search_scope,
             "aiSearchPlan": serialize_ai_search_plan(ai_search_plan),
             "items": [],
             "sourceStatuses": [],
@@ -123,7 +113,6 @@ def run_explore_search(
 
     return {
         "topicDescription": topic_description,
-        "searchScope": search_scope,
         "aiSearchPlan": serialize_ai_search_plan(ai_search_plan),
         "items": items,
         "sourceStatuses": source_statuses,

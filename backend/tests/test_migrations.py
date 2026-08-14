@@ -89,7 +89,7 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
     assert "manual_keywords_json" not in subscription_columns
     assert "query_terms_json" in subscription_columns
     assert "query_strategy" not in subscription_columns
-    assert "search_scope" in subscription_columns
+    assert "search_scope" not in subscription_columns
     assert inspector.has_table("users")
     assert inspector.has_table("oauth_accounts")
     assert inspector.has_table("user_sessions")
@@ -99,4 +99,4 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
             sa.text("SELECT version_num FROM alembic_version")
         ).scalar_one()
 
-    assert version == "0004_ai_search_plan_foundation"
+    assert version == "0005_repository_only_cleanup"

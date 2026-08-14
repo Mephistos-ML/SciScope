@@ -63,9 +63,7 @@ export function FeedPage({
                   >
                     <strong>{subscription.topicDescription}</strong>
                     <p>
-                      {subscription.searchScope === "all" ? "All sources" : "Repositories"}
-                      {": "}
-                      {subscription.aiSearchPlan.sourcePlans[0]?.queries.join(", ") || "No queries yet"}
+                      {subscription.aiSearchPlan.queries.join(", ") || "No queries yet"}
                     </p>
                   </button>
                   <button
@@ -93,9 +91,7 @@ export function FeedPage({
               <div className="detail-panel-block">
                 <h4>Queries</h4>
                 <p>
-                  {selectedSubscription.searchScope === "all" ? "All sources" : "Repositories"}
-                  {": "}
-                  {selectedSubscription.aiSearchPlan.sourcePlans[0]?.queries.join(", ") || "No queries yet"}
+                  {selectedSubscription.aiSearchPlan.queries.join(", ") || "No queries yet"}
                 </p>
               </div>
 

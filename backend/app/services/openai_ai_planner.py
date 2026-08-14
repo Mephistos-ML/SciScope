@@ -2,40 +2,22 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 
 from app import config
-from app.models.ai import AiSearchPlan, AiSourcePlan, SearchScope
+from app.models.ai import AiSearchPlan
 from app.services.ai_search_plans import normalize_search_queries
 from app.services.openai_client import build_openai_json_response
 
 _SEARCH_PLAN_JSON_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["searchScope", "sourcePlans"],
+    "required": ["queries"],
     "properties": {
-        "searchScope": {
-            "type": "string",
-            "enum": ["repositories", "all"],
-        },
-        "sourcePlans": {
+        "queries": {
             "type": "array",
             "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["sourceType", "queries"],
-                "properties": {
-                    "sourceType": {
-                        "type": "string",
-                        "enum": ["repositories"],
-                    },
-                    "queries": {
-                        "type": "array",
-                        "items": {
-                            "type": "string",
-                        },
-                    },
-                },
+                "type": "string",
             },
         },
     },
@@ -47,8 +29,7 @@ Turn one research topic description into source-agnostic search queries with hig
 
 Rules:
 - Return only JSON matching the provided schema.
-- searchScope must match the requested scope from the user.
-- For now, only produce sourcePlans for repositories.
+- Generate queries only for repository discovery.
 - Produce 4 to 7 concise repository search queries.
 - Queries should be short, technical, and keyword-oriented.
 - Queries must stay reusable across multiple source types such as repositories,
@@ -75,11 +56,9 @@ class OpenAiSearchPlanner:
         self,
         *,
         topic_description: str,
-        search_scope: SearchScope,
     ) -> AiSearchPlan:
         user_prompt = _build_user_prompt(
             topic_description=topic_description,
-            search_scope=search_scope,
         )
         payload = build_openai_json_response(
             model=config.OPENAI_MODEL,
@@ -87,20 +66,18 @@ class OpenAiSearchPlanner:
             user_prompt=user_prompt,
             json_schema=_SEARCH_PLAN_JSON_SCHEMA,
         )
-        return _parse_ai_search_plan(payload, requested_scope=search_scope)
+        return _parse_ai_search_plan(payload)
 
 
 def _build_user_prompt(
     *,
     topic_description: str,
-    search_scope: SearchScope,
 ) -> str:
     return (
-        f"Requested search scope: {search_scope}\n"
-        "Generate reusable technical search queries for this topic.\n"
+        "Generate reusable repository search queries for this topic.\n"
         "Balance recall and specificity.\n"
         "Do not return only ultra-specific jargon.\n"
-        "Queries should remain useful across repositories and future non-repository sources.\n"
+        "These queries will be used only for repository search.\n"
         "Topic description:\n"
         f"{topic_description.strip() or 'Untitled topic'}"
     )
@@ -108,47 +85,14 @@ def _build_user_prompt(
 
 def _parse_ai_search_plan(
     payload: dict[str, Any],
-    *,
-    requested_scope: SearchScope,
 ) -> AiSearchPlan:
-    search_scope = payload.get("searchScope")
-    if search_scope not in {"repositories", "all"}:
-        raise RuntimeError("OpenAI planner returned an invalid searchScope")
+    raw_queries = payload.get("queries")
+    if not isinstance(raw_queries, list):
+        raise RuntimeError("OpenAI planner returned invalid queries")
 
-    if search_scope != requested_scope:
-        raise RuntimeError("OpenAI planner changed the requested searchScope")
-
-    raw_source_plans = payload.get("sourcePlans")
-    if not isinstance(raw_source_plans, list):
-        raise RuntimeError("OpenAI planner returned invalid sourcePlans")
-
-    source_plans: list[AiSourcePlan] = []
-    for raw_source_plan in raw_source_plans:
-        if not isinstance(raw_source_plan, dict):
-            raise RuntimeError("OpenAI planner returned an invalid source plan")
-
-        source_type = raw_source_plan.get("sourceType")
-        if source_type != "repositories":
-            raise RuntimeError("OpenAI planner returned an unsupported source type")
-
-        raw_queries = raw_source_plan.get("queries")
-        if not isinstance(raw_queries, list):
-            raise RuntimeError("OpenAI planner returned invalid source queries")
-
-        queries = normalize_search_queries(str(raw_query) for raw_query in raw_queries)
-        source_plans.append(
-            AiSourcePlan(
-                source_type="repositories",
-                queries=queries,
-            )
-        )
+    queries = normalize_search_queries(str(raw_query) for raw_query in raw_queries)
 
     return AiSearchPlan(
-        search_scope=cast(SearchScope, search_scope),
-        status=(
-            "ready"
-            if any(source_plan.queries for source_plan in source_plans)
-            else "pending"
-        ),
-        source_plans=tuple(source_plans),
+        status="ready" if queries else "pending",
+        queries=queries,
     )
