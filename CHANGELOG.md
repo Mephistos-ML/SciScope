@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/Mephistos-ML/SciScope/compare/v1.0.1...v1.0.2) (2026-08-14)
+
+
+### Bug Fixes
+
+* **db:** remove duplicate alembic head ([0303809](https://github.com/Mephistos-ML/SciScope/commit/03038091e40c8c1c78a5e3e325120839901da0d6))
+
 ## [1.0.1](https://github.com/Mephistos-ML/SciScope/compare/v1.0.0...v1.0.1) (2026-08-14)
 
 
