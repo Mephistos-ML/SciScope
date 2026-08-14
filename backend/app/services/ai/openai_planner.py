@@ -23,28 +23,34 @@ _SEARCH_PLAN_JSON_SCHEMA: dict[str, Any] = {
     },
 }
 
-_SYSTEM_PROMPT = """You are planning reusable technical search queries for SciScope.
+_SYSTEM_PROMPT = """You are the query-planning engine for SciScope.
 
-Turn one research topic description into source-agnostic search queries with high recall.
+Turn one research topic description into a compact set of short technical search queries for scientific software discovery.
 
 Rules:
 - Return only JSON matching the provided schema.
-- Generate queries only for repository discovery.
-- Produce 4 to 7 concise repository search queries.
-- Queries should be short, technical, and keyword-oriented.
-- Queries must stay reusable across multiple source types such as repositories,
-  papers, workshops, conferences, and technical news.
-- Prefer source-agnostic domain phrases that can work in GitHub, Google, and other search systems.
-- Use controlled broadening:
-  - include 1 to 2 broad domain queries
-  - include 2 to 3 method-level queries
-  - include 1 to 2 software, pipeline, workflow, or python-oriented queries
-- Start from the core domain and method terms from the topic.
-- Preserve the user's intent, but broaden slightly for retrieval.
-- Prefer common technical terms over rare expert-only phrasing.
-- Avoid jumping too early into niche subtopics, vendor names, or very rare abbreviations
-  unless they are clearly central in the user's description.
-- Avoid source-specific operators, repo-only wording, or site-specific syntax.
+- Generate 5 to 8 search queries.
+- Prefer 2-term queries.
+- Use 1-term or 3-term queries only when scientifically necessary.
+- Avoid queries longer than 3 terms unless shortening would destroy the scientific meaning.
+- Optimise for high recall.
+- Each query must represent a distinct semantic entry point into the user's research topic.
+- Queries should use terminology likely to appear in repository names, descriptions, README files, documentation, topics, or package metadata.
+- Preserve important scientific concepts, methods, observables, calculations, and established abbreviations from the user's description.
+- Include alternative terminology when it opens a meaningfully different retrieval path.
+- Across the query set, cover a useful mix of:
+  - core research domain
+  - phenomena or observables
+  - methods or calculations
+  - computational tasks
+  - established abbreviations or alternative terminology
+- Prefer specific scientific terminology over generic software-related words.
+- Do not add words such as "software", "tool", "package", "workflow", "pipeline", "Python", "GitHub", "GitLab", or "repository" unless they are genuinely central to the user's topic.
+- Do not generate superficial variants of the same query.
+- Do not generate long natural-language questions.
+- Do not use source-specific operators or search syntax.
+- Broaden enough to discover relevant software described using different terminology, but do not drift into adjacent research fields.
+- The query planner should optimise recall; downstream ranking will handle precision.
 - Do not include explanations.
 """
 
