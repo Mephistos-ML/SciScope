@@ -1,7 +1,7 @@
 """Signal normalization logic lives here.
 
 Normalization converts ``RawSignal`` objects into ``NormalizedSignal`` objects
-that can be matched against a research profile without source-specific logic.
+that can be matched against one subscription query profile.
 """
 
 from __future__ import annotations
@@ -17,32 +17,23 @@ def normalize_raw_signal(raw_signal: RawSignal) -> NormalizedSignal:
     concatenates the text fields that matter for deterministic matching.
     """
 
-    signal_kind = _read_signal_kind(raw_signal)
     normalized_text = _build_normalized_text(raw_signal)
 
     return NormalizedSignal(
         source=raw_signal.source,
         item_id=raw_signal.item_id,
-        signal_kind=signal_kind,
+        kind=raw_signal.kind,
         title=raw_signal.title,
         url=raw_signal.url,
         published_at=raw_signal.published_at,
         normalized_text=normalized_text,
         metadata={
-            "source_type": raw_signal.source_type,
+            "kind": raw_signal.kind,
             "repo": raw_signal.payload.get("repo"),
             "author": raw_signal.payload.get("author"),
             "files": raw_signal.payload.get("files", []),
         },
     )
-
-
-def _read_signal_kind(raw_signal: RawSignal) -> str:
-    signal_kind = raw_signal.payload.get("signal_kind")
-    if isinstance(signal_kind, str) and signal_kind.strip():
-        return signal_kind.strip()
-
-    return raw_signal.source_type
 
 
 def _build_normalized_text(raw_signal: RawSignal) -> str:

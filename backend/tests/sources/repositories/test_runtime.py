@@ -4,16 +4,19 @@ from __future__ import annotations
 
 from tests.fixtures.profiles import PNMR_PROFILE
 from tests.conftest import build_test_database_url, migrate_test_database
-from app.sources.repositories.runtime import discover_repository_entities_for_profile
-from app.storage.entities import list_entities, list_subscription_entity_matches
+from app.sources.runtime import discover_repositories_for_profile
+from app.storage.repositories import (
+    list_repositories,
+    list_subscription_repository_matches,
+)
 
 
 def test_discover_repository_entities_for_profile_persists_matched_repositories(
     monkeypatch,
     tmp_path,
 ) -> None:
-    from app.sources.repositories.github import discovery as github_discovery
-    from app.sources.repositories.gitlab import discovery as gitlab_discovery
+    from app.sources.github import discovery as github_discovery
+    from app.sources.gitlab import discovery as gitlab_discovery
     from app.models.signal import RawSignal
 
     def fake_discover_repository_candidates(queries: tuple[str, ...]) -> list[RawSignal]:
@@ -21,7 +24,7 @@ def test_discover_repository_entities_for_profile_persists_matched_repositories(
         return [
             RawSignal(
                 source="github",
-                source_type="github_repository",
+                kind="repository",
                 item_id="github:repo:Mephistos-ML/paranmr",
                 title="Mephistos-ML/paranmr",
                 url="https://github.com/Mephistos-ML/paranmr",
@@ -31,7 +34,6 @@ def test_discover_repository_entities_for_profile_persists_matched_repositories(
                     "and PCS workflows."
                 ),
                 payload={
-                    "signal_kind": "github_repository",
                     "repo": "Mephistos-ML/paranmr",
                     "query": "paramagnetic NMR software",
                     "topics": ["paramagnetic-nmr", "pcs"],
@@ -41,14 +43,13 @@ def test_discover_repository_entities_for_profile_persists_matched_repositories(
             ),
             RawSignal(
                 source="github",
-                source_type="github_repository",
+                kind="repository",
                 item_id="github:repo:example/batteries",
                 title="example/batteries",
                 url="https://github.com/example/batteries",
                 published_at=None,
                 raw_text="Solid state battery polymer electrolyte workflows.",
                 payload={
-                    "signal_kind": "github_repository",
                     "repo": "example/batteries",
                     "query": "paramagnetic NMR software",
                     "topics": ["battery"],
@@ -71,19 +72,19 @@ def test_discover_repository_entities_for_profile_persists_matched_repositories(
 
     database_url = build_test_database_url(tmp_path / "discovery.sqlite3")
     migrate_test_database(database_url)
-    result = discover_repository_entities_for_profile(
+    result = discover_repositories_for_profile(
         PNMR_PROFILE,
         database_url=database_url,
     )
 
-    entities = list_entities(source="github", database_url=database_url)
-    matches = list_subscription_entity_matches("pnmr", database_url=database_url)
+    repositories = list_repositories(source="github", database_url=database_url)
+    matches = list_subscription_repository_matches("pnmr", database_url=database_url)
 
-    assert result.topic_slug == "pnmr"
+    assert result.subscription_id == "pnmr"
     assert result.candidate_count == 2
-    assert result.entity_count == 1
-    assert result.matched_entity_count == 1
-    assert len(entities) == 1
-    assert entities[0].canonical_name == "Mephistos-ML/paranmr"
+    assert result.repository_count == 1
+    assert result.matched_repository_count == 1
+    assert len(repositories) == 1
+    assert repositories[0].full_name == "Mephistos-ML/paranmr"
     assert len(matches) == 1
-    assert matches[0].entity_id == "github:repo:Mephistos-ML/paranmr"
+    assert matches[0].repository_id == "github:repo:Mephistos-ML/paranmr"

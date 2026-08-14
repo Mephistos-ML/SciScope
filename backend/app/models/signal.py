@@ -12,7 +12,7 @@ class RawSignal:
     """Source-scoped signal exactly as SciScope ingests it."""
 
     source: str
-    source_type: str
+    kind: str
     item_id: str
     title: str
     url: str
@@ -27,7 +27,7 @@ class NormalizedSignal:
 
     source: str
     item_id: str
-    signal_kind: str
+    kind: str
     title: str
     url: str
     published_at: datetime | None
@@ -39,11 +39,10 @@ class NormalizedSignal:
 class SignalMatch:
     """Deterministic match result for V0 profile matching."""
 
-    topic_slug: str
+    subscription_id: str
     source: str
     item_id: str
     matched: bool
     score: float
     matched_terms: tuple[str, ...] = ()
-    excluded_terms: tuple[str, ...] = ()
     reason: str = ""

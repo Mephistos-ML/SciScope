@@ -6,7 +6,7 @@ import logging
 from collections.abc import Sequence
 
 from app.models.signal import RawSignal
-from app.models.topic import ResearchProfile, ResearchTopic
+from app.models.subscription import SubscriptionQueryProfile
 from app.services.ai.openai_client import (
     OpenAIClientConfigurationError,
     OpenAIResponseError,
@@ -15,12 +15,12 @@ from app.services.ai.planner import build_ai_search_plan
 from app.services.ai.search_plans import serialize_ai_search_plan
 from app.services.search.matching import match_signal_to_profile
 from app.services.search.normalization import normalize_raw_signal
-from app.services.topics.profile_builder import build_profile
-from app.sources.repositories.common import RepositorySourceError, build_source_status
-from app.sources.repositories.github.discovery import (
+from app.services.subscriptions.profiles import build_query_profile
+from app.sources.common import RepositorySourceError, build_source_status
+from app.sources.github.discovery import (
     discover_repository_candidates as discover_github_repository_candidates,
 )
-from app.sources.repositories.gitlab.discovery import (
+from app.sources.gitlab.discovery import (
     discover_repository_candidates as discover_gitlab_repository_candidates,
 )
 
@@ -75,7 +75,7 @@ def run_explore_search(
 
     profile = _build_explore_profile(
         topic_description,
-        profile_query_terms=repository_queries,
+        query_terms=repository_queries,
     )
     candidates, source_statuses = _discover_candidates_across_sources(repository_queries)
     deduped = _dedupe_by_item_id(candidates)
@@ -122,15 +122,12 @@ def run_explore_search(
 def _build_explore_profile(
     topic_description: str,
     *,
-    profile_query_terms: tuple[str, ...] = (),
-) -> ResearchProfile:
-    return build_profile(
-        ResearchTopic(
-            slug="explore",
-            label=topic_description or "Untitled topic",
-            description=topic_description,
-        ),
-        profile_query_terms=profile_query_terms,
+    query_terms: tuple[str, ...] = (),
+) -> SubscriptionQueryProfile:
+    return build_query_profile(
+        subscription_id="explore",
+        topic_description=topic_description or "Untitled topic",
+        query_terms=query_terms,
     )
 
 

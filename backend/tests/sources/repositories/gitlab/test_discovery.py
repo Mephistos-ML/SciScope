@@ -2,20 +2,7 @@
 
 from __future__ import annotations
 
-from tests.fixtures.profiles import PNMR_PROFILE
-from app.sources.repositories.gitlab import discovery as gitlab_discovery
-from app.sources.repositories.common.query_builder import build_repository_search_queries
-
-
-def test_build_repository_search_queries_uses_profile_seed_terms() -> None:
-    queries = build_repository_search_queries(PNMR_PROFILE)
-
-    assert queries
-    assert "paramagnetic nmr" in queries
-    assert "pseudocontact shift" in queries
-    assert "susceptibility tensor" in queries
-    assert "paranmr" not in queries
-    assert len(queries) >= 5
+from app.sources.gitlab import discovery as gitlab_discovery
 
 
 def test_discover_repository_candidates_builds_raw_signals(monkeypatch) -> None:
@@ -41,7 +28,7 @@ def test_discover_repository_candidates_builds_raw_signals(monkeypatch) -> None:
 
     assert len(signals) == 1
     signal = signals[0]
-    assert signal.source_type == "gitlab_repository"
+    assert signal.kind == "repository"
     assert signal.item_id == "gitlab:repo:Mephistos-ML/paranmr"
     assert signal.payload["repo"] == "Mephistos-ML/paranmr"
     assert signal.payload["stars"] == 14

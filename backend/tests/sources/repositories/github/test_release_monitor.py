@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from app.sources.repositories.github import monitor as github_monitor
+from app.sources.github import monitor as github_monitor
 
 
 def test_load_repo_activity_builds_release_signals(monkeypatch) -> None:
@@ -34,7 +34,7 @@ def test_load_repo_activity_builds_release_signals(monkeypatch) -> None:
 
     assert len(signals) == 1
     release_signal = signals[0]
-    assert release_signal.source_type == "github_release"
+    assert release_signal.kind == "release"
     assert release_signal.item_id == "Mephistos-ML/paranmr:release:12"
     assert "PCS fitting improvements" in release_signal.raw_text
 

@@ -13,14 +13,12 @@ from app.config import (
     POLLING_FREQUENCY_SECONDS,
 )
 from app.models.signal import RawSignal
+from app.models.subscription import SubscriptionQueryProfile
 from app.runtime.state import STATE
 from app.services.search.matching import match_signal_to_profile
 from app.services.search.normalization import normalize_raw_signal
-from app.services.topics.registry import (
-    list_runtime_profiles,
-    list_runtime_topics,
-)
-from app.sources.repositories.runtime import (
+from app.services.subscriptions.profiles import list_query_profiles
+from app.sources.runtime import (
     discover_repository_entities_for_profile,
     describe_repository_checkpoints,
     describe_watched_repositories,
@@ -36,18 +34,17 @@ class SignalView:
     """Dashboard-friendly signal projection."""
 
     view_id: str
-    topic_slug: str
+    subscription_id: str
     item_id: str
-    topic_label: str
+    topic_description: str
     title: str
     source: str
-    signal_kind: str
+    kind: str
     url: str
     matched: bool
     score: float
     reason: str
     matched_terms: tuple[str, ...]
-    excluded_terms: tuple[str, ...]
     raw_text: str
     normalized_text: str
     metadata: dict[str, object]
@@ -114,23 +111,23 @@ def get_signal_view(item_id: str) -> SignalView | None:
 def get_status_payload() -> dict[str, object]:
     """Return a compact JSON-serializable status payload."""
 
-    runtime_profiles = list_runtime_profiles()
-    runtime_topics = list_runtime_topics()
+    query_profiles = list_query_profiles()
     signals = list_signal_views()
-    watched_entities = _describe_all_watched_repositories(runtime_profiles)
-    source_checkpoints = _describe_all_repository_checkpoints(runtime_profiles)
-    primary_topic = runtime_topics[0] if runtime_topics else None
-    primary_profile = runtime_profiles[0] if runtime_profiles else None
+    watched_entities = _describe_all_watched_repositories(query_profiles)
+    source_checkpoints = _describe_all_repository_checkpoints(query_profiles)
+    primary_profile = query_profiles[0] if query_profiles else None
     return {
-        "topicSlug": primary_profile.topic_slug if primary_profile else None,
-        "topicLabel": primary_topic.label if primary_topic else None,
-        "subscriptionCount": len(runtime_profiles),
+        "topicSlug": primary_profile.subscription_id if primary_profile else None,
+        "topicLabel": (
+            primary_profile.topic_description if primary_profile else None
+        ),
+        "subscriptionCount": len(query_profiles),
         "topics": [
             {
-                "topicSlug": topic.slug,
-                "topicLabel": topic.label,
+                "topicSlug": profile.subscription_id,
+                "topicLabel": profile.topic_description,
             }
-            for topic in runtime_topics
+            for profile in query_profiles
         ],
         "autoScanStarted": STATE.auto_scan_started,
         "autoScanIntervalSeconds": MONITORING_INTERVAL_SECONDS,
@@ -167,7 +164,7 @@ def run_discovery_cycle() -> None:
     try:
         discovery_results = [
             discover_repository_entities_for_profile(profile)
-            for profile in list_runtime_profiles()
+            for profile in list_query_profiles()
         ]
         STATE.last_discovery_result = _build_discovery_summary_payload(discovery_results)
         STATE.last_discovery_at = datetime.now(UTC)
@@ -181,7 +178,7 @@ def run_discovery_cycle() -> None:
 def run_baseline_sync() -> None:
     """Initialize checkpoints for newly admitted source entities."""
 
-    for profile in list_runtime_profiles():
+    for profile in list_query_profiles():
         sync_repository_baseline_for_profile(profile)
 
 
@@ -193,11 +190,11 @@ def get_signal_list_payload() -> dict[str, object]:
             {
                 "itemId": signal.item_id,
                 "viewId": signal.view_id,
-                "topicSlug": signal.topic_slug,
-                "topicLabel": signal.topic_label,
+                "topicSlug": signal.subscription_id,
+                "topicLabel": signal.topic_description,
                 "title": signal.title,
                 "source": signal.source,
-                "signalKind": signal.signal_kind,
+                "signalKind": signal.kind,
                 "url": signal.url,
                 "matched": signal.matched,
                 "score": signal.score,
@@ -219,17 +216,16 @@ def get_signal_detail_payload(item_id: str) -> dict[str, object] | None:
     return {
         "itemId": signal.item_id,
         "viewId": signal.view_id,
-        "topicSlug": signal.topic_slug,
-        "topicLabel": signal.topic_label,
+        "topicSlug": signal.subscription_id,
+        "topicLabel": signal.topic_description,
         "title": signal.title,
         "source": signal.source,
-        "signalKind": signal.signal_kind,
+        "signalKind": signal.kind,
         "url": signal.url,
         "matched": signal.matched,
         "score": signal.score,
         "reason": signal.reason,
         "matchedTerms": list(signal.matched_terms),
-        "excludedTerms": list(signal.excluded_terms),
         "rawText": signal.raw_text,
         "normalizedText": signal.normalized_text,
         "metadata": signal.metadata,
@@ -243,19 +239,11 @@ def _run_scan_cycle_unlocked() -> None:
 
     try:
         replay_signals = load_replay_signals()
-        runtime_topics_by_slug = {
-            topic.slug: topic
-            for topic in list_runtime_topics()
-        }
-        for profile in list_runtime_profiles():
-            topic = runtime_topics_by_slug.get(profile.topic_slug)
-            if topic is None:
-                continue
+        for profile in list_query_profiles():
             signals.extend(
                 _build_signal_view(
                     raw_signal,
                     active_profile=profile,
-                    topic_label=topic.label,
                 )
                 for raw_signal in replay_signals
             )
@@ -263,20 +251,12 @@ def _run_scan_cycle_unlocked() -> None:
         STATE.last_scan_error = f"Replay fixtures failed to load: {exc}"
 
     try:
-        runtime_topics_by_slug = {
-            topic.slug: topic
-            for topic in list_runtime_topics()
-        }
-        for profile in list_runtime_profiles():
+        for profile in list_query_profiles():
             live_signals = load_repository_signals_for_profile(profile)
-            topic = runtime_topics_by_slug.get(profile.topic_slug)
-            if topic is None:
-                continue
             signals.extend(
                 _build_signal_view(
                     raw_signal,
                     active_profile=profile,
-                    topic_label=topic.label,
                 )
                 for raw_signal in live_signals
             )
@@ -295,18 +275,17 @@ def _run_scan_cycle_unlocked() -> None:
         seen_ids = seen_ids_by_source.get(signal.source, set())
         signal_views[signal.view_id] = SignalView(
             view_id=signal.view_id,
-            topic_slug=signal.topic_slug,
+            subscription_id=signal.subscription_id,
             item_id=signal.item_id,
-            topic_label=signal.topic_label,
+            topic_description=signal.topic_description,
             title=signal.title,
             source=signal.source,
-            signal_kind=signal.signal_kind,
+            kind=signal.kind,
             url=signal.url,
             matched=signal.matched,
             score=signal.score,
             reason=signal.reason,
             matched_terms=signal.matched_terms,
-            excluded_terms=signal.excluded_terms,
             raw_text=signal.raw_text,
             normalized_text=signal.normalized_text,
             metadata=signal.metadata,
@@ -315,7 +294,7 @@ def _run_scan_cycle_unlocked() -> None:
         raw_signals_to_store.append(
             RawSignal(
                 source=signal.source,
-                source_type=str(signal.metadata.get("source_type", signal.signal_kind)),
+                kind=str(signal.metadata.get("kind", signal.kind)),
                 item_id=signal.item_id,
                 title=signal.title,
                 url=signal.url,
@@ -346,26 +325,24 @@ def _auto_scan_loop() -> None:
 def _build_signal_view(
     raw_signal: RawSignal,
     *,
-    active_profile,
-    topic_label: str,
+    active_profile: SubscriptionQueryProfile,
 ) -> SignalView:
     normalized_signal = normalize_raw_signal(raw_signal)
     match = match_signal_to_profile(normalized_signal, active_profile)
 
     return SignalView(
-        view_id=f"{active_profile.topic_slug}:{normalized_signal.item_id}",
-        topic_slug=active_profile.topic_slug,
+        view_id=f"{active_profile.subscription_id}:{normalized_signal.item_id}",
+        subscription_id=active_profile.subscription_id,
         item_id=normalized_signal.item_id,
-        topic_label=topic_label,
+        topic_description=active_profile.topic_description,
         title=normalized_signal.title,
         source=normalized_signal.source,
-        signal_kind=normalized_signal.signal_kind,
+        kind=normalized_signal.kind,
         url=normalized_signal.url,
         matched=match.matched,
         score=match.score,
         reason=match.reason,
         matched_terms=match.matched_terms,
-        excluded_terms=match.excluded_terms,
         raw_text=raw_signal.raw_text,
         normalized_text=normalized_signal.normalized_text,
         metadata=normalized_signal.metadata,
@@ -389,11 +366,11 @@ def _load_seen_ids_by_source(signals: list[SignalView]) -> dict[str, set[str]]:
 def _build_discovery_summary_payload(discovery_results) -> dict[str, object]:
     if not discovery_results:
         return {
-            "topicSlug": None,
+            "subscriptionId": None,
             "queries": [],
             "candidateCount": 0,
-            "entityCount": 0,
-            "matchedEntityCount": 0,
+            "repositoryCount": 0,
+            "matchedRepositoryCount": 0,
             "profiles": [],
         }
 
@@ -407,11 +384,19 @@ def _build_discovery_summary_payload(discovery_results) -> dict[str, object]:
             merged_queries.append(query)
 
     return {
-        "topicSlug": "all-subscriptions" if len(discovery_results) > 1 else discovery_results[0].topic_slug,
+        "subscriptionId": (
+            "all-subscriptions"
+            if len(discovery_results) > 1
+            else discovery_results[0].subscription_id
+        ),
         "queries": merged_queries,
         "candidateCount": sum(result.candidate_count for result in discovery_results),
-        "entityCount": sum(result.entity_count for result in discovery_results),
-        "matchedEntityCount": sum(result.matched_entity_count for result in discovery_results),
+        "repositoryCount": sum(
+            result.repository_count for result in discovery_results
+        ),
+        "matchedRepositoryCount": sum(
+            result.matched_repository_count for result in discovery_results
+        ),
         "profiles": [result.to_payload() for result in discovery_results],
     }
 
@@ -421,7 +406,7 @@ def _describe_all_watched_repositories(
 ) -> list[dict[str, object]]:
     watched: list[dict[str, object]] = []
     for profile in profiles:
-        watched.extend(describe_watched_repositories(profile.topic_slug))
+        watched.extend(describe_watched_repositories(profile.subscription_id))
     return watched
 
 
@@ -430,7 +415,7 @@ def _describe_all_repository_checkpoints(
 ) -> list[dict[str, object]]:
     checkpoints: list[dict[str, object]] = []
     for profile in profiles:
-        checkpoints.extend(describe_repository_checkpoints(profile.topic_slug))
+        checkpoints.extend(describe_repository_checkpoints(profile.subscription_id))
     return checkpoints
 
 

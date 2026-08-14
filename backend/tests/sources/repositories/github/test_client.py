@@ -6,9 +6,9 @@ from urllib.error import HTTPError
 
 import pytest
 
-from app.sources.repositories.common import RepositorySourceError
-from app.sources.repositories.github import auth as github_auth
-from app.sources.repositories.github import client as github_client
+from app.sources.common import RepositorySourceError
+from app.sources.github import auth as github_auth
+from app.sources.github import client as github_client
 
 
 def test_build_auth_headers_fails_when_github_source_is_disabled(monkeypatch) -> None:

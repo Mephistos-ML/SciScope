@@ -13,21 +13,21 @@ from app.api.app import app
 from app.config import AUTH_SESSION_COOKIE_NAME
 from app.models.ai import AiSearchPlan
 from app.models.signal import RawSignal
-from app.models.topic import ResearchProfile, ResearchTopic
+from app.models.subscription import SubscriptionQueryProfile
 from app.runtime.state import STATE
 from app.services.auth import create_authenticated_session
 from app.services.auth import service as auth_service
 from app.services import runtime
-from app.sources.repositories.common import RepositorySourceError
+from app.sources.common import RepositorySourceError
 from app.storage import auth as auth_storage
-from app.storage import entities as entity_storage
+from app.storage import repositories as repository_storage
 from app.storage import subscriptions as subscription_storage
 
 
 def _build_raw_signal(item_id: str) -> RawSignal:
     return RawSignal(
         source="github",
-        source_type="github_commit",
+        kind="commit",
         item_id=item_id,
         title="Add PCS tensor fitting improvements",
         url=f"https://github.com/Mephistos-ML/paranmr/commit/{item_id}",
@@ -37,7 +37,6 @@ def _build_raw_signal(item_id: str) -> RawSignal:
             "assignment workflow for paramagnetic NMR datasets."
         ),
         payload={
-            "signal_kind": "github_commit",
             "repo": "Mephistos-ML/paranmr",
             "files": [
                 "paranmr/core/fitting/tensor.py",
@@ -54,7 +53,7 @@ def _build_explore_repository_signal(
 ) -> RawSignal:
     return RawSignal(
         source=source,
-        source_type=f"{source}_repository",
+        kind="repository",
         item_id=item_id,
         title="Mephistos-ML/paranmr",
         url="https://github.com/Mephistos-ML/paranmr",
@@ -65,7 +64,6 @@ def _build_explore_repository_signal(
             "and PCS workflows."
         ),
         payload={
-            "signal_kind": f"{source}_repository",
             "repo": "Mephistos-ML/paranmr",
             "query": query,
             "topics": ["paramagnetic-nmr", "pcs"],
@@ -75,12 +73,12 @@ def _build_explore_repository_signal(
     )
 
 
-def _build_active_topic() -> ResearchTopic:
-    return ResearchTopic(slug="pnmr", label="Paramagnetic NMR")
-
-
-def _build_active_profile() -> ResearchProfile:
-    return ResearchProfile(topic_slug="pnmr", core_terms=("paramagnetic nmr", "pcs"))
+def _build_active_profile() -> SubscriptionQueryProfile:
+    return SubscriptionQueryProfile(
+        subscription_id="pnmr",
+        topic_description="Paramagnetic NMR",
+        query_terms=("paramagnetic nmr", "pcs tensor"),
+    )
 
 
 def _build_ready_repository_ai_plan(*queries: str) -> AiSearchPlan:
@@ -90,12 +88,8 @@ def _build_ready_repository_ai_plan(*queries: str) -> AiSearchPlan:
     )
 
 
-def _build_runtime_profiles() -> tuple[ResearchProfile, ...]:
+def _build_runtime_profiles() -> tuple[SubscriptionQueryProfile, ...]:
     return (_build_active_profile(),)
-
-
-def _build_runtime_topics() -> tuple[ResearchTopic, ...]:
-    return (_build_active_topic(),)
 
 
 def test_status_and_signal_endpoints_return_json(monkeypatch) -> None:
@@ -110,10 +104,17 @@ def test_status_and_signal_endpoints_return_json(monkeypatch) -> None:
     STATE.auto_scan_stop_event.clear()
     STATE.auto_scan_thread = None
 
-    monkeypatch.setattr(runtime, "list_runtime_profiles", _build_runtime_profiles)
-    monkeypatch.setattr(runtime, "list_runtime_topics", _build_runtime_topics)
-    monkeypatch.setattr(runtime, "describe_watched_repositories", lambda topic_slug: [])
-    monkeypatch.setattr(runtime, "describe_repository_checkpoints", lambda topic_slug: [])
+    monkeypatch.setattr(runtime, "list_query_profiles", _build_runtime_profiles)
+    monkeypatch.setattr(
+        runtime,
+        "describe_watched_repositories",
+        lambda subscription_id: [],
+    )
+    monkeypatch.setattr(
+        runtime,
+        "describe_repository_checkpoints",
+        lambda subscription_id: [],
+    )
     monkeypatch.setattr(runtime, "load_replay_signals", lambda: [_build_raw_signal("demo")])
     monkeypatch.setattr(runtime, "load_repository_signals_for_profile", lambda profile: [])
     monkeypatch.setattr(runtime, "load_seen_signal_ids", lambda source: set())
@@ -235,7 +236,7 @@ def test_session_auth_and_subscription_endpoints(monkeypatch) -> None:
         migrate_test_database(database_url)
         monkeypatch.setattr(auth_storage, "DATABASE_URL", database_url)
         monkeypatch.setattr(subscription_storage, "DATABASE_URL", database_url)
-        monkeypatch.setattr(entity_storage, "DATABASE_URL", database_url)
+        monkeypatch.setattr(repository_storage, "DATABASE_URL", database_url)
 
         with TestClient(app) as client:
             response = client.get("/api/me")
@@ -655,9 +656,9 @@ def test_subscription_endpoint_persists_ai_generated_queries(monkeypatch) -> Non
         migrate_test_database(database_url)
         monkeypatch.setattr(auth_storage, "DATABASE_URL", database_url)
         monkeypatch.setattr(subscription_storage, "DATABASE_URL", database_url)
-        monkeypatch.setattr(entity_storage, "DATABASE_URL", database_url)
+        monkeypatch.setattr(repository_storage, "DATABASE_URL", database_url)
         monkeypatch.setattr(
-            "app.services.topics.subscriptions.build_ai_search_plan",
+            "app.services.subscriptions.service.build_ai_search_plan",
             lambda **_: _build_ready_repository_ai_plan(
                 "pcs tensor fitting",
                 "paramagnetic nmr repos",

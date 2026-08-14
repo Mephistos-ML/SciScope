@@ -2,19 +2,22 @@
 
 from app.models.ai import AiSearchPlan
 from app.models.discovery import DiscoveryResult
-from app.models.entity import Entity, EntityCheckpoint, SubscriptionEntityMatch
+from app.models.repository import (
+    Repository,
+    RepositoryCheckpoint,
+    SubscriptionRepositoryMatch,
+)
 from app.models.signal import NormalizedSignal, RawSignal, SignalMatch
-from app.models.topic import ResearchProfile, ResearchTopic
+from app.models.subscription import SubscriptionQueryProfile
 
 __all__ = [
     "AiSearchPlan",
     "DiscoveryResult",
-    "Entity",
-    "EntityCheckpoint",
+    "Repository",
+    "RepositoryCheckpoint",
     "NormalizedSignal",
     "RawSignal",
-    "ResearchProfile",
-    "ResearchTopic",
     "SignalMatch",
-    "SubscriptionEntityMatch",
+    "SubscriptionQueryProfile",
+    "SubscriptionRepositoryMatch",
 ]

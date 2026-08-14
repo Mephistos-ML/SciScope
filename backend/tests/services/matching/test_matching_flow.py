@@ -19,14 +19,13 @@ def _build_raw_signal(
 ) -> RawSignal:
     return RawSignal(
         source="github",
-        source_type="github_commit",
+        kind="commit",
         item_id=item_id,
         title=title,
         url=f"https://github.com/Mephistos-ML/paranmr/commit/{item_id}",
         published_at=datetime(2026, 7, 17, 12, 0, tzinfo=UTC),
         raw_text=raw_text,
         payload={
-            "signal_kind": "github_commit",
             "repo": "Mephistos-ML/paranmr",
             "files": files,
         },
@@ -52,7 +51,9 @@ def test_seeded_paranmr_signal_matches_pnmr_profile() -> None:
 
     assert match.matched is True
     assert match.score > 0.0
-    assert "pcs" in tuple(term.casefold() for term in match.matched_terms)
+    assert "susceptibility tensor" in tuple(
+        term.casefold() for term in match.matched_terms
+    )
 
 
 def test_related_signal_still_matches_with_lower_specificity() -> None:
@@ -74,7 +75,9 @@ def test_related_signal_still_matches_with_lower_specificity() -> None:
 
     assert match.matched is True
     assert match.score > 0.0
-    assert "assignment" in tuple(term.casefold() for term in match.matched_terms)
+    assert "structure refinement" in tuple(
+        term.casefold() for term in match.matched_terms
+    )
 
 
 def test_irrelevant_signal_is_rejected() -> None:
@@ -96,6 +99,5 @@ def test_irrelevant_signal_is_rejected() -> None:
 
     assert match.matched is False
     assert match.score == 0.0
-    assert "solid state battery" in tuple(
-        term.casefold() for term in match.excluded_terms
-    )
+    assert match.matched_terms == ()
+    assert match.reason == "No profile terms matched."

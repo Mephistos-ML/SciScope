@@ -6,9 +6,9 @@ from urllib.error import HTTPError
 
 import pytest
 
-from app.sources.repositories.common import RepositorySourceError
-from app.sources.repositories.gitlab import auth as gitlab_auth
-from app.sources.repositories.gitlab import client as gitlab_client
+from app.sources.common import RepositorySourceError
+from app.sources.gitlab import auth as gitlab_auth
+from app.sources.gitlab import client as gitlab_client
 
 
 def test_build_auth_headers_fails_when_gitlab_source_is_disabled(monkeypatch) -> None:

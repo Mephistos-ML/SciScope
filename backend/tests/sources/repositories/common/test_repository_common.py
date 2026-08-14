@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from app.models.entity import Entity
+from app.models.repository import Repository
 from app.models.signal import SignalMatch
-from app.sources.repositories.common import (
+from app.sources.common import (
     REPOSITORY_RELEASE_CHECKPOINT_KEY,
     RepositoryCandidate,
     RepositoryRelease,
@@ -53,7 +53,7 @@ def test_build_repository_entity_and_match_reuse_repository_metadata() -> None:
         )
     )
     match = SignalMatch(
-        topic_slug="pnmr",
+        subscription_id="pnmr",
         source="github",
         item_id=signal.item_id,
         matched=True,
@@ -62,17 +62,17 @@ def test_build_repository_entity_and_match_reuse_repository_metadata() -> None:
         reason="Matched profile terms.",
     )
 
-    entity = build_repository_entity(signal)
-    topic_match = build_repository_subscription_match(
+    repository = build_repository_entity(signal)
+    subscription_match = build_repository_subscription_match(
         signal,
         subscription_id="sub_pnmr",
         match=match,
     )
 
-    assert entity.entity_type == "repository"
-    assert entity.metadata["repo"] == "Mephistos-ML/paranmr"
-    assert topic_match.entity_id == entity.entity_id
-    assert topic_match.metadata["repo"] == "Mephistos-ML/paranmr"
+    assert repository.full_name == "Mephistos-ML/paranmr"
+    assert repository.metadata["repo"] == "Mephistos-ML/paranmr"
+    assert subscription_match.repository_id == repository.repository_id
+    assert subscription_match.metadata["repo"] == "Mephistos-ML/paranmr"
 
 
 def test_build_repository_release_signal_and_checkpoint_use_shared_contract() -> None:
@@ -86,11 +86,10 @@ def test_build_repository_release_signal_and_checkpoint_use_shared_contract() ->
         tag_name="v0.3.0",
         body="Adds PCS fitting improvements.",
     )
-    entity = Entity(
-        entity_id="github:repo:Mephistos-ML/paranmr",
+    repository = Repository(
+        repository_id="github:repo:Mephistos-ML/paranmr",
         source="github",
-        entity_type="repository",
-        canonical_name="Mephistos-ML/paranmr",
+        full_name="Mephistos-ML/paranmr",
         url="https://github.com/Mephistos-ML/paranmr",
         metadata={"repo": "Mephistos-ML/paranmr"},
     )
@@ -98,7 +97,7 @@ def test_build_repository_release_signal_and_checkpoint_use_shared_contract() ->
     signal = build_repository_release_signal(release)
     checkpoint = build_repository_release_checkpoint(
         "sub_pnmr",
-        entity,
+        repository,
         latest_published_at=release.published_at,
         fallback_started_after=datetime(2026, 7, 18, 10, 0, tzinfo=UTC),
     )
@@ -110,14 +109,13 @@ def test_build_repository_release_signal_and_checkpoint_use_shared_contract() ->
     assert checkpoint.checkpoint_key == REPOSITORY_RELEASE_CHECKPOINT_KEY
 
 
-def test_read_repository_name_uses_metadata_then_canonical_name() -> None:
-    entity = Entity(
-        entity_id="repo-1",
+def test_read_repository_name_uses_metadata_then_full_name() -> None:
+    repository = Repository(
+        repository_id="repo-1",
         source="gitlab",
-        entity_type="repository",
-        canonical_name="group/project",
+        full_name="group/project",
         url="https://gitlab.com/group/project",
         metadata={},
     )
 
-    assert read_repository_name(entity) == "group/project"
+    assert read_repository_name(repository) == "group/project"

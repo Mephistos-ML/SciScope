@@ -9,19 +9,19 @@ from dataclasses import dataclass
 class DiscoveryResult:
     """Summary of one discovery run."""
 
-    topic_slug: str
+    subscription_id: str
     queries: tuple[str, ...]
     candidate_count: int
-    entity_count: int
-    matched_entity_count: int
+    repository_count: int
+    matched_repository_count: int
 
     def to_payload(self) -> dict[str, object]:
         """Return a JSON-friendly representation for debug visibility."""
 
         return {
-            "topicSlug": self.topic_slug,
+            "subscriptionId": self.subscription_id,
             "queries": list(self.queries),
             "candidateCount": self.candidate_count,
-            "entityCount": self.entity_count,
-            "matchedEntityCount": self.matched_entity_count,
+            "repositoryCount": self.repository_count,
+            "matchedRepositoryCount": self.matched_repository_count,
         }

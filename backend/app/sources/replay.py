@@ -48,7 +48,7 @@ def _parse_raw_signal(item: dict[str, Any]) -> RawSignal:
 
     return RawSignal(
         source=str(item.get("source", "github_replay")),
-        source_type=str(item.get("source_type", "github_commit")),
+        kind=str(item.get("kind") or item.get("source_type") or "commit"),
         item_id=str(item["item_id"]),
         title=str(item["title"]),
         url=str(item["url"]),
