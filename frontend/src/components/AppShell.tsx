@@ -4,9 +4,9 @@ import sciscopeLogo from "../assets/brand/sciscope-logo.svg";
 import type { ViewerPayload } from "../types/api";
 
 type AppShellProps = {
-  activeView: "explore" | "feed";
+  activeView: "explore" | "feed" | "about";
   children: ReactNode;
-  onNavigate: (view: "explore" | "feed") => void;
+  onNavigate: (view: "explore" | "feed" | "about") => void;
   onSignIn: () => void;
   onSignOut: () => void;
   signingIn: boolean;
@@ -26,17 +26,46 @@ export function AppShell({
 }: AppShellProps) {
   return (
     <div className="app-frame">
-      <aside className="app-sidebar">
-        <div className="sidebar-brand-block">
-          <button
-            className="sidebar-brand-button"
-            onClick={() => onNavigate("explore")}
-            type="button"
-          >
-            <img alt="SciScope" className="sidebar-brand-logo" src={sciscopeLogo} />
-          </button>
-        </div>
+      <header className="app-header">
+        <div className="app-header-inner">
+          <div className="sidebar-brand-block header-brand-block">
+            <button
+              className="sidebar-brand-button"
+              onClick={() => onNavigate("explore")}
+              type="button"
+            >
+              <img alt="SciScope" className="sidebar-brand-logo" src={sciscopeLogo} />
+            </button>
+          </div>
 
+          <div className="header-actions">
+            {viewer ? (
+              <div className="viewer-strip">
+                <span>{viewer.displayName}</span>
+                <button
+                  className="outline-button"
+                  disabled={signingOut}
+                  onClick={onSignOut}
+                  type="button"
+                >
+                  {signingOut ? "Signing out..." : "Sign out"}
+                </button>
+              </div>
+            ) : (
+              <button
+                className="solid-button"
+                disabled={signingIn}
+                onClick={onSignIn}
+                type="button"
+              >
+                {signingIn ? "Connecting..." : "Continue with Google"}
+              </button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <aside className="app-sidebar">
         <nav aria-label="Primary" className="sidebar-nav">
           <button
             className={
@@ -67,42 +96,25 @@ export function AppShell({
         </nav>
 
         <div className="sidebar-footer">
-          <p className="sidebar-footer-title">About SciScope</p>
-          <p className="sidebar-footer-copy">
-            Scientific repository intelligence for researchers and software-focused
-            discovery.
-          </p>
+          <button
+            className={
+              activeView === "about"
+                ? "sidebar-footer-button sidebar-footer-button-active"
+                : "sidebar-footer-button"
+            }
+            aria-current={activeView === "about" ? "page" : undefined}
+            onClick={() => onNavigate("about")}
+            type="button"
+          >
+            <span className="sidebar-footer-title">About SciScope</span>
+            <span className="sidebar-footer-copy">
+              Scientific repository intelligence for researchers.
+            </span>
+          </button>
         </div>
       </aside>
 
       <div className="app-main-column">
-        <header className="top-bar">
-          <div className="top-bar-inner">
-            {viewer ? (
-              <div className="viewer-strip">
-                <span>{viewer.displayName}</span>
-                <button
-                  className="outline-button"
-                  disabled={signingOut}
-                  onClick={onSignOut}
-                  type="button"
-                >
-                  {signingOut ? "Signing out..." : "Sign out"}
-                </button>
-              </div>
-            ) : (
-              <button
-                className="solid-button"
-                disabled={signingIn}
-                onClick={onSignIn}
-                type="button"
-              >
-                {signingIn ? "Connecting..." : "Continue with Google"}
-              </button>
-            )}
-          </div>
-        </header>
-
         <div className="app-content">{children}</div>
       </div>
     </div>

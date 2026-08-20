@@ -5,8 +5,7 @@ export function AboutPage() {
         <div className="page-intro-main">
           <h1 className="page-title">SciScope</h1>
           <p className="section-copy">
-            Scientific repository intelligence for researchers and software-focused
-            discovery.
+            Scientific repository intelligence for researchers.
           </p>
         </div>
       </section>

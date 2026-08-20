@@ -216,6 +216,7 @@ export function App() {
           canSubscribe={Boolean(viewer)}
           lastAiSearchPlan={lastAiSearchPlan}
           onRunSearch={() => void handleRunSearch()}
+          onSignIn={() => void handleSignIn()}
           onSubscribe={(result) => void handleSubscribe(result)}
           onTopicInputChange={setTopicInput}
           results={results}

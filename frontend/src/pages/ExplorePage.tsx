@@ -7,6 +7,7 @@ type ExplorePageProps = {
   canSubscribe: boolean;
   lastAiSearchPlan: AiSearchPlanPayload | null;
   onRunSearch: () => void;
+  onSignIn: () => void;
   onSubscribe: (result: ExploreResultItem) => void;
   onTopicInputChange: (value: string) => void;
   results: ExploreResultItem[];
@@ -21,6 +22,7 @@ export function ExplorePage({
   canSubscribe,
   lastAiSearchPlan,
   onRunSearch,
+  onSignIn,
   onSubscribe,
   onTopicInputChange,
   results,
@@ -64,8 +66,11 @@ export function ExplorePage({
           </p>
           {!viewer ? (
             <p className="query-context-note">
-              Explore mode is public. Sign in with Google to save subscriptions and build
-              your feed.
+              Explore mode is public.{" "}
+              <button className="query-context-link" onClick={onSignIn} type="button">
+                Sign in with Google
+              </button>{" "}
+              to save subscriptions and build your feed.
             </p>
           ) : null}
           <div className="query-actions">
