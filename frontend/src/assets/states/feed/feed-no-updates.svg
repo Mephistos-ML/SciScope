@@ -1,0 +1,41 @@
+<svg width="320" height="220" viewBox="0 0 320 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="cardFill" x1="70" y1="64" x2="168" y2="156" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F2F8FF"/>
+    </linearGradient>
+    <linearGradient id="cardStroke" x1="78" y1="72" x2="154" y2="144" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#DDEAF7"/>
+      <stop offset="1" stop-color="#C9DDF0"/>
+    </linearGradient>
+    <radialGradient id="signalGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(186 100) rotate(14) scale(70 54)">
+      <stop offset="0" stop-color="#FFB7A3" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#FFB7A3" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <ellipse cx="186" cy="100" rx="70" ry="54" fill="url(#signalGlow)"/>
+
+  <rect x="72" y="74" width="108" height="78" rx="16" fill="url(#cardFill)"/>
+  <rect x="72" y="74" width="108" height="78" rx="16" stroke="url(#cardStroke)" stroke-width="2"/>
+
+  <circle cx="99" cy="96" r="5" fill="#183B67"/>
+  <path d="M112 96H150" stroke="#183B67" stroke-width="4" stroke-linecap="round"/>
+  <path d="M112 107H144" stroke="#BED6EC" stroke-width="2.5" stroke-linecap="round"/>
+
+  <circle cx="99" cy="114" r="5" fill="#FF7A66"/>
+  <path d="M112 114H154" stroke="#183B67" stroke-width="4" stroke-linecap="round"/>
+  <path d="M112 125H140" stroke="#BED6EC" stroke-width="2.5" stroke-linecap="round"/>
+
+  <circle cx="99" cy="132" r="5" fill="#EAF4FF" stroke="#BED6EC" stroke-width="1.5"/>
+  <path d="M112 132H146" stroke="#183B67" stroke-width="4" stroke-linecap="round"/>
+
+  <path d="M193 62C203.3 62.4 212.8 66.9 219.8 74.3" stroke="#D8E8F7" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M205 82L219 93" stroke="#BED6EC" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M219 97L208 118" stroke="#BED6EC" stroke-width="2.5" stroke-linecap="round"/>
+
+  <circle cx="205" cy="82" r="3.5" fill="#183B67"/>
+  <circle cx="221" cy="95" r="9" fill="#F2F8FF" stroke="#183B67" stroke-width="2"/>
+  <path d="M217 95H225" stroke="#183B67" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="208" cy="118" r="3.5" fill="#EAF4FF" stroke="#BED6EC" stroke-width="1.5"/>
+</svg>
