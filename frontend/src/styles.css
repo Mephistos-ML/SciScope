@@ -541,10 +541,23 @@ input::placeholder {
   text-align: center;
 }
 
+.search-no-results-state {
+  min-height: 320px;
+  border-style: solid;
+  background:
+    radial-gradient(circle at top center, rgba(240, 100, 82, 0.05), transparent 24%),
+    var(--surface);
+  text-align: center;
+}
+
 .empty-state-illustration {
   width: min(320px, 100%);
   height: auto;
   transform: translateX(10.5%);
+}
+
+.search-no-results-illustration {
+  transform: translateX(0);
 }
 
 .empty-state-title {

@@ -1,6 +1,7 @@
 import type { AiSearchPlanPayload, ExploreResultItem, ViewerPayload } from "../types/api";
 import { SourceBadge } from "../components/SourceBadge";
 import exploreEmptyIllustration from "../assets/states/explore/explore-empty.svg";
+import noResultsIllustration from "../assets/states/explore/search-no-results.svg";
 
 type ExplorePageProps = {
   canSubscribe: boolean;
@@ -30,6 +31,7 @@ export function ExplorePage({
   viewer,
 }: ExplorePageProps) {
   const isPreSearch = !lastAiSearchPlan && results.length === 0;
+  const isNoResults = !isPreSearch && results.length === 0;
 
   return (
     <main className="app-shell explore-shell">
@@ -203,6 +205,20 @@ export function ExplorePage({
                   Showing 1-{results.length} of {results.length} results
                 </p>
               </>
+            ) : isNoResults ? (
+              <div className="empty-state-panel search-no-results-state">
+                <img
+                  alt=""
+                  aria-hidden="true"
+                  className="empty-state-illustration search-no-results-illustration"
+                  src={noResultsIllustration}
+                />
+                <h2 className="empty-state-title">No repositories found</h2>
+                <p className="empty-state-copy">
+                  Try refining the topic description or broadening the query terms to
+                  discover more repositories.
+                </p>
+              </div>
             ) : (
               <p className="empty-copy">No repositories matched the current search plan.</p>
             )}
