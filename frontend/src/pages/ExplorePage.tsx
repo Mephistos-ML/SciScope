@@ -60,8 +60,14 @@ export function ExplorePage({
           <p className="field-hint">
             {viewer
               ? "SciScope will generate discovery queries and let you subscribe to specific repositories from the results."
-              : "SciScope will generate discovery queries and search across all sources. Sign in with Google before saving repositories to your feed."}
+              : "SciScope will generate discovery queries and search across all sources."}
           </p>
+          {!viewer ? (
+            <p className="query-context-note">
+              Explore mode is public. Sign in with Google to save subscriptions and build
+              your feed.
+            </p>
+          ) : null}
           <div className="query-actions">
             <button
               className="solid-button"

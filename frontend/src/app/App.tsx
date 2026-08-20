@@ -50,7 +50,9 @@ export function App() {
         const viewerPayload = await fetchMe();
         setViewer(viewerPayload.user);
       } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : "Failed to load app state.");
+        if (!isApiUnavailableError(error)) {
+          setErrorMessage(error instanceof Error ? error.message : "Failed to load app state.");
+        }
       }
     }
 
@@ -70,9 +72,11 @@ export function App() {
         setSubscriptions(payload.items);
         setSelectedSubscriptionId((currentId) => currentId ?? payload.items[0]?.subscriptionId ?? null);
       } catch (error) {
-        setErrorMessage(
-          error instanceof Error ? error.message : "Failed to load subscriptions.",
-        );
+        if (!isApiUnavailableError(error)) {
+          setErrorMessage(
+            error instanceof Error ? error.message : "Failed to load subscriptions.",
+          );
+        }
       }
     }
 
@@ -117,7 +121,13 @@ export function App() {
       setResults(payload.items);
       setLastAiSearchPlan(payload.aiSearchPlan);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to run search.");
+      const message = error instanceof Error ? error.message : "Failed to run search.";
+
+      if (isApiUnavailableError(error)) {
+        window.alert(message);
+      } else {
+        setErrorMessage(message);
+      }
     } finally {
       setSearchPending(false);
     }
@@ -194,12 +204,7 @@ export function App() {
       signingOut={signingOut}
       viewer={viewer}
     >
-      {errorMessage ? <section className="error-banner global-banner">{errorMessage}</section> : null}
-      {!viewer ? (
-        <section className="info-banner global-banner">
-          Explore mode is public. Sign in with Google to save subscriptions and build your feed.
-        </section>
-      ) : null}
+      {errorMessage ? <section className="shell-alert shell-alert-error">{errorMessage}</section> : null}
 
       {activeView === "explore" ? (
         <ExplorePage
@@ -215,7 +220,8 @@ export function App() {
           topicInput={topicInput}
           viewer={viewer}
         />
-      ) : (
+      ) : null}
+      {activeView === "feed" ? (
         <FeedPage
           deletePending={deletePending}
           selectedSubscriptionId={selectedSubscriptionId}
@@ -224,7 +230,7 @@ export function App() {
           onDeleteSubscription={(subscriptionId) => void handleDeleteSubscription(subscriptionId)}
           onSelectSubscription={(subscriptionId) => void handleSelectSubscription(subscriptionId)}
         />
-      )}
+      ) : null}
     </AppShell>
   );
 }
@@ -256,4 +262,11 @@ function mapAuthErrorMessage(authError: string): string {
     default:
       return "Google sign-in failed. Please try again.";
   }
+}
+
+function isApiUnavailableError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message === "The SciScope API is unreachable right now. Please try again."
+  );
 }
