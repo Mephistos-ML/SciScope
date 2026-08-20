@@ -434,7 +434,7 @@ input::placeholder {
 }
 
 .explore-query-input {
-  min-height: 146px;
+  min-height: 84px;
 }
 
 .info-panel,
@@ -474,7 +474,7 @@ input::placeholder {
 }
 
 .text-area {
-  min-height: 168px;
+  min-height: 84px;
   resize: vertical;
 }
 
