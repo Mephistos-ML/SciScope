@@ -10,6 +10,7 @@ import {
   signOut,
 } from "../lib/api";
 import { AppShell } from "../components/AppShell";
+import { AboutPage } from "../pages/AboutPage";
 import { ExplorePage } from "../pages/ExplorePage";
 import { FeedPage } from "../pages/FeedPage";
 import type {
@@ -19,7 +20,7 @@ import type {
   Viewer,
 } from "../types/api";
 
-type AppView = "explore" | "feed";
+type AppView = "explore" | "feed" | "about";
 
 export function App() {
   const [activeView, setActiveView] = useState<AppView>("explore");
@@ -28,7 +29,7 @@ export function App() {
   const [lastAiSearchPlan, setLastAiSearchPlan] = useState<AiSearchPlanPayload | null>(null);
   const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>([]);
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
-  const [topicInput, setTopicInput] = useState("Paramagnetic NMR analysis workflows");
+  const [topicInput, setTopicInput] = useState("");
   const [signingIn, setSigningIn] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [searchPending, setSearchPending] = useState(false);
@@ -112,6 +113,10 @@ export function App() {
   }
 
   async function handleRunSearch() {
+    if (!topicInput.trim()) {
+      return;
+    }
+
     setSearchPending(true);
     setErrorMessage(null);
     try {
@@ -231,6 +236,7 @@ export function App() {
           onSelectSubscription={(subscriptionId) => void handleSelectSubscription(subscriptionId)}
         />
       ) : null}
+      {activeView === "about" ? <AboutPage /> : null}
     </AppShell>
   );
 }

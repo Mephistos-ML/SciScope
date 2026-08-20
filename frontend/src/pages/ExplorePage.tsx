@@ -55,7 +55,7 @@ export function ExplorePage({
             className="text-field text-area explore-query-input"
             value={topicInput}
             onChange={(event) => onTopicInputChange(event.target.value)}
-            placeholder="Describe a research topic, method, software or workflow..."
+            placeholder="Enter a research topic, method or software area..."
           />
           <p className="field-hint">
             {viewer
@@ -71,7 +71,7 @@ export function ExplorePage({
           <div className="query-actions">
             <button
               className="solid-button"
-              disabled={searchPending}
+              disabled={searchPending || !topicInput.trim()}
               onClick={onRunSearch}
               type="button"
             >
