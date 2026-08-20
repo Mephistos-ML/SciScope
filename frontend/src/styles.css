@@ -125,7 +125,7 @@ input::placeholder {
   padding: 24px 20px 24px;
   border-right: var(--border-subtle);
   background: linear-gradient(
-    180deg,
+    to bottom right,
     rgba(232, 244, 252, 0.96) 0%,
     rgba(246, 248, 251, 0.98) 52%,
     rgba(255, 235, 227, 0.9) 100%
@@ -506,7 +506,7 @@ input::placeholder {
   border: var(--border-subtle);
   border-radius: var(--radius-input);
   background: linear-gradient(
-    180deg,
+    to bottom right,
     rgba(232, 244, 252, 0.44) 0%,
     rgba(255, 235, 227, 0.28) 100%
   );
