@@ -90,68 +90,134 @@ export function ExplorePage({
         </section>
       ) : (
         <section className="results-panel">
-          <article className="info-panel">
-          <div className="results-header">
-            <div>
-              <p className="section-kicker">Results</p>
-              <h3 className="panel-title">Matched repositories</h3>
-            </div>
-            <div className="query-chip-row">
-              {lastAiSearchPlan?.queries.length ? (
-                <>
-                  <p className="field-hint">
-                    AI-generated search queries
+          <article className="info-panel repository-results-panel">
+            <div className="results-header">
+              <div className="results-header-main">
+                <p className="section-kicker">Results</p>
+                <div className="results-title-row">
+                  <h3 className="panel-title">Matched repositories</h3>
+                  {results.length > 0 ? (
+                    <span className="results-count-badge">{results.length} results</span>
+                  ) : null}
+                </div>
+              </div>
+              <div className="results-plan-summary">
+                {lastAiSearchPlan?.queries.length ? (
+                  <>
+                    <p className="field-hint">AI-generated search queries</p>
+                    <div className="query-chip-row">
+                      {lastAiSearchPlan.queries.map((query) => (
+                        <span className="query-chip" key={query}>
+                          {query}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="empty-copy">
+                    Run a search to see the queries produced for the current AI search plan.
                   </p>
-                  {lastAiSearchPlan.queries.map((query) => (
-                    <span className="query-chip" key={query}>
-                      {query}
-                    </span>
-                  ))}
-                </>
-              ) : (
-                <p className="empty-copy">
-                  Run a search to see the queries produced for the current AI search plan.
-                </p>
-              )}
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="signal-list">
             {results.length > 0 ? (
-              results.map((result) => {
-                const isSubscribed = subscribedRepositoryIds.includes(result.itemId);
-                const isPending = subscribePendingRepositoryId === result.itemId;
-
-                return (
-                  <div className="signal-row" key={result.itemId}>
-                    <div>
-                      <strong>{result.fullName}</strong>
-                      <p>{result.description || result.reason}</p>
-                    </div>
-                    <div className="signal-meta">
-                      <SourceBadge href={result.url} source={result.source} />
-                      <span>{result.query}</span>
-                      <button
-                        className={isSubscribed ? "outline-button" : "solid-button"}
-                        disabled={!canSubscribe || isSubscribed || isPending}
-                        onClick={() => onSubscribe(result)}
-                        type="button"
-                      >
-                        {isSubscribed ? "Subscribed" : isPending ? "Saving..." : "Subscribe"}
-                      </button>
-                    </div>
+              <>
+                <div className="repository-table">
+                  <div className="repository-table-head">
+                    <span>Repository</span>
+                    <span>Source</span>
+                    <span>Language</span>
+                    <span>Stars</span>
+                    <span>Query</span>
+                    <span>Actions</span>
                   </div>
-                );
-              })
+
+                  <div className="repository-table-body">
+                    {results.map((result) => {
+                      const isSubscribed = subscribedRepositoryIds.includes(result.itemId);
+                      const isPending = subscribePendingRepositoryId === result.itemId;
+
+                      return (
+                        <div className="repository-row" key={result.itemId}>
+                          <div className="repository-main-cell">
+                            <p className="repository-title">{result.fullName}</p>
+                            <p className="repository-description">
+                              {result.description || result.reason}
+                            </p>
+                            {result.matchedTerms.length > 0 ? (
+                              <div className="repository-term-row">
+                                {result.matchedTerms.map((term) => (
+                                  <span className="repository-term-chip" key={`${result.itemId}-${term}`}>
+                                    {term}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <div className="repository-cell">
+                            <SourceBadge href={result.url} source={result.source} />
+                          </div>
+
+                          <div className="repository-cell repository-metadata-cell">
+                            {result.language ? (
+                              <span className="repository-dot-metadata">
+                                <span className="repository-language-dot" aria-hidden="true" />
+                                {result.language}
+                              </span>
+                            ) : (
+                              <span className="repository-muted-value">-</span>
+                            )}
+                          </div>
+
+                          <div className="repository-cell repository-metadata-cell">
+                            {result.stars !== null ? formatCompactNumber(result.stars) : "-"}
+                          </div>
+
+                          <div className="repository-cell repository-query-cell">
+                            {result.query || "No query snapshot"}
+                          </div>
+
+                          <div className="repository-cell repository-actions-cell">
+                            <button
+                              className={
+                                isSubscribed
+                                  ? "outline-button results-action-button results-action-button-subscribed"
+                                  : "solid-button results-action-button"
+                              }
+                              disabled={!canSubscribe || isSubscribed || isPending}
+                              onClick={() => onSubscribe(result)}
+                              type="button"
+                            >
+                              {isSubscribed ? "Subscribed" : isPending ? "Saving..." : "Subscribe"}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <p className="results-footer-copy">
+                  Showing 1-{results.length} of {results.length} results
+                </p>
+              </>
             ) : (
-              <p className="empty-copy">
-                No repositories yet. Without generated queries, the search plan stays pending.
-              </p>
+              <p className="empty-copy">No repositories matched the current search plan.</p>
             )}
-          </div>
           </article>
         </section>
       )}
     </main>
   );
+}
+
+function formatCompactNumber(value: number): string {
+  if (value >= 1000) {
+    const compactValue = value / 1000;
+    return compactValue >= 10 ? `${Math.round(compactValue)}k` : `${compactValue.toFixed(1)}k`;
+  }
+
+  return `${value}`;
 }
