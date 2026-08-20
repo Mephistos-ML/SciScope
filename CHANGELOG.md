@@ -1,3 +1,23 @@
+# [1.1.0](https://github.com/Mephistos-ML/SciScope/compare/v1.0.2...v1.1.0) (2026-08-20)
+
+
+### Bug Fixes
+
+* **frontend:** refine shell viewport and top bar spacing ([2877419](https://github.com/Mephistos-ML/SciScope/commit/28774196e4d776cc0151b6404f9514302c654688))
+
+
+### Features
+
+* **frontend:** add application shell ([f52705c](https://github.com/Mephistos-ML/SciScope/commit/f52705c5d85c3a23db454eb754b804053d2d344b))
+* **frontend:** add design token foundation ([88e0ece](https://github.com/Mephistos-ML/SciScope/commit/88e0ece9364da12f1feb277258850efd2e0eaa52))
+* **frontend:** add explore no-results state ([eb389e8](https://github.com/Mephistos-ML/SciScope/commit/eb389e89caf2602b995d285dcf4c09ff45fad9a4))
+* **frontend:** add sciscope favicon ([f802770](https://github.com/Mephistos-ML/SciScope/commit/f8027700a923d9a76e959b6408b209c747fbead8))
+* **frontend:** redesign explore pre-search state ([02e3f44](https://github.com/Mephistos-ML/SciScope/commit/02e3f4423023809a8b978f2f3c58bbecbb65639c))
+* **frontend:** redesign explore results state ([c96c427](https://github.com/Mephistos-ML/SciScope/commit/c96c427b91a1d280a2f4dfc6c82846b5c57a0925))
+* **frontend:** redesign feed empty states ([bb060eb](https://github.com/Mephistos-ML/SciScope/commit/bb060eba3b026f3495dfc0ee1815359f0eb972f9))
+* **frontend:** redesign populated feed state ([0ad893a](https://github.com/Mephistos-ML/SciScope/commit/0ad893ad6383f5c61619720af3cd641f77dddbc9))
+* **frontend:** refine app shell and explore onboarding ([5018e63](https://github.com/Mephistos-ML/SciScope/commit/5018e6378a257eec92ad24c38863fc1ae6243862))
+
 ## [1.0.2](https://github.com/Mephistos-ML/SciScope/compare/v1.0.1...v1.0.2) (2026-08-14)
 
 
