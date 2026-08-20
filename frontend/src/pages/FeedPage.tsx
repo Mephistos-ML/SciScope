@@ -23,19 +23,20 @@ export function FeedPage({
   const selectedSubscription =
     subscriptions.find((item) => item.subscriptionId === selectedSubscriptionId) ?? null;
   const hasSubscriptions = subscriptions.length > 0;
+  const introCopy = hasSubscriptions
+    ? "Track the repositories you selected from Explore and open each subscription for its monitoring context."
+    : "Monitor changes from repositories you choose to follow across every supported source.";
 
-  if (!viewer || !hasSubscriptions) {
-    return (
-      <main className="app-shell feed-shell">
-        <section className="page-intro">
-          <div className="page-intro-main">
-            <h1 className="page-title">My Feed</h1>
-            <p className="section-copy">
-              Monitor changes from repositories you choose to follow across every supported source.
-            </p>
-          </div>
-        </section>
+  return (
+    <main className="app-shell feed-shell">
+      <section className="page-intro">
+        <div className="page-intro-main">
+          <h1 className="page-title">My Feed</h1>
+          <p className="section-copy">{introCopy}</p>
+        </div>
+      </section>
 
+      {!viewer || !hasSubscriptions ? (
         <section className="results-panel">
           <article className="empty-state-panel feed-empty-state">
             <img
@@ -54,122 +55,108 @@ export function FeedPage({
             </p>
           </article>
         </section>
-      </main>
-    );
-  }
-
-  return (
-    <main className="app-shell feed-shell">
-      <section className="page-intro">
-        <div className="page-intro-main">
-          <h1 className="page-title">My Feed</h1>
-          <p className="section-copy">
-            Track the repositories you selected from Explore and open each subscription
-            for its monitoring context.
-          </p>
-        </div>
-      </section>
-
-      <section className="feed-layout">
-        <aside className="subscription-rail">
-          <div className="rail-header">
-            <p className="section-kicker">Subscriptions</p>
-            <div className="results-title-row">
-              <h2 className="section-title">Saved repositories</h2>
-              <span className="results-count-badge">{subscriptions.length} total</span>
+      ) : (
+        <section className="feed-layout">
+          <aside className="subscription-rail">
+            <div className="rail-header">
+              <p className="section-kicker">Subscriptions</p>
+              <div className="results-title-row">
+                <h2 className="section-title">Saved repositories</h2>
+                <span className="results-count-badge">{subscriptions.length} total</span>
+              </div>
             </div>
-          </div>
 
-          <div className="subscription-list">
-            {subscriptions.map((subscription) => (
-              <div
-                key={subscription.subscriptionId}
-                className={
-                  subscription.subscriptionId === selectedSubscriptionId
-                    ? "subscription-card subscription-card-active"
-                    : "subscription-card"
-                }
-              >
-                <button
-                  className="subscription-select"
-                  onClick={() => onSelectSubscription(subscription.subscriptionId)}
-                  type="button"
+            <div className="subscription-list">
+              {subscriptions.map((subscription) => (
+                <div
+                  key={subscription.subscriptionId}
+                  className={
+                    subscription.subscriptionId === selectedSubscriptionId
+                      ? "subscription-card subscription-card-active"
+                      : "subscription-card"
+                  }
                 >
-                  <strong className="subscription-card-title">
-                    {subscription.repository.fullName}
-                  </strong>
-                  <p>{subscription.selectedQuery || "No query snapshot saved."}</p>
-                  <span className="subscription-card-meta">
-                    {subscription.repository.source}
-                  </span>
-                </button>
-                <button
-                  className="subscription-delete"
-                  disabled={deletePending}
-                  onClick={() => onDeleteSubscription(subscription.subscriptionId)}
-                  type="button"
-                >
-                  Delete
-                </button>
-              </div>
-            ))}
-          </div>
-        </aside>
+                  <button
+                    className="subscription-select"
+                    onClick={() => onSelectSubscription(subscription.subscriptionId)}
+                    type="button"
+                  >
+                    <strong className="subscription-card-title">
+                      {subscription.repository.fullName}
+                    </strong>
+                    <p>{subscription.selectedQuery || "No query snapshot saved."}</p>
+                    <span className="subscription-card-meta">
+                      {subscription.repository.source}
+                    </span>
+                  </button>
+                  <button
+                    className="subscription-delete"
+                    disabled={deletePending}
+                    onClick={() => onDeleteSubscription(subscription.subscriptionId)}
+                    type="button"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+          </aside>
 
-        <section className="subscription-detail">
-          {selectedSubscription ? (
-            <>
-              <p className="section-kicker">Selected repository</p>
-              <h2 className="section-title">{selectedSubscription.repository.fullName}</h2>
-              <p className="section-copy">
-                This subscription keeps the repository in your feed for ongoing monitoring.
-              </p>
-
-              <div className="detail-panel-block">
-                <h4>Repository</h4>
-                <SourceBadge
-                  href={selectedSubscription.repository.url}
-                  source={selectedSubscription.repository.source}
-                />
-              </div>
-
-              <div className="detail-panel-block">
-                <h4>Selected query</h4>
-                <p className="detail-copy">
-                  {selectedSubscription.selectedQuery || "No query snapshot saved."}
+          <section className="subscription-detail">
+            {selectedSubscription ? (
+              <>
+                <p className="section-kicker">Selected repository</p>
+                <h2 className="section-title">{selectedSubscription.repository.fullName}</h2>
+                <p className="section-copy">
+                  This subscription keeps the repository in your feed for ongoing monitoring.
                 </p>
-              </div>
 
-              <div className="detail-panel-block">
-                <h4>Updates</h4>
-                <div className="feed-updates-placeholder">
-                  <img
-                    alt=""
-                    aria-hidden="true"
-                    className="empty-state-illustration feed-updates-illustration"
-                    src={feedNoUpdatesIllustration}
+                <div className="detail-panel-block">
+                  <h4>Repository</h4>
+                  <SourceBadge
+                    href={selectedSubscription.repository.url}
+                    source={selectedSubscription.repository.source}
                   />
-                  <div className="feed-updates-copy">
-                    <p className="empty-state-title">No updates surfaced yet</p>
-                    <p className="detail-copy">
-                      New monitored changes for this repository will appear here when
-                      SciScope detects them.
-                    </p>
+                </div>
+
+                <div className="detail-panel-block">
+                  <h4>Selected query</h4>
+                  <p className="detail-copy">
+                    {selectedSubscription.selectedQuery || "No query snapshot saved."}
+                  </p>
+                </div>
+
+                <div className="detail-panel-block">
+                  <h4>Updates</h4>
+                  <div className="feed-updates-placeholder">
+                    <img
+                      alt=""
+                      aria-hidden="true"
+                      className="empty-state-illustration feed-updates-illustration"
+                      src={feedNoUpdatesIllustration}
+                    />
+                    <div className="feed-updates-copy">
+                      <p className="empty-state-title">No updates surfaced yet</p>
+                      <p className="detail-copy">
+                        New monitored changes for this repository will appear here when
+                        SciScope detects them.
+                      </p>
+                    </div>
                   </div>
                 </div>
+              </>
+            ) : (
+              <div className="feed-detail-empty">
+                <p className="section-kicker">Selected repository</p>
+                <h3 className="section-title">Pick a saved repository</h3>
+                <p className="section-copy">
+                  Choose a subscription from the rail to open its monitoring view.
+                </p>
               </div>
-            </>
-          ) : (
-            <div className="feed-detail-empty">
-              <p className="section-kicker">Selected repository</p>
-              <h3 className="section-title">Pick a saved repository</h3>
-              <p className="section-copy">
-                Choose a subscription from the rail to open its monitoring view.
-              </p>
-            </div>
-          )}
+            )}
+          </section>
         </section>
-      </section>
+      )}
     </main>
   );
 }

@@ -44,6 +44,7 @@ export function AppShell({
                 ? "sidebar-nav-button sidebar-nav-button-active"
                 : "sidebar-nav-button"
             }
+            aria-current={activeView === "explore" ? "page" : undefined}
             onClick={() => onNavigate("explore")}
             type="button"
           >
@@ -56,6 +57,7 @@ export function AppShell({
                 ? "sidebar-nav-button sidebar-nav-button-active"
                 : "sidebar-nav-button"
             }
+            aria-current={activeView === "feed" ? "page" : undefined}
             onClick={() => onNavigate("feed")}
             type="button"
           >

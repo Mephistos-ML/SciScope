@@ -30,8 +30,9 @@ export function ExplorePage({
   topicInput,
   viewer,
 }: ExplorePageProps) {
-  const isPreSearch = !lastAiSearchPlan && results.length === 0;
-  const isNoResults = !isPreSearch && results.length === 0;
+  const hasResults = results.length > 0;
+  const isPreSearch = !lastAiSearchPlan && !hasResults;
+  const isNoResults = !isPreSearch && !hasResults;
 
   return (
     <main className="app-shell explore-shell">
@@ -98,7 +99,7 @@ export function ExplorePage({
                 <p className="section-kicker">Results</p>
                 <div className="results-title-row">
                   <h3 className="panel-title">Matched repositories</h3>
-                  {results.length > 0 ? (
+                  {hasResults ? (
                     <span className="results-count-badge">{results.length} results</span>
                   ) : null}
                 </div>
@@ -123,7 +124,7 @@ export function ExplorePage({
               </div>
             </div>
 
-            {results.length > 0 ? (
+            {hasResults ? (
               <>
                 <div className="repository-table">
                   <div className="repository-table-head">
@@ -205,7 +206,7 @@ export function ExplorePage({
                   Showing 1-{results.length} of {results.length} results
                 </p>
               </>
-            ) : isNoResults ? (
+            ) : (
               <div className="empty-state-panel search-no-results-state">
                 <img
                   alt=""
@@ -219,8 +220,6 @@ export function ExplorePage({
                   discover more repositories.
                 </p>
               </div>
-            ) : (
-              <p className="empty-copy">No repositories matched the current search plan.</p>
             )}
           </article>
         </section>

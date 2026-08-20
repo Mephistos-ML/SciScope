@@ -224,7 +224,6 @@ input::placeholder {
   overflow-y: auto;
 }
 
-.app-kicker,
 .section-kicker {
   margin: 0 0 8px;
   color: var(--text-secondary);
@@ -235,18 +234,11 @@ input::placeholder {
   text-transform: uppercase;
 }
 
-.app-title,
 .section-title,
 .panel-title {
   margin: 0;
   color: var(--navy-900);
   letter-spacing: -0.02em;
-}
-
-.app-title {
-  font-size: clamp(2rem, 4vw, 2.75rem);
-  font-weight: 700;
-  line-height: 1.1;
 }
 
 .page-title {
@@ -265,15 +257,6 @@ input::placeholder {
   line-height: 24px;
 }
 
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.nav-tabs,
 .viewer-strip {
   display: inline-flex;
   align-items: center;
@@ -285,14 +268,12 @@ input::placeholder {
   box-shadow: var(--shadow-panel);
 }
 
-.nav-tab,
 .solid-button,
 .outline-button,
 .subscription-card {
   border-radius: var(--radius-button);
 }
 
-.nav-tab,
 .solid-button,
 .outline-button {
   padding: 12px 16px;
@@ -302,12 +283,6 @@ input::placeholder {
   line-height: 20px;
 }
 
-.nav-tab {
-  min-width: 104px;
-  border: 1px solid transparent;
-}
-
-.nav-tab-active,
 .solid-button {
   background: var(--navy-900);
   color: var(--surface);
@@ -364,10 +339,6 @@ input::placeholder {
   box-shadow: var(--shadow-panel);
 }
 
-.viewer-strip-muted {
-  background: var(--surface-subtle);
-}
-
 .app-shell {
   padding: 0 0 40px;
 }
@@ -419,7 +390,6 @@ input::placeholder {
   min-height: 146px;
 }
 
-.hero-panel,
 .info-panel,
 .subscription-detail,
 .subscription-rail {
@@ -429,35 +399,12 @@ input::placeholder {
   box-shadow: var(--shadow-panel);
 }
 
-.hero-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
-  gap: 24px;
-  padding: 28px;
-}
-
-.hero-copy-block {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
 .section-copy {
   max-width: 70ch;
   margin: 0;
   color: var(--text-secondary);
   font-size: 14px;
   line-height: 21px;
-}
-
-.query-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 24px;
-  border: var(--border-subtle);
-  border-radius: var(--radius-panel);
-  background: var(--surface-subtle);
 }
 
 .field-label {
@@ -485,7 +432,6 @@ input::placeholder {
 }
 
 .text-field:focus-visible,
-.nav-tab:focus-visible,
 .solid-button:focus-visible,
 .outline-button:focus-visible,
 .subscription-select:focus-visible,
@@ -512,7 +458,6 @@ input::placeholder {
   line-height: 1.5;
 }
 
-.panel-grid,
 .feed-layout {
   display: grid;
   gap: 20px;
@@ -588,36 +533,12 @@ input::placeholder {
   padding: 24px;
 }
 
-.stat-list {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin: 20px 0 0;
-}
-
-.stat-list dt {
-  margin-bottom: 8px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 18px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.stat-list dd {
-  margin: 0;
-  color: var(--navy-900);
-  font-size: 24px;
-  font-weight: 700;
-  line-height: 30px;
-}
-
 .subscription-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
   margin-top: 20px;
+  scrollbar-gutter: stable;
 }
 
 .results-header {
@@ -743,6 +664,7 @@ input::placeholder {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow-wrap: anywhere;
 }
 
 .repository-title {
@@ -802,6 +724,7 @@ input::placeholder {
 
 .repository-query-cell {
   color: var(--text-primary);
+  overflow-wrap: anywhere;
 }
 
 .repository-actions-cell {
@@ -986,6 +909,7 @@ input::placeholder {
 @media (max-width: 980px) {
   .app-frame {
     grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .app-sidebar {
@@ -995,26 +919,48 @@ input::placeholder {
     border-bottom: var(--border-subtle);
   }
 
-  .top-bar-inner,
-  .app-content {
-    width: min(100%, calc(100vw - 32px));
-    padding-left: 0;
-    padding-right: 0;
+  .sidebar-brand-logo {
+    width: 148px;
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .sidebar-nav-button {
+    flex: 1 1 180px;
+  }
+
+  .sidebar-footer {
+    margin-top: 0;
+    padding-top: 16px;
   }
 
   .top-bar-inner {
     min-height: 60px;
+    padding: 12px 16px;
   }
 
   .app-content {
-    padding-top: 20px;
-    padding-bottom: 32px;
+    padding: 20px 16px 32px;
   }
 
-  .hero-panel,
   .explore-intro,
   .feed-layout {
     grid-template-columns: 1fr;
+  }
+
+  .query-workspace,
+  .info-panel,
+  .subscription-detail,
+  .subscription-rail {
+    padding: 20px;
+  }
+
+  .empty-state-panel {
+    min-height: 320px;
+    padding: 32px 20px;
   }
 
   .repository-table-head {
@@ -1029,6 +975,8 @@ input::placeholder {
   .feed-updates-placeholder {
     flex-direction: column;
     align-items: flex-start;
+    min-height: 0;
+    padding: 20px;
   }
 
   .feed-updates-illustration {
@@ -1051,7 +999,12 @@ input::placeholder {
     justify-content: flex-start;
   }
 
-  .stat-list {
-    grid-template-columns: 1fr;
+  .subscription-card {
+    flex-direction: column;
+  }
+
+  .subscription-delete {
+    padding-top: 0;
+    align-self: flex-start;
   }
 }
