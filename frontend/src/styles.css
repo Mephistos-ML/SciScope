@@ -1,10 +1,41 @@
 :root {
-  font-family:
-    "IBM Plex Sans",
-    "Avenir Next",
+  --font-sans:
+    "Plus Jakarta Sans",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
     sans-serif;
-  color: #000000;
-  background: #ffffff;
+
+  --navy-950: #081a3a;
+  --navy-900: #102a56;
+  --navy-800: #173b70;
+  --navy-700: #24518f;
+  --coral-500: #f06452;
+  --coral-400: #f47a68;
+  --teal-600: #17877f;
+  --teal-100: #e7f5f2;
+  --canvas: #f7f8fa;
+  --surface: #ffffff;
+  --surface-subtle: #f3f5f7;
+  --text-primary: #10203d;
+  --text-secondary: #5f6b7a;
+  --text-tertiary: #8993a2;
+  --border: #e1e5ea;
+  --border-strong: #ced4dc;
+  --shadow-panel:
+    0 1px 2px rgba(8, 26, 58, 0.04),
+    0 4px 12px rgba(8, 26, 58, 0.03);
+  --radius-panel: 8px;
+  --radius-input: 7px;
+  --radius-button: 6px;
+  --radius-pill: 999px;
+  --border-subtle: 1px solid var(--border);
+  --border-subtle-strong: 1px solid var(--border-strong);
+  --container-width: min(1240px, calc(100vw - 32px));
+
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  background: var(--canvas);
 }
 
 * {
@@ -15,8 +46,13 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #ffffff;
-  color: #000000;
+  background: var(--canvas);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -28,10 +64,16 @@ select {
 
 button {
   background: none;
+  color: inherit;
 }
 
 a {
   color: inherit;
+}
+
+textarea::placeholder,
+input::placeholder {
+  color: var(--text-tertiary);
 }
 
 #root {
@@ -40,7 +82,7 @@ a {
 
 .app-header,
 .app-shell {
-  width: min(1240px, calc(100vw - 32px));
+  width: var(--container-width);
   margin: 0 auto;
 }
 
@@ -55,8 +97,10 @@ a {
 .app-kicker,
 .section-kicker {
   margin: 0 0 8px;
-  font-size: 0.76rem;
+  color: var(--text-secondary);
+  font-size: 12px;
   font-weight: 700;
+  line-height: 18px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -65,12 +109,21 @@ a {
 .section-title,
 .panel-title {
   margin: 0;
-  letter-spacing: -0.04em;
+  color: var(--navy-900);
+  letter-spacing: -0.02em;
 }
 
 .app-title {
-  font-size: clamp(2.5rem, 6vw, 4rem);
-  line-height: 0.94;
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.section-title,
+.panel-title {
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 24px;
 }
 
 .header-actions {
@@ -87,16 +140,17 @@ a {
   align-items: center;
   gap: 10px;
   padding: 8px;
-  border: 2px solid #000000;
-  border-radius: 22px;
+  border: var(--border-subtle);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
 }
 
 .nav-tab,
 .solid-button,
 .outline-button,
 .subscription-card {
-  border: 2px solid #000000;
-  border-radius: 18px;
+  border-radius: var(--radius-button);
 }
 
 .nav-tab,
@@ -104,21 +158,32 @@ a {
 .outline-button {
   padding: 12px 16px;
   cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
 }
 
 .nav-tab {
   min-width: 104px;
+  border: 1px solid transparent;
 }
 
 .nav-tab-active,
 .solid-button {
-  background: #000000;
-  color: #ffffff;
+  background: var(--navy-900);
+  color: var(--surface);
+}
+
+.solid-button {
+  border: 1px solid var(--navy-900);
+  box-shadow: var(--shadow-panel);
 }
 
 .outline-button {
-  background: #ffffff;
-  color: #000000;
+  border: var(--border-subtle-strong);
+  background: var(--surface);
+  color: var(--navy-900);
+  box-shadow: var(--shadow-panel);
 }
 
 .solid-button:disabled,
@@ -133,26 +198,35 @@ a {
 }
 
 .global-banner {
-  width: min(1240px, calc(100vw - 32px));
+  width: var(--container-width);
   margin: 0 auto 16px;
 }
 
 .error-banner {
   padding: 16px 18px;
-  border: 2px solid #000000;
-  border-radius: 22px;
-  background: #f5f5f5;
+  border: var(--border-subtle-strong);
+  border-radius: var(--radius-panel);
+  background: color-mix(in srgb, var(--coral-400) 8%, var(--surface));
+  color: var(--navy-900);
+  box-shadow: var(--shadow-panel);
 }
 
 .info-banner {
   padding: 16px 18px;
-  border: 2px solid #000000;
-  border-radius: 22px;
-  background: #fff5cc;
+  border: var(--border-subtle-strong);
+  border-radius: var(--radius-panel);
+  background: linear-gradient(
+    180deg,
+    #eef7fb 0%,
+    #f7f8fa 48%,
+    #fff0ea 100%
+  );
+  color: var(--navy-900);
+  box-shadow: var(--shadow-panel);
 }
 
 .viewer-strip-muted {
-  background: #f5f5f5;
+  background: var(--surface-subtle);
 }
 
 .app-shell {
@@ -163,9 +237,10 @@ a {
 .info-panel,
 .subscription-detail,
 .subscription-rail {
-  border: 2px solid #000000;
-  border-radius: 32px;
-  background: #ffffff;
+  border: var(--border-subtle);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
 }
 
 .hero-panel {
@@ -184,8 +259,9 @@ a {
 .section-copy {
   max-width: 70ch;
   margin: 0;
-  font-size: 1rem;
-  line-height: 1.6;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 21px;
 }
 
 .query-panel {
@@ -193,13 +269,16 @@ a {
   flex-direction: column;
   gap: 12px;
   padding: 24px;
-  border: 2px solid #000000;
-  border-radius: 28px;
+  border: var(--border-subtle);
+  border-radius: var(--radius-panel);
+  background: var(--surface-subtle);
 }
 
 .field-label {
-  font-size: 0.82rem;
+  color: var(--text-secondary);
+  font-size: 12px;
   font-weight: 700;
+  line-height: 18px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -207,15 +286,27 @@ a {
 .text-field {
   width: 100%;
   padding: 16px 18px;
-  border: 2px solid #000000;
-  border-radius: 22px;
-  background: #ffffff;
-  color: #000000;
+  border: var(--border-subtle-strong);
+  border-radius: var(--radius-input);
+  background: var(--surface);
+  color: var(--text-primary);
+  box-shadow: inset 0 1px 1px rgba(8, 26, 58, 0.02);
 }
 
 .text-area {
   min-height: 168px;
   resize: vertical;
+}
+
+.text-field:focus-visible,
+.nav-tab:focus-visible,
+.solid-button:focus-visible,
+.outline-button:focus-visible,
+.subscription-select:focus-visible,
+.subscription-delete:focus-visible,
+.source-badge:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--navy-700) 72%, white);
+  outline-offset: 2px;
 }
 
 .query-actions {
@@ -231,7 +322,7 @@ a {
 .signal-row p,
 .subscription-card p {
   margin: 0;
-  color: #333333;
+  color: var(--text-secondary);
   line-height: 1.5;
 }
 
@@ -261,16 +352,20 @@ a {
 
 .stat-list dt {
   margin-bottom: 8px;
-  font-size: 0.82rem;
+  color: var(--text-secondary);
+  font-size: 12px;
   font-weight: 700;
+  line-height: 18px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
 .stat-list dd {
   margin: 0;
-  font-size: 1.5rem;
+  color: var(--navy-900);
+  font-size: 24px;
   font-weight: 700;
+  line-height: 30px;
 }
 
 .signal-list,
@@ -299,9 +394,12 @@ a {
   display: inline-flex;
   align-items: center;
   padding: 8px 12px;
-  border: 2px solid #000000;
-  border-radius: 999px;
-  font-size: 0.92rem;
+  border: var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .signal-row {
@@ -310,7 +408,7 @@ a {
   align-items: start;
   gap: 16px;
   padding: 14px 0;
-  border-top: 2px solid #000000;
+  border-top: var(--border-subtle);
 }
 
 .signal-row:first-child {
@@ -343,7 +441,9 @@ a {
 .subscription-card {
   width: 100%;
   padding: 18px;
-  background: #ffffff;
+  border: var(--border-subtle);
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -351,12 +451,13 @@ a {
 }
 
 .subscription-card-active {
-  background: #000000;
-  color: #ffffff;
+  border-color: transparent;
+  background: var(--navy-900);
+  color: var(--surface);
 }
 
 .subscription-card-active p {
-  color: #dddddd;
+  color: color-mix(in srgb, var(--surface) 78%, var(--navy-900));
 }
 
 .subscription-select,
@@ -388,7 +489,7 @@ a {
 .detail-panel-block {
   margin-top: 20px;
   padding-top: 20px;
-  border-top: 2px solid #000000;
+  border-top: var(--border-subtle);
 }
 
 .detail-panel-block h4 {
@@ -400,8 +501,9 @@ a {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border: 2px solid #000000;
-  border-radius: 999px;
+  border: var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
   color: inherit;
   text-decoration: none;
 }
@@ -412,7 +514,7 @@ a {
 }
 
 .source-badge:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--surface-subtle);
 }
 
 @media (max-width: 980px) {
