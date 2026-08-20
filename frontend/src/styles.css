@@ -104,7 +104,12 @@ input::placeholder {
 .app-header {
   grid-area: header;
   border-bottom: var(--border-subtle);
-  background: rgba(247, 248, 250, 0.72);
+  background: linear-gradient(
+    to bottom right,
+    rgba(236, 244, 251, 0.88) 0%,
+    rgba(247, 248, 250, 0.9) 55%,
+    rgba(255, 241, 236, 0.72) 100%
+  );
   backdrop-filter: blur(12px);
 }
 
