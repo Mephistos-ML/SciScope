@@ -9,7 +9,7 @@ import {
   runExploreSearch,
   signOut,
 } from "../lib/api";
-import { AppHeader } from "../components/AppHeader";
+import { AppShell } from "../components/AppShell";
 import { ExplorePage } from "../pages/ExplorePage";
 import { FeedPage } from "../pages/FeedPage";
 import type {
@@ -185,17 +185,15 @@ export function App() {
   }
 
   return (
-    <>
-      <AppHeader
-        activeView={activeView}
-        onNavigate={setActiveView}
-        onSignIn={() => void handleSignIn()}
-        onSignOut={() => void handleSignOut()}
-        signingIn={signingIn}
-        signingOut={signingOut}
-        viewer={viewer}
-      />
-
+    <AppShell
+      activeView={activeView}
+      onNavigate={setActiveView}
+      onSignIn={() => void handleSignIn()}
+      onSignOut={() => void handleSignOut()}
+      signingIn={signingIn}
+      signingOut={signingOut}
+      viewer={viewer}
+    >
       {errorMessage ? <section className="error-banner global-banner">{errorMessage}</section> : null}
       {!viewer ? (
         <section className="info-banner global-banner">
@@ -227,7 +225,7 @@ export function App() {
           onSelectSubscription={(subscriptionId) => void handleSelectSubscription(subscriptionId)}
         />
       )}
-    </>
+    </AppShell>
   );
 }
 
