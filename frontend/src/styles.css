@@ -556,10 +556,6 @@ input::placeholder {
   transform: translateX(10.5%);
 }
 
-.search-no-results-illustration {
-  transform: translateX(0);
-}
-
 .empty-state-title {
   margin: 0;
   color: var(--navy-900);
