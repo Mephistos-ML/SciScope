@@ -32,7 +32,7 @@ export function ExplorePage({
   const isPreSearch = !lastAiSearchPlan && results.length === 0;
 
   return (
-    <main className="app-shell">
+    <main className="app-shell explore-shell">
       <section className="page-intro explore-intro">
         <div className="page-intro-main">
           <h1 className="page-title">Explore scientific software</h1>
