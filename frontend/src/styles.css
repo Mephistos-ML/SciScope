@@ -628,7 +628,7 @@ input::placeholder {
   align-items: center;
   justify-content: center;
   gap: 16px;
-  min-height: 380px;
+  min-height: 260px;
   padding: 40px 24px;
   border: 1px dashed var(--border-strong);
   border-radius: 20px;
@@ -1138,7 +1138,7 @@ input::placeholder {
   }
 
   .empty-state-panel {
-    min-height: 320px;
+    min-height: 240px;
     padding: 32px 20px;
   }
 
