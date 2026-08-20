@@ -657,7 +657,8 @@ input::placeholder {
 .empty-state-illustration {
   width: min(320px, 100%);
   height: auto;
-  transform: translateX(10.5%);
+  display: block;
+  margin: 0 auto;
 }
 
 .empty-state-title {
