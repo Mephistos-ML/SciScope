@@ -1,5 +1,6 @@
 import type { AiSearchPlanPayload, ExploreResultItem, ViewerPayload } from "../types/api";
 import { SourceBadge } from "../components/SourceBadge";
+import exploreEmptyIllustration from "../assets/states/explore/explore-empty.svg";
 
 type ExplorePageProps = {
   canSubscribe: boolean;
@@ -28,48 +29,68 @@ export function ExplorePage({
   topicInput,
   viewer,
 }: ExplorePageProps) {
+  const isPreSearch = !lastAiSearchPlan && results.length === 0;
+
   return (
     <main className="app-shell">
-      <section className="hero-panel">
-        <div className="hero-copy-block">
-          <p className="section-kicker">Explore</p>
-          <h2 className="section-title">Find the most relevant repositories for a research topic.</h2>
+      <section className="page-intro explore-intro">
+        <div className="page-intro-main">
+          <h1 className="page-title">Explore scientific software</h1>
           <p className="section-copy">
-            Describe the topic and let SciScope generate repository discovery queries.
+            Discover repositories across GitHub, GitLab, Gitee, GitCode and GitVerse.
           </p>
         </div>
+      </section>
 
-        <div className="query-panel">
+      <section className="explore-query-layout">
+        <article className="query-workspace">
           <label className="field-label" htmlFor="topic-query">
             Topic description
           </label>
           <textarea
             id="topic-query"
-            className="text-field text-area"
+            className="text-field text-area explore-query-input"
             value={topicInput}
             onChange={(event) => onTopicInputChange(event.target.value)}
-            placeholder="Track repositories around paramagnetic NMR analysis workflows."
+            placeholder="Describe a research topic, method, software or workflow..."
           />
+          <p className="field-hint">
+            {viewer
+              ? "SciScope will generate discovery queries and let you subscribe to specific repositories from the results."
+              : "SciScope will generate discovery queries and search across all sources. Sign in with Google before saving repositories to your feed."}
+          </p>
           <div className="query-actions">
             <button
-              className="outline-button"
+              className="solid-button"
               disabled={searchPending}
               onClick={onRunSearch}
               type="button"
             >
               {searchPending ? "Running..." : "Run search"}
             </button>
-            <p className="field-hint">
-              {viewer
-                ? "Subscribe to specific repositories directly from the results."
-                : "Sign in with Google before saving this topic to your feed."}
-            </p>
           </div>
-        </div>
+        </article>
       </section>
 
-      <section className="results-panel">
-        <article className="info-panel">
+      {isPreSearch ? (
+        <section className="results-panel">
+          <article className="empty-state-panel explore-empty-state">
+            <img
+              alt=""
+              aria-hidden="true"
+              className="empty-state-illustration"
+              src={exploreEmptyIllustration}
+            />
+            <h2 className="empty-state-title">Start exploring</h2>
+            <p className="empty-state-copy">
+              Enter a topic above and run search to discover relevant repositories
+              from multiple hosts.
+            </p>
+          </article>
+        </section>
+      ) : (
+        <section className="results-panel">
+          <article className="info-panel">
           <div className="results-header">
             <div>
               <p className="section-kicker">Results</p>
@@ -128,8 +149,9 @@ export function ExplorePage({
               </p>
             )}
           </div>
-        </article>
-      </section>
+          </article>
+        </section>
+      )}
     </main>
   );
 }
