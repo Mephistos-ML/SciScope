@@ -378,6 +378,12 @@ input::placeholder {
   min-height: 100%;
 }
 
+.feed-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
 .page-intro {
   display: grid;
   gap: 24px;
@@ -538,6 +544,10 @@ input::placeholder {
 }
 
 .explore-empty-state {
+  text-align: center;
+}
+
+.feed-empty-state {
   text-align: center;
 }
 

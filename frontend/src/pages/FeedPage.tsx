@@ -1,4 +1,5 @@
 import { SourceBadge } from "../components/SourceBadge";
+import feedEmptyIllustration from "../assets/states/feed/feed-empty.svg";
 import type { SubscriptionItem, ViewerPayload } from "../types/api";
 
 type FeedPageProps = {
@@ -20,18 +21,37 @@ export function FeedPage({
 }: FeedPageProps) {
   const selectedSubscription =
     subscriptions.find((item) => item.subscriptionId === selectedSubscriptionId) ?? null;
+  const hasSubscriptions = subscriptions.length > 0;
 
-  if (!viewer) {
+  if (!viewer || !hasSubscriptions) {
     return (
-      <main className="app-shell">
-        <section className="hero-panel">
-          <div className="hero-copy-block">
-            <p className="section-kicker">My Feed</p>
-            <h2 className="section-title">Sign in to save topics and follow updates.</h2>
+      <main className="app-shell feed-shell">
+        <section className="page-intro">
+          <div className="page-intro-main">
+            <h1 className="page-title">My Feed</h1>
             <p className="section-copy">
-              Your saved topics appear here as subscriptions with their own update streams.
+              Monitor changes from repositories you choose to follow across every supported source.
             </p>
           </div>
+        </section>
+
+        <section className="results-panel">
+          <article className="empty-state-panel feed-empty-state">
+            <img
+              alt=""
+              aria-hidden="true"
+              className="empty-state-illustration"
+              src={feedEmptyIllustration}
+            />
+            <h2 className="empty-state-title">
+              {viewer ? "No subscriptions yet" : "Sign in to build your feed"}
+            </h2>
+            <p className="empty-state-copy">
+              {viewer
+                ? "Save repositories from Explore and they will appear here for ongoing monitoring."
+                : "Use Google sign-in to save repositories from Explore and monitor them here."}
+            </p>
+          </article>
         </section>
       </main>
     );
@@ -47,8 +67,7 @@ export function FeedPage({
           </div>
 
           <div className="subscription-list">
-            {subscriptions.length > 0 ? (
-              subscriptions.map((subscription) => (
+            {subscriptions.map((subscription) => (
                 <div
                   key={subscription.subscriptionId}
                   className={
@@ -74,10 +93,7 @@ export function FeedPage({
                     Delete
                   </button>
                 </div>
-              ))
-            ) : (
-              <p className="empty-copy">No subscriptions yet. Save one from Explore first.</p>
-            )}
+              ))}
           </div>
         </aside>
 
