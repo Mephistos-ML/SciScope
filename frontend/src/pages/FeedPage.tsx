@@ -1,4 +1,6 @@
 import { SourceBadge } from "../components/SourceBadge";
+import feedEmptyIllustration from "../assets/states/feed/feed-empty.svg";
+import feedNoUpdatesIllustration from "../assets/states/feed/feed-no-updates.svg";
 import type { SubscriptionItem, ViewerPayload } from "../types/api";
 
 type FeedPageProps = {
@@ -20,35 +22,52 @@ export function FeedPage({
 }: FeedPageProps) {
   const selectedSubscription =
     subscriptions.find((item) => item.subscriptionId === selectedSubscriptionId) ?? null;
-
-  if (!viewer) {
-    return (
-      <main className="app-shell">
-        <section className="hero-panel">
-          <div className="hero-copy-block">
-            <p className="section-kicker">My Feed</p>
-            <h2 className="section-title">Sign in to save topics and follow updates.</h2>
-            <p className="section-copy">
-              Your saved topics appear here as subscriptions with their own update streams.
-            </p>
-          </div>
-        </section>
-      </main>
-    );
-  }
+  const hasSubscriptions = subscriptions.length > 0;
+  const introCopy = hasSubscriptions
+    ? "Track the repositories you selected from Explore and open each subscription for its monitoring context."
+    : "Monitor changes from repositories you choose to follow across every supported source.";
 
   return (
-    <main className="app-shell">
-      <section className="feed-layout">
-        <aside className="subscription-rail">
-          <div className="rail-header">
-            <p className="section-kicker">Subscriptions</p>
-            <h2 className="section-title">My Feed</h2>
-          </div>
+    <main className="app-shell feed-shell">
+      <section className="page-intro">
+        <div className="page-intro-main">
+          <h1 className="page-title">My Feed</h1>
+          <p className="section-copy">{introCopy}</p>
+        </div>
+      </section>
 
-          <div className="subscription-list">
-            {subscriptions.length > 0 ? (
-              subscriptions.map((subscription) => (
+      {!viewer || !hasSubscriptions ? (
+        <section className="results-panel">
+          <article className="empty-state-panel feed-empty-state">
+            <img
+              alt=""
+              aria-hidden="true"
+              className="empty-state-illustration"
+              src={feedEmptyIllustration}
+            />
+            <h2 className="empty-state-title">
+              {viewer ? "No subscriptions yet" : "Sign in to build your feed"}
+            </h2>
+            <p className="empty-state-copy">
+              {viewer
+                ? "Save repositories from Explore and they will appear here for ongoing monitoring."
+                : "Use Google sign-in to save repositories from Explore and monitor them here."}
+            </p>
+          </article>
+        </section>
+      ) : (
+        <section className="feed-layout">
+          <aside className="subscription-rail">
+            <div className="rail-header">
+              <p className="section-kicker">Subscriptions</p>
+              <div className="results-title-row">
+                <h2 className="section-title">Saved repositories</h2>
+                <span className="results-count-badge">{subscriptions.length} total</span>
+              </div>
+            </div>
+
+            <div className="subscription-list">
+              {subscriptions.map((subscription) => (
                 <div
                   key={subscription.subscriptionId}
                   className={
@@ -62,8 +81,13 @@ export function FeedPage({
                     onClick={() => onSelectSubscription(subscription.subscriptionId)}
                     type="button"
                   >
-                    <strong>{subscription.repository.fullName}</strong>
-                    <p>{subscription.selectedQuery || subscription.repository.source}</p>
+                    <strong className="subscription-card-title">
+                      {subscription.repository.fullName}
+                    </strong>
+                    <p>{subscription.selectedQuery || "No query snapshot saved."}</p>
+                    <span className="subscription-card-meta">
+                      {subscription.repository.source}
+                    </span>
                   </button>
                   <button
                     className="subscription-delete"
@@ -74,46 +98,65 @@ export function FeedPage({
                     Delete
                   </button>
                 </div>
-              ))
+              ))}
+            </div>
+          </aside>
+
+          <section className="subscription-detail">
+            {selectedSubscription ? (
+              <>
+                <p className="section-kicker">Selected repository</p>
+                <h2 className="section-title">{selectedSubscription.repository.fullName}</h2>
+                <p className="section-copy">
+                  This subscription keeps the repository in your feed for ongoing monitoring.
+                </p>
+
+                <div className="detail-panel-block">
+                  <h4>Repository</h4>
+                  <SourceBadge
+                    href={selectedSubscription.repository.url}
+                    source={selectedSubscription.repository.source}
+                  />
+                </div>
+
+                <div className="detail-panel-block">
+                  <h4>Selected query</h4>
+                  <p className="detail-copy">
+                    {selectedSubscription.selectedQuery || "No query snapshot saved."}
+                  </p>
+                </div>
+
+                <div className="detail-panel-block">
+                  <h4>Updates</h4>
+                  <div className="feed-updates-placeholder">
+                    <img
+                      alt=""
+                      aria-hidden="true"
+                      className="empty-state-illustration feed-updates-illustration"
+                      src={feedNoUpdatesIllustration}
+                    />
+                    <div className="feed-updates-copy">
+                      <p className="empty-state-title">No updates surfaced yet</p>
+                      <p className="detail-copy">
+                        New monitored changes for this repository will appear here when
+                        SciScope detects them.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </>
             ) : (
-              <p className="empty-copy">No subscriptions yet. Save one from Explore first.</p>
+              <div className="feed-detail-empty">
+                <p className="section-kicker">Selected repository</p>
+                <h3 className="section-title">Pick a saved repository</h3>
+                <p className="section-copy">
+                  Choose a subscription from the rail to open its monitoring view.
+                </p>
+              </div>
             )}
-          </div>
-        </aside>
-
-        <section className="subscription-detail">
-          {selectedSubscription ? (
-            <>
-              <p className="section-kicker">Selected subscription</p>
-              <h3 className="section-title">{selectedSubscription.repository.fullName}</h3>
-
-              <div className="detail-panel-block">
-                <h4>Repository</h4>
-                <SourceBadge
-                  href={selectedSubscription.repository.url}
-                  source={selectedSubscription.repository.source}
-                />
-              </div>
-
-              <div className="detail-panel-block">
-                <h4>Selected query</h4>
-                <p>{selectedSubscription.selectedQuery || "No query snapshot saved."}</p>
-              </div>
-
-              <div className="detail-panel-block">
-                <h4>Updates</h4>
-                <p>Updates for this repository will appear here.</p>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="section-kicker">Selected subscription</p>
-              <h3 className="section-title">Pick a saved topic</h3>
-              <p className="section-copy">Choose a subscription to open its update stream.</p>
-            </>
-          )}
+          </section>
         </section>
-      </section>
+      )}
     </main>
   );
 }

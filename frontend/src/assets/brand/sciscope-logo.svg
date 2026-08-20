@@ -1,0 +1,8 @@
+<svg width="188" height="48" viewBox="0 0 188 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <circle cx="21.5" cy="24.5" r="9.5" stroke="#183B67" stroke-width="3.5"/>
+    <path d="M28.5 31.5L36.5 39.5" stroke="#183B67" stroke-width="3.5" stroke-linecap="round"/>
+    <circle cx="34.5" cy="14.5" r="3.5" fill="#FF7A66"/>
+  </g>
+  <text x="50" y="26.5" dominant-baseline="middle" fill="#183B67" font-family="Avenir Next, Avenir, Helvetica Neue, Arial, sans-serif" font-size="23" font-weight="700" letter-spacing="-0.45px">SciScope</text>
+</svg>

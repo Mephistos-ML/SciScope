@@ -11,6 +11,8 @@ frontend/.env
 frontend/.env.*
 !frontend/.env.example
 frontend/node_modules/
+frontend/node_modules/.package-lock.json
+frontend/node_modules/.vite/
 frontend/.vite/
 frontend/dist/
 frontend/*.tsbuildinfo
