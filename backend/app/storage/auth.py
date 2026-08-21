@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from sqlalchemy import Select, select, update
 
 from app.config import DATABASE_URL
-from app.database.models import (
+from app.database.records import (
     OAuthAccountRecordModel,
     UserRecordModel,
     UserSessionRecordModel,

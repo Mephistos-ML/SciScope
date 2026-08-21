@@ -9,18 +9,26 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from app.database.base import Base
-from app.database.models import (
-    RepositoryCheckpointRecord,
-    RepositoryRecord,
-    SeenSignalRecord,
+from app.database.records import (
+    ExploreSearchEventRecordModel,
+    OAuthAccountRecordModel,
+    RepositoryCheckpointRecordModel,
+    RepositoryRecordModel,
+    SeenSignalRecordModel,
     SubscriptionRecordModel,
+    UserRecordModel,
+    UserSessionRecordModel,
 )
 
 REGISTERED_MODELS = (
-    SeenSignalRecord,
-    RepositoryRecord,
-    RepositoryCheckpointRecord,
+    UserRecordModel,
+    OAuthAccountRecordModel,
+    UserSessionRecordModel,
+    SeenSignalRecordModel,
+    RepositoryRecordModel,
+    RepositoryCheckpointRecordModel,
     SubscriptionRecordModel,
+    ExploreSearchEventRecordModel,
 )
 
 config = context.config

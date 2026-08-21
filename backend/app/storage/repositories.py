@@ -8,9 +8,9 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, select
 
 from app.config import DATABASE_URL
-from app.database.models import (
-    RepositoryCheckpointRecord,
-    RepositoryRecord,
+from app.database.records import (
+    RepositoryCheckpointRecordModel,
+    RepositoryRecordModel,
 )
 from app.database.session import session_scope
 from app.models.repository import (
@@ -33,10 +33,10 @@ def upsert_repositories(
     timestamp = _utc_now()
     with session_scope(resolved_database_url) as session:
         for repository in repositories:
-            record = session.get(RepositoryRecord, repository.repository_id)
+            record = session.get(RepositoryRecordModel, repository.repository_id)
             if record is None:
                 session.add(
-                    RepositoryRecord(
+                    RepositoryRecordModel(
                         repository_id=repository.repository_id,
                         source=repository.source,
                         full_name=repository.full_name,
@@ -63,10 +63,10 @@ def list_repositories(
     """List repositories with an optional source filter."""
 
     resolved_database_url = database_url or DATABASE_URL
-    statement = select(RepositoryRecord)
+    statement = select(RepositoryRecordModel)
     if source is not None:
-        statement = statement.where(RepositoryRecord.source == source)
-    statement = statement.order_by(RepositoryRecord.full_name.asc())
+        statement = statement.where(RepositoryRecordModel.source == source)
+    statement = statement.order_by(RepositoryRecordModel.full_name.asc())
 
     with session_scope(resolved_database_url) as session:
         rows = session.scalars(statement).all()
@@ -85,14 +85,15 @@ def list_repositories_by_ids(
 
     resolved_database_url = database_url or DATABASE_URL
     statement = (
-        select(RepositoryRecord)
-        .where(RepositoryRecord.repository_id.in_(tuple(repository_ids)))
-        .order_by(RepositoryRecord.full_name.asc())
+        select(RepositoryRecordModel)
+        .where(RepositoryRecordModel.repository_id.in_(tuple(repository_ids)))
+        .order_by(RepositoryRecordModel.full_name.asc())
     )
 
     with session_scope(resolved_database_url) as session:
         rows = session.scalars(statement).all()
     return [_to_repository(row) for row in rows]
+
 
 def get_repository(
     repository_id: str,
@@ -103,7 +104,7 @@ def get_repository(
 
     resolved_database_url = database_url or DATABASE_URL
     with session_scope(resolved_database_url) as session:
-        row = session.get(RepositoryRecord, repository_id)
+        row = session.get(RepositoryRecordModel, repository_id)
     if row is None:
         return None
     return _to_repository(row)
@@ -123,7 +124,7 @@ def upsert_repository_checkpoints(
     with session_scope(resolved_database_url) as session:
         for checkpoint in checkpoints:
             record = session.get(
-                RepositoryCheckpointRecord,
+                RepositoryCheckpointRecordModel,
                 (
                     checkpoint.subscription_id,
                     checkpoint.repository_id,
@@ -133,7 +134,7 @@ def upsert_repository_checkpoints(
             normalized_updated_at = _ensure_utc(checkpoint.updated_at)
             if record is None:
                 session.add(
-                    RepositoryCheckpointRecord(
+                    RepositoryCheckpointRecordModel(
                         subscription_id=checkpoint.subscription_id,
                         repository_id=checkpoint.repository_id,
                         source=checkpoint.source,
@@ -159,8 +160,8 @@ def delete_repository_checkpoints_for_subscription(
     resolved_database_url = database_url or DATABASE_URL
     with session_scope(resolved_database_url) as session:
         session.execute(
-            delete(RepositoryCheckpointRecord).where(
-                RepositoryCheckpointRecord.subscription_id == subscription_id
+            delete(RepositoryCheckpointRecordModel).where(
+                RepositoryCheckpointRecordModel.subscription_id == subscription_id
             )
         )
 
@@ -175,10 +176,10 @@ def list_repository_checkpoints(
 
     resolved_database_url = database_url or DATABASE_URL
     statement = (
-        select(RepositoryCheckpointRecord)
-        .where(RepositoryCheckpointRecord.subscription_id == subscription_id)
-        .where(RepositoryCheckpointRecord.repository_id == repository_id)
-        .order_by(RepositoryCheckpointRecord.checkpoint_key.asc())
+        select(RepositoryCheckpointRecordModel)
+        .where(RepositoryCheckpointRecordModel.subscription_id == subscription_id)
+        .where(RepositoryCheckpointRecordModel.repository_id == repository_id)
+        .order_by(RepositoryCheckpointRecordModel.checkpoint_key.asc())
     )
 
     with session_scope(resolved_database_url) as session:
@@ -198,7 +199,7 @@ def get_repository_checkpoint(
     resolved_database_url = database_url or DATABASE_URL
     with session_scope(resolved_database_url) as session:
         row = session.get(
-            RepositoryCheckpointRecord,
+            RepositoryCheckpointRecordModel,
             (subscription_id, repository_id, checkpoint_key),
         )
     if row is None:
@@ -206,7 +207,7 @@ def get_repository_checkpoint(
     return _to_repository_checkpoint(row)
 
 
-def _to_repository(record: RepositoryRecord) -> Repository:
+def _to_repository(record: RepositoryRecordModel) -> Repository:
     return Repository(
         repository_id=record.repository_id,
         source=record.source,
@@ -217,7 +218,7 @@ def _to_repository(record: RepositoryRecord) -> Repository:
 
 
 def _to_repository_checkpoint(
-    record: RepositoryCheckpointRecord,
+    record: RepositoryCheckpointRecordModel,
 ) -> RepositoryCheckpoint:
     return RepositoryCheckpoint(
         subscription_id=record.subscription_id,

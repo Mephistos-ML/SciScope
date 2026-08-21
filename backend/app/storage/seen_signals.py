@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 
 from app.config import DATABASE_URL
-from app.database.models import SeenSignalRecord
+from app.database.records import SeenSignalRecordModel
 from app.database.session import session_scope
 from app.models.signal import Signal
 
@@ -23,7 +23,9 @@ def load_seen_signal_ids(
     resolved_database_url = database_url or DATABASE_URL
     with session_scope(resolved_database_url) as session:
         rows = session.scalars(
-            select(SeenSignalRecord.item_id).where(SeenSignalRecord.source == source)
+            select(SeenSignalRecordModel.item_id).where(
+                SeenSignalRecordModel.source == source
+            )
         ).all()
     return set(rows)
 
@@ -42,10 +44,13 @@ def upsert_signals(
     seen_at = _utc_now()
     with session_scope(resolved_database_url) as session:
         for signal in signals:
-            record = session.get(SeenSignalRecord, (signal.source, signal.item_id))
+            record = session.get(
+                SeenSignalRecordModel,
+                (signal.source, signal.item_id),
+            )
             if record is None:
                 session.add(
-                    SeenSignalRecord(
+                    SeenSignalRecordModel(
                         source=signal.source,
                         item_id=signal.item_id,
                         title=signal.title,

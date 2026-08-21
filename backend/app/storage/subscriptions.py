@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, select
 
 from app.config import DATABASE_URL
-from app.database.models import RepositoryRecord, SubscriptionRecordModel
+from app.database.records import RepositoryRecordModel, SubscriptionRecordModel
 from app.database.session import session_scope
 from app.models.repository import Repository
 
@@ -158,10 +158,10 @@ def list_subscription_watches_for_user(
 
     resolved_database_url = database_url or DATABASE_URL
     statement = (
-        select(SubscriptionRecordModel, RepositoryRecord)
+        select(SubscriptionRecordModel, RepositoryRecordModel)
         .join(
-            RepositoryRecord,
-            RepositoryRecord.repository_id == SubscriptionRecordModel.repository_id,
+            RepositoryRecordModel,
+            RepositoryRecordModel.repository_id == SubscriptionRecordModel.repository_id,
         )
         .where(SubscriptionRecordModel.user_id == user_id)
         .order_by(SubscriptionRecordModel.created_at.desc())
@@ -180,10 +180,10 @@ def list_all_subscription_watches(
 
     resolved_database_url = database_url or DATABASE_URL
     statement = (
-        select(SubscriptionRecordModel, RepositoryRecord)
+        select(SubscriptionRecordModel, RepositoryRecordModel)
         .join(
-            RepositoryRecord,
-            RepositoryRecord.repository_id == SubscriptionRecordModel.repository_id,
+            RepositoryRecordModel,
+            RepositoryRecordModel.repository_id == SubscriptionRecordModel.repository_id,
         )
         .order_by(SubscriptionRecordModel.created_at.desc())
     )
@@ -195,7 +195,7 @@ def list_all_subscription_watches(
 
 def _to_subscription_watch_record(
     subscription: SubscriptionRecordModel,
-    repository: RepositoryRecord,
+    repository: RepositoryRecordModel,
 ) -> SubscriptionWatchRecord:
     return SubscriptionWatchRecord(
         subscription_id=subscription.subscription_id,
