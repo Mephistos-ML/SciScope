@@ -7,6 +7,11 @@ import hashlib
 
 from fastapi import Request
 
+from app.config import (
+    EXPLORE_SUSPICIOUS_BLOCK_THRESHOLD,
+    EXPLORE_SUSPICIOUS_WINDOW_SECONDS,
+    TURNSTILE_ENABLED,
+)
 from app.models.explore_access import (
     ExploreAccessDecision,
     ExploreAccessOutcome,
@@ -21,6 +26,7 @@ from app.services.search.policy import (
     build_public_access_disabled_decision,
     build_quota_decision,
     build_turnstile_required_decision,
+    build_turnstile_verification_failed_decision,
     get_explore_policy_for_actor,
     get_global_explore_daily_limit,
     should_require_turnstile,
@@ -33,8 +39,20 @@ from app.storage.explore_usage import (
     record_explore_search_event,
 )
 
+SUSPICIOUS_GUEST_OUTCOMES = (
+    str(ExploreAccessOutcome.BLOCKED_COOLDOWN),
+    str(ExploreAccessOutcome.BLOCKED_QUOTA),
+    str(ExploreAccessOutcome.BLOCKED_TURNSTILE),
+)
 
-def resolve_explore_actor(request: Request, user: User | None) -> ExploreActor:
+
+def resolve_explore_actor(
+    request: Request,
+    user: User | None,
+    *,
+    now: datetime | None = None,
+    database_url: str | None = None,
+) -> ExploreActor:
     """Resolve the current explore actor from request and optional user."""
 
     if user is not None:
@@ -45,10 +63,15 @@ def resolve_explore_actor(request: Request, user: User | None) -> ExploreActor:
             user_id=user.user_id,
         )
 
-    raw_ip = _read_client_ip(request)
+    raw_ip = read_explore_client_ip(request)
     ip_hash = _hash_value(raw_ip or "unknown")
+    tier = _resolve_guest_tier(
+        ip_hash,
+        now=now,
+        database_url=database_url,
+    )
     return ExploreActor(
-        tier=ExploreTier.GUEST,
+        tier=tier,
         subject_type="guest_ip",
         subject_key=ip_hash,
         ip_hash=ip_hash,
@@ -58,6 +81,7 @@ def resolve_explore_actor(request: Request, user: User | None) -> ExploreActor:
 def check_explore_access(
     actor: ExploreActor,
     *,
+    turnstile_verified: bool = False,
     now: datetime | None = None,
     database_url: str | None = None,
 ) -> ExploreAccessDecision:
@@ -69,7 +93,7 @@ def check_explore_access(
     if not policy.public_access_enabled:
         return build_public_access_disabled_decision()
 
-    if should_require_turnstile(actor):
+    if should_require_turnstile(actor) and not turnstile_verified:
         return build_turnstile_required_decision()
 
     quota_window_start = current_time - timedelta(seconds=policy.quota_window_seconds)
@@ -177,6 +201,23 @@ def hash_explore_topic(topic_description: str) -> str:
     return _hash_value(normalized or "empty")
 
 
+def build_turnstile_failure_decision(
+    *,
+    service_unavailable: bool = False,
+) -> ExploreAccessDecision:
+    """Return one denial decision for an invalid or unavailable Turnstile check."""
+
+    return build_turnstile_verification_failed_decision(
+        service_unavailable=service_unavailable
+    )
+
+
+def read_explore_client_ip(request: Request) -> str | None:
+    """Return the best-effort client IP address for one explore request."""
+
+    return _read_client_ip(request)
+
+
 def _map_blocked_decision_to_outcome(decision: ExploreAccessDecision) -> str:
     if decision.turnstile_required:
         return str(ExploreAccessOutcome.BLOCKED_TURNSTILE)
@@ -190,6 +231,31 @@ def _map_blocked_decision_to_outcome(decision: ExploreAccessDecision) -> str:
     if decision.code is ExploreLimitCode.GUEST_SEARCH_DISABLED:
         return str(ExploreAccessOutcome.BLOCKED_DISABLED)
     return str(ExploreAccessOutcome.BLOCKED_QUOTA)
+
+
+def _resolve_guest_tier(
+    subject_key: str,
+    *,
+    now: datetime | None = None,
+    database_url: str | None = None,
+) -> ExploreTier:
+    if not TURNSTILE_ENABLED:
+        return ExploreTier.GUEST
+
+    current_time = _ensure_utc(now or _utc_now())
+    suspicious_window_start = current_time - timedelta(
+        seconds=EXPLORE_SUSPICIOUS_WINDOW_SECONDS
+    )
+    blocked_count = count_explore_events_since(
+        subject_type="guest_ip",
+        subject_key=subject_key,
+        since=suspicious_window_start,
+        outcomes=SUSPICIOUS_GUEST_OUTCOMES,
+        database_url=database_url,
+    )
+    if blocked_count >= EXPLORE_SUSPICIOUS_BLOCK_THRESHOLD:
+        return ExploreTier.SUSPICIOUS
+    return ExploreTier.GUEST
 
 
 def _read_client_ip(request: Request) -> str | None:

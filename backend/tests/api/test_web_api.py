@@ -12,6 +12,7 @@ from tests.conftest import build_test_database_url, migrate_test_database
 from app.api.app import app
 from app.config import AUTH_SESSION_COOKIE_NAME
 from app.models.ai import AiSearchPlan
+from app.models.explore_access import ExploreAccessDecision, ExploreActor, ExploreLimitCode, ExploreTier
 from app.models.repository import Repository
 from app.models.signal import Signal
 from app.runtime.state import STATE
@@ -89,6 +90,33 @@ def _build_ready_repository_ai_plan(*queries: str) -> AiSearchPlan:
     return AiSearchPlan(
         status="ready" if queries else "pending",
         queries=queries,
+    )
+
+
+def _allow_explore_access(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.api.routes.explore.get_current_user",
+        lambda request: None,
+    )
+    monkeypatch.setattr(
+        "app.api.routes.explore.resolve_explore_actor",
+        lambda request, user: ExploreActor(
+            tier=ExploreTier.GUEST,
+            subject_type="guest_ip",
+            subject_key="guest_hash",
+        ),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.explore.hash_explore_topic",
+        lambda topic_description: "topic_hash",
+    )
+    monkeypatch.setattr(
+        "app.api.routes.explore.check_explore_access",
+        lambda actor, turnstile_verified=False: ExploreAccessDecision(allowed=True),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.explore.record_allowed_explore_attempt",
+        lambda actor, *, topic_hash: None,
     )
 
 
@@ -341,6 +369,7 @@ def test_google_auth_callback_redirects_with_error_when_state_is_invalid(monkeyp
 
 
 def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
     monkeypatch.setattr(
         "app.services.search.explore.build_ai_search_plan",
         lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
@@ -379,6 +408,7 @@ def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatc
 
 
 def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
     monkeypatch.setattr(
         "app.services.search.explore.build_ai_search_plan",
         lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
@@ -412,3 +442,54 @@ def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
 
     assert response.status_code == 502
     assert "sourceStatuses" in response.json()
+
+
+def test_explore_search_returns_structured_access_denial_payload(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.api.routes.explore.get_current_user",
+        lambda request: None,
+    )
+    monkeypatch.setattr(
+        "app.api.routes.explore.resolve_explore_actor",
+        lambda request, user: ExploreActor(
+            tier=ExploreTier.GUEST,
+            subject_type="guest_ip",
+            subject_key="guest_hash",
+        ),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.explore.hash_explore_topic",
+        lambda topic_description: "topic_hash",
+    )
+    monkeypatch.setattr(
+        "app.api.routes.explore.check_explore_access",
+        lambda actor, turnstile_verified=False: ExploreAccessDecision(
+            allowed=False,
+            code=ExploreLimitCode.GUEST_COOLDOWN,
+            message="Please wait 30 seconds before running another search.",
+            retry_after_seconds=30,
+            sign_in_suggested=True,
+        ),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.explore.record_blocked_explore_attempt",
+        lambda actor, decision, *, topic_hash: None,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={"topicDescription": "Paramagnetic NMR analysis workflows"},
+        )
+
+    assert response.status_code == 429
+    payload = response.json()
+    assert payload == {
+        "error": "Please wait 30 seconds before running another search.",
+        "code": "explore_guest_cooldown",
+        "signInSuggested": True,
+        "turnstileRequired": False,
+        "retryAfterSeconds": 30,
+    }

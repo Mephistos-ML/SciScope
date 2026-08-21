@@ -2,11 +2,54 @@
 
 from __future__ import annotations
 
+from fastapi import Request
+
+from app.services.auth import get_current_user
+from app.services.security import verify_turnstile_token
+from app.services.search import (
+    build_explore_access_denied_error,
+    build_turnstile_failure_decision,
+    check_explore_access,
+    hash_explore_topic,
+    read_explore_client_ip,
+    record_allowed_explore_attempt,
+    record_blocked_explore_attempt,
+    resolve_explore_actor,
+)
+from app.models import ExploreTier
 from app.services.search.explore import run_explore_search
 
 
-def search_explore_response(payload: dict[str, object]) -> dict[str, object]:
+def search_explore_response(
+    request: Request,
+    payload: dict[str, object],
+) -> dict[str, object]:
     """Run an explore search from one topic description."""
 
     topic_description = str(payload.get("topicDescription") or "").strip()
+    turnstile_token = str(payload.get("turnstileToken") or "").strip()
+    topic_hash = hash_explore_topic(topic_description)
+    actor = resolve_explore_actor(request, get_current_user(request))
+    turnstile_verified = False
+
+    if actor.tier is ExploreTier.SUSPICIOUS and turnstile_token:
+        verification = verify_turnstile_token(
+            turnstile_token,
+            remote_ip=read_explore_client_ip(request),
+        )
+        if not verification.success:
+            decision = build_turnstile_failure_decision(
+                service_unavailable=verification.service_unavailable
+            )
+            record_blocked_explore_attempt(actor, decision, topic_hash=topic_hash)
+            raise build_explore_access_denied_error(decision)
+        turnstile_verified = True
+
+    decision = check_explore_access(actor, turnstile_verified=turnstile_verified)
+
+    if not decision.allowed:
+        record_blocked_explore_attempt(actor, decision, topic_hash=topic_hash)
+        raise build_explore_access_denied_error(decision)
+
+    record_allowed_explore_attempt(actor, topic_hash=topic_hash)
     return run_explore_search(topic_description=topic_description)

@@ -37,7 +37,9 @@ class ExploreAccessPolicy:
 def get_explore_policy_for_actor(actor: ExploreActor) -> ExploreAccessPolicy:
     """Return the active explore policy for one actor."""
 
-    if actor.tier is ExploreTier.GUEST:
+    if actor.tier is ExploreTier.GUEST or (
+        actor.tier is ExploreTier.SUSPICIOUS and not TURNSTILE_ENABLED
+    ):
         return ExploreAccessPolicy(
             tier=actor.tier,
             public_access_enabled=EXPLORE_PUBLIC_GUEST_SEARCH_ENABLED,
@@ -164,6 +166,25 @@ def build_turnstile_required_decision() -> ExploreAccessDecision:
         allowed=False,
         code=ExploreLimitCode.TURNSTILE_REQUIRED,
         message="Please complete the verification challenge before continuing.",
+        turnstile_required=True,
+    )
+
+
+def build_turnstile_verification_failed_decision(
+    *,
+    service_unavailable: bool = False,
+) -> ExploreAccessDecision:
+    """Return one failed Turnstile verification decision."""
+
+    message = (
+        "Verification is temporarily unavailable. Please try again shortly."
+        if service_unavailable
+        else "Verification failed. Complete the challenge again and retry."
+    )
+    return ExploreAccessDecision(
+        allowed=False,
+        code=ExploreLimitCode.TURNSTILE_VERIFICATION_FAILED,
+        message=message,
         turnstile_required=True,
     )
 

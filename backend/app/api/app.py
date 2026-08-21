@@ -19,6 +19,7 @@ from app.api.routes import signals as signal_routes
 from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS
 from app.database.session import check_database_connection
+from app.services.search import ExploreAccessDeniedError
 from app.services.search.explore import (
     AiSearchPlanningError,
     ExploreSearchUnavailableError,
@@ -29,6 +30,7 @@ class ExploreSearchRequest(BaseModel):
     """Request body for one topic-driven explore search."""
 
     topicDescription: str = ""
+    turnstileToken: str | None = None
 
 
 class CreateSubscriptionRequest(BaseModel):
@@ -93,6 +95,16 @@ async def handle_ai_search_planning_error(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         content={"error": str(exc)},
     )
+
+
+@app.exception_handler(ExploreAccessDeniedError)
+async def handle_explore_access_denied(
+    _request: Request,
+    exc: ExploreAccessDeniedError,
+) -> JSONResponse:
+    """Return structured rate-limit and access-denial payloads."""
+
+    return JSONResponse(status_code=exc.status_code, content=exc.to_payload())
 
 
 @app.get("/")
@@ -160,10 +172,13 @@ def stop_scan() -> dict[str, object]:
 
 
 @app.post("/api/explore/search")
-def run_explore_search(payload: ExploreSearchRequest) -> dict[str, object]:
+def run_explore_search(
+    request: Request,
+    payload: ExploreSearchRequest,
+) -> dict[str, object]:
     """Run one manual explore search."""
 
-    return explore_routes.search_explore_response(payload.model_dump())
+    return explore_routes.search_explore_response(request, payload.model_dump())
 
 
 @app.get("/api/subscriptions")

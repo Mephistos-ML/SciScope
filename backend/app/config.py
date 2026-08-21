@@ -115,6 +115,14 @@ EXPLORE_GUEST_COOLDOWN_SECONDS = _read_optional_int_env(
     "EXPLORE_GUEST_COOLDOWN_SECONDS",
     30,
 )
+EXPLORE_SUSPICIOUS_WINDOW_SECONDS = _read_optional_int_env(
+    "EXPLORE_SUSPICIOUS_WINDOW_SECONDS",
+    3600,
+)
+EXPLORE_SUSPICIOUS_BLOCK_THRESHOLD = _read_optional_int_env(
+    "EXPLORE_SUSPICIOUS_BLOCK_THRESHOLD",
+    3,
+)
 EXPLORE_USER_DAILY_LIMIT = _read_optional_int_env("EXPLORE_USER_DAILY_LIMIT", 25)
 EXPLORE_USER_COOLDOWN_SECONDS = _read_optional_int_env(
     "EXPLORE_USER_COOLDOWN_SECONDS",
@@ -124,6 +132,10 @@ EXPLORE_GLOBAL_DAILY_LIMIT = _read_optional_int_env("EXPLORE_GLOBAL_DAILY_LIMIT"
 TURNSTILE_ENABLED = _read_bool_env("TURNSTILE_ENABLED", False)
 TURNSTILE_SITE_KEY = _read_optional_env("TURNSTILE_SITE_KEY")
 TURNSTILE_SECRET_KEY = _read_optional_env("TURNSTILE_SECRET_KEY")
+TURNSTILE_VERIFY_TIMEOUT_SECONDS = _read_optional_int_env(
+    "TURNSTILE_VERIFY_TIMEOUT_SECONDS",
+    5,
+)
 GOOGLE_CLIENT_ID = _read_optional_env("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = _read_optional_env("GOOGLE_CLIENT_SECRET")
 GOOGLE_OAUTH_REDIRECT_URI = _read_optional_env("GOOGLE_OAUTH_REDIRECT_URI")
@@ -155,6 +167,12 @@ if EXPLORE_GUEST_DAILY_LIMIT <= 0:
 if EXPLORE_GUEST_COOLDOWN_SECONDS <= 0:
     raise RuntimeError("EXPLORE_GUEST_COOLDOWN_SECONDS must be a positive integer")
 
+if EXPLORE_SUSPICIOUS_WINDOW_SECONDS <= 0:
+    raise RuntimeError("EXPLORE_SUSPICIOUS_WINDOW_SECONDS must be a positive integer")
+
+if EXPLORE_SUSPICIOUS_BLOCK_THRESHOLD <= 0:
+    raise RuntimeError("EXPLORE_SUSPICIOUS_BLOCK_THRESHOLD must be a positive integer")
+
 if EXPLORE_USER_DAILY_LIMIT <= 0:
     raise RuntimeError("EXPLORE_USER_DAILY_LIMIT must be a positive integer")
 
@@ -168,6 +186,9 @@ if TURNSTILE_ENABLED and (not TURNSTILE_SITE_KEY or not TURNSTILE_SECRET_KEY):
     raise RuntimeError(
         "TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY are required when TURNSTILE_ENABLED=true"
     )
+
+if TURNSTILE_VERIFY_TIMEOUT_SECONDS <= 0:
+    raise RuntimeError("TURNSTILE_VERIFY_TIMEOUT_SECONDS must be a positive integer")
 
 if AI_PLANNER_MODE not in {"bootstrap", "openai"}:
     raise RuntimeError("AI_PLANNER_MODE must be one of: bootstrap, openai")
