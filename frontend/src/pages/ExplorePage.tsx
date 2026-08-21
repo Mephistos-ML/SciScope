@@ -1,40 +1,66 @@
 import type { AiSearchPlanPayload, ExploreResultItem, ViewerPayload } from "../types/api";
 import { SourceBadge } from "../components/SourceBadge";
+import { TurnstileWidget } from "../components/TurnstileWidget";
 import exploreEmptyIllustration from "../assets/states/explore/explore-empty.svg";
 import noResultsIllustration from "../assets/states/explore/search-no-results.svg";
 
+type ExploreSearchFeedback = {
+  message: string;
+  retryAfterSeconds: number | null;
+  signInSuggested: boolean;
+  turnstileRequired: boolean;
+};
+
 type ExplorePageProps = {
   canSubscribe: boolean;
+  exploreSearchFeedback: ExploreSearchFeedback | null;
   lastAiSearchPlan: AiSearchPlanPayload | null;
   onRunSearch: () => void;
   onSignIn: () => void;
   onSubscribe: (result: ExploreResultItem) => void;
   onTopicInputChange: (value: string) => void;
+  onTurnstileTokenChange: (token: string | null) => void;
   results: ExploreResultItem[];
   searchPending: boolean;
   subscribePendingRepositoryId: string | null;
   subscribedRepositoryIds: string[];
   topicInput: string;
+  turnstileReady: boolean;
+  turnstileResetKey: number;
+  turnstileSiteKey: string | null;
   viewer: ViewerPayload["user"];
 };
 
 export function ExplorePage({
   canSubscribe,
+  exploreSearchFeedback,
   lastAiSearchPlan,
   onRunSearch,
   onSignIn,
   onSubscribe,
   onTopicInputChange,
+  onTurnstileTokenChange,
   results,
   searchPending,
   subscribePendingRepositoryId,
   subscribedRepositoryIds,
   topicInput,
+  turnstileReady,
+  turnstileResetKey,
+  turnstileSiteKey,
   viewer,
 }: ExplorePageProps) {
   const hasResults = results.length > 0;
   const isPreSearch = !lastAiSearchPlan && !hasResults;
   const isNoResults = !isPreSearch && !hasResults;
+  const requiresTurnstile = exploreSearchFeedback?.turnstileRequired === true;
+  const searchDisabled =
+    searchPending || !topicInput.trim() || (requiresTurnstile && !turnstileReady);
+  const searchButtonLabel = searchPending
+    ? "Running..."
+    : requiresTurnstile && !turnstileReady
+      ? "Complete verification"
+      : "Run search";
 
   return (
     <main className="app-shell explore-shell">
@@ -73,14 +99,40 @@ export function ExplorePage({
               to save subscriptions and build your feed.
             </p>
           ) : null}
+          {exploreSearchFeedback ? (
+            <div className="query-feedback-panel">
+              <p className="query-feedback-copy">{exploreSearchFeedback.message}</p>
+              {requiresTurnstile ? (
+                <>
+                  <p className="query-feedback-meta">
+                    {turnstileReady
+                      ? "Verification complete. Run search to continue."
+                      : "Complete the verification challenge to continue."}
+                  </p>
+                  <TurnstileWidget
+                    onTokenChange={onTurnstileTokenChange}
+                    resetKey={turnstileResetKey}
+                    siteKey={turnstileSiteKey}
+                  />
+                </>
+              ) : null}
+              {exploreSearchFeedback.signInSuggested && !viewer ? (
+                <div className="query-feedback-actions">
+                  <button className="outline-button" onClick={onSignIn} type="button">
+                    Sign in with Google
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <div className="query-actions">
             <button
               className="solid-button"
-              disabled={searchPending || !topicInput.trim()}
+              disabled={searchDisabled}
               onClick={onRunSearch}
               type="button"
             >
-              {searchPending ? "Running..." : "Run search"}
+              {searchButtonLabel}
             </button>
           </div>
         </article>

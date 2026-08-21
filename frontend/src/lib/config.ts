@@ -1,6 +1,7 @@
 type FrontendConfig = {
   apiBaseUrl: string;
   requestTimeoutMs: number;
+  turnstileSiteKey: string | null;
 };
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 45_000;
@@ -36,7 +37,17 @@ function readRequestTimeoutMs(): number {
   return parsedValue;
 }
 
+function readTurnstileSiteKey(): string | null {
+  const rawValue = import.meta.env.VITE_TURNSTILE_SITE_KEY;
+  if (typeof rawValue !== "string" || rawValue.trim() === "") {
+    return null;
+  }
+
+  return rawValue.trim();
+}
+
 export const frontendConfig: FrontendConfig = Object.freeze({
   apiBaseUrl: readApiBaseUrl(),
   requestTimeoutMs: readRequestTimeoutMs(),
+  turnstileSiteKey: readTurnstileSiteKey(),
 });

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import {
+  ApiError,
   beginGoogleSignIn,
   createSubscription,
   deleteSubscription,
@@ -9,6 +10,7 @@ import {
   runExploreSearch,
   signOut,
 } from "../lib/api";
+import { frontendConfig } from "../lib/config";
 import { AppShell } from "../components/AppShell";
 import { AboutPage } from "../pages/AboutPage";
 import { ExplorePage } from "../pages/ExplorePage";
@@ -21,6 +23,13 @@ import type {
 } from "../types/api";
 
 type AppView = "explore" | "feed" | "about";
+
+type ExploreSearchFeedback = {
+  message: string;
+  retryAfterSeconds: number | null;
+  signInSuggested: boolean;
+  turnstileRequired: boolean;
+};
 
 export function App() {
   const [activeView, setActiveView] = useState<AppView>("explore");
@@ -38,6 +47,11 @@ export function App() {
   );
   const [deletePending, setDeletePending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [exploreSearchFeedback, setExploreSearchFeedback] = useState<ExploreSearchFeedback | null>(
+    null,
+  );
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 
   useEffect(() => {
     const authError = readAuthErrorFromUrl();
@@ -122,16 +136,34 @@ export function App() {
     try {
       const payload = await runExploreSearch({
         topicDescription: topicInput.trim(),
+        turnstileToken,
       });
       setResults(payload.items);
       setLastAiSearchPlan(payload.aiSearchPlan);
+      setExploreSearchFeedback(null);
+      setTurnstileToken(null);
+      setTurnstileResetKey((current) => current + 1);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to run search.";
-
       if (isApiUnavailableError(error)) {
-        window.alert(message);
+        window.alert(error.message);
+      } else if (error instanceof ApiError) {
+        setExploreSearchFeedback({
+          message: error.message,
+          retryAfterSeconds: error.retryAfterSeconds,
+          signInSuggested: error.signInSuggested,
+          turnstileRequired: error.turnstileRequired,
+        });
+        if (error.turnstileRequired) {
+          setTurnstileToken(null);
+          setTurnstileResetKey((current) => current + 1);
+        }
       } else {
-        setErrorMessage(message);
+        setExploreSearchFeedback({
+          message: error instanceof Error ? error.message : "Failed to run search.",
+          retryAfterSeconds: null,
+          signInSuggested: false,
+          turnstileRequired: false,
+        });
       }
     } finally {
       setSearchPending(false);
@@ -214,16 +246,21 @@ export function App() {
       {activeView === "explore" ? (
         <ExplorePage
           canSubscribe={Boolean(viewer)}
+          exploreSearchFeedback={exploreSearchFeedback}
           lastAiSearchPlan={lastAiSearchPlan}
           onRunSearch={() => void handleRunSearch()}
           onSignIn={() => void handleSignIn()}
           onSubscribe={(result) => void handleSubscribe(result)}
           onTopicInputChange={setTopicInput}
+          onTurnstileTokenChange={setTurnstileToken}
           results={results}
           searchPending={searchPending}
           subscribePendingRepositoryId={createPendingRepositoryId}
           subscribedRepositoryIds={subscriptions.map((item) => item.repository.repositoryId)}
           topicInput={topicInput}
+          turnstileReady={Boolean(turnstileToken)}
+          turnstileResetKey={turnstileResetKey}
+          turnstileSiteKey={frontendConfig.turnstileSiteKey}
           viewer={viewer}
         />
       ) : null}
@@ -271,7 +308,7 @@ function mapAuthErrorMessage(authError: string): string {
   }
 }
 
-function isApiUnavailableError(error: unknown): boolean {
+function isApiUnavailableError(error: unknown): error is Error {
   return (
     error instanceof Error &&
     error.message === "The SciScope API is unreachable right now. Please try again."

@@ -1,4 +1,5 @@
 import type {
+  ExploreAccessErrorPayload,
   ExploreSearchPayload,
   SignalDetailPayload,
   SignalListPayload,
@@ -12,12 +13,34 @@ import { frontendConfig } from "./config";
 type ApiErrorPayload = {
   error?: string;
   detail?: string;
+  code?: string;
+  retryAfterSeconds?: number;
+  signInSuggested?: boolean;
+  turnstileRequired?: boolean;
 };
 
-class ApiError extends Error {
-  constructor(message: string, readonly status: number | null = null) {
+export class ApiError extends Error {
+  readonly code: string | null;
+  readonly retryAfterSeconds: number | null;
+  readonly signInSuggested: boolean;
+  readonly turnstileRequired: boolean;
+
+  constructor(
+    message: string,
+    readonly status: number | null = null,
+    options: {
+      code?: string | null;
+      retryAfterSeconds?: number | null;
+      signInSuggested?: boolean;
+      turnstileRequired?: boolean;
+    } = {},
+  ) {
     super(message);
     this.name = "ApiError";
+    this.code = options.code ?? null;
+    this.retryAfterSeconds = options.retryAfterSeconds ?? null;
+    this.signInSuggested = options.signInSuggested ?? false;
+    this.turnstileRequired = options.turnstileRequired ?? false;
   }
 }
 
@@ -29,21 +52,28 @@ async function parseResponseJson<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
-async function readErrorMessage(response: Response): Promise<string> {
+async function readErrorPayload(response: Response): Promise<ExploreAccessErrorPayload | null> {
   const contentType = response.headers.get("content-type") ?? "";
 
   if (contentType.includes("application/json")) {
     const payload = await parseResponseJson<ApiErrorPayload>(response);
     if (typeof payload.error === "string" && payload.error.trim() !== "") {
-      return payload.error;
+      return {
+        error: payload.error,
+        code: typeof payload.code === "string" && payload.code.trim() ? payload.code.trim() : undefined,
+        retryAfterSeconds:
+          typeof payload.retryAfterSeconds === "number" ? payload.retryAfterSeconds : undefined,
+        signInSuggested: payload.signInSuggested === true,
+        turnstileRequired: payload.turnstileRequired === true,
+      };
     }
 
     if (typeof payload.detail === "string" && payload.detail.trim() !== "") {
-      return payload.detail;
+      return { error: payload.detail };
     }
   }
 
-  return `Request failed with status ${response.status}`;
+  return null;
 }
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -62,7 +92,17 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     });
 
     if (!response.ok) {
-      throw new ApiError(await readErrorMessage(response), response.status);
+      const errorPayload = await readErrorPayload(response);
+      throw new ApiError(
+        errorPayload?.error ?? `Request failed with status ${response.status}`,
+        response.status,
+        {
+          code: errorPayload?.code ?? null,
+          retryAfterSeconds: errorPayload?.retryAfterSeconds ?? null,
+          signInSuggested: errorPayload?.signInSuggested ?? false,
+          turnstileRequired: errorPayload?.turnstileRequired ?? false,
+        },
+      );
     }
 
     return await parseResponseJson<T>(response);
@@ -129,6 +169,7 @@ export async function deleteSubscription(subscriptionId: string): Promise<{ dele
 
 export async function runExploreSearch(payload: {
   topicDescription: string;
+  turnstileToken?: string | null;
 }): Promise<ExploreSearchPayload> {
   return requestJson<ExploreSearchPayload>("/api/explore/search", {
     method: "POST",

@@ -126,6 +126,14 @@ export type ExploreSearchPayload = {
   sourceStatuses?: SourceStatusPayload[];
 };
 
+export type ExploreAccessErrorPayload = {
+  error: string;
+  code?: string;
+  retryAfterSeconds?: number;
+  signInSuggested?: boolean;
+  turnstileRequired?: boolean;
+};
+
 export type AiSearchPlanPayload = {
   status: "pending" | "ready";
   queries: string[];
