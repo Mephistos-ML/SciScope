@@ -9,6 +9,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = PROJECT_ROOT / "backend"
 MONITORING_INTERVAL_SECONDS = 7200  # 2 hours
 POLLING_FREQUENCY_SECONDS = 30  # scheduler polling frequency: 30 seconds
+DEFAULT_EXPLORE_QUOTA_WINDOW_SECONDS = 86400  # 24 hours
 
 
 def _read_required_env(name: str) -> str:
@@ -101,6 +102,28 @@ AUTH_SESSION_TTL_SECONDS = int(
 AUTH_SESSION_SECURE = _read_bool_env("AUTH_SESSION_SECURE", APP_ENV == "production")
 AUTH_SESSION_SAMESITE = (_read_optional_env("AUTH_SESSION_SAMESITE") or "lax").lower()
 FRONTEND_BASE_URL = _read_optional_env("FRONTEND_BASE_URL")
+EXPLORE_PUBLIC_GUEST_SEARCH_ENABLED = _read_bool_env(
+    "EXPLORE_PUBLIC_GUEST_SEARCH_ENABLED",
+    True,
+)
+EXPLORE_QUOTA_WINDOW_SECONDS = _read_optional_int_env(
+    "EXPLORE_QUOTA_WINDOW_SECONDS",
+    DEFAULT_EXPLORE_QUOTA_WINDOW_SECONDS,
+)
+EXPLORE_GUEST_DAILY_LIMIT = _read_optional_int_env("EXPLORE_GUEST_DAILY_LIMIT", 3)
+EXPLORE_GUEST_COOLDOWN_SECONDS = _read_optional_int_env(
+    "EXPLORE_GUEST_COOLDOWN_SECONDS",
+    30,
+)
+EXPLORE_USER_DAILY_LIMIT = _read_optional_int_env("EXPLORE_USER_DAILY_LIMIT", 25)
+EXPLORE_USER_COOLDOWN_SECONDS = _read_optional_int_env(
+    "EXPLORE_USER_COOLDOWN_SECONDS",
+    8,
+)
+EXPLORE_GLOBAL_DAILY_LIMIT = _read_optional_int_env("EXPLORE_GLOBAL_DAILY_LIMIT", 250)
+TURNSTILE_ENABLED = _read_bool_env("TURNSTILE_ENABLED", False)
+TURNSTILE_SITE_KEY = _read_optional_env("TURNSTILE_SITE_KEY")
+TURNSTILE_SECRET_KEY = _read_optional_env("TURNSTILE_SECRET_KEY")
 GOOGLE_CLIENT_ID = _read_optional_env("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = _read_optional_env("GOOGLE_CLIENT_SECRET")
 GOOGLE_OAUTH_REDIRECT_URI = _read_optional_env("GOOGLE_OAUTH_REDIRECT_URI")
@@ -122,6 +145,29 @@ if AUTH_SESSION_TTL_SECONDS <= 0:
 
 if AUTH_SESSION_SAMESITE not in {"lax", "strict", "none"}:
     raise RuntimeError("AUTH_SESSION_SAMESITE must be one of: lax, strict, none")
+
+if EXPLORE_QUOTA_WINDOW_SECONDS <= 0:
+    raise RuntimeError("EXPLORE_QUOTA_WINDOW_SECONDS must be a positive integer")
+
+if EXPLORE_GUEST_DAILY_LIMIT <= 0:
+    raise RuntimeError("EXPLORE_GUEST_DAILY_LIMIT must be a positive integer")
+
+if EXPLORE_GUEST_COOLDOWN_SECONDS <= 0:
+    raise RuntimeError("EXPLORE_GUEST_COOLDOWN_SECONDS must be a positive integer")
+
+if EXPLORE_USER_DAILY_LIMIT <= 0:
+    raise RuntimeError("EXPLORE_USER_DAILY_LIMIT must be a positive integer")
+
+if EXPLORE_USER_COOLDOWN_SECONDS <= 0:
+    raise RuntimeError("EXPLORE_USER_COOLDOWN_SECONDS must be a positive integer")
+
+if EXPLORE_GLOBAL_DAILY_LIMIT <= 0:
+    raise RuntimeError("EXPLORE_GLOBAL_DAILY_LIMIT must be a positive integer")
+
+if TURNSTILE_ENABLED and (not TURNSTILE_SITE_KEY or not TURNSTILE_SECRET_KEY):
+    raise RuntimeError(
+        "TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY are required when TURNSTILE_ENABLED=true"
+    )
 
 if AI_PLANNER_MODE not in {"bootstrap", "openai"}:
     raise RuntimeError("AI_PLANNER_MODE must be one of: bootstrap, openai")
