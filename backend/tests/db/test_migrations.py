@@ -108,10 +108,11 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
     assert inspector.has_table("users")
     assert inspector.has_table("oauth_accounts")
     assert inspector.has_table("user_sessions")
+    assert inspector.has_table("explore_search_events")
 
     with engine.connect() as connection:
         version = connection.execute(
             sa.text("SELECT version_num FROM alembic_version")
         ).scalar_one()
 
-    assert version == "0005_direct_repo_subscriptions"
+    assert version == "0006_explore_usage_events"

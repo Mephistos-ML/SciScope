@@ -12,7 +12,7 @@ export function AboutPage() {
 
       <section className="about-grid">
         <article className="about-panel about-panel-hero">
-          <h2 className="section-title">Scientific repository intelligence</h2>
+          <h2 className="section-title">Scientific Repository Intelligence</h2>
           <p className="section-copy">
             SciScope helps researchers discover relevant scientific software
             repositories, understand the existing implementation landscape and keep

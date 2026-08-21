@@ -48,7 +48,7 @@ export function AppShell({
                   onClick={onSignOut}
                   type="button"
                 >
-                  {signingOut ? "Signing out..." : "Sign out"}
+                  {signingOut ? "Signing Out..." : "Sign Out"}
                 </button>
               </div>
             ) : (
@@ -94,25 +94,25 @@ export function AppShell({
             <span>My Feed</span>
           </button>
         </nav>
-
-        <div className="sidebar-footer">
-          <button
-            className={
-              activeView === "about"
-                ? "sidebar-footer-button sidebar-footer-button-active"
-                : "sidebar-footer-button"
-            }
-            aria-current={activeView === "about" ? "page" : undefined}
-            onClick={() => onNavigate("about")}
-            type="button"
-          >
-            <span className="sidebar-footer-title">About SciScope</span>
-            <span className="sidebar-footer-copy">
-              Scientific repository intelligence for researchers.
-            </span>
-          </button>
-        </div>
       </aside>
+
+      <footer className="app-side-footer">
+        <button
+          className={
+            activeView === "about"
+              ? "sidebar-footer-button sidebar-footer-button-active"
+              : "sidebar-footer-button"
+          }
+          aria-current={activeView === "about" ? "page" : undefined}
+          onClick={() => onNavigate("about")}
+          type="button"
+        >
+          <span className="sidebar-footer-title">About SciScope</span>
+          <span className="sidebar-footer-copy">
+            Scientific repository intelligence for researchers.
+          </span>
+        </button>
+      </footer>
 
       <div className="app-main-column">
         <div className="app-content">{children}</div>
