@@ -46,7 +46,7 @@ export function FeedPage({
               src={feedEmptyIllustration}
             />
             <h2 className="empty-state-title">
-              {viewer ? "No subscriptions yet" : "Sign in to build your feed"}
+              {viewer ? "No Subscriptions Yet" : "Sign In to Build Your Feed"}
             </h2>
             <p className="empty-state-copy">
               {viewer
@@ -61,7 +61,7 @@ export function FeedPage({
             <div className="rail-header">
               <p className="section-kicker">Subscriptions</p>
               <div className="results-title-row">
-                <h2 className="section-title">Saved repositories</h2>
+                <h2 className="section-title">Saved Repositories</h2>
                 <span className="results-count-badge">{subscriptions.length} total</span>
               </div>
             </div>
@@ -84,7 +84,7 @@ export function FeedPage({
                     <strong className="subscription-card-title">
                       {subscription.repository.fullName}
                     </strong>
-                    <p>{subscription.selectedQuery || "No query snapshot saved."}</p>
+                    <p>{subscription.selectedQuery || "No Query Snapshot Saved."}</p>
                     <span className="subscription-card-meta">
                       {subscription.repository.source}
                     </span>
@@ -105,7 +105,7 @@ export function FeedPage({
           <section className="subscription-detail">
             {selectedSubscription ? (
               <>
-                <p className="section-kicker">Selected repository</p>
+                <p className="section-kicker">Selected Repository</p>
                 <h2 className="section-title">{selectedSubscription.repository.fullName}</h2>
                 <p className="section-copy">
                   This subscription keeps the repository in your feed for ongoing monitoring.
@@ -120,9 +120,9 @@ export function FeedPage({
                 </div>
 
                 <div className="detail-panel-block">
-                  <h4>Selected query</h4>
+                  <h4>Selected Query</h4>
                   <p className="detail-copy">
-                    {selectedSubscription.selectedQuery || "No query snapshot saved."}
+                    {selectedSubscription.selectedQuery || "No Query Snapshot Saved."}
                   </p>
                 </div>
 
@@ -136,7 +136,7 @@ export function FeedPage({
                       src={feedNoUpdatesIllustration}
                     />
                     <div className="feed-updates-copy">
-                      <p className="empty-state-title">No updates surfaced yet</p>
+                      <p className="empty-state-title">No Updates Surfaced Yet</p>
                       <p className="detail-copy">
                         New monitored changes for this repository will appear here when
                         SciScope detects them.
@@ -147,8 +147,8 @@ export function FeedPage({
               </>
             ) : (
               <div className="feed-detail-empty">
-                <p className="section-kicker">Selected repository</p>
-                <h3 className="section-title">Pick a saved repository</h3>
+                <p className="section-kicker">Selected Repository</p>
+                <h3 className="section-title">Pick a Saved Repository</h3>
                 <p className="section-copy">
                   Choose a subscription from the rail to open its monitoring view.
                 </p>

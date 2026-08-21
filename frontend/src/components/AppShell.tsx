@@ -48,7 +48,7 @@ export function AppShell({
                   onClick={onSignOut}
                   type="button"
                 >
-                  {signingOut ? "Signing out..." : "Sign out"}
+                  {signingOut ? "Signing Out..." : "Sign Out"}
                 </button>
               </div>
             ) : (

@@ -87,16 +87,16 @@ export function ExplorePage({
   const searchButtonLabel = searchPending
     ? "Running..."
     : retryLockActive
-      ? `Try again in ${formatRetryCountdown(retrySecondsRemaining)}`
+      ? `Try Again in ${formatRetryCountdown(retrySecondsRemaining)}`
     : requiresTurnstile && !turnstileReady
-      ? "Complete verification"
-      : "Run search";
+      ? "Complete Verification"
+      : "Run Search";
 
   return (
     <main className="app-shell explore-shell">
       <section className="page-intro explore-intro">
         <div className="page-intro-main">
-          <h1 className="page-title">Explore scientific software</h1>
+          <h1 className="page-title">Explore Scientific Software</h1>
           <p className="section-copy">
             Discover repositories across GitHub, GitLab, Gitee, GitCode and GitVerse.
           </p>
@@ -106,7 +106,7 @@ export function ExplorePage({
       <section className="explore-query-layout">
         <article className="query-workspace">
           <label className="field-label" htmlFor="topic-query">
-            Topic description
+            Topic Description
           </label>
           <textarea
             id="topic-query"
@@ -124,7 +124,7 @@ export function ExplorePage({
             <p className="query-context-note">
               Explore mode is public.{" "}
               <button className="query-context-link" onClick={onSignIn} type="button">
-                Sign in with Google
+                Sign In with Google
               </button>{" "}
               to save subscriptions and build your feed.
             </p>
@@ -136,7 +136,7 @@ export function ExplorePage({
                 <>
                   <p className="query-feedback-meta">
                     {turnstileReady
-                      ? "Verification complete. Run search to continue."
+                      ? "Verification complete. Run Search to continue."
                       : "Complete the verification challenge to continue."}
                   </p>
                   <TurnstileWidget
@@ -153,7 +153,7 @@ export function ExplorePage({
               {exploreSearchFeedback.signInSuggested && !viewer ? (
                 <div className="query-feedback-actions">
                   <button className="outline-button" onClick={onSignIn} type="button">
-                    Sign in with Google
+                    Sign In with Google
                   </button>
                 </div>
               ) : null}
@@ -181,7 +181,7 @@ export function ExplorePage({
               className="empty-state-illustration"
               src={exploreEmptyIllustration}
             />
-            <h2 className="empty-state-title">Start exploring</h2>
+            <h2 className="empty-state-title">Start Exploring</h2>
             <p className="empty-state-copy">
               Enter a topic above and run search to discover relevant repositories
               from multiple hosts.
@@ -195,7 +195,7 @@ export function ExplorePage({
               <div className="results-header-main">
                 <p className="section-kicker">Results</p>
                 <div className="results-title-row">
-                  <h3 className="panel-title">Matched repositories</h3>
+                  <h3 className="panel-title">Matched Repositories</h3>
                   {hasResults ? (
                     <span className="results-count-badge">{results.length} results</span>
                   ) : null}
@@ -204,7 +204,7 @@ export function ExplorePage({
               <div className="results-plan-summary">
                 {lastAiSearchPlan?.queries.length ? (
                   <>
-                    <p className="field-hint">AI-generated search queries</p>
+                    <p className="field-hint">AI-Generated Search Queries</p>
                     <div className="query-chip-row">
                       {lastAiSearchPlan.queries.map((query) => (
                         <span className="query-chip" key={query}>
@@ -276,7 +276,7 @@ export function ExplorePage({
                           </div>
 
                           <div className="repository-cell repository-query-cell">
-                            {result.query || "No query snapshot"}
+                            {result.query || "No Query Snapshot"}
                           </div>
 
                           <div className="repository-cell repository-actions-cell">
@@ -311,7 +311,7 @@ export function ExplorePage({
                   className="empty-state-illustration search-no-results-illustration"
                   src={noResultsIllustration}
                 />
-                <h2 className="empty-state-title">No repositories found</h2>
+                <h2 className="empty-state-title">No Repositories Found</h2>
                 <p className="empty-state-copy">
                   Try refining the topic description or broadening the query terms to
                   discover more repositories.
