@@ -86,7 +86,8 @@ export function FeedPage({
                     </strong>
                     <p>{subscription.selectedQuery || "No Query Snapshot Saved."}</p>
                     <span className="subscription-card-meta">
-                      {subscription.repository.source}
+                      {subscription.repository.source} · Subscribed{" "}
+                      {formatSubscriptionDate(subscription.createdAt)}
                     </span>
                   </button>
                   <button
@@ -117,6 +118,13 @@ export function FeedPage({
                     href={selectedSubscription.repository.url}
                     source={selectedSubscription.repository.source}
                   />
+                </div>
+
+                <div className="detail-panel-block">
+                  <h4>Subscribed</h4>
+                  <p className="detail-copy">
+                    {formatSubscriptionDate(selectedSubscription.createdAt)}
+                  </p>
                 </div>
 
                 <div className="detail-panel-block">
@@ -159,4 +167,17 @@ export function FeedPage({
       )}
     </main>
   );
+}
+
+function formatSubscriptionDate(value: string): string {
+  const parsedDate = new Date(value);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(parsedDate);
 }
