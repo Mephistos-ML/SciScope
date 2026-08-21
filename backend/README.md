@@ -102,10 +102,10 @@ Main modules:
 Main modules:
 
 - `app/api/routes/subscriptions.py`
-- `app/services/subscriptions/service.py`
-- `app/storage/repositories.py`
-- `app/storage/subscriptions.py`
-- `app/sources/runtime.py`
+- `app/services/subscriptions/`
+- `app/services/monitoring/`
+- `app/storage/repositories/`
+- `app/storage/subscriptions/`
 
 ### Monitoring Flow
 
@@ -114,10 +114,10 @@ Main modules:
 Main modules:
 
 - `app/services/runtime.py`
-- `app/sources/runtime.py`
+- `app/services/monitoring/`
 - `app/sources/github/monitor.py`
 - `app/sources/gitlab/monitor.py`
-- `app/storage/seen_signals.py`
+- `app/storage/signals/`
 
 ## Source Adapter Model
 
@@ -135,9 +135,9 @@ Unavailable source modules:
 Adapter rules:
 
 - discovery adapters return repository `Signal` objects
-- monitoring adapters return release `Signal` objects
+- monitoring adapters expose provider activity loaders
 - adapters shape source payloads and keep source-specific metadata
-- adapters do not decide subscriptions
+- adapters do not own checkpoints or runtime orchestration
 
 ## Persistence
 
@@ -177,11 +177,23 @@ The runtime tracks:
 - `backend/app/storage/`
   - persistence contracts
 - `backend/app/database/`
-  - SQLAlchemy models and sessions
+  - SQLAlchemy records and sessions
 - `backend/app/models/`
   - domain objects
 - `backend/tests/`
   - backend test suite
+
+## Architecture Contract
+
+Current backend boundaries are enforced by convention through [AI_CONTRACT.md](/Users/ernestborysenko/git/SciScope/AI_CONTRACT.md).
+
+Core direction:
+
+- `api -> services -> sources/storage -> database`
+- `models` and `config` are shared layers
+- source adapters do external IO only
+- persistence logic stays in `storage`
+- orchestration lives in `services`
 
 ## Engineering Notes
 
