@@ -1,1 +1,1 @@
-"""Persistence helpers for raw signals and match state."""
+"""Persistence helpers for raw signals, usage events, and match state."""
