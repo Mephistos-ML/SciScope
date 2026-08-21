@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from app.config import DATABASE_URL
+from app.services.monitoring import sync_repository_baseline
+from app.models.repository import Repository
 from app.services.auth import User
-from app.sources.common import build_repository_entity
-from app.sources.runtime import sync_repository_baseline
+from app.services.subscriptions.repositories import build_subscribed_repository
 from app.storage.repositories import (
     delete_repository_checkpoints_for_subscription,
     upsert_repositories,
@@ -15,7 +16,6 @@ from app.storage.subscriptions import (
     delete_subscription_for_user,
     list_subscription_watches_for_user,
 )
-from app.models.signal import Signal
 
 
 def list_subscription_payloads(
@@ -59,20 +59,13 @@ def create_subscription_payload(
 ) -> dict[str, object]:
     """Persist and serialize one direct repository watch."""
 
-    repository_signal = Signal(
-        source=repository_source,
-        kind="repository",
-        item_id=repository_item_id,
-        title=repository_full_name,
-        url=repository_url,
-        published_at=None,
-        raw_text=repository_full_name,
-        payload={
-            "repo": repository_full_name,
-            "query": selected_query,
-        },
+    repository: Repository = build_subscribed_repository(
+        repository_item_id=repository_item_id,
+        repository_source=repository_source,
+        repository_full_name=repository_full_name,
+        repository_url=repository_url,
+        selected_query=selected_query,
     )
-    repository = build_repository_entity(repository_signal)
     upsert_repositories((repository,), database_url=database_url)
     subscription = create_subscription(
         user_id=user.user_id,

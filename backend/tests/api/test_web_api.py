@@ -20,7 +20,11 @@ from app.services.auth import create_authenticated_session
 from app.services.auth import service as auth_service
 from app.services import runtime
 from app.services.security.turnstile import TurnstileVerificationResult
-from app.sources.common import RepositorySourceError
+from app.services.search.retrieval.models import (
+    CandidateProvenance,
+    RepositoryCandidate,
+    RetrievedCandidates,
+)
 from app.storage import auth as auth_storage
 from app.storage.subscriptions import SubscriptionWatchRecord
 
@@ -85,6 +89,30 @@ def _build_subscription_watch() -> SubscriptionWatchRecord:
     )
 
 
+def _build_retrieved_candidates(
+    *signals: Signal,
+    source_statuses: tuple[dict[str, object], ...],
+    successful_source_count: int,
+) -> RetrievedCandidates:
+    return RetrievedCandidates(
+        candidates=tuple(
+            RepositoryCandidate(
+                repository_id=signal.item_id,
+                signal=signal,
+                provenance=CandidateProvenance(
+                    matched_queries=(str(signal.payload.get("query") or ""),),
+                    matched_channels=("repository_search",),
+                    best_rank_by_channel={"repository_search": 1},
+                    hit_count=1,
+                ),
+            )
+            for signal in signals
+        ),
+        source_statuses=source_statuses,
+        successful_source_count=successful_source_count,
+    )
+
+
 def _build_ready_repository_ai_plan(*queries: str) -> AiSearchPlan:
     return AiSearchPlan(
         status="ready" if queries else "pending",
@@ -139,7 +167,7 @@ def test_status_and_signal_endpoints_return_json(monkeypatch) -> None:
     monkeypatch.setattr(
         runtime,
         "load_repository_signals",
-        lambda subscription_id, repository, *, database_url: [],
+        lambda subscription_id, repository, *, baseline_started_after, database_url: [],
     )
     monkeypatch.setattr(
         runtime,
@@ -404,36 +432,22 @@ def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatc
         lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
     )
     monkeypatch.setattr(
-        "app.services.search.explore.discover_github_repository_candidates",
-        lambda queries: [
+        "app.services.search.explore.run_external_repository_retrieval",
+        lambda queries: _build_retrieved_candidates(
             _build_explore_repository_signal(
                 "github:repo:Mephistos-ML/paranmr",
                 query=queries[0],
-            )
-        ],
-    )
-    monkeypatch.setattr(
-        "app.services.search.explore.discover_github_repository_candidates_from_readme",
-        lambda queries: [],
-    )
-    monkeypatch.setattr(
-        "app.services.search.explore.discover_gitlab_repository_candidates",
-        lambda queries: (_ for _ in ()).throw(
-            RepositorySourceError(
-                source="gitlab",
-                status="unauthorized",
-                public_message="GitLab auth failed.",
-            )
-        ),
-    )
-    monkeypatch.setattr(
-        "app.services.search.explore.discover_gitlab_repository_candidates_from_readme",
-        lambda queries: (_ for _ in ()).throw(
-            RepositorySourceError(
-                source="gitlab",
-                status="unauthorized",
-                public_message="GitLab auth failed.",
-            )
+            ),
+            source_statuses=(
+                {"source": "github", "status": "ok", "candidateCount": 1, "error": None},
+                {
+                    "source": "gitlab",
+                    "status": "unauthorized",
+                    "candidateCount": 0,
+                    "error": "GitLab auth failed.",
+                },
+            ),
+            successful_source_count=1,
         ),
     )
 
@@ -457,43 +471,23 @@ def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
         lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
     )
     monkeypatch.setattr(
-        "app.services.search.explore.discover_github_repository_candidates",
-        lambda queries: (_ for _ in ()).throw(
-            RepositorySourceError(
-                source="github",
-                status="unauthorized",
-                public_message="GitHub auth failed.",
-            )
-        ),
-    )
-    monkeypatch.setattr(
-        "app.services.search.explore.discover_github_repository_candidates_from_readme",
-        lambda queries: (_ for _ in ()).throw(
-            RepositorySourceError(
-                source="github",
-                status="unauthorized",
-                public_message="GitHub auth failed.",
-            )
-        ),
-    )
-    monkeypatch.setattr(
-        "app.services.search.explore.discover_gitlab_repository_candidates",
-        lambda queries: (_ for _ in ()).throw(
-            RepositorySourceError(
-                source="gitlab",
-                status="error",
-                public_message="GitLab failed.",
-            )
-        ),
-    )
-    monkeypatch.setattr(
-        "app.services.search.explore.discover_gitlab_repository_candidates_from_readme",
-        lambda queries: (_ for _ in ()).throw(
-            RepositorySourceError(
-                source="gitlab",
-                status="error",
-                public_message="GitLab failed.",
-            )
+        "app.services.search.explore.run_external_repository_retrieval",
+        lambda queries: _build_retrieved_candidates(
+            source_statuses=(
+                {
+                    "source": "github",
+                    "status": "unauthorized",
+                    "candidateCount": 0,
+                    "error": "GitHub auth failed.",
+                },
+                {
+                    "source": "gitlab",
+                    "status": "error",
+                    "candidateCount": 0,
+                    "error": "GitLab failed.",
+                },
+            ),
+            successful_source_count=0,
         ),
     )
 
@@ -649,25 +643,18 @@ def test_explore_search_accepts_verified_turnstile_token_for_suspicious_guest(
         lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
     )
     monkeypatch.setattr(
-        "app.services.search.explore.discover_github_repository_candidates",
-        lambda queries: [
+        "app.services.search.explore.run_external_repository_retrieval",
+        lambda queries: _build_retrieved_candidates(
             _build_explore_repository_signal(
                 "github:repo:Mephistos-ML/paranmr",
                 query=queries[0],
-            )
-        ],
-    )
-    monkeypatch.setattr(
-        "app.services.search.explore.discover_github_repository_candidates_from_readme",
-        lambda queries: [],
-    )
-    monkeypatch.setattr(
-        "app.services.search.explore.discover_gitlab_repository_candidates",
-        lambda queries: [],
-    )
-    monkeypatch.setattr(
-        "app.services.search.explore.discover_gitlab_repository_candidates_from_readme",
-        lambda queries: [],
+            ),
+            source_statuses=(
+                {"source": "github", "status": "ok", "candidateCount": 1, "error": None},
+                {"source": "gitlab", "status": "ok", "candidateCount": 0, "error": None},
+            ),
+            successful_source_count=2,
+        ),
     )
 
     with TestClient(app) as client:

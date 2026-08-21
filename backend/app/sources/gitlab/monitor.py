@@ -5,20 +5,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from urllib.parse import quote_plus
 
-from app.models.repository import Repository
 from app.models.signal import Signal
-from app.runtime.state import STATE
 from app.sources.common import (
     RepositoryRelease,
-    build_repository_release_checkpoint,
     build_repository_release_signal,
-    read_repository_name,
 )
 from app.sources.gitlab.client import GITLAB_API_BASE, fetch_json
-from app.sources.gitlab.state import resolve_release_checkpoint
-from app.storage.repositories import upsert_repository_checkpoints
-
-build_release_checkpoint = build_repository_release_checkpoint
 
 
 def load_repo_activity(
@@ -32,53 +24,6 @@ def load_repo_activity(
         return []
 
     return _load_release_signals(repo_full_name, started_after=started_after)
-
-
-def load_gitlab_signals_for_subscription(
-    subscription_id: str,
-    repository: Repository,
-    *,
-    database_url: str,
-) -> list[Signal]:
-    """Load live GitLab release signals for one watched repository."""
-
-    baseline_started_after = STATE.monitoring_started_at
-    repo_name = read_repository_name(repository)
-    if repo_name is None:
-        return []
-
-    started_after = resolve_release_checkpoint(
-        subscription_id,
-        repository,
-        baseline_started_after=baseline_started_after,
-        database_url=database_url,
-    )
-    if started_after is None:
-        return []
-
-    signals = load_repo_activity(
-        repo_name,
-        started_after=started_after,
-    )
-    latest_published_at = max(
-        (
-            signal.published_at
-            for signal in signals
-            if signal.published_at is not None
-        ),
-        default=started_after,
-    )
-    checkpoint = build_repository_release_checkpoint(
-        subscription_id,
-        repository,
-        latest_published_at=latest_published_at,
-        fallback_started_after=started_after,
-    )
-    if checkpoint is not None:
-        upsert_repository_checkpoints((checkpoint,), database_url=database_url)
-
-    return signals
-
 
 def _load_release_signals(
     repo_full_name: str,

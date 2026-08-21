@@ -11,9 +11,9 @@ from app.config import DATABASE_URL
 from app.config import MONITORING_INTERVAL_SECONDS, POLLING_FREQUENCY_SECONDS
 from app.models.repository import Repository
 from app.models.signal import Signal
+from app.services.monitoring import load_repository_signals, sync_repository_baseline
 from app.runtime.state import STATE
 from app.sources.replay import load_replay_signals
-from app.sources.runtime import load_repository_signals, sync_repository_baseline
 from app.storage.repositories import list_repository_checkpoints
 from app.storage.signals import load_seen_signal_ids, upsert_signals
 from app.storage.subscriptions import (
@@ -149,6 +149,7 @@ def run_baseline_sync(*, database_url: str = DATABASE_URL) -> None:
         sync_repository_baseline(
             subscription.subscription_id,
             subscription.repository,
+            baseline_started_at=STATE.monitoring_started_at,
             database_url=database_url,
         )
 
@@ -236,6 +237,7 @@ def _run_scan_cycle_unlocked(database_url: str) -> None:
             live_signals = load_repository_signals(
                 subscription.subscription_id,
                 subscription.repository,
+                baseline_started_after=STATE.monitoring_started_at,
                 database_url=database_url,
             )
             signals.extend(
