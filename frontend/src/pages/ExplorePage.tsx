@@ -53,10 +53,11 @@ export function ExplorePage({
   viewer,
 }: ExplorePageProps) {
   const hasResults = results.length > 0;
-  const isPreSearch = !lastAiSearchPlan && !hasResults;
-  const isNoResults = !isPreSearch && !hasResults;
+  const isPreSearch = !searchPending && !lastAiSearchPlan && !hasResults;
+  const isNoResults = !searchPending && !isPreSearch && !hasResults;
   const requiresTurnstile = exploreSearchFeedback?.turnstileRequired === true;
   const [retrySecondsRemaining, setRetrySecondsRemaining] = useState<number | null>(null);
+  const [runningDots, setRunningDots] = useState("...");
 
   useEffect(() => {
     const retryUntilEpochMs = exploreSearchFeedback?.retryUntilEpochMs;
@@ -78,6 +79,22 @@ export function ExplorePage({
     return () => window.clearInterval(intervalId);
   }, [exploreSearchFeedback?.retryUntilEpochMs]);
 
+  useEffect(() => {
+    if (!searchPending) {
+      setRunningDots("...");
+      return;
+    }
+
+    const frames = ["...", "..", ".", ".."] as const;
+    let currentFrameIndex = 0;
+    const intervalId = window.setInterval(() => {
+      currentFrameIndex = (currentFrameIndex + 1) % frames.length;
+      setRunningDots(frames[currentFrameIndex]);
+    }, 220);
+
+    return () => window.clearInterval(intervalId);
+  }, [searchPending]);
+
   const retryLockActive = retrySecondsRemaining !== null && retrySecondsRemaining > 0;
   const searchDisabled =
     searchPending ||
@@ -85,12 +102,13 @@ export function ExplorePage({
     retryLockActive ||
     (requiresTurnstile && !turnstileReady);
   const searchButtonLabel = searchPending
-    ? "Running..."
+    ? `Running${runningDots}`
     : retryLockActive
       ? `Try Again in ${formatRetryCountdown(retrySecondsRemaining)}`
     : requiresTurnstile && !turnstileReady
       ? "Complete Verification"
       : "Run Search";
+  const showLoadingResults = searchPending;
 
   return (
     <main className="app-shell explore-shell">
@@ -161,7 +179,7 @@ export function ExplorePage({
           ) : null}
           <div className="query-actions">
             <button
-              className="solid-button"
+              className={searchPending ? "solid-button solid-button-loading" : "solid-button"}
               disabled={searchDisabled}
               onClick={onRunSearch}
               type="button"
@@ -196,13 +214,26 @@ export function ExplorePage({
                 <p className="section-kicker">Results</p>
                 <div className="results-title-row">
                   <h3 className="panel-title">Matched Repositories</h3>
-                  {hasResults ? (
+                  {hasResults && !showLoadingResults ? (
                     <span className="results-count-badge">{results.length} results</span>
                   ) : null}
                 </div>
               </div>
               <div className="results-plan-summary">
-                {lastAiSearchPlan?.queries.length ? (
+                {showLoadingResults ? (
+                  <>
+                    <p className="field-hint">AI-Generated Search Queries</p>
+                    <div className="query-chip-row query-chip-row-loading" aria-hidden="true">
+                      {LOADING_QUERY_CHIP_WIDTHS.map((width, index) => (
+                        <span
+                          className="query-chip query-chip-skeleton skeleton-shimmer"
+                          key={`loading-chip-${index}`}
+                          style={{ width }}
+                        />
+                      ))}
+                    </div>
+                  </>
+                ) : lastAiSearchPlan?.queries.length ? (
                   <>
                     <p className="field-hint">AI-Generated Search Queries</p>
                     <div className="query-chip-row">
@@ -221,7 +252,59 @@ export function ExplorePage({
               </div>
             </div>
 
-            {hasResults ? (
+            {showLoadingResults ? (
+              <>
+                <div className="repository-table">
+                  <div className="repository-table-head">
+                    <span>Repository</span>
+                    <span>Source</span>
+                    <span>Language</span>
+                    <span>Stars</span>
+                    <span>Query</span>
+                    <span>Actions</span>
+                  </div>
+
+                  <div className="repository-table-body">
+                    {LOADING_REPOSITORY_ROW_COUNT.map((rowIndex) => (
+                      <div
+                        className="repository-row repository-row-skeleton"
+                        key={`loading-row-${rowIndex}`}
+                      >
+                        <div className="repository-main-cell">
+                          <span className="repository-skeleton-title skeleton-shimmer" />
+                          <span className="repository-skeleton-copy skeleton-shimmer" />
+                          <div className="repository-term-row" aria-hidden="true">
+                            <span className="repository-term-chip repository-term-chip-skeleton skeleton-shimmer" />
+                            <span className="repository-term-chip repository-term-chip-skeleton skeleton-shimmer repository-term-chip-skeleton-wide" />
+                            <span className="repository-term-chip repository-term-chip-skeleton skeleton-shimmer" />
+                          </div>
+                        </div>
+
+                        <div className="repository-cell">
+                          <span className="repository-skeleton-badge skeleton-shimmer" />
+                        </div>
+
+                        <div className="repository-cell repository-metadata-cell">
+                          <span className="repository-skeleton-meta skeleton-shimmer" />
+                        </div>
+
+                        <div className="repository-cell repository-metadata-cell">
+                          <span className="repository-skeleton-meta repository-skeleton-meta-short skeleton-shimmer" />
+                        </div>
+
+                        <div className="repository-cell repository-query-cell">
+                          <span className="repository-skeleton-query skeleton-shimmer" />
+                        </div>
+
+                        <div className="repository-cell repository-actions-cell">
+                          <span className="repository-skeleton-button skeleton-shimmer" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : hasResults ? (
               <>
                 <div className="repository-table">
                   <div className="repository-table-head">
@@ -324,6 +407,9 @@ export function ExplorePage({
     </main>
   );
 }
+
+const LOADING_QUERY_CHIP_WIDTHS = ["148px", "112px", "176px"] as const;
+const LOADING_REPOSITORY_ROW_COUNT = [0, 1, 2, 3, 4] as const;
 
 function formatCompactNumber(value: number): string {
   if (value >= 1000) {
