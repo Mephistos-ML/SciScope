@@ -1,3 +1,18 @@
+# [1.2.0](https://github.com/Mephistos-ML/SciScope/compare/v1.1.0...v1.2.0) (2026-08-21)
+
+
+### Features
+
+* **api:** add explore access and turnstile config ([fed0eee](https://github.com/Mephistos-ML/SciScope/commit/fed0eee37b1439f1fed64f542104bd9b7109db6a))
+* **api:** add explore access models and errors ([1e9e5e8](https://github.com/Mephistos-ML/SciScope/commit/1e9e5e8b6e946f7d0bec113f205b1c08a891a839))
+* **api:** add explore access policy and actor checks ([93f212c](https://github.com/Mephistos-ML/SciScope/commit/93f212c18725e884bd521f719f284c97ef0e4056))
+* **api:** enforce explore abuse protection ([3107d07](https://github.com/Mephistos-ML/SciScope/commit/3107d076f57559f87dc9fdd21c31776dcb30bd6e))
+* **api:** finalize explore abuse flow ([ae58d2d](https://github.com/Mephistos-ML/SciScope/commit/ae58d2d244f27f43a68255972e7a541a7c62fbfd))
+* **db:** add explore usage event storage ([915816f](https://github.com/Mephistos-ML/SciScope/commit/915816fb033c3c68d27aaa05c76925ebfba57756))
+* **frontend:** add explore abuse protection states ([a873bf4](https://github.com/Mephistos-ML/SciScope/commit/a873bf41a88b60c1be4687572716c0bec13eeda3))
+* **frontend:** add glass-like shell styling ([ce4cad2](https://github.com/Mephistos-ML/SciScope/commit/ce4cad2941c2e210b3090b97611584c3e597697f))
+* **frontend:** show repository subscription dates ([8055bf9](https://github.com/Mephistos-ML/SciScope/commit/8055bf9c7dd5f6562222c9d6d4e4491f6d25f392))
+
 # [1.1.0](https://github.com/Mephistos-ML/SciScope/compare/v1.0.2...v1.1.0) (2026-08-20)
 
 
