@@ -1,6 +1,12 @@
 """SciScope domain models."""
 
 from app.models.ai import AiSearchPlan
+from app.models.explore_access import (
+    ExploreAccessDecision,
+    ExploreActor,
+    ExploreLimitCode,
+    ExploreTier,
+)
 from app.models.repository import (
     Repository,
     RepositoryCheckpoint,
@@ -10,6 +16,10 @@ from app.models.subscription import Subscription
 
 __all__ = [
     "AiSearchPlan",
+    "ExploreAccessDecision",
+    "ExploreActor",
+    "ExploreLimitCode",
+    "ExploreTier",
     "Repository",
     "RepositoryCheckpoint",
     "Signal",
