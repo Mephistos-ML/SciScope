@@ -15,7 +15,12 @@ from app.storage.repositories import (
 )
 
 
-def sync_gitlab_baseline(subscription_id: str, repository: Repository) -> None:
+def sync_gitlab_baseline(
+    subscription_id: str,
+    repository: Repository,
+    *,
+    database_url: str,
+) -> None:
     """Initialize the release checkpoint for one watched GitLab repository."""
 
     if repository.source != "gitlab":
@@ -29,6 +34,7 @@ def sync_gitlab_baseline(subscription_id: str, repository: Repository) -> None:
         subscription_id,
         repository.repository_id,
         REPOSITORY_RELEASE_CHECKPOINT_KEY,
+        database_url=database_url,
     )
     if checkpoint is not None:
         return
@@ -44,7 +50,8 @@ def sync_gitlab_baseline(subscription_id: str, repository: Repository) -> None:
                 checkpoint_value=now.isoformat(),
                 updated_at=now,
             ),
-        )
+        ),
+        database_url=database_url,
     )
 
 
@@ -53,6 +60,7 @@ def resolve_release_checkpoint(
     repository: Repository,
     *,
     baseline_started_after: datetime | None,
+    database_url: str,
 ) -> datetime | None:
     """Resolve the monitoring cursor for one watched GitLab repository."""
 
@@ -60,6 +68,7 @@ def resolve_release_checkpoint(
         subscription_id,
         repository.repository_id,
         REPOSITORY_RELEASE_CHECKPOINT_KEY,
+        database_url=database_url,
     )
     if checkpoint is not None:
         return datetime.fromisoformat(checkpoint.checkpoint_value).astimezone(UTC)

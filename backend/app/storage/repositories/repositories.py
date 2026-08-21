@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 
-from app.config import DATABASE_URL
 from app.database.records import RepositoryRecordModel
 from app.database.session import session_scope
 from app.models.repository import Repository
@@ -16,16 +15,15 @@ from app.models.repository import Repository
 def upsert_repositories(
     repositories: Sequence[Repository],
     *,
-    database_url: str | None = None,
+    database_url: str,
 ) -> None:
     """Insert or update repositories."""
 
     if not repositories:
         return
 
-    resolved_database_url = database_url or DATABASE_URL
     timestamp = _utc_now()
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         for repository in repositories:
             record = session.get(RepositoryRecordModel, repository.repository_id)
             if record is None:
@@ -52,17 +50,16 @@ def upsert_repositories(
 def list_repositories(
     *,
     source: str | None = None,
-    database_url: str | None = None,
+    database_url: str,
 ) -> list[Repository]:
     """List repositories with an optional source filter."""
 
-    resolved_database_url = database_url or DATABASE_URL
     statement = select(RepositoryRecordModel)
     if source is not None:
         statement = statement.where(RepositoryRecordModel.source == source)
     statement = statement.order_by(RepositoryRecordModel.full_name.asc())
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         rows = session.scalars(statement).all()
     return [_to_repository(row) for row in rows]
 
@@ -70,21 +67,20 @@ def list_repositories(
 def list_repositories_by_ids(
     repository_ids: Sequence[str],
     *,
-    database_url: str | None = None,
+    database_url: str,
 ) -> list[Repository]:
     """Load repositories by id while preserving the requested subset."""
 
     if not repository_ids:
         return []
 
-    resolved_database_url = database_url or DATABASE_URL
     statement = (
         select(RepositoryRecordModel)
         .where(RepositoryRecordModel.repository_id.in_(tuple(repository_ids)))
         .order_by(RepositoryRecordModel.full_name.asc())
     )
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         rows = session.scalars(statement).all()
     return [_to_repository(row) for row in rows]
 
@@ -92,12 +88,11 @@ def list_repositories_by_ids(
 def get_repository(
     repository_id: str,
     *,
-    database_url: str | None = None,
+    database_url: str,
 ) -> Repository | None:
     """Load one repository by id."""
 
-    resolved_database_url = database_url or DATABASE_URL
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         row = session.get(RepositoryRecordModel, repository_id)
     if row is None:
         return None

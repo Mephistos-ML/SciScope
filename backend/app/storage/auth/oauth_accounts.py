@@ -8,7 +8,6 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 
-from app.config import DATABASE_URL
 from app.database.records import OAuthAccountRecordModel
 from app.database.session import session_scope
 
@@ -33,11 +32,10 @@ def create_oauth_account(
     provider_subject: str,
     provider_email: str | None,
     oauth_account_id: str | None = None,
-    database_url: str | None = None,
+    database_url: str,
 ) -> OAuthAccountRecord:
     """Create one linked OAuth identity."""
 
-    resolved_database_url = database_url or DATABASE_URL
     now = _utc_now()
     record = OAuthAccountRecordModel(
         oauth_account_id=oauth_account_id or f"oauth_{uuid.uuid4().hex[:20]}",
@@ -49,7 +47,7 @@ def create_oauth_account(
         updated_at=now,
     )
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         session.add(record)
 
     return _to_oauth_account_record(record)
@@ -59,18 +57,17 @@ def get_oauth_account_by_provider_subject(
     provider: str,
     provider_subject: str,
     *,
-    database_url: str | None = None,
+    database_url: str,
 ) -> OAuthAccountRecord | None:
     """Load one OAuth account by provider subject."""
 
-    resolved_database_url = database_url or DATABASE_URL
     statement = (
         select(OAuthAccountRecordModel)
         .where(OAuthAccountRecordModel.provider == provider)
         .where(OAuthAccountRecordModel.provider_subject == provider_subject)
     )
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         row = session.scalar(statement)
 
     if row is None:
@@ -82,13 +79,11 @@ def update_oauth_account(
     oauth_account_id: str,
     *,
     provider_email: str | None,
-    database_url: str | None = None,
+    database_url: str,
 ) -> OAuthAccountRecord:
     """Refresh one linked OAuth account."""
 
-    resolved_database_url = database_url or DATABASE_URL
-
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         row = session.scalar(
             select(OAuthAccountRecordModel).where(
                 OAuthAccountRecordModel.oauth_account_id == oauth_account_id

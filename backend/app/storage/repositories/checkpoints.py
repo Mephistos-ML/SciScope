@@ -7,7 +7,6 @@ from collections.abc import Sequence
 
 from sqlalchemy import delete, select
 
-from app.config import DATABASE_URL
 from app.database.records import RepositoryCheckpointRecordModel
 from app.database.session import session_scope
 from app.models.repository import RepositoryCheckpoint
@@ -16,15 +15,14 @@ from app.models.repository import RepositoryCheckpoint
 def upsert_repository_checkpoints(
     checkpoints: Sequence[RepositoryCheckpoint],
     *,
-    database_url: str | None = None,
+    database_url: str,
 ) -> None:
     """Insert or update monitoring checkpoints for repositories."""
 
     if not checkpoints:
         return
 
-    resolved_database_url = database_url or DATABASE_URL
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         for checkpoint in checkpoints:
             record = session.get(
                 RepositoryCheckpointRecordModel,
@@ -56,12 +54,11 @@ def upsert_repository_checkpoints(
 def delete_repository_checkpoints_for_subscription(
     subscription_id: str,
     *,
-    database_url: str | None = None,
+    database_url: str,
 ) -> None:
     """Delete all repository checkpoints for one subscription."""
 
-    resolved_database_url = database_url or DATABASE_URL
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         session.execute(
             delete(RepositoryCheckpointRecordModel).where(
                 RepositoryCheckpointRecordModel.subscription_id == subscription_id
@@ -73,11 +70,10 @@ def list_repository_checkpoints(
     subscription_id: str,
     repository_id: str,
     *,
-    database_url: str | None = None,
+    database_url: str,
 ) -> list[RepositoryCheckpoint]:
     """List checkpoints for one subscription-owned repository."""
 
-    resolved_database_url = database_url or DATABASE_URL
     statement = (
         select(RepositoryCheckpointRecordModel)
         .where(RepositoryCheckpointRecordModel.subscription_id == subscription_id)
@@ -85,7 +81,7 @@ def list_repository_checkpoints(
         .order_by(RepositoryCheckpointRecordModel.checkpoint_key.asc())
     )
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         rows = session.scalars(statement).all()
     return [_to_repository_checkpoint(row) for row in rows]
 
@@ -95,12 +91,11 @@ def get_repository_checkpoint(
     repository_id: str,
     checkpoint_key: str,
     *,
-    database_url: str | None = None,
+    database_url: str,
 ) -> RepositoryCheckpoint | None:
     """Load one checkpoint for one subscription-owned repository."""
 
-    resolved_database_url = database_url or DATABASE_URL
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         row = session.get(
             RepositoryCheckpointRecordModel,
             (subscription_id, repository_id, checkpoint_key),

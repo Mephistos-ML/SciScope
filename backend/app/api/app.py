@@ -17,7 +17,7 @@ from app.api.routes import dashboard as dashboard_routes
 from app.api.routes import explore as explore_routes
 from app.api.routes import signals as signal_routes
 from app.api.routes import subscriptions as subscription_routes
-from app.config import CORS_ORIGINS
+from app.config import CORS_ORIGINS, DATABASE_URL
 from app.database.session import check_database_connection
 from app.services.search import ExploreAccessDeniedError
 from app.services.search.explore import (
@@ -44,11 +44,13 @@ class CreateSubscriptionRequest(BaseModel):
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Fail fast if the configured database is unavailable at startup."""
 
-    check_database_connection()
+    _app.state.database_url = DATABASE_URL
+    check_database_connection(_app.state.database_url)
     yield
 
 
 app = FastAPI(title="SciScope API", version=__version__, lifespan=lifespan)
+app.state.database_url = DATABASE_URL
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(CORS_ORIGINS),
@@ -129,10 +131,10 @@ def get_health() -> str:
 
 
 @app.get("/ready")
-def get_ready() -> dict[str, str]:
+def get_ready(request: Request) -> dict[str, str]:
     """Return readiness status after checking the database connection."""
 
-    check_database_connection()
+    check_database_connection(request.app.state.database_url)
     return {"status": "ok"}
 
 
@@ -165,17 +167,17 @@ def sign_out(request: Request, response: Response) -> dict[str, object]:
 
 
 @app.post("/api/start")
-def start_scan() -> dict[str, object]:
+def start_scan(request: Request) -> dict[str, object]:
     """Start monitoring and return the refreshed status payload."""
 
-    return control_routes.start_scan_response()
+    return control_routes.start_scan_response(request)
 
 
 @app.post("/api/stop")
-def stop_scan() -> dict[str, object]:
+def stop_scan(request: Request) -> dict[str, object]:
     """Stop monitoring and return the refreshed status payload."""
 
-    return control_routes.stop_scan_response()
+    return control_routes.stop_scan_response(request)
 
 
 @app.post("/api/explore/search")
@@ -239,24 +241,24 @@ def delete_subscription(request: Request, subscription_id: str) -> dict[str, boo
 
 
 @app.get("/api/status")
-def get_status() -> dict[str, object]:
+def get_status(request: Request) -> dict[str, object]:
     """Return the current dashboard status payload."""
 
-    return signal_routes.get_status_response()
+    return signal_routes.get_status_response(request)
 
 
 @app.get("/api/signals")
-def get_signals() -> dict[str, object]:
+def get_signals(request: Request) -> dict[str, object]:
     """Return the current signal list payload."""
 
-    return signal_routes.get_signal_list_response()
+    return signal_routes.get_signal_list_response(request)
 
 
 @app.get("/api/signals/{item_id}")
-def get_signal_detail(item_id: str) -> dict[str, object]:
+def get_signal_detail(request: Request, item_id: str) -> dict[str, object]:
     """Return detail payload for one signal if present."""
 
-    payload = signal_routes.get_signal_detail_response(item_id)
+    payload = signal_routes.get_signal_detail_response(request, item_id)
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -15,10 +15,11 @@ from app.services.subscriptions.service import (
 def get_subscription_list_response(request: Request) -> dict[str, object] | None:
     """Return saved subscriptions for the signed-in user."""
 
-    user = get_current_user(request)
+    database_url = request.app.state.database_url
+    user = get_current_user(request, database_url=database_url)
     if user is None:
         return None
-    return list_subscription_payloads(user)
+    return list_subscription_payloads(user, database_url=database_url)
 
 
 def create_subscription_response(
@@ -27,7 +28,8 @@ def create_subscription_response(
 ) -> dict[str, object] | None:
     """Create one subscription for the signed-in user."""
 
-    user = get_current_user(request)
+    database_url = request.app.state.database_url
+    user = get_current_user(request, database_url=database_url)
     if user is None:
         return None
 
@@ -57,14 +59,20 @@ def create_subscription_response(
         repository_full_name=repository_full_name,
         repository_url=repository_url,
         selected_query=selected_query,
+        database_url=database_url,
     )
 
 
 def delete_subscription_response(request: Request, subscription_id: str) -> bool | None:
     """Delete one saved subscription for the signed-in user."""
 
-    user = get_current_user(request)
+    database_url = request.app.state.database_url
+    user = get_current_user(request, database_url=database_url)
     if user is None:
         return None
 
-    return delete_subscription_payload(user, subscription_id)
+    return delete_subscription_payload(
+        user,
+        subscription_id,
+        database_url=database_url,
+    )

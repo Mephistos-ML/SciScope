@@ -8,7 +8,6 @@ from datetime import UTC, datetime
 
 from sqlalchemy import Select, select, update
 
-from app.config import DATABASE_URL
 from app.database.records import UserRecordModel, UserSessionRecordModel
 from app.database.session import session_scope
 from app.storage.auth.users import UserRecord, _to_user_record
@@ -41,11 +40,10 @@ def create_user_session(
     session_token_hash: str,
     expires_at: datetime,
     session_id: str | None = None,
-    database_url: str | None = None,
+    database_url: str,
 ) -> UserSessionRecord:
     """Persist one authenticated session."""
 
-    resolved_database_url = database_url or DATABASE_URL
     now = _utc_now()
     record = UserSessionRecordModel(
         session_id=session_id or f"sess_{uuid.uuid4().hex[:20]}",
@@ -57,7 +55,7 @@ def create_user_session(
         revoked_at=None,
     )
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         session.add(record)
 
     return _to_user_session_record(record)
@@ -67,11 +65,10 @@ def get_authenticated_session_by_token_hash(
     session_token_hash: str,
     *,
     now: datetime | None = None,
-    database_url: str | None = None,
+    database_url: str,
 ) -> AuthenticatedSessionRecord | None:
     """Resolve one non-expired, non-revoked session and its user."""
 
-    resolved_database_url = database_url or DATABASE_URL
     effective_now = _ensure_utc(now or _utc_now())
     statement: Select[tuple[UserRecordModel, UserSessionRecordModel]] = (
         select(UserRecordModel, UserSessionRecordModel)
@@ -84,7 +81,7 @@ def get_authenticated_session_by_token_hash(
         .where(UserSessionRecordModel.expires_at > effective_now)
     )
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         row = session.execute(statement).one_or_none()
 
     if row is None:
@@ -101,12 +98,11 @@ def touch_user_session(
     session_id: str,
     *,
     seen_at: datetime | None = None,
-    database_url: str | None = None,
+    database_url: str,
 ) -> None:
     """Update session activity timestamp."""
 
-    resolved_database_url = database_url or DATABASE_URL
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         session.execute(
             update(UserSessionRecordModel)
             .where(UserSessionRecordModel.session_id == session_id)
@@ -118,12 +114,11 @@ def revoke_user_session_by_token_hash(
     session_token_hash: str,
     *,
     revoked_at: datetime | None = None,
-    database_url: str | None = None,
+    database_url: str,
 ) -> bool:
     """Revoke one active session by its cookie token hash."""
 
-    resolved_database_url = database_url or DATABASE_URL
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         result = session.execute(
             update(UserSessionRecordModel)
             .where(UserSessionRecordModel.session_token_hash == session_token_hash)

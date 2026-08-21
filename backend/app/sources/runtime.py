@@ -15,7 +15,12 @@ from app.sources.gitlab.state import sync_gitlab_baseline
 logger = logging.getLogger(__name__)
 
 
-def sync_repository_baseline(subscription_id: str, repository: Repository) -> None:
+def sync_repository_baseline(
+    subscription_id: str,
+    repository: Repository,
+    *,
+    database_url: str,
+) -> None:
     """Initialize monitoring baseline for one explicit repository watch."""
 
     for source_name, sync_baseline in (
@@ -25,7 +30,11 @@ def sync_repository_baseline(subscription_id: str, repository: Repository) -> No
         if repository.source != source_name:
             continue
         try:
-            sync_baseline(subscription_id, repository)
+            sync_baseline(
+                subscription_id,
+                repository,
+                database_url=database_url,
+            )
         except RepositorySourceError as exc:
             logger.warning(
                 "Repository baseline sync skipped for %s: %s",
@@ -42,6 +51,8 @@ def sync_repository_baseline(subscription_id: str, repository: Repository) -> No
 def load_repository_signals(
     subscription_id: str,
     repository: Repository,
+    *,
+    database_url: str,
 ) -> list[Signal]:
     """Load live repository release signals for one explicit watch."""
 
@@ -53,7 +64,13 @@ def load_repository_signals(
         if repository.source != source_name:
             continue
         try:
-            signals.extend(load_signals(subscription_id, repository))
+            signals.extend(
+                load_signals(
+                    subscription_id,
+                    repository,
+                    database_url=database_url,
+                )
+            )
         except RepositorySourceError as exc:
             logger.warning(
                 "Repository monitoring source %s skipped: %s",

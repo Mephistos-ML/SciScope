@@ -8,7 +8,6 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 
-from app.config import DATABASE_URL
 from app.database.records import UserRecordModel
 from app.database.session import session_scope
 
@@ -31,11 +30,10 @@ def create_user(
     display_name: str,
     avatar_url: str | None = None,
     user_id: str | None = None,
-    database_url: str | None = None,
+    database_url: str,
 ) -> UserRecord:
     """Create one first-party user record."""
 
-    resolved_database_url = database_url or DATABASE_URL
     now = _utc_now()
     record = UserRecordModel(
         user_id=user_id or f"user_{uuid.uuid4().hex[:12]}",
@@ -46,19 +44,18 @@ def create_user(
         updated_at=now,
     )
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         session.add(record)
 
     return _to_user_record(record)
 
 
-def get_user_by_id(user_id: str, *, database_url: str | None = None) -> UserRecord | None:
+def get_user_by_id(user_id: str, *, database_url: str) -> UserRecord | None:
     """Load one user by primary key."""
 
-    resolved_database_url = database_url or DATABASE_URL
     statement = select(UserRecordModel).where(UserRecordModel.user_id == user_id)
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         row = session.scalar(statement)
 
     if row is None:
@@ -66,13 +63,12 @@ def get_user_by_id(user_id: str, *, database_url: str | None = None) -> UserReco
     return _to_user_record(row)
 
 
-def get_user_by_email(email: str, *, database_url: str | None = None) -> UserRecord | None:
+def get_user_by_email(email: str, *, database_url: str) -> UserRecord | None:
     """Load one user by email address."""
 
-    resolved_database_url = database_url or DATABASE_URL
     statement = select(UserRecordModel).where(UserRecordModel.email == email)
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         row = session.scalar(statement)
 
     if row is None:
@@ -86,13 +82,11 @@ def update_user(
     email: str,
     display_name: str,
     avatar_url: str | None,
-    database_url: str | None = None,
+    database_url: str,
 ) -> UserRecord:
     """Refresh one persisted user profile."""
 
-    resolved_database_url = database_url or DATABASE_URL
-
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         row = session.scalar(
             select(UserRecordModel).where(UserRecordModel.user_id == user_id)
         )

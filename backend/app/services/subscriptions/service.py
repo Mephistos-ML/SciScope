@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.config import DATABASE_URL
 from app.services.auth import User
 from app.sources.common import build_repository_entity
 from app.sources.runtime import sync_repository_baseline
@@ -17,10 +18,17 @@ from app.storage.subscriptions import (
 from app.models.signal import Signal
 
 
-def list_subscription_payloads(user: User) -> dict[str, object]:
+def list_subscription_payloads(
+    user: User,
+    *,
+    database_url: str = DATABASE_URL,
+) -> dict[str, object]:
     """Return serialized subscriptions for the current user."""
 
-    subscriptions = list_subscription_watches_for_user(user.user_id)
+    subscriptions = list_subscription_watches_for_user(
+        user.user_id,
+        database_url=database_url,
+    )
     return {
         "items": [
             {
@@ -47,6 +55,7 @@ def create_subscription_payload(
     repository_full_name: str,
     repository_url: str,
     selected_query: str | None,
+    database_url: str = DATABASE_URL,
 ) -> dict[str, object]:
     """Persist and serialize one direct repository watch."""
 
@@ -64,13 +73,18 @@ def create_subscription_payload(
         },
     )
     repository = build_repository_entity(repository_signal)
-    upsert_repositories((repository,))
+    upsert_repositories((repository,), database_url=database_url)
     subscription = create_subscription(
         user_id=user.user_id,
         repository_id=repository.repository_id,
         selected_query=selected_query,
+        database_url=database_url,
     )
-    sync_repository_baseline(subscription.subscription_id, repository)
+    sync_repository_baseline(
+        subscription.subscription_id,
+        repository,
+        database_url=database_url,
+    )
 
     return {
         "subscriptionId": subscription.subscription_id,
@@ -85,12 +99,24 @@ def create_subscription_payload(
     }
 
 
-def delete_subscription_payload(user: User, subscription_id: str) -> bool:
+def delete_subscription_payload(
+    user: User,
+    subscription_id: str,
+    *,
+    database_url: str = DATABASE_URL,
+) -> bool:
     """Delete one repository watch and its monitoring cursor."""
 
-    deleted = delete_subscription_for_user(user.user_id, subscription_id)
+    deleted = delete_subscription_for_user(
+        user.user_id,
+        subscription_id,
+        database_url=database_url,
+    )
     if not deleted:
         return False
 
-    delete_repository_checkpoints_for_subscription(subscription_id)
+    delete_repository_checkpoints_for_subscription(
+        subscription_id,
+        database_url=database_url,
+    )
     return True

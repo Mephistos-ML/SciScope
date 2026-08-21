@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 
-from app.config import DATABASE_URL
 from app.database.records import SeenSignalRecordModel
 from app.database.session import session_scope
 from app.models.signal import Signal
@@ -16,12 +15,11 @@ from app.models.signal import Signal
 def load_seen_signal_ids(
     source: str,
     *,
-    database_url: str | None = None,
+    database_url: str,
 ) -> set[str]:
     """Load already seen item ids for one source."""
 
-    resolved_database_url = database_url or DATABASE_URL
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         rows = session.scalars(
             select(SeenSignalRecordModel.item_id).where(
                 SeenSignalRecordModel.source == source
@@ -33,16 +31,15 @@ def load_seen_signal_ids(
 def upsert_signals(
     signals: Sequence[Signal],
     *,
-    database_url: str | None = None,
+    database_url: str,
 ) -> None:
     """Insert or update signals in persistent storage."""
 
     if not signals:
         return
 
-    resolved_database_url = database_url or DATABASE_URL
     seen_at = _utc_now()
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         for signal in signals:
             record = session.get(
                 SeenSignalRecordModel,

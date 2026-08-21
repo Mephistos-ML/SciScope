@@ -36,6 +36,8 @@ def load_repo_activity(
 def load_github_signals_for_subscription(
     subscription_id: str,
     repository: Repository,
+    *,
+    database_url: str,
 ) -> list[Signal]:
     """Load live GitHub release signals for one watched repository."""
 
@@ -48,6 +50,7 @@ def load_github_signals_for_subscription(
         subscription_id,
         repository,
         baseline_started_after=baseline_started_after,
+        database_url=database_url,
     )
     if started_after is None:
         return []
@@ -71,7 +74,7 @@ def load_github_signals_for_subscription(
         fallback_started_after=started_after,
     )
     if checkpoint is not None:
-        upsert_repository_checkpoints((checkpoint,))
+        upsert_repository_checkpoints((checkpoint,), database_url=database_url)
 
     return signals
 

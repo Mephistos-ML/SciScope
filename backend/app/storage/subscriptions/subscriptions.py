@@ -8,7 +8,6 @@ from datetime import UTC, datetime
 
 from sqlalchemy import delete, select
 
-from app.config import DATABASE_URL
 from app.database.records import SubscriptionRecordModel
 from app.database.session import session_scope
 
@@ -29,12 +28,11 @@ def create_subscription(
     user_id: str,
     repository_id: str,
     selected_query: str | None,
-    database_url: str | None = None,
+    database_url: str,
 ) -> SubscriptionRecord:
     """Create or return one direct repository watch."""
 
-    resolved_database_url = database_url or DATABASE_URL
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         existing = session.scalar(
             select(SubscriptionRecordModel)
             .where(SubscriptionRecordModel.user_id == user_id)
@@ -58,31 +56,29 @@ def create_subscription(
 def list_subscriptions_for_user(
     user_id: str,
     *,
-    database_url: str | None = None,
+    database_url: str,
 ) -> list[SubscriptionRecord]:
     """List repository watches for one user, newest first."""
 
-    resolved_database_url = database_url or DATABASE_URL
     statement = (
         select(SubscriptionRecordModel)
         .where(SubscriptionRecordModel.user_id == user_id)
         .order_by(SubscriptionRecordModel.created_at.desc())
     )
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         rows = session.scalars(statement).all()
     return [_to_subscription_record(row) for row in rows]
 
 
-def list_all_subscriptions(*, database_url: str | None = None) -> list[SubscriptionRecord]:
+def list_all_subscriptions(*, database_url: str) -> list[SubscriptionRecord]:
     """List repository watches across all users, newest first."""
 
-    resolved_database_url = database_url or DATABASE_URL
     statement = select(SubscriptionRecordModel).order_by(
         SubscriptionRecordModel.created_at.desc()
     )
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         rows = session.scalars(statement).all()
     return [_to_subscription_record(row) for row in rows]
 
@@ -91,18 +87,17 @@ def get_subscription_for_user(
     user_id: str,
     subscription_id: str,
     *,
-    database_url: str | None = None,
+    database_url: str,
 ) -> SubscriptionRecord | None:
     """Load one user-owned repository watch."""
 
-    resolved_database_url = database_url or DATABASE_URL
     statement = (
         select(SubscriptionRecordModel)
         .where(SubscriptionRecordModel.user_id == user_id)
         .where(SubscriptionRecordModel.subscription_id == subscription_id)
     )
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         row = session.scalar(statement)
     if row is None:
         return None
@@ -113,12 +108,11 @@ def delete_subscription_for_user(
     user_id: str,
     subscription_id: str,
     *,
-    database_url: str | None = None,
+    database_url: str,
 ) -> bool:
     """Delete one user-owned repository watch."""
 
-    resolved_database_url = database_url or DATABASE_URL
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         result = session.execute(
             delete(SubscriptionRecordModel)
             .where(SubscriptionRecordModel.user_id == user_id)

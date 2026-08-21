@@ -16,6 +16,7 @@ from jwt import PyJWKClient
 from fastapi import HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 
+from app.config import DATABASE_URL
 from app.config import (
     AUTH_SESSION_COOKIE_DOMAIN,
     AUTH_SESSION_COOKIE_NAME,
@@ -72,14 +73,17 @@ class GoogleIdentity:
     avatar_url: str | None
 
 
-def get_current_user(request: Request) -> User | None:
+def get_current_user(request: Request, *, database_url: str = DATABASE_URL) -> User | None:
     """Resolve the signed-in user from the current session cookie."""
 
-    session_record = _get_authenticated_session(request)
+    session_record = _get_authenticated_session(request, database_url=database_url)
     if session_record is None:
         return None
 
-    touch_user_session(session_record.session.session_id)
+    touch_user_session(
+        session_record.session.session_id,
+        database_url=database_url,
+    )
     return User(
         user_id=session_record.user.user_id,
         email=session_record.user.email,
@@ -88,7 +92,12 @@ def get_current_user(request: Request) -> User | None:
     )
 
 
-def create_authenticated_session(user_id: str, response: Response) -> str:
+def create_authenticated_session(
+    user_id: str,
+    response: Response,
+    *,
+    database_url: str = DATABASE_URL,
+) -> str:
     """Create one durable session and attach its cookie to the response."""
 
     session_token = secrets.token_urlsafe(48)
@@ -96,6 +105,7 @@ def create_authenticated_session(user_id: str, response: Response) -> str:
         user_id=user_id,
         session_token_hash=_hash_session_token(session_token),
         expires_at=_utc_now() + timedelta(seconds=AUTH_SESSION_TTL_SECONDS),
+        database_url=database_url,
     )
     _set_session_cookie(response, session_token)
     return session_token
@@ -127,7 +137,11 @@ def build_google_auth_redirect_response() -> RedirectResponse:
     return response
 
 
-def complete_google_auth_callback(request: Request) -> RedirectResponse:
+def complete_google_auth_callback(
+    request: Request,
+    *,
+    database_url: str = DATABASE_URL,
+) -> RedirectResponse:
     """Finish Google OAuth, attach a first-party session, and return to the frontend."""
 
     _require_google_oauth_config()
@@ -156,19 +170,28 @@ def complete_google_auth_callback(request: Request) -> RedirectResponse:
             expected_nonce=expected_nonce,
         )
         response = _build_frontend_auth_redirect()
-        user = upsert_google_user(identity)
-        create_authenticated_session(user.user_id, response)
+        user = upsert_google_user(identity, database_url=database_url)
+        create_authenticated_session(
+            user.user_id,
+            response,
+            database_url=database_url,
+        )
         return response
     except Exception:
         return _build_frontend_auth_redirect(error="google_auth_failed")
 
 
-def upsert_google_user(identity: GoogleIdentity) -> User:
+def upsert_google_user(
+    identity: GoogleIdentity,
+    *,
+    database_url: str = DATABASE_URL,
+) -> User:
     """Create or refresh one first-party user from a Google identity."""
 
     oauth_account = get_oauth_account_by_provider_subject(
         GOOGLE_PROVIDER,
         identity.subject,
+        database_url=database_url,
     )
 
     if oauth_account is not None:
@@ -177,26 +200,30 @@ def upsert_google_user(identity: GoogleIdentity) -> User:
             email=identity.email,
             display_name=identity.display_name,
             avatar_url=identity.avatar_url,
+            database_url=database_url,
         )
         update_oauth_account(
             oauth_account.oauth_account_id,
             provider_email=identity.email,
+            database_url=database_url,
         )
         return _to_user(user_record)
 
-    existing_user = get_user_by_email(identity.email)
+    existing_user = get_user_by_email(identity.email, database_url=database_url)
     if existing_user is not None:
         user_record = update_user(
             existing_user.user_id,
             email=identity.email,
             display_name=identity.display_name,
             avatar_url=identity.avatar_url,
+            database_url=database_url,
         )
     else:
         user_record = create_user(
             email=identity.email,
             display_name=identity.display_name,
             avatar_url=identity.avatar_url,
+            database_url=database_url,
         )
 
     create_oauth_account(
@@ -204,24 +231,40 @@ def upsert_google_user(identity: GoogleIdentity) -> User:
         provider=GOOGLE_PROVIDER,
         provider_subject=identity.subject,
         provider_email=identity.email,
+        database_url=database_url,
     )
     return _to_user(user_record)
 
 
-def sign_out_current_user(request: Request, response: Response) -> None:
+def sign_out_current_user(
+    request: Request,
+    response: Response,
+    *,
+    database_url: str = DATABASE_URL,
+) -> None:
     """Revoke the current session cookie if present and clear the browser cookie."""
 
     session_token = _read_session_token(request)
     if session_token:
-        revoke_user_session_by_token_hash(_hash_session_token(session_token))
+        revoke_user_session_by_token_hash(
+            _hash_session_token(session_token),
+            database_url=database_url,
+        )
     _clear_session_cookie(response)
 
 
-def _get_authenticated_session(request: Request):
+def _get_authenticated_session(
+    request: Request,
+    *,
+    database_url: str,
+):
     session_token = _read_session_token(request)
     if not session_token:
         return None
-    return get_authenticated_session_by_token_hash(_hash_session_token(session_token))
+    return get_authenticated_session_by_token_hash(
+        _hash_session_token(session_token),
+        database_url=database_url,
+    )
 
 
 def _read_session_token(request: Request) -> str | None:

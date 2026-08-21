@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 
-from app.config import DATABASE_URL
 from app.database.records import RepositoryRecordModel, SubscriptionRecordModel
 from app.database.session import session_scope
 from app.models.repository import Repository
@@ -27,11 +26,10 @@ class SubscriptionWatchRecord:
 def list_subscription_watches_for_user(
     user_id: str,
     *,
-    database_url: str | None = None,
+    database_url: str,
 ) -> list[SubscriptionWatchRecord]:
     """List one user's subscriptions joined with repository data."""
 
-    resolved_database_url = database_url or DATABASE_URL
     statement = (
         select(SubscriptionRecordModel, RepositoryRecordModel)
         .join(
@@ -42,7 +40,7 @@ def list_subscription_watches_for_user(
         .order_by(SubscriptionRecordModel.created_at.desc())
     )
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         rows = session.execute(statement).all()
     return [
         _to_subscription_watch_record(subscription, repository)
@@ -52,11 +50,10 @@ def list_subscription_watches_for_user(
 
 def list_all_subscription_watches(
     *,
-    database_url: str | None = None,
+    database_url: str,
 ) -> list[SubscriptionWatchRecord]:
     """List all subscriptions joined with repository data."""
 
-    resolved_database_url = database_url or DATABASE_URL
     statement = (
         select(SubscriptionRecordModel, RepositoryRecordModel)
         .join(
@@ -66,7 +63,7 @@ def list_all_subscription_watches(
         .order_by(SubscriptionRecordModel.created_at.desc())
     )
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         rows = session.execute(statement).all()
     return [
         _to_subscription_watch_record(subscription, repository)
