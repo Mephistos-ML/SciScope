@@ -714,8 +714,8 @@ input::placeholder {
   gap: 16px;
   min-height: 260px;
   padding: 40px 24px;
-  border: 1px dashed color-mix(in srgb, var(--border-strong) 84%, white);
-  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--border) 58%, white);
+  border-radius: var(--radius-panel);
   background:
     radial-gradient(circle at top center, rgba(36, 81, 143, 0.07), transparent 26%),
     linear-gradient(
