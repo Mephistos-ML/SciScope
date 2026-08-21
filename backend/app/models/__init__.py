@@ -5,6 +5,7 @@ from app.models.explore_access import (
     ExploreAccessDecision,
     ExploreActor,
     ExploreLimitCode,
+    ExploreAccessOutcome,
     ExploreTier,
 )
 from app.models.repository import (
@@ -17,6 +18,7 @@ from app.models.subscription import Subscription
 __all__ = [
     "AiSearchPlan",
     "ExploreAccessDecision",
+    "ExploreAccessOutcome",
     "ExploreActor",
     "ExploreLimitCode",
     "ExploreTier",

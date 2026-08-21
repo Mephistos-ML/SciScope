@@ -27,6 +27,17 @@ class ExploreLimitCode(StrEnum):
     GLOBAL_CAPACITY_REACHED = "explore_global_capacity_reached"
 
 
+class ExploreAccessOutcome(StrEnum):
+    """Persisted access outcomes for one explore attempt."""
+
+    ALLOWED = "allowed"
+    BLOCKED_DISABLED = "blocked_disabled"
+    BLOCKED_COOLDOWN = "blocked_cooldown"
+    BLOCKED_QUOTA = "blocked_quota"
+    BLOCKED_CAPACITY = "blocked_capacity"
+    BLOCKED_TURNSTILE = "blocked_turnstile"
+
+
 @dataclass(frozen=True)
 class ExploreActor:
     """Resolved subject for one explore access decision."""
@@ -48,4 +59,3 @@ class ExploreAccessDecision:
     retry_after_seconds: int | None = None
     sign_in_suggested: bool = False
     turnstile_required: bool = False
-

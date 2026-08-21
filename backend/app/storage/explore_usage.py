@@ -113,6 +113,35 @@ def get_last_explore_event_at(
     return _ensure_utc(value)
 
 
+def get_first_explore_event_at_since(
+    *,
+    subject_type: str,
+    subject_key: str,
+    since: datetime,
+    outcomes: tuple[str, ...] | None = None,
+    database_url: str | None = None,
+) -> datetime | None:
+    """Return the earliest explore event timestamp within one active window."""
+
+    resolved_database_url = database_url or DATABASE_URL
+    statement = (
+        select(ExploreSearchEventRecord.created_at)
+        .where(ExploreSearchEventRecord.subject_type == subject_type)
+        .where(ExploreSearchEventRecord.subject_key == subject_key)
+        .where(ExploreSearchEventRecord.created_at >= _ensure_utc(since))
+        .order_by(ExploreSearchEventRecord.created_at.asc())
+        .limit(1)
+    )
+    if outcomes:
+        statement = statement.where(ExploreSearchEventRecord.outcome.in_(outcomes))
+
+    with session_scope(resolved_database_url) as session:
+        value = session.scalar(statement)
+    if value is None:
+        return None
+    return _ensure_utc(value)
+
+
 def count_global_explore_events_since(
     *,
     since: datetime,
