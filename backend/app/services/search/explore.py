@@ -72,7 +72,8 @@ def run_explore_search(
         raise ExploreSearchUnavailableError(list(retrieved.source_statuses))
 
     items: list[dict[str, object]] = []
-    for signal in retrieved.candidates:
+    for candidate in retrieved.candidates:
+        signal = candidate.signal
         match = match_signal_to_terms(signal, repository_queries)
         if not match.matched:
             continue

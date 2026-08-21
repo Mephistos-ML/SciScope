@@ -7,7 +7,8 @@ from collections.abc import Sequence
 from typing import Callable
 
 from app.models.signal import Signal
-from app.services.search.retrieval.models import RetrievedCandidates
+from app.services.search.retrieval.merge import merge_retrieval_hits
+from app.services.search.retrieval.models import RetrievedCandidates, RetrievalHit
 from app.sources.common import RepositorySourceError, build_source_status
 from app.sources.github.discovery import (
     discover_repository_candidates as discover_github_repository_candidates,
@@ -37,36 +38,19 @@ def run_external_repository_retrieval(
         queries,
         discoverers=discoverers,
     )
-    deduped = _dedupe_by_item_id(candidates)
     return RetrievedCandidates(
-        candidates=tuple(deduped.values()),
+        candidates=merge_retrieval_hits(tuple(candidates)),
         source_statuses=tuple(source_statuses),
         successful_source_count=successful_sources,
     )
-
-
-def _dedupe_by_item_id(candidates: list[Signal]) -> dict[str, Signal]:
-    deduped: dict[str, Signal] = {}
-    for signal in candidates:
-        existing = deduped.get(signal.item_id)
-        if existing is None:
-            deduped[signal.item_id] = signal
-            continue
-
-        existing_query = str(existing.payload.get("query") or "")
-        incoming_query = str(signal.payload.get("query") or "")
-        if len(incoming_query) > len(existing_query):
-            deduped[signal.item_id] = signal
-
-    return deduped
 
 
 def _discover_candidates_across_sources(
     queries: Sequence[str],
     *,
     discoverers: Sequence[tuple[str, RepositoryDiscoverer]] | None = None,
-) -> tuple[list[Signal], list[dict[str, object]], int]:
-    candidates: list[Signal] = []
+) -> tuple[list[RetrievalHit], list[dict[str, object]], int]:
+    candidates: list[RetrievalHit] = []
     source_statuses: list[dict[str, object]] = []
     successful_sources = 0
 
@@ -112,7 +96,16 @@ def _discover_candidates_across_sources(
             continue
 
         successful_sources += 1
-        candidates.extend(source_candidates)
+        candidates.extend(
+            RetrievalHit(
+                source=source_name,
+                channel="repository_search",
+                query=str(signal.payload.get("query") or ""),
+                rank=index,
+                signal=signal,
+            )
+            for index, signal in enumerate(source_candidates, start=1)
+        )
         source_statuses.append(
             build_source_status(
                 source=source_name,
