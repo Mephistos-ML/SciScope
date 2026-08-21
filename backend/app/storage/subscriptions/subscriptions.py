@@ -1,4 +1,4 @@
-"""Persistence for direct user-to-repository subscriptions."""
+"""Persistence helpers for subscription records."""
 
 from __future__ import annotations
 
@@ -9,9 +9,8 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, select
 
 from app.config import DATABASE_URL
-from app.database.records import RepositoryRecordModel, SubscriptionRecordModel
+from app.database.records import SubscriptionRecordModel
 from app.database.session import session_scope
-from app.models.repository import Repository
 
 
 @dataclass(frozen=True)
@@ -21,17 +20,6 @@ class SubscriptionRecord:
     subscription_id: str
     user_id: str
     repository_id: str
-    selected_query: str | None
-    created_at: str
-
-
-@dataclass(frozen=True)
-class SubscriptionWatchRecord:
-    """Subscription joined with its watched repository projection."""
-
-    subscription_id: str
-    user_id: str
-    repository: Repository
     selected_query: str | None
     created_at: str
 
@@ -146,69 +134,6 @@ def _to_subscription_record(record: SubscriptionRecordModel) -> SubscriptionReco
         repository_id=record.repository_id,
         selected_query=record.selected_query,
         created_at=_ensure_utc(record.created_at).isoformat(timespec="seconds"),
-    )
-
-
-def list_subscription_watches_for_user(
-    user_id: str,
-    *,
-    database_url: str | None = None,
-) -> list[SubscriptionWatchRecord]:
-    """List one user's subscriptions joined with repository data."""
-
-    resolved_database_url = database_url or DATABASE_URL
-    statement = (
-        select(SubscriptionRecordModel, RepositoryRecordModel)
-        .join(
-            RepositoryRecordModel,
-            RepositoryRecordModel.repository_id == SubscriptionRecordModel.repository_id,
-        )
-        .where(SubscriptionRecordModel.user_id == user_id)
-        .order_by(SubscriptionRecordModel.created_at.desc())
-    )
-
-    with session_scope(resolved_database_url) as session:
-        rows = session.execute(statement).all()
-    return [_to_subscription_watch_record(subscription, repository) for subscription, repository in rows]
-
-
-def list_all_subscription_watches(
-    *,
-    database_url: str | None = None,
-) -> list[SubscriptionWatchRecord]:
-    """List all subscriptions joined with repository data."""
-
-    resolved_database_url = database_url or DATABASE_URL
-    statement = (
-        select(SubscriptionRecordModel, RepositoryRecordModel)
-        .join(
-            RepositoryRecordModel,
-            RepositoryRecordModel.repository_id == SubscriptionRecordModel.repository_id,
-        )
-        .order_by(SubscriptionRecordModel.created_at.desc())
-    )
-
-    with session_scope(resolved_database_url) as session:
-        rows = session.execute(statement).all()
-    return [_to_subscription_watch_record(subscription, repository) for subscription, repository in rows]
-
-
-def _to_subscription_watch_record(
-    subscription: SubscriptionRecordModel,
-    repository: RepositoryRecordModel,
-) -> SubscriptionWatchRecord:
-    return SubscriptionWatchRecord(
-        subscription_id=subscription.subscription_id,
-        user_id=subscription.user_id,
-        repository=Repository(
-            repository_id=repository.repository_id,
-            source=repository.source,
-            full_name=repository.full_name,
-            url=repository.url,
-            metadata=dict(repository.metadata_json or {}),
-        ),
-        selected_query=subscription.selected_query,
-        created_at=_ensure_utc(subscription.created_at).isoformat(timespec="seconds"),
     )
 
 

@@ -31,7 +31,7 @@ from app.services.search.policy import (
     get_global_explore_daily_limit,
     should_require_turnstile,
 )
-from app.storage.explore_usage import (
+from app.storage.explore import (
     count_explore_events_since,
     count_global_explore_events_since,
     get_first_explore_event_at_since,

@@ -1,4 +1,4 @@
-"""Persistence helpers for explore usage events and access lookups."""
+"""Persistence helpers for explore search event records."""
 
 from __future__ import annotations
 

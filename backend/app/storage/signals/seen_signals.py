@@ -1,4 +1,4 @@
-"""Persistence contract for source-scoped seen signals."""
+"""Persistence helpers for seen signal records."""
 
 from __future__ import annotations
 

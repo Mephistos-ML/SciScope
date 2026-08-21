@@ -14,7 +14,7 @@ from app.runtime.state import STATE
 from app.sources.replay import load_replay_signals
 from app.sources.runtime import load_repository_signals, sync_repository_baseline
 from app.storage.repositories import list_repository_checkpoints
-from app.storage.seen_signals import load_seen_signal_ids, upsert_signals
+from app.storage.signals import load_seen_signal_ids, upsert_signals
 from app.storage.subscriptions import (
     SubscriptionWatchRecord,
     list_all_subscription_watches,
