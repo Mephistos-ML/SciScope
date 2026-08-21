@@ -26,7 +26,7 @@ type AppView = "explore" | "feed" | "about";
 
 type ExploreSearchFeedback = {
   message: string;
-  retryAfterSeconds: number | null;
+  retryUntilEpochMs: number | null;
   signInSuggested: boolean;
   turnstileRequired: boolean;
 };
@@ -149,7 +149,8 @@ export function App() {
       } else if (error instanceof ApiError) {
         setExploreSearchFeedback({
           message: error.message,
-          retryAfterSeconds: error.retryAfterSeconds,
+          retryUntilEpochMs:
+            error.retryAfterSeconds !== null ? Date.now() + error.retryAfterSeconds * 1000 : null,
           signInSuggested: error.signInSuggested,
           turnstileRequired: error.turnstileRequired,
         });
@@ -160,7 +161,7 @@ export function App() {
       } else {
         setExploreSearchFeedback({
           message: error instanceof Error ? error.message : "Failed to run search.",
-          retryAfterSeconds: null,
+          retryUntilEpochMs: null,
           signInSuggested: false,
           turnstileRequired: false,
         });

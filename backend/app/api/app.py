@@ -104,7 +104,14 @@ async def handle_explore_access_denied(
 ) -> JSONResponse:
     """Return structured rate-limit and access-denial payloads."""
 
-    return JSONResponse(status_code=exc.status_code, content=exc.to_payload())
+    headers: dict[str, str] = {}
+    if exc.retry_after_seconds is not None:
+        headers["Retry-After"] = str(exc.retry_after_seconds)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=exc.to_payload(),
+        headers=headers,
+    )
 
 
 @app.get("/")

@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 import type { AiSearchPlanPayload, ExploreResultItem, ViewerPayload } from "../types/api";
 import { SourceBadge } from "../components/SourceBadge";
 import { TurnstileWidget } from "../components/TurnstileWidget";
@@ -6,7 +8,7 @@ import noResultsIllustration from "../assets/states/explore/search-no-results.sv
 
 type ExploreSearchFeedback = {
   message: string;
-  retryAfterSeconds: number | null;
+  retryUntilEpochMs: number | null;
   signInSuggested: boolean;
   turnstileRequired: boolean;
 };
@@ -54,10 +56,38 @@ export function ExplorePage({
   const isPreSearch = !lastAiSearchPlan && !hasResults;
   const isNoResults = !isPreSearch && !hasResults;
   const requiresTurnstile = exploreSearchFeedback?.turnstileRequired === true;
+  const [retrySecondsRemaining, setRetrySecondsRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    const retryUntilEpochMs = exploreSearchFeedback?.retryUntilEpochMs;
+    if (!retryUntilEpochMs) {
+      setRetrySecondsRemaining(null);
+      return;
+    }
+
+    const syncRemainingSeconds = () => {
+      const nextRemaining = Math.max(
+        Math.ceil((retryUntilEpochMs - Date.now()) / 1000),
+        0,
+      );
+      setRetrySecondsRemaining(nextRemaining);
+    };
+
+    syncRemainingSeconds();
+    const intervalId = window.setInterval(syncRemainingSeconds, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [exploreSearchFeedback?.retryUntilEpochMs]);
+
+  const retryLockActive = retrySecondsRemaining !== null && retrySecondsRemaining > 0;
   const searchDisabled =
-    searchPending || !topicInput.trim() || (requiresTurnstile && !turnstileReady);
+    searchPending ||
+    !topicInput.trim() ||
+    retryLockActive ||
+    (requiresTurnstile && !turnstileReady);
   const searchButtonLabel = searchPending
     ? "Running..."
+    : retryLockActive
+      ? `Try again in ${formatRetryCountdown(retrySecondsRemaining)}`
     : requiresTurnstile && !turnstileReady
       ? "Complete verification"
       : "Run search";
@@ -115,6 +145,10 @@ export function ExplorePage({
                     siteKey={turnstileSiteKey}
                   />
                 </>
+              ) : retryLockActive ? (
+                <p className="query-feedback-meta">
+                  You can run the next search in {formatRetryCountdown(retrySecondsRemaining)}.
+                </p>
               ) : null}
               {exploreSearchFeedback.signInSuggested && !viewer ? (
                 <div className="query-feedback-actions">
@@ -298,4 +332,24 @@ function formatCompactNumber(value: number): string {
   }
 
   return `${value}`;
+}
+
+function formatRetryCountdown(value: number | null): string {
+  if (!value || value <= 0) {
+    return "0s";
+  }
+
+  if (value < 60) {
+    return `${value}s`;
+  }
+
+  const totalMinutes = Math.floor(value / 60);
+  const seconds = value % 60;
+  if (totalMinutes < 60) {
+    return seconds === 0 ? `${totalMinutes}m` : `${totalMinutes}m ${seconds}s`;
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
 }
