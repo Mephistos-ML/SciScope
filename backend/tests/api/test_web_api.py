@@ -385,7 +385,21 @@ def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatc
         ],
     )
     monkeypatch.setattr(
+        "app.services.search.explore.discover_github_repository_candidates_from_readme",
+        lambda queries: [],
+    )
+    monkeypatch.setattr(
         "app.services.search.explore.discover_gitlab_repository_candidates",
+        lambda queries: (_ for _ in ()).throw(
+            RepositorySourceError(
+                source="gitlab",
+                status="unauthorized",
+                public_message="GitLab auth failed.",
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.discover_gitlab_repository_candidates_from_readme",
         lambda queries: (_ for _ in ()).throw(
             RepositorySourceError(
                 source="gitlab",
@@ -425,7 +439,27 @@ def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
         ),
     )
     monkeypatch.setattr(
+        "app.services.search.explore.discover_github_repository_candidates_from_readme",
+        lambda queries: (_ for _ in ()).throw(
+            RepositorySourceError(
+                source="github",
+                status="unauthorized",
+                public_message="GitHub auth failed.",
+            )
+        ),
+    )
+    monkeypatch.setattr(
         "app.services.search.explore.discover_gitlab_repository_candidates",
+        lambda queries: (_ for _ in ()).throw(
+            RepositorySourceError(
+                source="gitlab",
+                status="error",
+                public_message="GitLab failed.",
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.discover_gitlab_repository_candidates_from_readme",
         lambda queries: (_ for _ in ()).throw(
             RepositorySourceError(
                 source="gitlab",
@@ -596,7 +630,15 @@ def test_explore_search_accepts_verified_turnstile_token_for_suspicious_guest(
         ],
     )
     monkeypatch.setattr(
+        "app.services.search.explore.discover_github_repository_candidates_from_readme",
+        lambda queries: [],
+    )
+    monkeypatch.setattr(
         "app.services.search.explore.discover_gitlab_repository_candidates",
+        lambda queries: [],
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.discover_gitlab_repository_candidates_from_readme",
         lambda queries: [],
     )
 

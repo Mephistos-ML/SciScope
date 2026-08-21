@@ -12,9 +12,15 @@ from app.services.ai.planner import build_ai_search_plan
 from app.services.ai.search_plans import serialize_ai_search_plan
 from app.services.search.matching import match_signal_to_terms
 from app.services.search.retrieval import run_external_repository_retrieval
+from app.sources.github.search.readme import (
+    discover_repository_candidates_from_readme as discover_github_repository_candidates_from_readme,
+)
 from app.services.search.retrieval.service import (
     discover_github_repository_candidates,
     discover_gitlab_repository_candidates,
+)
+from app.sources.gitlab.search.readme import (
+    discover_repository_candidates_from_readme as discover_gitlab_repository_candidates_from_readme,
 )
 
 logger = logging.getLogger(__name__)
@@ -64,8 +70,10 @@ def run_explore_search(
     retrieved = run_external_repository_retrieval(
         repository_queries,
         discoverers=(
-            ("github", discover_github_repository_candidates),
-            ("gitlab", discover_gitlab_repository_candidates),
+            ("github", "repository_search", discover_github_repository_candidates),
+            ("github", "readme_search", discover_github_repository_candidates_from_readme),
+            ("gitlab", "repository_search", discover_gitlab_repository_candidates),
+            ("gitlab", "readme_search", discover_gitlab_repository_candidates_from_readme),
         ),
     )
     if retrieved.successful_source_count == 0:

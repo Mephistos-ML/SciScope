@@ -94,7 +94,7 @@ def test_run_external_repository_retrieval_merges_duplicate_repo_hits() -> None:
 
     retrieved = run_external_repository_retrieval(
         ("paramagnetic nmr", "pcs susceptibility tensor fitting"),
-        discoverers=(("github", discover_github_candidates),),
+        discoverers=(("github", "repository_search", discover_github_candidates),),
     )
 
     assert retrieved.successful_source_count == 1

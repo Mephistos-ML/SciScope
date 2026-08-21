@@ -1,4 +1,4 @@
-"""GitHub repository discovery."""
+"""GitHub repository search."""
 
 from __future__ import annotations
 
