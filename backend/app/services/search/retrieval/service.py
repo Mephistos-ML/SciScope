@@ -9,18 +9,14 @@ from typing import Callable
 from app.models.signal import Signal
 from app.services.search.retrieval.merge import merge_retrieval_hits
 from app.services.search.retrieval.models import RetrievedCandidates, RetrievalHit
-from app.sources.github.search.readme import (
+from app.sources.common import RepositorySourceError, build_source_status
+from app.sources.github.search import (
+    discover_repository_candidates as discover_github_repository_candidates,
     discover_repository_candidates_from_readme as discover_github_repository_candidates_from_readme,
 )
-from app.sources.common import RepositorySourceError, build_source_status
-from app.sources.github.search.repository import (
-    discover_repository_candidates as discover_github_repository_candidates,
-)
-from app.sources.gitlab.search.readme import (
-    discover_repository_candidates_from_readme as discover_gitlab_repository_candidates_from_readme,
-)
-from app.sources.gitlab.search.repository import (
+from app.sources.gitlab.search import (
     discover_repository_candidates as discover_gitlab_repository_candidates,
+    discover_repository_candidates_from_readme as discover_gitlab_repository_candidates_from_readme,
 )
 
 logger = logging.getLogger(__name__)

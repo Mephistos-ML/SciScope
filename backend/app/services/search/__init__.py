@@ -17,14 +17,21 @@ from app.services.search.errors import (
     ExploreTurnstileRequiredError,
     build_explore_access_denied_error,
 )
+from app.services.search.explore import (
+    AiSearchPlanningError,
+    ExploreSearchUnavailableError,
+    run_explore_search,
+)
 
 __all__ = [
+    "AiSearchPlanningError",
     "build_explore_access_denied_error",
     "build_turnstile_failure_decision",
     "check_explore_access",
     "ExploreAccessDeniedError",
     "ExploreCapacityError",
     "ExploreCooldownError",
+    "ExploreSearchUnavailableError",
     "ExploreQuotaExceededError",
     "ExploreTurnstileRequiredError",
     "hash_explore_topic",
@@ -32,4 +39,5 @@ __all__ = [
     "record_allowed_explore_attempt",
     "record_blocked_explore_attempt",
     "resolve_explore_actor",
+    "run_explore_search",
 ]

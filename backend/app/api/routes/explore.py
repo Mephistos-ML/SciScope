@@ -7,6 +7,7 @@ from fastapi import Request
 from app.services.auth import get_current_user
 from app.services.security import verify_turnstile_token
 from app.services.search import (
+    run_explore_search,
     build_explore_access_denied_error,
     build_turnstile_failure_decision,
     check_explore_access,
@@ -17,7 +18,6 @@ from app.services.search import (
     resolve_explore_actor,
 )
 from app.models import ExploreTier
-from app.services.search.explore import run_explore_search
 
 
 def search_explore_response(

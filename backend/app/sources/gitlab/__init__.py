@@ -10,6 +10,7 @@ from app.sources.gitlab.search import (
     discover_repository_candidates,
     discover_repository_candidates_from_readme,
 )
+from app.sources.gitlab.monitor import load_repo_activity
 
 __all__ = [
     "GITLAB_API_BASE",
@@ -18,4 +19,5 @@ __all__ = [
     "discover_repository_candidates",
     "discover_repository_candidates_from_readme",
     "fetch_json",
+    "load_repo_activity",
 ]
