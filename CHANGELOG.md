@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/Mephistos-ML/SciScope/compare/v1.5.0...v1.5.1) (2026-08-22)
+
+
+### Bug Fixes
+
+* **search:** classify source transport timeouts ([5e10687](https://github.com/Mephistos-ML/SciScope/commit/5e10687b7bc0993340c1ebfc0f780266ca7d8a07))
+
 # [1.5.0](https://github.com/Mephistos-ML/SciScope/compare/v1.4.0...v1.5.0) (2026-08-22)
 
 
