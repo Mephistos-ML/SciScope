@@ -12,11 +12,11 @@ from app.services.search.retrieval.models import RetrievedCandidates, RetrievalH
 from app.sources.common import RepositorySourceError, build_source_status
 from app.sources.github.search import (
     discover_repository_candidates as discover_github_repository_candidates,
-    discover_repository_candidates_from_readme as discover_github_repository_candidates_from_readme,
+    discover_repository_candidates_from_code as discover_github_repository_candidates_from_code,
 )
 from app.sources.gitlab.search import (
     discover_repository_candidates as discover_gitlab_repository_candidates,
-    discover_repository_candidates_from_readme as discover_gitlab_repository_candidates_from_readme,
+    discover_repository_candidates_from_code as discover_gitlab_repository_candidates_from_code,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,18 +59,31 @@ def _discover_candidates_across_sources(
 
     active_discoverers = discoverers or (
         ("github", "repository_search", discover_github_repository_candidates),
-        ("github", "readme_search", discover_github_repository_candidates_from_readme),
+        ("github", "code_search", discover_github_repository_candidates_from_code),
         ("gitlab", "repository_search", discover_gitlab_repository_candidates),
-        ("gitlab", "readme_search", discover_gitlab_repository_candidates_from_readme),
+        ("gitlab", "code_search", discover_gitlab_repository_candidates_from_code),
     )
 
     for source_name, channel_name, discover_candidates in active_discoverers:
+        logger.info(
+            "Explore retrieval started for source=%s channel=%s query_count=%s queries=%s",
+            source_name,
+            channel_name,
+            len(queries),
+            _summarize_queries(queries),
+        )
         try:
             source_candidates = list(discover_candidates(queries))
         except RepositorySourceError as exc:
             logger.warning(
-                "Repository source %s is unavailable for explore search: %s",
+                (
+                    "Explore retrieval failed for source=%s channel=%s status=%s "
+                    "queries=%s message=%s"
+                ),
                 source_name,
+                channel_name,
+                exc.status,
+                _summarize_queries(queries),
                 exc.public_message,
             )
             _merge_source_status(
@@ -85,8 +98,10 @@ def _discover_candidates_across_sources(
             continue
         except Exception:
             logger.exception(
-                "Repository source %s failed during explore search.",
+                "Explore retrieval crashed for source=%s channel=%s queries=%s",
                 source_name,
+                channel_name,
+                _summarize_queries(queries),
             )
             _merge_source_status(
                 source_statuses_by_source,
@@ -102,6 +117,12 @@ def _discover_candidates_across_sources(
             )
             continue
 
+        logger.info(
+            "Explore retrieval completed for source=%s channel=%s candidate_count=%s",
+            source_name,
+            channel_name,
+            len(source_candidates),
+        )
         successful_sources.add(source_name)
         candidates.extend(
             RetrievalHit(
@@ -124,6 +145,14 @@ def _discover_candidates_across_sources(
         )
 
     return candidates, list(source_statuses_by_source.values()), len(successful_sources)
+
+
+def _summarize_queries(queries: Sequence[str], *, max_items: int = 5) -> str:
+    visible_queries = [query.strip() for query in queries if query.strip()][:max_items]
+    suffix = ""
+    if len(queries) > max_items:
+        suffix = f" ... (+{len(queries) - max_items} more)"
+    return ", ".join(repr(query) for query in visible_queries) + suffix
 
 
 def _merge_source_status(

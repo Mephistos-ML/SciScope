@@ -73,6 +73,34 @@ def _build_explore_repository_signal(
     )
 
 
+def _build_code_only_explore_repository_signal(
+    item_id: str,
+    *,
+    source: str = "github",
+    query: str = "LAMMPS Feynman-Hibbs",
+) -> Signal:
+    return Signal(
+        source=source,
+        kind="repository",
+        item_id=item_id,
+        title="thermotools/lammps_mie_fh",
+        url="https://github.com/thermotools/lammps_mie_fh",
+        published_at=None,
+        raw_text=(
+            "thermotools/lammps_mie_fh\n"
+            "A LAMMPS package for Mie-FH simulations.\n"
+            "Matched code path: src/pair_mie_fh.cpp"
+        ),
+        payload={
+            "repo": "thermotools/lammps_mie_fh",
+            "query": query,
+            "topics": ["lammps", "molecular-simulation"],
+            "language": "C++",
+            "stars": 4,
+        },
+    )
+
+
 def _build_subscription_watch() -> SubscriptionWatchRecord:
     return SubscriptionWatchRecord(
         subscription_id="sub_pnmr",
@@ -462,6 +490,58 @@ def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatc
     assert len(payload["items"]) == 1
     assert payload["sourceStatuses"][0]["source"] == "github"
     assert payload["sourceStatuses"][1]["status"] == "unauthorized"
+
+
+def test_explore_search_keeps_retrieved_candidate_without_literal_query_phrase(
+    monkeypatch,
+) -> None:
+    _allow_explore_access(monkeypatch)
+    query = "LAMMPS Feynman-Hibbs"
+    monkeypatch.setattr(
+        "app.services.search.explore.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan(query),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.run_external_repository_retrieval",
+        lambda queries: RetrievedCandidates(
+            candidates=(
+                RepositoryCandidate(
+                    repository_id="github:repo:thermotools/lammps_mie_fh",
+                    signal=_build_code_only_explore_repository_signal(
+                        "github:repo:thermotools/lammps_mie_fh",
+                        query=queries[0],
+                    ),
+                    provenance=CandidateProvenance(
+                        matched_queries=(queries[0],),
+                        matched_channels=("code_search",),
+                        best_rank_by_channel={"code_search": 1},
+                        hit_count=1,
+                    ),
+                ),
+            ),
+            source_statuses=(
+                {"source": "github", "status": "ok", "candidateCount": 1, "error": None},
+            ),
+            successful_source_count=1,
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={
+                "topicDescription": (
+                    "LAMMPS extension for Feynman-Hibbs corrected Mie pair potentials"
+                )
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["items"]) == 1
+    assert payload["items"][0]["itemId"] == "github:repo:thermotools/lammps_mie_fh"
+    assert payload["items"][0]["matchedTerms"] == []
+    assert "code_search" in payload["items"][0]["reason"]
 
 
 def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:

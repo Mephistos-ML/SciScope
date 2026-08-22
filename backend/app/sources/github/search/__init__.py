@@ -1,7 +1,7 @@
 """GitHub repository search lanes."""
 
-from app.sources.github.search.readme import (
-    discover_repository_candidates_from_readme,
+from app.sources.github.search.code import (
+    discover_repository_candidates_from_code,
 )
 from app.sources.github.search.repository import (
     discover_repository_candidates,
@@ -9,5 +9,5 @@ from app.sources.github.search.repository import (
 
 __all__ = [
     "discover_repository_candidates",
-    "discover_repository_candidates_from_readme",
+    "discover_repository_candidates_from_code",
 ]

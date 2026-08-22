@@ -16,7 +16,7 @@ from app.sources.github.client import GITHUB_API_BASE, fetch_json
 def discover_repository_candidates(
     queries: Sequence[str],
     *,
-    per_query_limit: int = 10,
+    per_query_limit: int = 50,
 ) -> list[Signal]:
     """Search GitHub repositories for topic-derived queries."""
 

@@ -3,13 +3,13 @@
 from app.sources.github.auth import build_auth_headers
 from app.sources.github.search import (
     discover_repository_candidates,
-    discover_repository_candidates_from_readme,
+    discover_repository_candidates_from_code,
 )
 from app.sources.github.monitor import load_repo_activity
 
 __all__ = [
     "build_auth_headers",
     "discover_repository_candidates",
-    "discover_repository_candidates_from_readme",
+    "discover_repository_candidates_from_code",
     "load_repo_activity",
 ]

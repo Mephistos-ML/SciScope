@@ -65,8 +65,6 @@ def run_explore_search(
     for candidate in retrieved.candidates:
         signal = candidate.signal
         match = match_signal_to_terms(signal, repository_queries)
-        if not match.matched:
-            continue
 
         items.append(
             {
@@ -78,8 +76,13 @@ def run_explore_search(
                 "language": signal.payload.get("language"),
                 "stars": signal.payload.get("stars"),
                 "query": signal.payload.get("query"),
-                "score": match.score,
-                "reason": match.reason,
+                "score": _build_candidate_score(candidate.provenance.hit_count, match.score),
+                "reason": _build_candidate_reason(
+                    match_reason=match.reason,
+                    matched=match.matched,
+                    matched_channels=candidate.provenance.matched_channels,
+                    matched_queries=candidate.provenance.matched_queries,
+                ),
                 "matchedTerms": list(match.matched_terms),
             }
         )
@@ -105,3 +108,28 @@ def _read_candidate_description(raw_text: str) -> str:
     if len(parts) >= 2:
         return parts[1]
     return ""
+
+
+def _build_candidate_score(retrieval_hit_count: int, term_match_score: float) -> float:
+    return max(float(retrieval_hit_count), term_match_score)
+
+
+def _build_candidate_reason(
+    *,
+    match_reason: str,
+    matched: bool,
+    matched_channels: tuple[str, ...],
+    matched_queries: tuple[str, ...],
+) -> str:
+    retrieval_reason = (
+        "Retrieved via "
+        f"{', '.join(matched_channels) or 'external search'}"
+        f" for {', '.join(repr(query) for query in matched_queries[:3])}"
+    )
+    if len(matched_queries) > 3:
+        retrieval_reason += f" and {len(matched_queries) - 3} more queries"
+    retrieval_reason += "."
+
+    if matched:
+        return f"{match_reason} {retrieval_reason}"
+    return retrieval_reason

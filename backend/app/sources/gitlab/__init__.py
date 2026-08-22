@@ -8,7 +8,7 @@ from app.sources.gitlab.client import (
 )
 from app.sources.gitlab.search import (
     discover_repository_candidates,
-    discover_repository_candidates_from_readme,
+    discover_repository_candidates_from_code,
 )
 from app.sources.gitlab.monitor import load_repo_activity
 
@@ -17,7 +17,7 @@ __all__ = [
     "build_auth_headers",
     "build_user_agent",
     "discover_repository_candidates",
-    "discover_repository_candidates_from_readme",
+    "discover_repository_candidates_from_code",
     "fetch_json",
     "load_repo_activity",
 ]

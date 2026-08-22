@@ -45,14 +45,14 @@ def test_merge_retrieval_hits_accumulates_candidate_provenance() -> None:
         (
             _build_hit(
                 source="gitlab",
-                channel="project_search",
+                channel="repository_search",
                 query="orca python",
                 rank=7,
                 signal=first_signal,
             ),
             _build_hit(
                 source="gitlab",
-                channel="readme_search",
+                channel="code_search",
                 query="orca output parser python",
                 rank=3,
                 signal=second_signal,
@@ -69,12 +69,12 @@ def test_merge_retrieval_hits_accumulates_candidate_provenance() -> None:
         "orca output parser python",
     )
     assert candidate.provenance.matched_channels == (
-        "project_search",
-        "readme_search",
+        "repository_search",
+        "code_search",
     )
     assert dict(candidate.provenance.best_rank_by_channel) == {
-        "project_search": 7,
-        "readme_search": 3,
+        "repository_search": 7,
+        "code_search": 3,
     }
     assert candidate.provenance.hit_count == 2
 
