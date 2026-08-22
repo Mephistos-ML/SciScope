@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -11,6 +12,7 @@ from app.__version__ import __version__
 from app.sources.github.auth import build_auth_headers
 from app.sources.common import RepositorySourceError
 
+logger = logging.getLogger(__name__)
 
 GITHUB_API_BASE = "https://api.github.com"
 GITHUB_REQUEST_TIMEOUT_SECONDS = 30
@@ -45,12 +47,46 @@ def fetch_json(url: str) -> object:
             with urlopen(request, timeout=GITHUB_REQUEST_TIMEOUT_SECONDS) as response:
                 return json.load(response)
         except HTTPError as exc:
+            message = _read_error_message(exc)
             if attempt < GITHUB_REQUEST_RETRIES and 500 <= exc.code < 600:
+                logger.warning(
+                    (
+                        "GitHub API request returned retryable HTTP error "
+                        "url=%s attempt=%s/%s status=%s message=%r"
+                    ),
+                    url,
+                    attempt,
+                    GITHUB_REQUEST_RETRIES,
+                    exc.code,
+                    message,
+                )
                 time.sleep(GITHUB_RETRY_BACKOFF_SECONDS * attempt)
                 continue
+            logger.warning(
+                (
+                    "GitHub API request failed "
+                    "url=%s attempt=%s/%s status=%s message=%r"
+                ),
+                url,
+                attempt,
+                GITHUB_REQUEST_RETRIES,
+                exc.code,
+                message,
+            )
             raise _build_source_error(exc) from exc
         except (TimeoutError, URLError, OSError) as exc:
             last_error = exc
+            logger.warning(
+                (
+                    "GitHub API request transport error "
+                    "url=%s attempt=%s/%s error_type=%s error=%r"
+                ),
+                url,
+                attempt,
+                GITHUB_REQUEST_RETRIES,
+                type(exc).__name__,
+                exc,
+            )
             if attempt == GITHUB_REQUEST_RETRIES:
                 break
             time.sleep(GITHUB_RETRY_BACKOFF_SECONDS * attempt)
