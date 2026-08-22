@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/Mephistos-ML/SciScope/compare/v1.2.0...v1.3.0) (2026-08-22)
+
+
+### Features
+
+* **frontend:** paginate explore results and refine search loading state ([2a1c264](https://github.com/Mephistos-ML/SciScope/commit/2a1c264c9e8e21a8b5d1996a8482c2938f872075))
+
 # [1.2.0](https://github.com/Mephistos-ML/SciScope/compare/v1.1.0...v1.2.0) (2026-08-21)
 
 
