@@ -5,7 +5,9 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from typing import Callable
+from urllib.parse import urlparse
 
+from app.config import GITLAB_BASE_URL
 from app.models.signal import Signal
 from app.services.search.retrieval.merge import merge_retrieval_hits
 from app.services.search.retrieval.models import RetrievedCandidates, RetrievalHit
@@ -23,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 RepositoryDiscoverer = Callable[[Sequence[str]], list[Signal]]
 SourceRetriever = tuple[str, str, RepositoryDiscoverer]
+RetrievalProgressCallback = Callable[[RetrievedCandidates], None]
 
 SOURCE_DISPLAY_NAMES = {
     "github": "GitHub",
@@ -34,12 +37,14 @@ def run_external_repository_retrieval(
     queries: Sequence[str],
     *,
     discoverers: Sequence[SourceRetriever] | None = None,
+    progress_callback: RetrievalProgressCallback | None = None,
 ) -> RetrievedCandidates:
     """Retrieve and deduplicate repository candidates across active sources."""
 
     candidates, source_statuses, successful_sources = _discover_candidates_across_sources(
         queries,
         discoverers=discoverers,
+        progress_callback=progress_callback,
     )
     return RetrievedCandidates(
         candidates=merge_retrieval_hits(tuple(candidates)),
@@ -52,17 +57,13 @@ def _discover_candidates_across_sources(
     queries: Sequence[str],
     *,
     discoverers: Sequence[SourceRetriever] | None = None,
+    progress_callback: RetrievalProgressCallback | None = None,
 ) -> tuple[list[RetrievalHit], list[dict[str, object]], int]:
     candidates: list[RetrievalHit] = []
     source_statuses_by_source: dict[str, dict[str, object]] = {}
     successful_sources: set[str] = set()
 
-    active_discoverers = discoverers or (
-        ("github", "repository_search", discover_github_repository_candidates),
-        ("github", "code_search", discover_github_repository_candidates_from_code),
-        ("gitlab", "repository_search", discover_gitlab_repository_candidates),
-        ("gitlab", "code_search", discover_gitlab_repository_candidates_from_code),
-    )
+    active_discoverers = discoverers or _build_default_discoverers()
 
     for source_name, channel_name, discover_candidates in active_discoverers:
         logger.info(
@@ -95,6 +96,12 @@ def _discover_candidates_across_sources(
                     error=exc.public_message,
                 ),
             )
+            _emit_retrieval_progress(
+                candidates,
+                source_statuses_by_source,
+                successful_sources,
+                progress_callback,
+            )
             continue
         except Exception:
             logger.exception(
@@ -114,6 +121,12 @@ def _discover_candidates_across_sources(
                         "unavailable right now."
                     ),
                 ),
+            )
+            _emit_retrieval_progress(
+                candidates,
+                source_statuses_by_source,
+                successful_sources,
+                progress_callback,
             )
             continue
 
@@ -143,8 +156,39 @@ def _discover_candidates_across_sources(
                 error=None,
             ),
         )
+        _emit_retrieval_progress(
+            candidates,
+            source_statuses_by_source,
+            successful_sources,
+            progress_callback,
+        )
 
     return candidates, list(source_statuses_by_source.values()), len(successful_sources)
+
+
+def _build_default_discoverers() -> tuple[SourceRetriever, ...]:
+    discoverers: list[SourceRetriever] = [
+        ("github", "repository_search", discover_github_repository_candidates),
+        ("github", "code_search", discover_github_repository_candidates_from_code),
+        ("gitlab", "repository_search", discover_gitlab_repository_candidates),
+    ]
+
+    if _supports_gitlab_global_code_search():
+        discoverers.append(
+            ("gitlab", "code_search", discover_gitlab_repository_candidates_from_code)
+        )
+    else:
+        logger.info(
+            "Skipping gitlab code_search lane for base_url=%s because gitlab.com global blob search is unsupported.",
+            GITLAB_BASE_URL,
+        )
+
+    return tuple(discoverers)
+
+
+def _supports_gitlab_global_code_search() -> bool:
+    hostname = (urlparse(GITLAB_BASE_URL).hostname or "").casefold()
+    return hostname not in {"gitlab.com", "www.gitlab.com"}
 
 
 def _summarize_queries(queries: Sequence[str], *, max_items: int = 5) -> str:
@@ -182,3 +226,21 @@ def _merge_source_status(
     existing["status"] = str(incoming.get("status") or existing.get("status") or "error")
     if not existing.get("error"):
         existing["error"] = incoming.get("error")
+
+
+def _emit_retrieval_progress(
+    candidates: list[RetrievalHit],
+    source_statuses_by_source: dict[str, dict[str, object]],
+    successful_sources: set[str],
+    progress_callback: RetrievalProgressCallback | None,
+) -> None:
+    if progress_callback is None:
+        return
+
+    progress_callback(
+        RetrievedCandidates(
+            candidates=merge_retrieval_hits(tuple(candidates)),
+            source_statuses=tuple(source_statuses_by_source.values()),
+            successful_source_count=len(successful_sources),
+        )
+    )

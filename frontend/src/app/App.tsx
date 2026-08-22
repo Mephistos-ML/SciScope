@@ -3,11 +3,12 @@ import { useEffect, useState } from "react";
 import {
   ApiError,
   beginGoogleSignIn,
+  createExploreSearchJob,
   createSubscription,
   deleteSubscription,
+  fetchExploreSearchJob,
   fetchMe,
   fetchSubscriptions,
-  runExploreSearch,
   signOut,
 } from "../lib/api";
 import { frontendConfig } from "../lib/config";
@@ -17,6 +18,7 @@ import { ExplorePage } from "../pages/ExplorePage";
 import { FeedPage } from "../pages/FeedPage";
 import type {
   AiSearchPlanPayload,
+  ExploreSearchJobPayload,
   ExploreResultItem,
   SubscriptionItem,
   Viewer,
@@ -52,6 +54,7 @@ export function App() {
   );
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const [activeExploreJobId, setActiveExploreJobId] = useState<string | null>(null);
 
   useEffect(() => {
     const authError = readAuthErrorFromUrl();
@@ -98,6 +101,69 @@ export function App() {
     void loadSubscriptions();
   }, [viewer]);
 
+  useEffect(() => {
+    if (!activeExploreJobId) {
+      return;
+    }
+
+    let cancelled = false;
+    let timeoutId: number | null = null;
+
+    const syncJob = async () => {
+      try {
+        const snapshot = await fetchExploreSearchJob(activeExploreJobId);
+        if (cancelled) {
+          return;
+        }
+
+        applyExploreSearchJobSnapshot(snapshot);
+        if (snapshot.status === "completed") {
+          setSearchPending(false);
+          setActiveExploreJobId(null);
+          return;
+        }
+
+        if (snapshot.status === "failed") {
+          setSearchPending(false);
+          setActiveExploreJobId(null);
+          setExploreSearchFeedback({
+            message: snapshot.error ?? "Failed to run search.",
+            retryUntilEpochMs: null,
+            signInSuggested: false,
+            turnstileRequired: false,
+          });
+          return;
+        }
+
+        timeoutId = window.setTimeout(() => {
+          void syncJob();
+        }, 1000);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setSearchPending(false);
+        setActiveExploreJobId(null);
+        setExploreSearchFeedback({
+          message: error instanceof Error ? error.message : "Failed to refresh search status.",
+          retryUntilEpochMs: null,
+          signInSuggested: false,
+          turnstileRequired: false,
+        });
+      }
+    };
+
+    void syncJob();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [activeExploreJobId]);
+
   async function handleSignIn() {
     setSigningIn(true);
     setErrorMessage(null);
@@ -133,14 +199,16 @@ export function App() {
 
     setSearchPending(true);
     setErrorMessage(null);
+    setResults([]);
+    setLastAiSearchPlan(null);
+    setExploreSearchFeedback(null);
     try {
-      const payload = await runExploreSearch({
+      const job = await createExploreSearchJob({
         topicDescription: topicInput.trim(),
         turnstileToken,
       });
-      setResults(payload.items);
-      setLastAiSearchPlan(payload.aiSearchPlan);
-      setExploreSearchFeedback(null);
+      applyExploreSearchJobSnapshot(job);
+      setActiveExploreJobId(job.jobId);
       setTurnstileToken(null);
       setTurnstileResetKey((current) => current + 1);
     } catch (error) {
@@ -165,9 +233,19 @@ export function App() {
           signInSuggested: false,
           turnstileRequired: false,
         });
+        setResults([]);
+        setLastAiSearchPlan(null);
       }
-    } finally {
+      setActiveExploreJobId(null);
       setSearchPending(false);
+    }
+  }
+
+  function applyExploreSearchJobSnapshot(snapshot: ExploreSearchJobPayload) {
+    setResults(snapshot.items);
+    setLastAiSearchPlan(snapshot.aiSearchPlan);
+    if (snapshot.status !== "failed") {
+      setExploreSearchFeedback(null);
     }
   }
 

@@ -93,10 +93,10 @@ export function ExplorePage({
     ? "Searching"
     : retryLockActive
       ? `Try Again in ${formatRetryCountdown(retrySecondsRemaining)}`
-    : requiresTurnstile && !turnstileReady
+      : requiresTurnstile && !turnstileReady
       ? "Complete Verification"
       : "Run Search";
-  const showLoadingResults = searchPending;
+  const showLoadingResults = searchPending && !hasResults;
   const totalPages = Math.max(1, Math.ceil(results.length / RESULTS_PER_PAGE));
   const visibleResults = results.slice(
     (currentPage - 1) * RESULTS_PER_PAGE,
@@ -216,13 +216,26 @@ export function ExplorePage({
                 <p className="section-kicker">Results</p>
                 <div className="results-title-row">
                   <h3 className="panel-title">Matched Repositories</h3>
-                  {hasResults && !showLoadingResults ? (
+                  {hasResults ? (
                     <span className="results-count-badge">{results.length} results</span>
+                  ) : searchPending ? (
+                    <span className="results-count-badge">Searching...</span>
                   ) : null}
                 </div>
               </div>
               <div className="results-plan-summary">
-                {showLoadingResults ? (
+                {lastAiSearchPlan?.queries.length ? (
+                  <>
+                    <p className="field-hint">AI-Generated Search Queries</p>
+                    <div className="query-chip-row">
+                      {lastAiSearchPlan.queries.map((query) => (
+                        <span className="query-chip" key={query}>
+                          {query}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                ) : showLoadingResults ? (
                   <>
                     <p className="field-hint">AI-Generated Search Queries</p>
                     <div className="query-chip-row query-chip-row-loading" aria-hidden="true">
@@ -232,17 +245,6 @@ export function ExplorePage({
                           key={`loading-chip-${index}`}
                           style={{ width }}
                         />
-                      ))}
-                    </div>
-                  </>
-                ) : lastAiSearchPlan?.queries.length ? (
-                  <>
-                    <p className="field-hint">AI-Generated Search Queries</p>
-                    <div className="query-chip-row">
-                      {lastAiSearchPlan.queries.map((query) => (
-                        <span className="query-chip" key={query}>
-                          {query}
-                        </span>
                       ))}
                     </div>
                   </>
@@ -387,6 +389,7 @@ export function ExplorePage({
                 <div className="results-footer">
                   <p className="results-footer-copy">
                     Showing {visibleRangeStart}-{visibleRangeEnd} of {results.length} results
+                    {searchPending ? " while search continues" : ""}
                   </p>
                   {totalPages > 1 ? (
                     <nav aria-label="Results pages" className="pagination-nav">

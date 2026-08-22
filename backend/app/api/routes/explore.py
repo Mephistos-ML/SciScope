@@ -4,20 +4,22 @@ from __future__ import annotations
 
 from fastapi import Request
 
+from app.models import ExploreTier
 from app.services.auth import get_current_user
 from app.services.security import verify_turnstile_token
 from app.services.search import (
-    run_explore_search,
     build_explore_access_denied_error,
     build_turnstile_failure_decision,
     check_explore_access,
+    create_explore_search_job,
+    get_explore_search_job,
     hash_explore_topic,
     read_explore_client_ip,
     record_allowed_explore_attempt,
     record_blocked_explore_attempt,
     resolve_explore_actor,
+    run_explore_search,
 )
-from app.models import ExploreTier
 
 
 def search_explore_response(
@@ -26,6 +28,30 @@ def search_explore_response(
 ) -> dict[str, object]:
     """Run an explore search from one topic description."""
 
+    topic_description = _authorize_explore_search_request(request, payload)
+    return run_explore_search(topic_description=topic_description)
+
+
+def create_explore_search_job_response(
+    request: Request,
+    payload: dict[str, object],
+) -> dict[str, object]:
+    """Create one background explore search job."""
+
+    topic_description = _authorize_explore_search_request(request, payload)
+    return create_explore_search_job(topic_description=topic_description)
+
+
+def get_explore_search_job_response(job_id: str) -> dict[str, object] | None:
+    """Return one background explore search job snapshot."""
+
+    return get_explore_search_job(job_id)
+
+
+def _authorize_explore_search_request(
+    request: Request,
+    payload: dict[str, object],
+) -> str:
     database_url = request.app.state.database_url
     topic_description = str(payload.get("topicDescription") or "").strip()
     turnstile_token = str(payload.get("turnstileToken") or "").strip()
@@ -75,4 +101,4 @@ def search_explore_response(
         topic_hash=topic_hash,
         database_url=database_url,
     )
-    return run_explore_search(topic_description=topic_description)
+    return topic_description

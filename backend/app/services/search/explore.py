@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
 from app.services.ai import (
     OpenAIClientConfigurationError,
@@ -14,6 +15,8 @@ from app.services.search.matching import match_signal_to_terms
 from app.services.search.retrieval import run_external_repository_retrieval
 
 logger = logging.getLogger(__name__)
+
+ExploreSearchProgressCallback = Callable[[dict[str, object]], None]
 
 
 class ExploreSearchUnavailableError(RuntimeError):
@@ -33,11 +36,47 @@ class AiSearchPlanningError(RuntimeError):
 def run_explore_search(
     *,
     topic_description: str,
+    progress_callback: ExploreSearchProgressCallback | None = None,
 ) -> dict[str, object]:
     """Run a read-only repository search from one topic description."""
 
+    ai_search_plan = _plan_explore_search(topic_description=topic_description)
+    ai_search_plan_payload = serialize_ai_search_plan(ai_search_plan)
+    repository_queries = ai_search_plan.queries
+    if not repository_queries:
+        return {
+            "topicDescription": topic_description,
+            "aiSearchPlan": ai_search_plan_payload,
+            "items": [],
+            "sourceStatuses": [],
+        }
+
+    if progress_callback is None:
+        retrieved = run_external_repository_retrieval(repository_queries)
+    else:
+        retrieved = run_external_repository_retrieval(
+            repository_queries,
+            progress_callback=lambda partial: progress_callback(
+                _build_explore_search_payload(
+                    topic_description=topic_description,
+                    ai_search_plan_payload=ai_search_plan_payload,
+                    retrieved=partial,
+                )
+            ),
+        )
+    if retrieved.successful_source_count == 0:
+        raise ExploreSearchUnavailableError(list(retrieved.source_statuses))
+
+    return _build_explore_search_payload(
+        topic_description=topic_description,
+        ai_search_plan_payload=ai_search_plan_payload,
+        retrieved=retrieved,
+    )
+
+
+def _plan_explore_search(*, topic_description: str):
     try:
-        ai_search_plan = build_ai_search_plan(topic_description=topic_description)
+        return build_ai_search_plan(topic_description=topic_description)
     except (OpenAIClientConfigurationError, OpenAIResponseError, RuntimeError) as exc:
         logger.exception(
             "AI search planning failed for topic=%r: %s",
@@ -48,23 +87,20 @@ def run_explore_search(
             "AI search planning is temporarily unavailable."
         ) from exc
 
-    repository_queries = ai_search_plan.queries
-    if not repository_queries:
-        return {
-            "topicDescription": topic_description,
-            "aiSearchPlan": serialize_ai_search_plan(ai_search_plan),
-            "items": [],
-            "sourceStatuses": [],
-        }
 
-    retrieved = run_external_repository_retrieval(repository_queries)
-    if retrieved.successful_source_count == 0:
-        raise ExploreSearchUnavailableError(list(retrieved.source_statuses))
-
+def _build_explore_search_payload(
+    *,
+    topic_description: str,
+    ai_search_plan_payload: dict[str, object],
+    retrieved,
+) -> dict[str, object]:
     items: list[dict[str, object]] = []
     for candidate in retrieved.candidates:
         signal = candidate.signal
-        match = match_signal_to_terms(signal, repository_queries)
+        match = match_signal_to_terms(
+            signal,
+            tuple(str(query) for query in ai_search_plan_payload.get("queries", [])),
+        )
 
         items.append(
             {
@@ -97,7 +133,7 @@ def run_explore_search(
 
     return {
         "topicDescription": topic_description,
-        "aiSearchPlan": serialize_ai_search_plan(ai_search_plan),
+        "aiSearchPlan": dict(ai_search_plan_payload),
         "items": items,
         "sourceStatuses": list(retrieved.source_statuses),
     }

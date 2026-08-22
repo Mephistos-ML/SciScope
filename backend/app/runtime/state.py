@@ -12,6 +12,7 @@ class RuntimeState:
     """Mutable in-memory runtime state for scan results and loop status."""
 
     signals: dict[str, object] = field(default_factory=dict)
+    explore_search_jobs: dict[str, dict[str, object]] = field(default_factory=dict)
     monitoring_started_at: datetime | None = None
     last_scan_at: datetime | None = None
     last_scan_error: str | None = None
@@ -19,6 +20,7 @@ class RuntimeState:
     auto_scan_stop_event: threading.Event = field(default_factory=threading.Event)
     auto_scan_thread: threading.Thread | None = None
     scan_lock: threading.Lock = field(default_factory=threading.Lock)
+    explore_search_jobs_lock: threading.Lock = field(default_factory=threading.Lock)
 
 
 STATE = RuntimeState()

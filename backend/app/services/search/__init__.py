@@ -22,18 +22,24 @@ from app.services.search.explore import (
     ExploreSearchUnavailableError,
     run_explore_search,
 )
+from app.services.search.jobs import (
+    create_explore_search_job,
+    get_explore_search_job,
+)
 
 __all__ = [
     "AiSearchPlanningError",
     "build_explore_access_denied_error",
     "build_turnstile_failure_decision",
     "check_explore_access",
+    "create_explore_search_job",
     "ExploreAccessDeniedError",
     "ExploreCapacityError",
     "ExploreCooldownError",
     "ExploreSearchUnavailableError",
     "ExploreQuotaExceededError",
     "ExploreTurnstileRequiredError",
+    "get_explore_search_job",
     "hash_explore_topic",
     "read_explore_client_ip",
     "record_allowed_explore_attempt",

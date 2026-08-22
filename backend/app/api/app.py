@@ -190,6 +190,32 @@ def run_explore_search(
     return explore_routes.search_explore_response(request, payload.model_dump())
 
 
+@app.post("/api/explore/search-jobs", status_code=status.HTTP_202_ACCEPTED)
+def create_explore_search_job(
+    request: Request,
+    payload: ExploreSearchRequest,
+) -> dict[str, object]:
+    """Create one manual explore search job."""
+
+    return explore_routes.create_explore_search_job_response(
+        request,
+        payload.model_dump(),
+    )
+
+
+@app.get("/api/explore/search-jobs/{job_id}")
+def get_explore_search_job(job_id: str) -> dict[str, object]:
+    """Return one manual explore search job snapshot."""
+
+    payload = explore_routes.get_explore_search_job_response(job_id)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Explore search job not found",
+        )
+    return payload
+
+
 @app.get("/api/subscriptions")
 def get_subscriptions(request: Request) -> dict[str, object]:
     """Return saved subscriptions for the current user."""

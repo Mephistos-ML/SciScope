@@ -1,5 +1,6 @@
 import type {
   ExploreAccessErrorPayload,
+  ExploreSearchJobPayload,
   ExploreSearchPayload,
   SignalDetailPayload,
   SignalListPayload,
@@ -178,6 +179,23 @@ export async function runExploreSearch(payload: {
     },
     body: JSON.stringify(payload),
   });
+}
+
+export async function createExploreSearchJob(payload: {
+  topicDescription: string;
+  turnstileToken?: string | null;
+}): Promise<ExploreSearchJobPayload> {
+  return requestJson<ExploreSearchJobPayload>("/api/explore/search-jobs", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchExploreSearchJob(jobId: string): Promise<ExploreSearchJobPayload> {
+  return requestJson<ExploreSearchJobPayload>(`/api/explore/search-jobs/${jobId}`);
 }
 
 export async function fetchSignals(): Promise<SignalListPayload> {

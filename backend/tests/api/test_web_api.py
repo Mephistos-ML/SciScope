@@ -177,6 +177,15 @@ def _allow_explore_access(monkeypatch) -> None:
     )
 
 
+def _run_explore_job_inline(job_id: str, topic_description: str) -> None:
+    from app.services.search import jobs as search_jobs
+
+    search_jobs._run_explore_search_job(
+        job_id=job_id,
+        topic_description=topic_description,
+    )
+
+
 def test_status_and_signal_endpoints_return_json(monkeypatch) -> None:
     STATE.signals.clear()
     STATE.monitoring_started_at = None
@@ -748,3 +757,92 @@ def test_explore_search_accepts_verified_turnstile_token_for_suspicious_guest(
 
     assert response.status_code == 200
     assert response.json()["items"][0]["itemId"] == "github:repo:Mephistos-ML/paranmr"
+
+
+def test_explore_search_job_returns_completed_snapshot(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
+    STATE.explore_search_jobs.clear()
+    monkeypatch.setattr(
+        "app.services.search.jobs._start_explore_search_job_runner",
+        _run_explore_job_inline,
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.run_external_repository_retrieval",
+        lambda queries, progress_callback=None: _build_retrieved_candidates(
+            _build_explore_repository_signal(
+                "github:repo:Mephistos-ML/paranmr",
+                query=queries[0],
+            ),
+            source_statuses=(
+                {"source": "github", "status": "ok", "candidateCount": 1, "error": None},
+            ),
+            successful_source_count=1,
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search-jobs",
+            json={"topicDescription": "Paramagnetic NMR analysis workflows"},
+        )
+
+        assert response.status_code == 202
+        created = response.json()
+        assert created["status"] == "completed"
+        assert created["items"][0]["itemId"] == "github:repo:Mephistos-ML/paranmr"
+
+        follow_up = client.get(f"/api/explore/search-jobs/{created['jobId']}")
+
+    assert follow_up.status_code == 200
+    assert follow_up.json()["status"] == "completed"
+
+
+def test_explore_search_job_returns_failed_snapshot_when_all_sources_fail(
+    monkeypatch,
+) -> None:
+    _allow_explore_access(monkeypatch)
+    STATE.explore_search_jobs.clear()
+    monkeypatch.setattr(
+        "app.services.search.jobs._start_explore_search_job_runner",
+        _run_explore_job_inline,
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan("orca parser"),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.run_external_repository_retrieval",
+        lambda queries, progress_callback=None: _build_retrieved_candidates(
+            source_statuses=(
+                {
+                    "source": "github",
+                    "status": "unauthorized",
+                    "candidateCount": 0,
+                    "error": "GitHub auth failed.",
+                },
+                {
+                    "source": "gitlab",
+                    "status": "error",
+                    "candidateCount": 0,
+                    "error": "GitLab failed.",
+                },
+            ),
+            successful_source_count=0,
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search-jobs",
+            json={"topicDescription": "A python package for working with Orca."},
+        )
+
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["status"] == "failed"
+    assert payload["sourceStatuses"][0]["source"] == "github"
+    assert payload["error"] == "Repository search is temporarily unavailable across all providers."

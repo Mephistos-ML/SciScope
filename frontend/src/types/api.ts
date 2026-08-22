@@ -126,6 +126,21 @@ export type ExploreSearchPayload = {
   sourceStatuses?: SourceStatusPayload[];
 };
 
+export type ExploreSearchJobStatus =
+  | "queued"
+  | "planning"
+  | "retrieving"
+  | "completed"
+  | "failed";
+
+export type ExploreSearchJobPayload = ExploreSearchPayload & {
+  jobId: string;
+  status: ExploreSearchJobStatus;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ExploreAccessErrorPayload = {
   error: string;
   code?: string;
