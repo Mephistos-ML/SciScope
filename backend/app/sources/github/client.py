@@ -99,7 +99,7 @@ def fetch_json(url: str, *, deadline_monotonic: float | None = None) -> object:
             time.sleep(GITHUB_RETRY_BACKOFF_SECONDS * attempt)
 
     if last_error is not None:
-        raise last_error
+        raise _build_transport_source_error(last_error) from last_error
 
     raise RuntimeError("GitHub fetch failed without a captured error.")
 
@@ -137,6 +137,31 @@ def _build_source_error(exc: HTTPError) -> RepositorySourceError:
         status="error",
         public_message="GitHub repository search is unavailable right now.",
     )
+
+
+def _build_transport_source_error(exc: Exception) -> RepositorySourceError:
+    if _is_timeout_error(exc):
+        return RepositorySourceError(
+            source="github",
+            status="timed_out",
+            public_message="GitHub repository search timed out right now.",
+        )
+
+    return RepositorySourceError(
+        source="github",
+        status="error",
+        public_message="GitHub repository search is unavailable right now.",
+    )
+
+
+def _is_timeout_error(exc: Exception) -> bool:
+    if isinstance(exc, TimeoutError):
+        return True
+
+    if isinstance(exc, URLError) and isinstance(exc.reason, TimeoutError):
+        return True
+
+    return "timed out" in str(exc).casefold()
 
 
 def _read_error_message(exc: HTTPError) -> str:

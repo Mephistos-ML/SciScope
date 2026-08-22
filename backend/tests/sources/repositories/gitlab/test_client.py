@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 
 import pytest
 
@@ -93,3 +93,22 @@ def test_fetch_json_classifies_unauthorized_gitlab_requests(monkeypatch) -> None
         gitlab_client.fetch_json("https://gitlab.com/api/v4/test")
 
     assert exc_info.value.status == "unauthorized"
+
+
+def test_fetch_json_classifies_transport_timeouts(monkeypatch) -> None:
+    monkeypatch.setattr(
+        gitlab_client,
+        "build_auth_headers",
+        lambda: {"PRIVATE-TOKEN": "test-token"},
+    )
+
+    def fake_urlopen(_request, timeout):  # type: ignore[no-untyped-def]
+        del timeout
+        raise URLError(TimeoutError("The read operation timed out"))
+
+    monkeypatch.setattr(gitlab_client, "urlopen", fake_urlopen)
+
+    with pytest.raises(RepositorySourceError) as exc_info:
+        gitlab_client.fetch_json("https://gitlab.com/api/v4/test")
+
+    assert exc_info.value.status == "timed_out"

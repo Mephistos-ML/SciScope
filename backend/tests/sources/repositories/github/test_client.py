@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 
 import pytest
 
@@ -107,3 +107,22 @@ def test_fetch_json_classifies_rate_limits(monkeypatch) -> None:
         github_client.fetch_json("https://api.github.com/test")
 
     assert exc_info.value.status == "rate_limited"
+
+
+def test_fetch_json_classifies_transport_timeouts(monkeypatch) -> None:
+    monkeypatch.setattr(
+        github_client,
+        "build_auth_headers",
+        lambda: {"Authorization": "Bearer token"},
+    )
+
+    def fake_urlopen(_request, timeout):  # type: ignore[no-untyped-def]
+        del timeout
+        raise URLError(TimeoutError("The read operation timed out"))
+
+    monkeypatch.setattr(github_client, "urlopen", fake_urlopen)
+
+    with pytest.raises(RepositorySourceError) as exc_info:
+        github_client.fetch_json("https://api.github.com/test")
+
+    assert exc_info.value.status == "timed_out"
