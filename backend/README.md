@@ -92,8 +92,9 @@ Main modules:
 - `app/services/ai/`
 - `app/services/search/explore.py`
 - `app/services/search/matching.py`
-- `app/sources/github/discovery.py`
-- `app/sources/gitlab/discovery.py`
+- `app/services/search/retrieval/`
+- `app/sources/github/search/`
+- `app/sources/gitlab/search/`
 
 ### Subscription Flow
 
