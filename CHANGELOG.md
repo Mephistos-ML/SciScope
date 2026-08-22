@@ -1,3 +1,11 @@
+# [1.5.0](https://github.com/Mephistos-ML/SciScope/compare/v1.4.0...v1.5.0) (2026-08-22)
+
+
+### Features
+
+* **explore:** add async search jobs with polling ([5eeecb6](https://github.com/Mephistos-ML/SciScope/commit/5eeecb6e93b4c2d70a1ca757890c7d9cc2e89b65))
+* **explore:** add time budgets and partial completion ([c17656e](https://github.com/Mephistos-ML/SciScope/commit/c17656e716759c73d10c09592e099079cda7bce2))
+
 # [1.4.0](https://github.com/Mephistos-ML/SciScope/compare/v1.3.0...v1.4.0) (2026-08-22)
 
 
