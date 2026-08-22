@@ -16,7 +16,7 @@ from app.sources.gitlab.client import GITLAB_API_BASE, fetch_json
 def discover_repository_candidates(
     queries: Sequence[str],
     *,
-    per_query_limit: int = 10,
+    per_query_limit: int = 30,
 ) -> list[Signal]:
     """Search GitLab projects for topic-derived queries."""
 
