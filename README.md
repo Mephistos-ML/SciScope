@@ -128,6 +128,8 @@ Main backend areas:
   - AI query planning from topic descriptions
 - `backend/app/services/search/`
   - Explore search and deterministic matching
+- `backend/app/services/monitoring/`
+  - repository monitoring orchestration and checkpoints
 - `backend/app/services/subscriptions/`
   - create/list/delete direct repository subscriptions
 - `backend/app/services/runtime.py`
@@ -135,7 +137,9 @@ Main backend areas:
 - `backend/app/sources/`
   - repository-hosting adapters and replay fixtures
 - `backend/app/storage/`
-  - repositories, subscriptions, seen signals, auth
+  - repositories, subscriptions, signals, explore usage, auth
+- `backend/app/database/records/`
+  - SQLAlchemy record models used only by storage
 - `backend/alembic/`
   - database migrations
 
@@ -160,6 +164,12 @@ Unavailable source modules:
 - Gitee
 - GitCode
 - GitVerse
+
+Placeholder source rules:
+
+- they may expose discovery and provider activity loaders
+- they must not export monitoring checkpoint orchestration
+- they should match the same public surface shape as active source packages
 
 ## Service Surfaces
 
@@ -205,7 +215,8 @@ The repository excludes:
 - Frontend: Vite + React + TypeScript
 - Persistent state runs through Postgres via SQLAlchemy + Alembic
 - Google OAuth gates user-owned subscriptions
-- Architecture notes live in [docs/architecture.md](/Users/ernestborysenko/git/SciScope/docs/architecture.md)
+- Backend architecture notes live in [backend/README.md](/Users/ernestborysenko/git/SciScope/backend/README.md)
+- Architecture contract for future changes lives in [AI_CONTRACT.md](/Users/ernestborysenko/git/SciScope/AI_CONTRACT.md)
 
 ## Author
 

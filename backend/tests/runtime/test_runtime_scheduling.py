@@ -31,19 +31,23 @@ def test_start_monitoring_runs_baseline_without_immediate_scan(
 ) -> None:
     calls: list[str] = []
 
-    monkeypatch.setattr(runtime, "run_baseline_sync", lambda: calls.append("baseline"))
+    monkeypatch.setattr(
+        runtime,
+        "run_baseline_sync",
+        lambda *, database_url: calls.append(database_url),
+    )
     monkeypatch.setattr(runtime.threading, "Thread", _FakeThread)
 
     STATE.auto_scan_started = False
     STATE.auto_scan_thread = None
     STATE.monitoring_started_at = None
 
-    runtime.start_monitoring()
+    runtime.start_monitoring(database_url="sqlite:///runtime-test.sqlite3")
 
-    assert calls == ["baseline"]
+    assert calls == ["sqlite:///runtime-test.sqlite3"]
     assert STATE.auto_scan_started is True
 
-    runtime.stop_monitoring()
+    runtime.stop_monitoring(database_url="sqlite:///runtime-test.sqlite3")
 
 
 class _FakeThread:

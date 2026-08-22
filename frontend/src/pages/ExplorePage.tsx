@@ -57,7 +57,7 @@ export function ExplorePage({
   const isNoResults = !searchPending && !isPreSearch && !hasResults;
   const requiresTurnstile = exploreSearchFeedback?.turnstileRequired === true;
   const [retrySecondsRemaining, setRetrySecondsRemaining] = useState<number | null>(null);
-  const [runningDots, setRunningDots] = useState("...");
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     const retryUntilEpochMs = exploreSearchFeedback?.retryUntilEpochMs;
@@ -80,20 +80,8 @@ export function ExplorePage({
   }, [exploreSearchFeedback?.retryUntilEpochMs]);
 
   useEffect(() => {
-    if (!searchPending) {
-      setRunningDots("...");
-      return;
-    }
-
-    const frames = ["...", "..", ".", ".."] as const;
-    let currentFrameIndex = 0;
-    const intervalId = window.setInterval(() => {
-      currentFrameIndex = (currentFrameIndex + 1) % frames.length;
-      setRunningDots(frames[currentFrameIndex]);
-    }, 220);
-
-    return () => window.clearInterval(intervalId);
-  }, [searchPending]);
+    setCurrentPage(1);
+  }, [results]);
 
   const retryLockActive = retrySecondsRemaining !== null && retrySecondsRemaining > 0;
   const searchDisabled =
@@ -102,13 +90,23 @@ export function ExplorePage({
     retryLockActive ||
     (requiresTurnstile && !turnstileReady);
   const searchButtonLabel = searchPending
-    ? `Running${runningDots}`
+    ? "Searching"
     : retryLockActive
       ? `Try Again in ${formatRetryCountdown(retrySecondsRemaining)}`
     : requiresTurnstile && !turnstileReady
       ? "Complete Verification"
       : "Run Search";
   const showLoadingResults = searchPending;
+  const totalPages = Math.max(1, Math.ceil(results.length / RESULTS_PER_PAGE));
+  const visibleResults = results.slice(
+    (currentPage - 1) * RESULTS_PER_PAGE,
+    currentPage * RESULTS_PER_PAGE,
+  );
+  const visibleRangeStart = hasResults ? (currentPage - 1) * RESULTS_PER_PAGE + 1 : 0;
+  const visibleRangeEnd = hasResults
+    ? Math.min(currentPage * RESULTS_PER_PAGE, results.length)
+    : 0;
+  const pageNumbers = buildPageNumbers(totalPages, currentPage);
 
   return (
     <main className="app-shell explore-shell">
@@ -179,12 +177,16 @@ export function ExplorePage({
           ) : null}
           <div className="query-actions">
             <button
-              className={searchPending ? "solid-button solid-button-loading" : "solid-button"}
+              className={
+                searchPending
+                  ? "solid-button search-submit-button solid-button-loading"
+                  : "solid-button search-submit-button"
+              }
               disabled={searchDisabled}
               onClick={onRunSearch}
               type="button"
             >
-              {searchButtonLabel}
+              <span className="search-submit-button-label">{searchButtonLabel}</span>
             </button>
           </div>
         </article>
@@ -317,7 +319,7 @@ export function ExplorePage({
                   </div>
 
                   <div className="repository-table-body">
-                    {results.map((result) => {
+                    {visibleResults.map((result) => {
                       const isSubscribed = subscribedRepositoryIds.includes(result.itemId);
                       const isPending = subscribePendingRepositoryId === result.itemId;
 
@@ -382,9 +384,58 @@ export function ExplorePage({
                   </div>
                 </div>
 
-                <p className="results-footer-copy">
-                  Showing 1-{results.length} of {results.length} results
-                </p>
+                <div className="results-footer">
+                  <p className="results-footer-copy">
+                    Showing {visibleRangeStart}-{visibleRangeEnd} of {results.length} results
+                  </p>
+                  {totalPages > 1 ? (
+                    <nav aria-label="Results pages" className="pagination-nav">
+                      <button
+                        className="pagination-button"
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                        type="button"
+                      >
+                        Previous
+                      </button>
+                      <div className="pagination-pages">
+                        {pageNumbers.map((pageToken, index) =>
+                          pageToken === "ellipsis-left" || pageToken === "ellipsis-right" ? (
+                            <span
+                              aria-hidden="true"
+                              className="pagination-ellipsis"
+                              key={`${pageToken}-${index}`}
+                            >
+                              ...
+                            </span>
+                          ) : (
+                            <button
+                              aria-current={pageToken === currentPage ? "page" : undefined}
+                              className={
+                                pageToken === currentPage
+                                  ? "pagination-button pagination-button-active"
+                                  : "pagination-button"
+                              }
+                              key={pageToken}
+                              onClick={() => setCurrentPage(pageToken)}
+                              type="button"
+                            >
+                              {pageToken}
+                            </button>
+                          ),
+                        )}
+                      </div>
+                      <button
+                        className="pagination-button"
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                        type="button"
+                      >
+                        Next
+                      </button>
+                    </nav>
+                  ) : null}
+                </div>
               </>
             ) : (
               <div className="empty-state-panel search-no-results-state">
@@ -410,6 +461,7 @@ export function ExplorePage({
 
 const LOADING_QUERY_CHIP_WIDTHS = ["148px", "112px", "176px"] as const;
 const LOADING_REPOSITORY_ROW_COUNT = [0, 1, 2, 3, 4] as const;
+const RESULTS_PER_PAGE = 10;
 
 function formatCompactNumber(value: number): string {
   if (value >= 1000) {
@@ -438,4 +490,33 @@ function formatRetryCountdown(value: number | null): string {
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
+}
+
+function buildPageNumbers(
+  totalPages: number,
+  currentPage: number,
+): Array<number | "ellipsis-left" | "ellipsis-right"> {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  if (currentPage <= 4) {
+    return [1, 2, 3, 4, 5, "ellipsis-right", totalPages];
+  }
+
+  if (currentPage >= totalPages - 3) {
+    return [1, "ellipsis-left", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+  }
+
+  return [
+    1,
+    "ellipsis-left",
+    currentPage - 2,
+    currentPage - 1,
+    currentPage,
+    currentPage + 1,
+    currentPage + 2,
+    "ellipsis-right",
+    totalPages,
+  ];
 }

@@ -1,8 +1,8 @@
-"""Tests for GitHub query building and repository discovery."""
+"""Tests for GitHub repository search."""
 
 from __future__ import annotations
 
-from app.sources.github import discovery as github_discovery
+from app.sources.github.search import repository as github_repository_search
 
 
 def test_discover_repository_candidates_builds_raw_signals(monkeypatch) -> None:
@@ -22,9 +22,9 @@ def test_discover_repository_candidates_builds_raw_signals(monkeypatch) -> None:
             ]
         }
 
-    monkeypatch.setattr(github_discovery, "fetch_json", fake_fetch_json)
+    monkeypatch.setattr(github_repository_search, "fetch_json", fake_fetch_json)
 
-    signals = github_discovery.discover_repository_candidates(
+    signals = github_repository_search.discover_repository_candidates(
         ["paramagnetic NMR software"],
         per_query_limit=3,
     )

@@ -7,14 +7,15 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 import threading
 
+from app.config import DATABASE_URL
 from app.config import MONITORING_INTERVAL_SECONDS, POLLING_FREQUENCY_SECONDS
 from app.models.repository import Repository
 from app.models.signal import Signal
+from app.services.monitoring import load_repository_signals, sync_repository_baseline
 from app.runtime.state import STATE
 from app.sources.replay import load_replay_signals
-from app.sources.runtime import load_repository_signals, sync_repository_baseline
 from app.storage.repositories import list_repository_checkpoints
-from app.storage.seen_signals import load_seen_signal_ids, upsert_signals
+from app.storage.signals import load_seen_signal_ids, upsert_signals
 from app.storage.subscriptions import (
     SubscriptionWatchRecord,
     list_all_subscription_watches,
@@ -42,7 +43,7 @@ class SignalView:
     is_new: bool
 
 
-def start_monitoring() -> None:
+def start_monitoring(*, database_url: str = DATABASE_URL) -> None:
     """Start the scheduler and initialize repository monitoring baselines."""
 
     if not STATE.auto_scan_started:
@@ -50,7 +51,7 @@ def start_monitoring() -> None:
         STATE.auto_scan_stop_event = threading.Event()
         STATE.auto_scan_started = True
         STATE.auto_scan_thread = threading.Thread(
-            target=_auto_scan_loop,
+            target=lambda: _auto_scan_loop(database_url),
             name="sciscope-auto-scan",
             daemon=True,
         )
@@ -58,10 +59,10 @@ def start_monitoring() -> None:
     elif STATE.monitoring_started_at is None:
         STATE.monitoring_started_at = datetime.now(UTC)
 
-    run_baseline_sync()
+    run_baseline_sync(database_url=database_url)
 
 
-def stop_monitoring() -> None:
+def stop_monitoring(*, database_url: str = DATABASE_URL) -> None:
     """Stop the background auto-scan loop."""
 
     if not STATE.auto_scan_started:
@@ -72,11 +73,11 @@ def stop_monitoring() -> None:
     STATE.auto_scan_thread = None
 
 
-def run_scan_cycle() -> None:
+def run_scan_cycle(*, database_url: str = DATABASE_URL) -> None:
     """Run one scan cycle for the current repository subscriptions."""
 
     with STATE.scan_lock:
-        _run_scan_cycle_unlocked()
+        _run_scan_cycle_unlocked(database_url)
 
 
 def list_signal_views() -> list[SignalView]:
@@ -106,10 +107,10 @@ def get_signal_view(item_id: str) -> SignalView | None:
     return None
 
 
-def get_status_payload() -> dict[str, object]:
+def get_status_payload(*, database_url: str = DATABASE_URL) -> dict[str, object]:
     """Return a compact JSON-serializable status payload."""
 
-    subscriptions = list_all_subscription_watches()
+    subscriptions = list_all_subscription_watches(database_url=database_url)
     signals = list_signal_views()
     return {
         "subscriptionCount": len(subscriptions),
@@ -133,22 +134,27 @@ def get_status_payload() -> dict[str, object]:
         ),
         "lastScanError": STATE.last_scan_error,
         "watchedRepositories": _describe_watched_repositories(subscriptions),
-        "sourceCheckpoints": _describe_repository_checkpoints(subscriptions),
+        "sourceCheckpoints": _describe_repository_checkpoints(
+            subscriptions,
+            database_url=database_url,
+        ),
         "totalSignals": len(signals),
     }
 
 
-def run_baseline_sync() -> None:
+def run_baseline_sync(*, database_url: str = DATABASE_URL) -> None:
     """Initialize checkpoints for explicit repository subscriptions."""
 
-    for subscription in list_all_subscription_watches():
+    for subscription in list_all_subscription_watches(database_url=database_url):
         sync_repository_baseline(
             subscription.subscription_id,
             subscription.repository,
+            baseline_started_at=STATE.monitoring_started_at,
+            database_url=database_url,
         )
 
 
-def get_signal_list_payload() -> dict[str, object]:
+def get_signal_list_payload(*, database_url: str = DATABASE_URL) -> dict[str, object]:
     """Return a compact list payload for the frontend."""
 
     return {
@@ -176,7 +182,11 @@ def get_signal_list_payload() -> dict[str, object]:
     }
 
 
-def get_signal_detail_payload(item_id: str) -> dict[str, object] | None:
+def get_signal_detail_payload(
+    item_id: str,
+    *,
+    database_url: str = DATABASE_URL,
+) -> dict[str, object] | None:
     """Return one detailed payload for the frontend."""
 
     signal = get_signal_view(item_id)
@@ -206,8 +216,8 @@ def get_signal_detail_payload(item_id: str) -> dict[str, object] | None:
     }
 
 
-def _run_scan_cycle_unlocked() -> None:
-    subscriptions = list_all_subscription_watches()
+def _run_scan_cycle_unlocked(database_url: str) -> None:
+    subscriptions = list_all_subscription_watches(database_url=database_url)
     signals: list[SignalView] = []
     STATE.last_scan_error = None
 
@@ -227,6 +237,8 @@ def _run_scan_cycle_unlocked() -> None:
             live_signals = load_repository_signals(
                 subscription.subscription_id,
                 subscription.repository,
+                baseline_started_after=STATE.monitoring_started_at,
+                database_url=database_url,
             )
             signals.extend(
                 _build_signal_view(raw_signal, subscription)
@@ -240,7 +252,10 @@ def _run_scan_cycle_unlocked() -> None:
             else message
         )
 
-    seen_ids_by_source = _load_seen_ids_by_source(signals)
+    seen_ids_by_source = _load_seen_ids_by_source(
+        signals,
+        database_url=database_url,
+    )
     signal_views: dict[str, SignalView] = {}
     signals_to_store: list[Signal] = []
     for signal in signals:
@@ -278,16 +293,16 @@ def _run_scan_cycle_unlocked() -> None:
 
     STATE.signals.clear()
     STATE.signals.update(signal_views)
-    upsert_signals(signals_to_store)
+    upsert_signals(signals_to_store, database_url=database_url)
     STATE.last_scan_at = datetime.now(UTC)
 
 
-def _auto_scan_loop() -> None:
+def _auto_scan_loop(database_url: str) -> None:
     stop_event = STATE.auto_scan_stop_event
     while not stop_event.wait(POLLING_FREQUENCY_SECONDS):
         with STATE.scan_lock:
             if _should_run_monitoring():
-                _run_scan_cycle_unlocked()
+                _run_scan_cycle_unlocked(database_url)
 
 
 def _build_signal_view(
@@ -313,7 +328,11 @@ def _build_signal_view(
     )
 
 
-def _load_seen_ids_by_source(signals: list[SignalView]) -> dict[str, set[str]]:
+def _load_seen_ids_by_source(
+    signals: list[SignalView],
+    *,
+    database_url: str,
+) -> dict[str, set[str]]:
     """Load seen ids once per source for the current scan batch."""
 
     grouped_sources: dict[str, set[str]] = defaultdict(set)
@@ -321,7 +340,7 @@ def _load_seen_ids_by_source(signals: list[SignalView]) -> dict[str, set[str]]:
         grouped_sources[signal.source].add(signal.item_id)
 
     return {
-        source: load_seen_signal_ids(source)
+        source: load_seen_signal_ids(source, database_url=database_url)
         for source in grouped_sources
     }
 
@@ -346,12 +365,15 @@ def _describe_watched_repositories(
 
 def _describe_repository_checkpoints(
     subscriptions: list[SubscriptionWatchRecord],
+    *,
+    database_url: str,
 ) -> list[dict[str, object]]:
     checkpoints: list[dict[str, object]] = []
     for subscription in subscriptions:
         for checkpoint in list_repository_checkpoints(
             subscription.subscription_id,
             subscription.repository.repository_id,
+            database_url=database_url,
         ):
             checkpoints.append(
                 {

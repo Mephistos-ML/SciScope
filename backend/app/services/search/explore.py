@@ -3,30 +3,17 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 
-from app.models.signal import Signal
-from app.services.ai.openai_client import (
+from app.services.ai import (
     OpenAIClientConfigurationError,
     OpenAIResponseError,
+    build_ai_search_plan,
+    serialize_ai_search_plan,
 )
-from app.services.ai.planner import build_ai_search_plan
-from app.services.ai.search_plans import serialize_ai_search_plan
 from app.services.search.matching import match_signal_to_terms
-from app.sources.common import RepositorySourceError, build_source_status
-from app.sources.github.discovery import (
-    discover_repository_candidates as discover_github_repository_candidates,
-)
-from app.sources.gitlab.discovery import (
-    discover_repository_candidates as discover_gitlab_repository_candidates,
-)
+from app.services.search.retrieval import run_external_repository_retrieval
 
 logger = logging.getLogger(__name__)
-
-SOURCE_DISPLAY_NAMES = {
-    "github": "GitHub",
-    "gitlab": "GitLab",
-}
 
 
 class ExploreSearchUnavailableError(RuntimeError):
@@ -70,11 +57,13 @@ def run_explore_search(
             "sourceStatuses": [],
         }
 
-    candidates, source_statuses = _discover_candidates_across_sources(repository_queries)
-    deduped = _dedupe_by_item_id(candidates)
+    retrieved = run_external_repository_retrieval(repository_queries)
+    if retrieved.successful_source_count == 0:
+        raise ExploreSearchUnavailableError(list(retrieved.source_statuses))
 
     items: list[dict[str, object]] = []
-    for signal in deduped.values():
+    for candidate in retrieved.candidates:
+        signal = candidate.signal
         match = match_signal_to_terms(signal, repository_queries)
         if not match.matched:
             continue
@@ -107,24 +96,8 @@ def run_explore_search(
         "topicDescription": topic_description,
         "aiSearchPlan": serialize_ai_search_plan(ai_search_plan),
         "items": items,
-        "sourceStatuses": source_statuses,
+        "sourceStatuses": list(retrieved.source_statuses),
     }
-
-
-def _dedupe_by_item_id(candidates: list) -> dict[str, object]:
-    deduped: dict[str, object] = {}
-    for signal in candidates:
-        existing = deduped.get(signal.item_id)
-        if existing is None:
-            deduped[signal.item_id] = signal
-            continue
-
-        existing_query = str(existing.payload.get("query") or "")
-        incoming_query = str(signal.payload.get("query") or "")
-        if len(incoming_query) > len(existing_query):
-            deduped[signal.item_id] = signal
-
-    return deduped
 
 
 def _read_candidate_description(raw_text: str) -> str:
@@ -132,66 +105,3 @@ def _read_candidate_description(raw_text: str) -> str:
     if len(parts) >= 2:
         return parts[1]
     return ""
-
-
-def _discover_candidates_across_sources(
-    queries: Sequence[str],
-) -> tuple[list[Signal], list[dict[str, object]]]:
-    candidates: list[Signal] = []
-    source_statuses: list[dict[str, object]] = []
-    successful_sources = 0
-
-    for source_name, discover_candidates in (
-        ("github", discover_github_repository_candidates),
-        ("gitlab", discover_gitlab_repository_candidates),
-    ):
-        try:
-            source_candidates = list(discover_candidates(queries))
-        except RepositorySourceError as exc:
-            logger.warning(
-                "Repository source %s is unavailable for explore search: %s",
-                source_name,
-                exc.public_message,
-            )
-            source_statuses.append(
-                build_source_status(
-                    source=source_name,
-                    status=exc.status,
-                    candidate_count=0,
-                    error=exc.public_message,
-                )
-            )
-            continue
-        except Exception:
-            logger.exception(
-                "Repository source %s failed during explore search.",
-                source_name,
-            )
-            source_statuses.append(
-                build_source_status(
-                    source=source_name,
-                    status="error",
-                    candidate_count=0,
-                    error=(
-                        f"{SOURCE_DISPLAY_NAMES[source_name]} repository search is "
-                        "unavailable right now."
-                    ),
-                )
-            )
-            continue
-
-        successful_sources += 1
-        candidates.extend(source_candidates)
-        source_statuses.append(
-            build_source_status(
-                source=source_name,
-                status="ok",
-                candidate_count=len(source_candidates),
-                error=None,
-            )
-        )
-
-    if successful_sources == 0:
-        raise ExploreSearchUnavailableError(source_statuses)
-
-    return candidates, source_statuses

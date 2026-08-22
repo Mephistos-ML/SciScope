@@ -7,6 +7,7 @@ import hashlib
 
 from fastapi import Request
 
+from app.config import DATABASE_URL
 from app.config import (
     EXPLORE_SUSPICIOUS_BLOCK_THRESHOLD,
     EXPLORE_SUSPICIOUS_WINDOW_SECONDS,
@@ -31,7 +32,7 @@ from app.services.search.policy import (
     get_global_explore_daily_limit,
     should_require_turnstile,
 )
-from app.storage.explore_usage import (
+from app.storage.explore import (
     count_explore_events_since,
     count_global_explore_events_since,
     get_first_explore_event_at_since,
@@ -51,7 +52,7 @@ def resolve_explore_actor(
     user: User | None,
     *,
     now: datetime | None = None,
-    database_url: str | None = None,
+    database_url: str = DATABASE_URL,
 ) -> ExploreActor:
     """Resolve the current explore actor from request and optional user."""
 
@@ -83,7 +84,7 @@ def check_explore_access(
     *,
     turnstile_verified: bool = False,
     now: datetime | None = None,
-    database_url: str | None = None,
+    database_url: str = DATABASE_URL,
 ) -> ExploreAccessDecision:
     """Return whether the actor may run a new explore search."""
 
@@ -155,7 +156,7 @@ def record_allowed_explore_attempt(
     *,
     topic_hash: str,
     created_at: datetime | None = None,
-    database_url: str | None = None,
+    database_url: str = DATABASE_URL,
 ) -> None:
     """Persist one allowed explore attempt."""
 
@@ -177,7 +178,7 @@ def record_blocked_explore_attempt(
     *,
     topic_hash: str,
     created_at: datetime | None = None,
-    database_url: str | None = None,
+    database_url: str = DATABASE_URL,
 ) -> None:
     """Persist one blocked explore attempt."""
 
@@ -237,7 +238,7 @@ def _resolve_guest_tier(
     subject_key: str,
     *,
     now: datetime | None = None,
-    database_url: str | None = None,
+    database_url: str = DATABASE_URL,
 ) -> ExploreTier:
     if not TURNSTILE_ENABLED:
         return ExploreTier.GUEST

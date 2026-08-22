@@ -16,13 +16,17 @@ from app.services.auth import (
 def get_me_response(request: Request) -> dict[str, object]:
     """Return the current user if signed in."""
 
-    user = get_current_user(request)
+    user = get_current_user(request, database_url=request.app.state.database_url)
     return {"user": _serialize_user(user) if user else None}
 
 def logout_response(request: Request, response: Response) -> dict[str, object]:
     """Clear the current user."""
 
-    sign_out_current_user(request, response)
+    sign_out_current_user(
+        request,
+        response,
+        database_url=request.app.state.database_url,
+    )
     return {"user": None}
 
 
@@ -35,7 +39,10 @@ def start_google_auth_response() -> RedirectResponse:
 def finish_google_auth_response(request: Request) -> RedirectResponse:
     """Finish one Google OAuth redirect flow."""
 
-    return complete_google_auth_callback(request)
+    return complete_google_auth_callback(
+        request,
+        database_url=request.app.state.database_url,
+    )
 
 
 def _serialize_user(user) -> dict[str, object]:

@@ -1,4 +1,4 @@
-"""Persistence helpers for explore usage events and access lookups."""
+"""Persistence helpers for explore search event records."""
 
 from __future__ import annotations
 
@@ -8,8 +8,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import Select, func, select
 
-from app.config import DATABASE_URL
-from app.database.models import ExploreSearchEventRecord
+from app.database.records import ExploreSearchEventRecordModel
 from app.database.session import session_scope
 
 
@@ -39,13 +38,12 @@ def record_explore_search_event(
     retry_after_seconds: int | None = None,
     created_at: datetime | None = None,
     event_id: str | None = None,
-    database_url: str | None = None,
+    database_url: str,
 ) -> ExploreSearchEvent:
     """Persist one explore usage event."""
 
-    resolved_database_url = database_url or DATABASE_URL
     event_created_at = _ensure_utc(created_at or _utc_now())
-    record = ExploreSearchEventRecord(
+    record = ExploreSearchEventRecordModel(
         event_id=event_id or f"exp_{uuid.uuid4().hex[:20]}",
         created_at=event_created_at,
         user_id=user_id,
@@ -57,7 +55,7 @@ def record_explore_search_event(
         retry_after_seconds=retry_after_seconds,
     )
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         session.add(record)
 
     return _to_explore_search_event(record)
@@ -69,11 +67,10 @@ def count_explore_events_since(
     subject_key: str,
     since: datetime,
     outcomes: tuple[str, ...] | None = None,
-    database_url: str | None = None,
+    database_url: str,
 ) -> int:
     """Count one actor's explore events since the provided timestamp."""
 
-    resolved_database_url = database_url or DATABASE_URL
     statement = _build_subject_count_statement(
         subject_type=subject_type,
         subject_key=subject_key,
@@ -81,7 +78,7 @@ def count_explore_events_since(
         outcomes=outcomes,
     )
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         count = session.scalar(statement)
     return int(count or 0)
 
@@ -91,22 +88,21 @@ def get_last_explore_event_at(
     subject_type: str,
     subject_key: str,
     outcomes: tuple[str, ...] | None = None,
-    database_url: str | None = None,
+    database_url: str,
 ) -> datetime | None:
     """Return the latest explore event timestamp for one actor."""
 
-    resolved_database_url = database_url or DATABASE_URL
     statement = (
-        select(ExploreSearchEventRecord.created_at)
-        .where(ExploreSearchEventRecord.subject_type == subject_type)
-        .where(ExploreSearchEventRecord.subject_key == subject_key)
-        .order_by(ExploreSearchEventRecord.created_at.desc())
+        select(ExploreSearchEventRecordModel.created_at)
+        .where(ExploreSearchEventRecordModel.subject_type == subject_type)
+        .where(ExploreSearchEventRecordModel.subject_key == subject_key)
+        .order_by(ExploreSearchEventRecordModel.created_at.desc())
         .limit(1)
     )
     if outcomes:
-        statement = statement.where(ExploreSearchEventRecord.outcome.in_(outcomes))
+        statement = statement.where(ExploreSearchEventRecordModel.outcome.in_(outcomes))
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         value = session.scalar(statement)
     if value is None:
         return None
@@ -119,23 +115,22 @@ def get_first_explore_event_at_since(
     subject_key: str,
     since: datetime,
     outcomes: tuple[str, ...] | None = None,
-    database_url: str | None = None,
+    database_url: str,
 ) -> datetime | None:
     """Return the earliest explore event timestamp within one active window."""
 
-    resolved_database_url = database_url or DATABASE_URL
     statement = (
-        select(ExploreSearchEventRecord.created_at)
-        .where(ExploreSearchEventRecord.subject_type == subject_type)
-        .where(ExploreSearchEventRecord.subject_key == subject_key)
-        .where(ExploreSearchEventRecord.created_at >= _ensure_utc(since))
-        .order_by(ExploreSearchEventRecord.created_at.asc())
+        select(ExploreSearchEventRecordModel.created_at)
+        .where(ExploreSearchEventRecordModel.subject_type == subject_type)
+        .where(ExploreSearchEventRecordModel.subject_key == subject_key)
+        .where(ExploreSearchEventRecordModel.created_at >= _ensure_utc(since))
+        .order_by(ExploreSearchEventRecordModel.created_at.asc())
         .limit(1)
     )
     if outcomes:
-        statement = statement.where(ExploreSearchEventRecord.outcome.in_(outcomes))
+        statement = statement.where(ExploreSearchEventRecordModel.outcome.in_(outcomes))
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         value = session.scalar(statement)
     if value is None:
         return None
@@ -146,18 +141,17 @@ def count_global_explore_events_since(
     *,
     since: datetime,
     outcomes: tuple[str, ...] | None = None,
-    database_url: str | None = None,
+    database_url: str,
 ) -> int:
     """Count global explore events since the provided timestamp."""
 
-    resolved_database_url = database_url or DATABASE_URL
     statement: Select[tuple[int]] = select(func.count()).select_from(
-        ExploreSearchEventRecord
-    ).where(ExploreSearchEventRecord.created_at >= _ensure_utc(since))
+        ExploreSearchEventRecordModel
+    ).where(ExploreSearchEventRecordModel.created_at >= _ensure_utc(since))
     if outcomes:
-        statement = statement.where(ExploreSearchEventRecord.outcome.in_(outcomes))
+        statement = statement.where(ExploreSearchEventRecordModel.outcome.in_(outcomes))
 
-    with session_scope(resolved_database_url) as session:
+    with session_scope(database_url) as session:
         count = session.scalar(statement)
     return int(count or 0)
 
@@ -170,19 +164,21 @@ def _build_subject_count_statement(
     outcomes: tuple[str, ...] | None,
 ) -> Select[tuple[int]]:
     statement: Select[tuple[int]] = select(func.count()).select_from(
-        ExploreSearchEventRecord
+        ExploreSearchEventRecordModel
     )
-    statement = statement.where(ExploreSearchEventRecord.subject_type == subject_type)
-    statement = statement.where(ExploreSearchEventRecord.subject_key == subject_key)
+    statement = statement.where(ExploreSearchEventRecordModel.subject_type == subject_type)
+    statement = statement.where(ExploreSearchEventRecordModel.subject_key == subject_key)
     statement = statement.where(
-        ExploreSearchEventRecord.created_at >= _ensure_utc(since)
+        ExploreSearchEventRecordModel.created_at >= _ensure_utc(since)
     )
     if outcomes:
-        statement = statement.where(ExploreSearchEventRecord.outcome.in_(outcomes))
+        statement = statement.where(ExploreSearchEventRecordModel.outcome.in_(outcomes))
     return statement
 
 
-def _to_explore_search_event(record: ExploreSearchEventRecord) -> ExploreSearchEvent:
+def _to_explore_search_event(
+    record: ExploreSearchEventRecordModel,
+) -> ExploreSearchEvent:
     return ExploreSearchEvent(
         event_id=record.event_id,
         created_at=_ensure_utc(record.created_at).isoformat(timespec="seconds"),

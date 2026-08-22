@@ -1,1 +1,1 @@
-"""Persistence helpers for raw signals, usage events, and match state."""
+"""Persistence helpers grouped by stored record families."""

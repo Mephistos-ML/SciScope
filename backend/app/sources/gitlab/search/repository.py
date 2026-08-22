@@ -1,4 +1,4 @@
-"""GitLab repository discovery."""
+"""GitLab repository search."""
 
 from __future__ import annotations
 
