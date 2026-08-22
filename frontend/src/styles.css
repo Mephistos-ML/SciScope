@@ -399,9 +399,38 @@ input::placeholder {
   box-shadow: var(--shadow-panel);
 }
 
+.search-submit-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 132px;
+  overflow: hidden;
+}
+
+.search-submit-button-label {
+  position: relative;
+  z-index: 1;
+}
+
 .solid-button-loading {
-  width: 148px;
-  min-width: 148px;
+  border-color: var(--navy-900);
+}
+
+.solid-button-loading::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.12) 30%,
+    rgba(255, 255, 255, 0.34) 50%,
+    rgba(255, 255, 255, 0.12) 70%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: translateX(-140%);
+  animation: search-button-shimmer 1.4s linear infinite;
 }
 
 .outline-button {
@@ -1139,6 +1168,60 @@ input::placeholder {
   line-height: 21px;
 }
 
+.results-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.pagination-nav,
+.pagination-pages {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pagination-ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  color: var(--text-secondary);
+}
+
+.pagination-button {
+  min-width: 40px;
+  padding: 9px 12px;
+  border: var(--border-subtle);
+  border-radius: var(--radius-button);
+  background: var(--surface);
+  color: var(--navy-900);
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.pagination-button:hover:not(:disabled) {
+  border-color: var(--navy-700);
+  background: color-mix(in srgb, var(--navy-700) 6%, white);
+}
+
+.pagination-button:disabled {
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+
+.pagination-button-active {
+  border-color: transparent;
+  background: var(--navy-900);
+  color: var(--surface);
+}
+
 .feed-layout {
   display: grid;
   grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
@@ -1305,8 +1388,18 @@ input::placeholder {
   }
 }
 
+@keyframes search-button-shimmer {
+  to {
+    transform: translateX(140%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .skeleton-shimmer {
+    animation: none;
+  }
+
+  .solid-button-loading::before {
     animation: none;
   }
 }
@@ -1440,6 +1533,10 @@ input::placeholder {
 
   .results-header {
     flex-direction: column;
+  }
+
+  .results-footer {
+    align-items: flex-start;
   }
 
   .results-plan-summary {
