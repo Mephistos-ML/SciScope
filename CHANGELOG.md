@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/Mephistos-ML/SciScope/compare/v1.3.0...v1.4.0) (2026-08-22)
+
+
+### Features
+
+* **search:** replace readme retrieval lane with direct code search ([f380079](https://github.com/Mephistos-ML/SciScope/commit/f3800791599b981e2f92c466f30c4fd168b90978))
+
 # [1.3.0](https://github.com/Mephistos-ML/SciScope/compare/v1.2.0...v1.3.0) (2026-08-22)
 
 
