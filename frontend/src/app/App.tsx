@@ -117,9 +117,17 @@ export function App() {
         }
 
         applyExploreSearchJobSnapshot(snapshot);
-        if (snapshot.status === "completed") {
+        if (snapshot.status === "completed" || snapshot.status === "completed_partial") {
           setSearchPending(false);
           setActiveExploreJobId(null);
+          if (snapshot.status === "completed_partial" && snapshot.message) {
+            setExploreSearchFeedback({
+              message: snapshot.message,
+              retryUntilEpochMs: null,
+              signInSuggested: false,
+              turnstileRequired: false,
+            });
+          }
           return;
         }
 
@@ -244,7 +252,7 @@ export function App() {
   function applyExploreSearchJobSnapshot(snapshot: ExploreSearchJobPayload) {
     setResults(snapshot.items);
     setLastAiSearchPlan(snapshot.aiSearchPlan);
-    if (snapshot.status !== "failed") {
+    if (snapshot.status !== "failed" && snapshot.status !== "completed_partial") {
       setExploreSearchFeedback(null);
     }
   }

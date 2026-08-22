@@ -6,8 +6,10 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 import logging
 import threading
+from time import monotonic
 from uuid import uuid4
 
+from app import config
 from app.runtime.state import STATE
 from app.services.search.explore import (
     AiSearchPlanningError,
@@ -17,7 +19,7 @@ from app.services.search.explore import (
 
 logger = logging.getLogger(__name__)
 
-JOB_TERMINAL_STATUSES = {"completed", "failed"}
+JOB_TERMINAL_STATUSES = {"completed", "completed_partial", "failed"}
 MAX_EXPLORE_SEARCH_JOBS = 100
 MAX_COMPLETED_JOB_AGE = timedelta(hours=12)
 
@@ -35,6 +37,7 @@ def create_explore_search_job(*, topic_description: str) -> dict[str, object]:
         "items": [],
         "sourceStatuses": [],
         "error": None,
+        "message": None,
         "createdAt": now,
         "updatedAt": now,
     }
@@ -70,6 +73,13 @@ def _start_explore_search_job_runner(*, job_id: str, topic_description: str) -> 
 
 
 def _run_explore_search_job(*, job_id: str, topic_description: str) -> None:
+    started_at = monotonic()
+    soft_deadline_monotonic = (
+        started_at + config.EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS
+    )
+    hard_deadline_monotonic = (
+        started_at + config.EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS
+    )
     try:
         _update_explore_search_job(job_id, status="planning")
         payload = run_explore_search(
@@ -81,7 +91,10 @@ def _run_explore_search_job(*, job_id: str, topic_description: str) -> None:
                 items=snapshot["items"],
                 sourceStatuses=snapshot["sourceStatuses"],
                 error=None,
+                message=snapshot.get("message"),
             ),
+            soft_deadline_monotonic=soft_deadline_monotonic,
+            hard_deadline_monotonic=hard_deadline_monotonic,
         )
     except ExploreSearchUnavailableError as exc:
         logger.warning("Explore search job failed because every provider is unavailable.")
@@ -90,6 +103,7 @@ def _run_explore_search_job(*, job_id: str, topic_description: str) -> None:
             status="failed",
             sourceStatuses=exc.source_statuses,
             error=str(exc),
+            message=None,
         )
         return
     except AiSearchPlanningError as exc:
@@ -98,6 +112,7 @@ def _run_explore_search_job(*, job_id: str, topic_description: str) -> None:
             job_id,
             status="failed",
             error=str(exc),
+            message=None,
         )
         return
     except Exception:
@@ -106,16 +121,32 @@ def _run_explore_search_job(*, job_id: str, topic_description: str) -> None:
             job_id,
             status="failed",
             error="Explore search failed unexpectedly.",
+            message=None,
+        )
+        return
+
+    completed_status = "completed_partial" if payload.get("partial") else "completed"
+    if completed_status == "completed_partial" and not payload["items"]:
+        _update_explore_search_job(
+            job_id,
+            status="failed",
+            sourceStatuses=payload["sourceStatuses"],
+            error=str(
+                payload.get("message")
+                or "Search timed out before any results were returned."
+            ),
+            message=None,
         )
         return
 
     _update_explore_search_job(
         job_id,
-        status="completed",
+        status=completed_status,
         aiSearchPlan=payload["aiSearchPlan"],
         items=payload["items"],
         sourceStatuses=payload["sourceStatuses"],
         error=None,
+        message=payload.get("message"),
     )
 
 
@@ -127,6 +158,7 @@ def _update_explore_search_job(
     items: list[dict[str, object]] | None = None,
     sourceStatuses: list[dict[str, object]] | None = None,
     error: str | None = None,
+    message: str | None = None,
 ) -> None:
     with STATE.explore_search_jobs_lock:
         snapshot = STATE.explore_search_jobs.get(job_id)
@@ -142,6 +174,7 @@ def _update_explore_search_job(
         if sourceStatuses is not None:
             snapshot["sourceStatuses"] = deepcopy(sourceStatuses)
         snapshot["error"] = error
+        snapshot["message"] = message
 
 
 def _prune_explore_search_jobs() -> None:

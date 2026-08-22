@@ -10,6 +10,7 @@ RepositorySourceStatusCode = Literal[
     "misconfigured",
     "unauthorized",
     "rate_limited",
+    "timed_out",
     "error",
 ]
 

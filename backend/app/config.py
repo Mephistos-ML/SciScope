@@ -151,6 +151,22 @@ OPENAI_API_KEY = _read_optional_env("OPENAI_API_KEY")
 OPENAI_BASE_URL = _read_optional_env("OPENAI_BASE_URL") or "https://api.openai.com/v1"
 OPENAI_MODEL = _read_optional_env("OPENAI_MODEL") or "gpt-5.4-mini"
 OPENAI_TIMEOUT_SECONDS = _read_optional_int_env("OPENAI_TIMEOUT_SECONDS", 20)
+EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS = _read_optional_int_env(
+    "EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS",
+    75,
+)
+EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS = _read_optional_int_env(
+    "EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS",
+    120,
+)
+EXPLORE_SEARCH_REPOSITORY_LANE_TIMEOUT_SECONDS = _read_optional_int_env(
+    "EXPLORE_SEARCH_REPOSITORY_LANE_TIMEOUT_SECONDS",
+    20,
+)
+EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS = _read_optional_int_env(
+    "EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS",
+    30,
+)
 
 if AUTH_SESSION_TTL_SECONDS <= 0:
     raise RuntimeError("AUTH_SESSION_TTL_SECONDS must be a positive integer")
@@ -195,3 +211,27 @@ if AI_PLANNER_MODE not in {"bootstrap", "openai"}:
 
 if OPENAI_TIMEOUT_SECONDS <= 0:
     raise RuntimeError("OPENAI_TIMEOUT_SECONDS must be a positive integer")
+
+if EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS <= 0:
+    raise RuntimeError("EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS must be a positive integer")
+
+if EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS <= 0:
+    raise RuntimeError("EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS must be a positive integer")
+
+if (
+    EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS
+    < EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS
+):
+    raise RuntimeError(
+        "EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS must be greater than or equal to EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS"
+    )
+
+if EXPLORE_SEARCH_REPOSITORY_LANE_TIMEOUT_SECONDS <= 0:
+    raise RuntimeError(
+        "EXPLORE_SEARCH_REPOSITORY_LANE_TIMEOUT_SECONDS must be a positive integer"
+    )
+
+if EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS <= 0:
+    raise RuntimeError(
+        "EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS must be a positive integer"
+    )

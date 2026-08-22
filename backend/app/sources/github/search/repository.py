@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from time import monotonic
 from urllib.parse import quote_plus
 
 from app.models.signal import Signal
 from app.sources.common import (
     RepositoryCandidate,
     build_repository_candidate_signal,
+    raise_source_timeout_error,
 )
 from app.sources.github.client import GITHUB_API_BASE, fetch_json
 
@@ -16,16 +18,22 @@ from app.sources.github.client import GITHUB_API_BASE, fetch_json
 def discover_repository_candidates(
     queries: Sequence[str],
     *,
+    deadline_monotonic: float | None = None,
     per_query_limit: int = 50,
 ) -> list[Signal]:
     """Search GitHub repositories for topic-derived queries."""
 
     signals: list[Signal] = []
     for query in queries:
+        if deadline_monotonic is not None and monotonic() >= deadline_monotonic:
+            raise_source_timeout_error(source="github", operation="repository search")
         search_url = _build_repository_search_url(
             query, per_query_limit=per_query_limit
         )
-        payload = fetch_json(search_url)
+        if deadline_monotonic is None:
+            payload = fetch_json(search_url)
+        else:
+            payload = fetch_json(search_url, deadline_monotonic=deadline_monotonic)
         if not isinstance(payload, dict):
             continue
 

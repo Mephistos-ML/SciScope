@@ -45,3 +45,5 @@ class RetrievedCandidates:
     candidates: tuple[RepositoryCandidate, ...]
     source_statuses: tuple[dict[str, object], ...]
     successful_source_count: int
+    partial: bool = False
+    warnings: tuple[str, ...] = ()

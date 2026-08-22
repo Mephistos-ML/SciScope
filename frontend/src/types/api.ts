@@ -124,6 +124,8 @@ export type ExploreSearchPayload = {
   aiSearchPlan: AiSearchPlanPayload;
   items: ExploreResultItem[];
   sourceStatuses?: SourceStatusPayload[];
+  partial?: boolean;
+  message?: string | null;
 };
 
 export type ExploreSearchJobStatus =
@@ -131,12 +133,14 @@ export type ExploreSearchJobStatus =
   | "planning"
   | "retrieving"
   | "completed"
+  | "completed_partial"
   | "failed";
 
 export type ExploreSearchJobPayload = ExploreSearchPayload & {
   jobId: string;
   status: ExploreSearchJobStatus;
   error: string | null;
+  message: string | null;
   createdAt: string;
   updatedAt: string;
 };

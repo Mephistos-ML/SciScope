@@ -37,6 +37,8 @@ def run_explore_search(
     *,
     topic_description: str,
     progress_callback: ExploreSearchProgressCallback | None = None,
+    soft_deadline_monotonic: float | None = None,
+    hard_deadline_monotonic: float | None = None,
 ) -> dict[str, object]:
     """Run a read-only repository search from one topic description."""
 
@@ -52,17 +54,32 @@ def run_explore_search(
         }
 
     if progress_callback is None:
-        retrieved = run_external_repository_retrieval(repository_queries)
-    else:
+        retrieval_options: dict[str, object] = {}
+        if soft_deadline_monotonic is not None:
+            retrieval_options["soft_deadline_monotonic"] = soft_deadline_monotonic
+        if hard_deadline_monotonic is not None:
+            retrieval_options["hard_deadline_monotonic"] = hard_deadline_monotonic
         retrieved = run_external_repository_retrieval(
             repository_queries,
-            progress_callback=lambda partial: progress_callback(
+            **retrieval_options,
+        )
+    else:
+        retrieval_options = {
+            "progress_callback": lambda partial: progress_callback(
                 _build_explore_search_payload(
                     topic_description=topic_description,
                     ai_search_plan_payload=ai_search_plan_payload,
                     retrieved=partial,
                 )
             ),
+        }
+        if soft_deadline_monotonic is not None:
+            retrieval_options["soft_deadline_monotonic"] = soft_deadline_monotonic
+        if hard_deadline_monotonic is not None:
+            retrieval_options["hard_deadline_monotonic"] = hard_deadline_monotonic
+        retrieved = run_external_repository_retrieval(
+            repository_queries,
+            **retrieval_options,
         )
     if retrieved.successful_source_count == 0:
         raise ExploreSearchUnavailableError(list(retrieved.source_statuses))
@@ -136,6 +153,8 @@ def _build_explore_search_payload(
         "aiSearchPlan": dict(ai_search_plan_payload),
         "items": items,
         "sourceStatuses": list(retrieved.source_statuses),
+        "partial": retrieved.partial,
+        "message": _build_partial_message(retrieved.warnings) if retrieved.partial else None,
     }
 
 
@@ -169,3 +188,14 @@ def _build_candidate_reason(
     if matched:
         return f"{match_reason} {retrieval_reason}"
     return retrieval_reason
+
+
+def _build_partial_message(warnings: tuple[str, ...]) -> str | None:
+    if not warnings:
+        return "Search completed with partial coverage."
+
+    visible_warnings = list(dict.fromkeys(warnings))
+    summary = "; ".join(visible_warnings[:2])
+    if len(visible_warnings) > 2:
+        summary += f"; and {len(visible_warnings) - 2} more"
+    return f"Search completed with partial coverage: {summary}"

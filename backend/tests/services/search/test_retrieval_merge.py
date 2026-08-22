@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from app.models.signal import Signal
 from app.services.search.retrieval.merge import merge_retrieval_hits
+from app.services.search.retrieval import service as retrieval_service
 from app.services.search.retrieval.service import run_external_repository_retrieval
 
 
@@ -110,6 +111,42 @@ def test_run_external_repository_retrieval_merges_duplicate_repo_hits() -> None:
         "repository_search": 1,
     }
     assert candidate.provenance.hit_count == 2
+
+
+def test_run_external_repository_retrieval_marks_partial_when_soft_timeout_stops_next_lane(
+    monkeypatch,
+) -> None:
+    monotonic_values = iter((0.0, 0.0, 2.0))
+    monkeypatch.setattr(
+        retrieval_service,
+        "monotonic",
+        lambda: next(monotonic_values),
+    )
+
+    def discover_github_candidates(_queries: tuple[str, ...]) -> list[Signal]:
+        return [
+            _build_repository_signal(
+                "github:repo:mephistos-ml/paranmr",
+                query="paramagnetic nmr",
+            )
+        ]
+
+    def discover_gitlab_candidates(_queries: tuple[str, ...]) -> list[Signal]:
+        raise AssertionError("The second lane should not start after the soft timeout.")
+
+    retrieved = run_external_repository_retrieval(
+        ("paramagnetic nmr",),
+        discoverers=(
+            ("github", "repository_search", discover_github_candidates),
+            ("gitlab", "repository_search", discover_gitlab_candidates),
+        ),
+        soft_deadline_monotonic=1.0,
+    )
+
+    assert retrieved.successful_source_count == 1
+    assert len(retrieved.candidates) == 1
+    assert retrieved.partial is True
+    assert "partial coverage" in retrieved.warnings[0]
 
 
 def _build_hit(

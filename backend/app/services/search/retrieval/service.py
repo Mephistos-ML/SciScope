@@ -4,10 +4,15 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from time import monotonic
 from typing import Callable
 from urllib.parse import urlparse
 
-from app.config import GITLAB_BASE_URL
+from app.config import (
+    EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS,
+    EXPLORE_SEARCH_REPOSITORY_LANE_TIMEOUT_SECONDS,
+    GITLAB_BASE_URL,
+)
 from app.models.signal import Signal
 from app.services.search.retrieval.merge import merge_retrieval_hits
 from app.services.search.retrieval.models import RetrievedCandidates, RetrievalHit
@@ -25,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 RepositoryDiscoverer = Callable[[Sequence[str]], list[Signal]]
 SourceRetriever = tuple[str, str, RepositoryDiscoverer]
+ActiveSourceRetriever = tuple[str, str, RepositoryDiscoverer, bool]
 RetrievalProgressCallback = Callable[[RetrievedCandidates], None]
 
 SOURCE_DISPLAY_NAMES = {
@@ -38,18 +44,24 @@ def run_external_repository_retrieval(
     *,
     discoverers: Sequence[SourceRetriever] | None = None,
     progress_callback: RetrievalProgressCallback | None = None,
+    soft_deadline_monotonic: float | None = None,
+    hard_deadline_monotonic: float | None = None,
 ) -> RetrievedCandidates:
     """Retrieve and deduplicate repository candidates across active sources."""
 
-    candidates, source_statuses, successful_sources = _discover_candidates_across_sources(
+    retrieval_state = _discover_candidates_across_sources(
         queries,
         discoverers=discoverers,
         progress_callback=progress_callback,
+        soft_deadline_monotonic=soft_deadline_monotonic,
+        hard_deadline_monotonic=hard_deadline_monotonic,
     )
     return RetrievedCandidates(
-        candidates=merge_retrieval_hits(tuple(candidates)),
-        source_statuses=tuple(source_statuses),
-        successful_source_count=successful_sources,
+        candidates=merge_retrieval_hits(tuple(retrieval_state["candidates"])),
+        source_statuses=tuple(retrieval_state["source_statuses"]),
+        successful_source_count=int(retrieval_state["successful_source_count"]),
+        partial=bool(retrieval_state["partial"]),
+        warnings=tuple(str(warning) for warning in retrieval_state["warnings"]),
     )
 
 
@@ -58,14 +70,42 @@ def _discover_candidates_across_sources(
     *,
     discoverers: Sequence[SourceRetriever] | None = None,
     progress_callback: RetrievalProgressCallback | None = None,
-) -> tuple[list[RetrievalHit], list[dict[str, object]], int]:
+    soft_deadline_monotonic: float | None = None,
+    hard_deadline_monotonic: float | None = None,
+) -> dict[str, object]:
     candidates: list[RetrievalHit] = []
     source_statuses_by_source: dict[str, dict[str, object]] = {}
     successful_sources: set[str] = set()
+    warnings: list[str] = []
+    partial = False
 
-    active_discoverers = discoverers or _build_default_discoverers()
+    active_discoverers = _build_active_discoverers(discoverers)
 
-    for source_name, channel_name, discover_candidates in active_discoverers:
+    for source_name, channel_name, discover_candidates, supports_deadline in active_discoverers:
+        if _is_deadline_reached(soft_deadline_monotonic):
+            partial = True
+            warnings.append(
+                "Search completed with partial coverage because the time budget expired before all lanes finished."
+            )
+            logger.info(
+                "Explore retrieval stopped before source=%s channel=%s because the soft deadline expired.",
+                source_name,
+                channel_name,
+            )
+            break
+
+        if _is_deadline_reached(hard_deadline_monotonic):
+            partial = True
+            warnings.append(
+                "Search completed with partial coverage because the hard timeout was reached."
+            )
+            logger.warning(
+                "Explore retrieval stopped before source=%s channel=%s because the hard deadline expired.",
+                source_name,
+                channel_name,
+            )
+            break
+
         logger.info(
             "Explore retrieval started for source=%s channel=%s query_count=%s queries=%s",
             source_name,
@@ -73,9 +113,22 @@ def _discover_candidates_across_sources(
             len(queries),
             _summarize_queries(queries),
         )
+        lane_deadline_monotonic = _build_lane_deadline_monotonic(
+            channel_name=channel_name,
+            hard_deadline_monotonic=hard_deadline_monotonic,
+        )
         try:
-            source_candidates = list(discover_candidates(queries))
+            source_candidates = _run_discoverer(
+                discover_candidates,
+                queries,
+                lane_deadline_monotonic=lane_deadline_monotonic,
+                supports_deadline=supports_deadline,
+            )
         except RepositorySourceError as exc:
+            partial = True
+            warnings.append(
+                f"{SOURCE_DISPLAY_NAMES[source_name]} {channel_name.replace('_', ' ')} returned {exc.status}."
+            )
             logger.warning(
                 (
                     "Explore retrieval failed for source=%s channel=%s status=%s "
@@ -101,9 +154,15 @@ def _discover_candidates_across_sources(
                 source_statuses_by_source,
                 successful_sources,
                 progress_callback,
+                partial=partial,
+                warnings=warnings,
             )
             continue
         except Exception:
+            partial = True
+            warnings.append(
+                f"{SOURCE_DISPLAY_NAMES[source_name]} {channel_name.replace('_', ' ')} crashed."
+            )
             logger.exception(
                 "Explore retrieval crashed for source=%s channel=%s queries=%s",
                 source_name,
@@ -127,6 +186,8 @@ def _discover_candidates_across_sources(
                 source_statuses_by_source,
                 successful_sources,
                 progress_callback,
+                partial=partial,
+                warnings=warnings,
             )
             continue
 
@@ -161,9 +222,42 @@ def _discover_candidates_across_sources(
             source_statuses_by_source,
             successful_sources,
             progress_callback,
+            partial=partial,
+            warnings=warnings,
         )
 
-    return candidates, list(source_statuses_by_source.values()), len(successful_sources)
+    source_statuses = list(source_statuses_by_source.values())
+    if partial and not source_statuses and warnings:
+        source_statuses = [
+            {
+                "source": "system",
+                "status": "timed_out",
+                "candidateCount": 0,
+                "error": warnings[0],
+            }
+        ]
+
+    return {
+        "candidates": candidates,
+        "source_statuses": source_statuses,
+        "successful_source_count": len(successful_sources),
+        "partial": partial,
+        "warnings": warnings,
+    }
+
+
+def _build_active_discoverers(
+    discoverers: Sequence[SourceRetriever] | None,
+) -> tuple[ActiveSourceRetriever, ...]:
+    if discoverers is None:
+        return tuple(
+            (source_name, channel_name, discoverer, True)
+            for source_name, channel_name, discoverer in _build_default_discoverers()
+        )
+    return tuple(
+        (source_name, channel_name, discoverer, False)
+        for source_name, channel_name, discoverer in discoverers
+    )
 
 
 def _build_default_discoverers() -> tuple[SourceRetriever, ...]:
@@ -189,6 +283,43 @@ def _build_default_discoverers() -> tuple[SourceRetriever, ...]:
 def _supports_gitlab_global_code_search() -> bool:
     hostname = (urlparse(GITLAB_BASE_URL).hostname or "").casefold()
     return hostname not in {"gitlab.com", "www.gitlab.com"}
+
+
+def _build_lane_deadline_monotonic(
+    *,
+    channel_name: str,
+    hard_deadline_monotonic: float | None,
+) -> float | None:
+    lane_budget_seconds = (
+        EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS
+        if channel_name == "code_search"
+        else EXPLORE_SEARCH_REPOSITORY_LANE_TIMEOUT_SECONDS
+    )
+    lane_deadline_monotonic = monotonic() + lane_budget_seconds
+    if hard_deadline_monotonic is None:
+        return lane_deadline_monotonic
+    return min(lane_deadline_monotonic, hard_deadline_monotonic)
+
+
+def _run_discoverer(
+    discover_candidates: RepositoryDiscoverer,
+    queries: Sequence[str],
+    *,
+    lane_deadline_monotonic: float | None,
+    supports_deadline: bool,
+) -> list[Signal]:
+    if not supports_deadline:
+        return list(discover_candidates(queries))
+    return list(
+        discover_candidates(
+            queries,
+            deadline_monotonic=lane_deadline_monotonic,
+        )
+    )
+
+
+def _is_deadline_reached(deadline_monotonic: float | None) -> bool:
+    return deadline_monotonic is not None and monotonic() >= deadline_monotonic
 
 
 def _summarize_queries(queries: Sequence[str], *, max_items: int = 5) -> str:
@@ -233,6 +364,9 @@ def _emit_retrieval_progress(
     source_statuses_by_source: dict[str, dict[str, object]],
     successful_sources: set[str],
     progress_callback: RetrievalProgressCallback | None,
+    *,
+    partial: bool,
+    warnings: list[str],
 ) -> None:
     if progress_callback is None:
         return
@@ -242,5 +376,7 @@ def _emit_retrieval_progress(
             candidates=merge_retrieval_hits(tuple(candidates)),
             source_statuses=tuple(source_statuses_by_source.values()),
             successful_source_count=len(successful_sources),
+            partial=partial,
+            warnings=tuple(warnings),
         )
     )

@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 import logging
 import time
+from time import monotonic
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from app.__version__ import __version__
+from app.sources.common import RepositorySourceError, read_remaining_timeout_seconds
 from app.sources.github.auth import build_auth_headers
-from app.sources.common import RepositorySourceError
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ def build_user_agent() -> str:
     return f"SciScope/{__version__}"
 
 
-def fetch_json(url: str) -> object:
+def fetch_json(url: str, *, deadline_monotonic: float | None = None) -> object:
     """Fetch one JSON payload from the GitHub API with simple retries."""
 
     headers = {
@@ -44,7 +45,11 @@ def fetch_json(url: str) -> object:
     last_error: Exception | None = None
     for attempt in range(1, GITHUB_REQUEST_RETRIES + 1):
         try:
-            with urlopen(request, timeout=GITHUB_REQUEST_TIMEOUT_SECONDS) as response:
+            request_timeout_seconds = read_remaining_timeout_seconds(
+                deadline_monotonic=deadline_monotonic,
+                fallback_seconds=GITHUB_REQUEST_TIMEOUT_SECONDS,
+            )
+            with urlopen(request, timeout=request_timeout_seconds) as response:
                 return json.load(response)
         except HTTPError as exc:
             message = _read_error_message(exc)
@@ -88,6 +93,8 @@ def fetch_json(url: str) -> object:
                 exc,
             )
             if attempt == GITHUB_REQUEST_RETRIES:
+                break
+            if deadline_monotonic is not None and monotonic() >= deadline_monotonic:
                 break
             time.sleep(GITHUB_RETRY_BACKOFF_SECONDS * attempt)
 

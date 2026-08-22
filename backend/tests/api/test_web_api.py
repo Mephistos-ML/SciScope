@@ -121,6 +121,8 @@ def _build_retrieved_candidates(
     *signals: Signal,
     source_statuses: tuple[dict[str, object], ...],
     successful_source_count: int,
+    partial: bool = False,
+    warnings: tuple[str, ...] = (),
 ) -> RetrievedCandidates:
     return RetrievedCandidates(
         candidates=tuple(
@@ -138,6 +140,8 @@ def _build_retrieved_candidates(
         ),
         source_statuses=source_statuses,
         successful_source_count=successful_source_count,
+        partial=partial,
+        warnings=warnings,
     )
 
 
@@ -772,7 +776,7 @@ def test_explore_search_job_returns_completed_snapshot(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         "app.services.search.explore.run_external_repository_retrieval",
-        lambda queries, progress_callback=None: _build_retrieved_candidates(
+        lambda queries, progress_callback=None, **kwargs: _build_retrieved_candidates(
             _build_explore_repository_signal(
                 "github:repo:Mephistos-ML/paranmr",
                 query=queries[0],
@@ -816,7 +820,7 @@ def test_explore_search_job_returns_failed_snapshot_when_all_sources_fail(
     )
     monkeypatch.setattr(
         "app.services.search.explore.run_external_repository_retrieval",
-        lambda queries, progress_callback=None: _build_retrieved_candidates(
+        lambda queries, progress_callback=None, **kwargs: _build_retrieved_candidates(
             source_statuses=(
                 {
                     "source": "github",
@@ -846,3 +850,45 @@ def test_explore_search_job_returns_failed_snapshot_when_all_sources_fail(
     assert payload["status"] == "failed"
     assert payload["sourceStatuses"][0]["source"] == "github"
     assert payload["error"] == "Repository search is temporarily unavailable across all providers."
+
+
+def test_explore_search_job_returns_completed_partial_snapshot(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
+    STATE.explore_search_jobs.clear()
+    monkeypatch.setattr(
+        "app.services.search.jobs._start_explore_search_job_runner",
+        _run_explore_job_inline,
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan("orca parser"),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.run_external_repository_retrieval",
+        lambda queries, progress_callback=None, **kwargs: _build_retrieved_candidates(
+            _build_explore_repository_signal(
+                "gitlab:repo:kragskow-group/orto",
+                source="gitlab",
+                query=queries[0],
+            ),
+            source_statuses=(
+                {"source": "github", "status": "timed_out", "candidateCount": 0, "error": "GitHub code search timed out."},
+                {"source": "gitlab", "status": "ok", "candidateCount": 1, "error": None},
+            ),
+            successful_source_count=1,
+            partial=True,
+            warnings=("GitHub code search returned timed_out.",),
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search-jobs",
+            json={"topicDescription": "A python package for working with Orca."},
+        )
+
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["status"] == "completed_partial"
+    assert payload["items"][0]["itemId"] == "gitlab:repo:kragskow-group/orto"
+    assert "partial coverage" in payload["message"]
