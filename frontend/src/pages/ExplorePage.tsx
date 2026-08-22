@@ -96,7 +96,7 @@ export function ExplorePage({
       : requiresTurnstile && !turnstileReady
       ? "Complete Verification"
       : "Run Search";
-  const showLoadingResults = searchPending && !hasResults;
+  const showLoadingResults = searchPending;
   const totalPages = Math.max(1, Math.ceil(results.length / RESULTS_PER_PAGE));
   const visibleResults = results.slice(
     (currentPage - 1) * RESULTS_PER_PAGE,
@@ -389,7 +389,6 @@ export function ExplorePage({
                 <div className="results-footer">
                   <p className="results-footer-copy">
                     Showing {visibleRangeStart}-{visibleRangeEnd} of {results.length} results
-                    {searchPending ? " while search continues" : ""}
                   </p>
                   {totalPages > 1 ? (
                     <nav aria-label="Results pages" className="pagination-nav">

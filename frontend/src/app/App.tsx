@@ -116,8 +116,8 @@ export function App() {
           return;
         }
 
-        applyExploreSearchJobSnapshot(snapshot);
         if (snapshot.status === "completed" || snapshot.status === "completed_partial") {
+          applyExploreSearchJobSnapshot(snapshot);
           setSearchPending(false);
           setActiveExploreJobId(null);
           if (snapshot.status === "completed_partial" && snapshot.message) {
@@ -215,7 +215,6 @@ export function App() {
         topicDescription: topicInput.trim(),
         turnstileToken,
       });
-      applyExploreSearchJobSnapshot(job);
       setActiveExploreJobId(job.jobId);
       setTurnstileToken(null);
       setTurnstileResetKey((current) => current + 1);
