@@ -284,23 +284,35 @@ export function ExplorePage({
                           </div>
                         </div>
 
-                        <div className="repository-cell">
+                        <div className="repository-cell" data-label="Source">
                           <span className="repository-skeleton-badge skeleton-shimmer" />
                         </div>
 
-                        <div className="repository-cell repository-metadata-cell">
+                        <div
+                          className="repository-cell repository-metadata-cell"
+                          data-label="Language"
+                        >
                           <span className="repository-skeleton-meta skeleton-shimmer" />
                         </div>
 
-                        <div className="repository-cell repository-metadata-cell">
+                        <div
+                          className="repository-cell repository-metadata-cell"
+                          data-label="Stars"
+                        >
                           <span className="repository-skeleton-meta repository-skeleton-meta-short skeleton-shimmer" />
                         </div>
 
-                        <div className="repository-cell repository-query-cell">
+                        <div
+                          className="repository-cell repository-query-cell"
+                          data-label="Query"
+                        >
                           <span className="repository-skeleton-query skeleton-shimmer" />
                         </div>
 
-                        <div className="repository-cell repository-actions-cell">
+                        <div
+                          className="repository-cell repository-actions-cell"
+                          data-label="Actions"
+                        >
                           <span className="repository-skeleton-button skeleton-shimmer" />
                         </div>
                       </div>
@@ -343,11 +355,14 @@ export function ExplorePage({
                             ) : null}
                           </div>
 
-                          <div className="repository-cell">
+                          <div className="repository-cell" data-label="Source">
                             <SourceBadge href={result.url} source={result.source} />
                           </div>
 
-                          <div className="repository-cell repository-metadata-cell">
+                          <div
+                            className="repository-cell repository-metadata-cell"
+                            data-label="Language"
+                          >
                             {result.language ? (
                               <span className="repository-dot-metadata">
                                 <span className="repository-language-dot" aria-hidden="true" />
@@ -358,15 +373,24 @@ export function ExplorePage({
                             )}
                           </div>
 
-                          <div className="repository-cell repository-metadata-cell">
+                          <div
+                            className="repository-cell repository-metadata-cell"
+                            data-label="Stars"
+                          >
                             {result.stars !== null ? formatCompactNumber(result.stars) : "-"}
                           </div>
 
-                          <div className="repository-cell repository-query-cell">
+                          <div
+                            className="repository-cell repository-query-cell"
+                            data-label="Query"
+                          >
                             {result.query || "No Query Snapshot"}
                           </div>
 
-                          <div className="repository-cell repository-actions-cell">
+                          <div
+                            className="repository-cell repository-actions-cell"
+                            data-label="Actions"
+                          >
                             <button
                               className={
                                 isSubscribed

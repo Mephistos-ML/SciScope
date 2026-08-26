@@ -1511,9 +1511,37 @@ input::placeholder {
     display: none;
   }
 
+  .repository-table {
+    overflow: hidden;
+  }
+
+  .repository-table-body {
+    overflow: visible;
+  }
+
   .repository-row {
     grid-template-columns: 1fr;
+    min-width: 0;
     gap: 12px;
+    padding: 16px;
+  }
+
+  .repository-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .repository-cell::before {
+    content: attr(data-label);
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 16px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
 
   .feed-updates-placeholder {
@@ -1529,6 +1557,11 @@ input::placeholder {
 
   .repository-actions-cell {
     justify-content: flex-start;
+  }
+
+  .results-action-button {
+    width: 100%;
+    max-width: none;
   }
 
   .results-header {
