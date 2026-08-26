@@ -21,7 +21,7 @@ from app.models.explore_access import (
     ExploreTier,
 )
 from app.services.auth import User
-from app.services.search.policy import (
+from app.services.search.access.policy import (
     build_cooldown_decision,
     build_global_capacity_decision,
     build_public_access_disabled_decision,
@@ -219,23 +219,8 @@ def read_explore_client_ip(request: Request) -> str | None:
     return _read_client_ip(request)
 
 
-def _map_blocked_decision_to_outcome(decision: ExploreAccessDecision) -> str:
-    if decision.turnstile_required:
-        return str(ExploreAccessOutcome.BLOCKED_TURNSTILE)
-    if decision.code is ExploreLimitCode.GLOBAL_CAPACITY_REACHED:
-        return str(ExploreAccessOutcome.BLOCKED_CAPACITY)
-    if decision.code in {
-        ExploreLimitCode.GUEST_COOLDOWN,
-        ExploreLimitCode.USER_COOLDOWN,
-    }:
-        return str(ExploreAccessOutcome.BLOCKED_COOLDOWN)
-    if decision.code is ExploreLimitCode.GUEST_SEARCH_DISABLED:
-        return str(ExploreAccessOutcome.BLOCKED_DISABLED)
-    return str(ExploreAccessOutcome.BLOCKED_QUOTA)
-
-
 def _resolve_guest_tier(
-    subject_key: str,
+    ip_hash: str,
     *,
     now: datetime | None = None,
     database_url: str = DATABASE_URL,
@@ -249,7 +234,7 @@ def _resolve_guest_tier(
     )
     blocked_count = count_explore_events_since(
         subject_type="guest_ip",
-        subject_key=subject_key,
+        subject_key=ip_hash,
         since=suspicious_window_start,
         outcomes=SUSPICIOUS_GUEST_OUTCOMES,
         database_url=database_url,
@@ -259,20 +244,37 @@ def _resolve_guest_tier(
     return ExploreTier.GUEST
 
 
+def _map_blocked_decision_to_outcome(decision: ExploreAccessDecision) -> str:
+    if decision.code in {
+        ExploreLimitCode.GUEST_COOLDOWN,
+        ExploreLimitCode.USER_COOLDOWN,
+    }:
+        return str(ExploreAccessOutcome.BLOCKED_COOLDOWN)
+    if decision.code in {
+        ExploreLimitCode.GUEST_QUOTA_EXCEEDED,
+        ExploreLimitCode.USER_QUOTA_EXCEEDED,
+        ExploreLimitCode.GUEST_SEARCH_DISABLED,
+    }:
+        return str(ExploreAccessOutcome.BLOCKED_QUOTA)
+    if decision.code in {
+        ExploreLimitCode.TURNSTILE_REQUIRED,
+        ExploreLimitCode.TURNSTILE_VERIFICATION_FAILED,
+    }:
+        return str(ExploreAccessOutcome.BLOCKED_TURNSTILE)
+    return str(ExploreAccessOutcome.BLOCKED_GLOBAL_CAPACITY)
+
+
 def _read_client_ip(request: Request) -> str | None:
-    forwarded_for = request.headers.get("x-forwarded-for", "").strip()
+    forwarded_for = request.headers.get("x-forwarded-for")
     if forwarded_for:
-        first_ip = forwarded_for.split(",")[0].strip()
-        if first_ip:
-            return first_ip
+        return forwarded_for.split(",")[0].strip() or None
 
-    real_ip = request.headers.get("x-real-ip", "").strip()
-    if real_ip:
-        return real_ip
+    fly_client_ip = request.headers.get("fly-client-ip")
+    if fly_client_ip:
+        return fly_client_ip.strip() or None
 
-    client = request.client
-    if client is not None and client.host:
-        return client.host.strip()
+    if request.client is not None:
+        return request.client.host
     return None
 
 

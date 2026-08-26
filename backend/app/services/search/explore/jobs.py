@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from app import config
 from app.runtime.state import STATE
-from app.services.search.explore import (
+from app.services.search.explore.service import (
     AiSearchPlanningError,
     ExploreSearchUnavailableError,
     run_explore_search,
@@ -223,4 +223,4 @@ def _parse_job_timestamp(value: object) -> datetime:
 
 
 def _now_isoformat() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat()

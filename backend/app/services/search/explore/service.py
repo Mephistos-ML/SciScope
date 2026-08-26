@@ -12,7 +12,7 @@ from app.services.ai import (
     serialize_ai_search_plan,
 )
 from app.services.search.admission import run_repository_admission
-from app.services.search.matching import match_signal_to_terms
+from app.services.search.explore.matching import match_signal_to_terms
 from app.services.search.retrieval import run_external_repository_retrieval
 
 logger = logging.getLogger(__name__)
@@ -132,7 +132,10 @@ def _build_explore_search_payload(
                 "language": signal.payload.get("language"),
                 "stars": signal.payload.get("stars"),
                 "query": signal.payload.get("query"),
-                "score": _build_candidate_score(candidate.provenance.hit_count, match.score),
+                "score": _build_candidate_score(
+                    candidate.provenance.hit_count,
+                    match.score,
+                ),
                 "reason": _build_candidate_reason(
                     match_reason=match.reason,
                     matched=match.matched,

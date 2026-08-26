@@ -5,8 +5,8 @@ from __future__ import annotations
 from fastapi import Request
 
 from app.models import ExploreActor, ExploreTier
-from app.services.search import access as access_service
-from app.services.search.policy import should_require_turnstile
+from app.services.search.access import service as access_service
+from app.services.search.access.policy import should_require_turnstile
 from app.services.security import turnstile as turnstile_service
 
 
@@ -41,7 +41,7 @@ def test_resolve_explore_actor_marks_guest_as_suspicious_after_block_threshold(
 def test_check_explore_access_requires_turnstile_for_suspicious_guest(
     monkeypatch,
 ) -> None:
-    monkeypatch.setattr("app.services.search.policy.TURNSTILE_ENABLED", True)
+    monkeypatch.setattr("app.services.search.access.policy.TURNSTILE_ENABLED", True)
     actor = ExploreActor(
         tier=ExploreTier.SUSPICIOUS,
         subject_type="guest_ip",
@@ -56,8 +56,12 @@ def test_check_explore_access_requires_turnstile_for_suspicious_guest(
 
 
 def test_check_explore_access_allows_verified_turnstile_guest(monkeypatch) -> None:
-    monkeypatch.setattr("app.services.search.policy.TURNSTILE_ENABLED", True)
-    monkeypatch.setattr(access_service, "count_global_explore_events_since", lambda **kwargs: 0)
+    monkeypatch.setattr("app.services.search.access.policy.TURNSTILE_ENABLED", True)
+    monkeypatch.setattr(
+        access_service,
+        "count_global_explore_events_since",
+        lambda **kwargs: 0,
+    )
     monkeypatch.setattr(access_service, "get_last_explore_event_at", lambda **kwargs: None)
     monkeypatch.setattr(access_service, "count_explore_events_since", lambda **kwargs: 0)
 

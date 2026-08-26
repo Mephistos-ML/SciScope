@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.models.signal import Signal
-from app.services.search.matching import match_signal_to_terms
+from app.services.search.explore.matching import match_signal_to_terms
 
 
 PNMR_QUERY_TERMS = (

@@ -1,14 +1,5 @@
-"""Search and signal-processing service modules."""
+"""Explore access-control package."""
 
-from app.services.search.access import (
-    build_turnstile_failure_decision,
-    check_explore_access,
-    hash_explore_topic,
-    read_explore_client_ip,
-    record_allowed_explore_attempt,
-    record_blocked_explore_attempt,
-    resolve_explore_actor,
-)
 from app.services.search.access.errors import (
     ExploreAccessDeniedError,
     ExploreCapacityError,
@@ -17,31 +8,28 @@ from app.services.search.access.errors import (
     ExploreTurnstileRequiredError,
     build_explore_access_denied_error,
 )
-from app.services.search.explore import (
-    AiSearchPlanningError,
-    ExploreSearchUnavailableError,
-    create_explore_search_job,
-    get_explore_search_job,
-    run_explore_search,
+from app.services.search.access.service import (
+    build_turnstile_failure_decision,
+    check_explore_access,
+    hash_explore_topic,
+    read_explore_client_ip,
+    record_allowed_explore_attempt,
+    record_blocked_explore_attempt,
+    resolve_explore_actor,
 )
 
 __all__ = [
-    "AiSearchPlanningError",
     "build_explore_access_denied_error",
     "build_turnstile_failure_decision",
     "check_explore_access",
-    "create_explore_search_job",
     "ExploreAccessDeniedError",
     "ExploreCapacityError",
     "ExploreCooldownError",
-    "ExploreSearchUnavailableError",
     "ExploreQuotaExceededError",
     "ExploreTurnstileRequiredError",
-    "get_explore_search_job",
     "hash_explore_topic",
     "read_explore_client_ip",
     "record_allowed_explore_attempt",
     "record_blocked_explore_attempt",
     "resolve_explore_actor",
-    "run_explore_search",
 ]

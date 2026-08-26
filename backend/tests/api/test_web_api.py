@@ -186,7 +186,7 @@ def _allow_explore_access(monkeypatch) -> None:
 
 
 def _run_explore_job_inline(job_id: str, topic_description: str) -> None:
-    from app.services.search import jobs as search_jobs
+    from app.services.search.explore import jobs as search_jobs
 
     search_jobs._run_explore_search_job(
         job_id=job_id,
@@ -473,11 +473,11 @@ def test_google_auth_callback_redirects_with_error_when_state_is_invalid(monkeyp
 def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatch) -> None:
     _allow_explore_access(monkeypatch)
     monkeypatch.setattr(
-        "app.services.search.explore.build_ai_search_plan",
+        "app.services.search.explore.service.build_ai_search_plan",
         lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
     )
     monkeypatch.setattr(
-        "app.services.search.explore.run_external_repository_retrieval",
+        "app.services.search.explore.service.run_external_repository_retrieval",
         lambda queries: _build_retrieved_candidates(
             _build_explore_repository_signal(
                 "github:repo:Mephistos-ML/paranmr",
@@ -515,11 +515,11 @@ def test_explore_search_keeps_retrieved_candidate_without_literal_query_phrase(
     _allow_explore_access(monkeypatch)
     query = "LAMMPS Feynman-Hibbs"
     monkeypatch.setattr(
-        "app.services.search.explore.build_ai_search_plan",
+        "app.services.search.explore.service.build_ai_search_plan",
         lambda topic_description: _build_ready_repository_ai_plan(query),
     )
     monkeypatch.setattr(
-        "app.services.search.explore.run_external_repository_retrieval",
+        "app.services.search.explore.service.run_external_repository_retrieval",
         lambda queries: RetrievedCandidates(
             candidates=(
                 RepositoryCandidate(
@@ -568,7 +568,7 @@ def test_explore_search_enforced_mode_hides_rejected_candidates(monkeypatch) -> 
         "enforced",
     )
     monkeypatch.setattr(
-        "app.services.search.explore.build_ai_search_plan",
+        "app.services.search.explore.service.build_ai_search_plan",
         lambda topic_description: _build_ready_repository_ai_plan("orca parser"),
     )
     weak_signal = Signal(
@@ -588,7 +588,7 @@ def test_explore_search_enforced_mode_hides_rejected_candidates(monkeypatch) -> 
         },
     )
     monkeypatch.setattr(
-        "app.services.search.explore.run_external_repository_retrieval",
+        "app.services.search.explore.service.run_external_repository_retrieval",
         lambda queries: _build_retrieved_candidates(
             _build_code_only_explore_repository_signal(
                 "github:repo:thermotools/lammps_mie_fh",
@@ -618,11 +618,11 @@ def test_explore_search_enforced_mode_hides_rejected_candidates(monkeypatch) -> 
 def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
     _allow_explore_access(monkeypatch)
     monkeypatch.setattr(
-        "app.services.search.explore.build_ai_search_plan",
+        "app.services.search.explore.service.build_ai_search_plan",
         lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
     )
     monkeypatch.setattr(
-        "app.services.search.explore.run_external_repository_retrieval",
+        "app.services.search.explore.service.run_external_repository_retrieval",
         lambda queries: _build_retrieved_candidates(
             source_statuses=(
                 {
@@ -790,11 +790,11 @@ def test_explore_search_accepts_verified_turnstile_token_for_suspicious_guest(
         lambda actor, *, topic_hash, database_url: None,
     )
     monkeypatch.setattr(
-        "app.services.search.explore.build_ai_search_plan",
+        "app.services.search.explore.service.build_ai_search_plan",
         lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
     )
     monkeypatch.setattr(
-        "app.services.search.explore.run_external_repository_retrieval",
+        "app.services.search.explore.service.run_external_repository_retrieval",
         lambda queries: _build_retrieved_candidates(
             _build_explore_repository_signal(
                 "github:repo:Mephistos-ML/paranmr",
@@ -825,15 +825,15 @@ def test_explore_search_job_returns_completed_snapshot(monkeypatch) -> None:
     _allow_explore_access(monkeypatch)
     STATE.explore_search_jobs.clear()
     monkeypatch.setattr(
-        "app.services.search.jobs._start_explore_search_job_runner",
+        "app.services.search.explore.jobs._start_explore_search_job_runner",
         _run_explore_job_inline,
     )
     monkeypatch.setattr(
-        "app.services.search.explore.build_ai_search_plan",
+        "app.services.search.explore.service.build_ai_search_plan",
         lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
     )
     monkeypatch.setattr(
-        "app.services.search.explore.run_external_repository_retrieval",
+        "app.services.search.explore.service.run_external_repository_retrieval",
         lambda queries, progress_callback=None, **kwargs: _build_retrieved_candidates(
             _build_explore_repository_signal(
                 "github:repo:Mephistos-ML/paranmr",
@@ -869,15 +869,15 @@ def test_explore_search_job_returns_failed_snapshot_when_all_sources_fail(
     _allow_explore_access(monkeypatch)
     STATE.explore_search_jobs.clear()
     monkeypatch.setattr(
-        "app.services.search.jobs._start_explore_search_job_runner",
+        "app.services.search.explore.jobs._start_explore_search_job_runner",
         _run_explore_job_inline,
     )
     monkeypatch.setattr(
-        "app.services.search.explore.build_ai_search_plan",
+        "app.services.search.explore.service.build_ai_search_plan",
         lambda topic_description: _build_ready_repository_ai_plan("orca parser"),
     )
     monkeypatch.setattr(
-        "app.services.search.explore.run_external_repository_retrieval",
+        "app.services.search.explore.service.run_external_repository_retrieval",
         lambda queries, progress_callback=None, **kwargs: _build_retrieved_candidates(
             source_statuses=(
                 {
@@ -914,15 +914,15 @@ def test_explore_search_job_returns_completed_partial_snapshot(monkeypatch) -> N
     _allow_explore_access(monkeypatch)
     STATE.explore_search_jobs.clear()
     monkeypatch.setattr(
-        "app.services.search.jobs._start_explore_search_job_runner",
+        "app.services.search.explore.jobs._start_explore_search_job_runner",
         _run_explore_job_inline,
     )
     monkeypatch.setattr(
-        "app.services.search.explore.build_ai_search_plan",
+        "app.services.search.explore.service.build_ai_search_plan",
         lambda topic_description: _build_ready_repository_ai_plan("orca parser"),
     )
     monkeypatch.setattr(
-        "app.services.search.explore.run_external_repository_retrieval",
+        "app.services.search.explore.service.run_external_repository_retrieval",
         lambda queries, progress_callback=None, **kwargs: _build_retrieved_candidates(
             _build_explore_repository_signal(
                 "gitlab:repo:kragskow-group/orto",
