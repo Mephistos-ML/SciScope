@@ -123,6 +123,8 @@ def _build_retrieved_candidates(
     successful_source_count: int,
     partial: bool = False,
     warnings: tuple[str, ...] = (),
+    matched_channels: tuple[str, ...] = ("repository_search",),
+    hit_count: int = 1,
 ) -> RetrievedCandidates:
     return RetrievedCandidates(
         candidates=tuple(
@@ -131,9 +133,11 @@ def _build_retrieved_candidates(
                 signal=signal,
                 provenance=CandidateProvenance(
                     matched_queries=(str(signal.payload.get("query") or ""),),
-                    matched_channels=("repository_search",),
-                    best_rank_by_channel={"repository_search": 1},
-                    hit_count=1,
+                    matched_channels=matched_channels,
+                    best_rank_by_channel={
+                        channel_name: 1 for channel_name in matched_channels
+                    },
+                    hit_count=hit_count,
                 ),
             )
             for signal in signals
@@ -555,6 +559,128 @@ def test_explore_search_keeps_retrieved_candidate_without_literal_query_phrase(
     assert payload["items"][0]["itemId"] == "github:repo:thermotools/lammps_mie_fh"
     assert payload["items"][0]["matchedTerms"] == []
     assert "code_search" in payload["items"][0]["reason"]
+    assert payload["items"][0]["admission"]["decision"] == "keep"
+
+
+def test_explore_search_shadow_mode_exposes_admission_debug_without_hiding_results(
+    monkeypatch,
+) -> None:
+    _allow_explore_access(monkeypatch)
+    monkeypatch.setattr(
+        "app.services.search.admission.service.EXPLORE_ADMISSION_MODE",
+        "shadow",
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan("orca parser"),
+    )
+    weak_signal = Signal(
+        source="github",
+        kind="repository",
+        item_id="github:repo:docs-only/orca-notes",
+        title="docs-only/orca-notes",
+        url="https://github.com/docs-only/orca-notes",
+        published_at=None,
+        raw_text="docs-only/orca-notes\nORCA notes dataset\nMatched code path: README.md",
+        payload={
+            "repo": "docs-only/orca-notes",
+            "query": "orca parser",
+            "topics": ["notes"],
+            "language": "",
+            "stars": 0,
+        },
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.run_external_repository_retrieval",
+        lambda queries: _build_retrieved_candidates(
+            _build_code_only_explore_repository_signal(
+                "github:repo:thermotools/lammps_mie_fh",
+                query=queries[0],
+            ),
+            weak_signal,
+            source_statuses=(
+                {"source": "github", "status": "ok", "candidateCount": 2, "error": None},
+            ),
+            successful_source_count=1,
+            matched_channels=("code_search",),
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={"topicDescription": "A python package for working with Orca."},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["admission"] == {
+        "mode": "shadow",
+        "keptCount": 1,
+        "rejectedCount": 1,
+    }
+    assert len(payload["items"]) == 2
+    assert payload["items"][0]["admission"]["decision"] == "keep"
+    assert payload["items"][1]["admission"]["decision"] == "reject"
+
+
+def test_explore_search_enforced_mode_hides_rejected_candidates(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
+    monkeypatch.setattr(
+        "app.services.search.admission.service.EXPLORE_ADMISSION_MODE",
+        "enforced",
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan("orca parser"),
+    )
+    weak_signal = Signal(
+        source="github",
+        kind="repository",
+        item_id="github:repo:docs-only/orca-notes",
+        title="docs-only/orca-notes",
+        url="https://github.com/docs-only/orca-notes",
+        published_at=None,
+        raw_text="docs-only/orca-notes\nORCA notes dataset\nMatched code path: README.md",
+        payload={
+            "repo": "docs-only/orca-notes",
+            "query": "orca parser",
+            "topics": ["notes"],
+            "language": "",
+            "stars": 0,
+        },
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.run_external_repository_retrieval",
+        lambda queries: _build_retrieved_candidates(
+            _build_code_only_explore_repository_signal(
+                "github:repo:thermotools/lammps_mie_fh",
+                query=queries[0],
+            ),
+            weak_signal,
+            source_statuses=(
+                {"source": "github", "status": "ok", "candidateCount": 2, "error": None},
+            ),
+            successful_source_count=1,
+            matched_channels=("code_search",),
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={"topicDescription": "A python package for working with Orca."},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["admission"] == {
+        "mode": "enforced",
+        "keptCount": 1,
+        "rejectedCount": 1,
+    }
+    assert len(payload["items"]) == 1
+    assert payload["items"][0]["itemId"] == "github:repo:thermotools/lammps_mie_fh"
 
 
 def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:

@@ -36,6 +36,7 @@ def create_explore_search_job(*, topic_description: str) -> dict[str, object]:
         "aiSearchPlan": {"status": "pending", "queries": []},
         "items": [],
         "sourceStatuses": [],
+        "admission": None,
         "error": None,
         "message": None,
         "createdAt": now,
@@ -90,6 +91,7 @@ def _run_explore_search_job(*, job_id: str, topic_description: str) -> None:
                 aiSearchPlan=snapshot["aiSearchPlan"],
                 items=snapshot["items"],
                 sourceStatuses=snapshot["sourceStatuses"],
+                admission=snapshot.get("admission"),
                 error=None,
                 message=snapshot.get("message"),
             ),
@@ -145,6 +147,7 @@ def _run_explore_search_job(*, job_id: str, topic_description: str) -> None:
         aiSearchPlan=payload["aiSearchPlan"],
         items=payload["items"],
         sourceStatuses=payload["sourceStatuses"],
+        admission=payload.get("admission"),
         error=None,
         message=payload.get("message"),
     )
@@ -157,6 +160,7 @@ def _update_explore_search_job(
     aiSearchPlan: dict[str, object] | None = None,
     items: list[dict[str, object]] | None = None,
     sourceStatuses: list[dict[str, object]] | None = None,
+    admission: dict[str, object] | None = None,
     error: str | None = None,
     message: str | None = None,
 ) -> None:
@@ -173,6 +177,8 @@ def _update_explore_search_job(
             snapshot["items"] = deepcopy(items)
         if sourceStatuses is not None:
             snapshot["sourceStatuses"] = deepcopy(sourceStatuses)
+        if admission is not None:
+            snapshot["admission"] = deepcopy(admission)
         snapshot["error"] = error
         snapshot["message"] = message
 

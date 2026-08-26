@@ -11,6 +11,7 @@ from app.services.ai import (
     build_ai_search_plan,
     serialize_ai_search_plan,
 )
+from app.services.search.admission import run_repository_admission
 from app.services.search.matching import match_signal_to_terms
 from app.services.search.retrieval import run_external_repository_retrieval
 
@@ -111,8 +112,10 @@ def _build_explore_search_payload(
     ai_search_plan_payload: dict[str, object],
     retrieved,
 ) -> dict[str, object]:
+    admission = run_repository_admission(retrieved.candidates)
     items: list[dict[str, object]] = []
-    for candidate in retrieved.candidates:
+    for evaluated_candidate in admission.visible_candidates:
+        candidate = evaluated_candidate.candidate
         signal = candidate.signal
         match = match_signal_to_terms(
             signal,
@@ -137,6 +140,10 @@ def _build_explore_search_payload(
                     matched_queries=candidate.provenance.matched_queries,
                 ),
                 "matchedTerms": list(match.matched_terms),
+                "admission": {
+                    "decision": evaluated_candidate.admission.decision,
+                    "reasons": list(evaluated_candidate.admission.reasons),
+                },
             }
         )
 
@@ -155,6 +162,11 @@ def _build_explore_search_payload(
         "sourceStatuses": list(retrieved.source_statuses),
         "partial": retrieved.partial,
         "message": _build_partial_message(retrieved.warnings) if retrieved.partial else None,
+        "admission": {
+            "mode": admission.mode,
+            "keptCount": admission.kept_count,
+            "rejectedCount": admission.rejected_count,
+        },
     }
 
 

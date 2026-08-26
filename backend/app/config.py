@@ -167,6 +167,7 @@ EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS = _read_optional_int_env(
     "EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS",
     30,
 )
+EXPLORE_ADMISSION_MODE = _read_optional_env("EXPLORE_ADMISSION_MODE") or "shadow"
 
 if AUTH_SESSION_TTL_SECONDS <= 0:
     raise RuntimeError("AUTH_SESSION_TTL_SECONDS must be a positive integer")
@@ -235,3 +236,6 @@ if EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS <= 0:
     raise RuntimeError(
         "EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS must be a positive integer"
     )
+
+if EXPLORE_ADMISSION_MODE not in {"off", "shadow", "enforced"}:
+    raise RuntimeError("EXPLORE_ADMISSION_MODE must be one of: off, shadow, enforced")
