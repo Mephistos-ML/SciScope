@@ -237,5 +237,5 @@ if EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS <= 0:
         "EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS must be a positive integer"
     )
 
-if EXPLORE_ADMISSION_MODE not in {"off", "shadow", "enforced"}:
-    raise RuntimeError("EXPLORE_ADMISSION_MODE must be one of: off, shadow, enforced")
+if EXPLORE_ADMISSION_MODE not in {"off", "enforced"}:
+    raise RuntimeError("EXPLORE_ADMISSION_MODE must be one of: off, enforced")

@@ -19,12 +19,12 @@ def test_repository_admission_keeps_code_like_candidate() -> None:
         matched_channels=("code_search",),
     )
 
-    result = run_repository_admission((candidate,), mode="shadow")
+    result = run_repository_admission((candidate,), mode="enforced")
 
     assert result.kept_count == 1
     assert result.rejected_count == 0
-    assert result.visible_candidates[0].admission.decision == "keep"
-    assert result.visible_candidates[0].admission.evidence.path_strength == "strong"
+    assert result.evaluated_candidates[0].admission.decision == "keep"
+    assert result.evaluated_candidates[0].admission.evidence.path_strength == "strong"
 
 
 def test_repository_admission_keeps_fortran_code_match() -> None:
@@ -40,10 +40,10 @@ def test_repository_admission_keeps_fortran_code_match() -> None:
         matched_channels=("code_search",),
     )
 
-    result = run_repository_admission((candidate,), mode="shadow")
+    result = run_repository_admission((candidate,), mode="enforced")
 
     assert result.kept_count == 1
-    assert result.visible_candidates[0].admission.evidence.path_strength == "strong"
+    assert result.evaluated_candidates[0].admission.evidence.path_strength == "strong"
 
 
 def test_repository_admission_keeps_cuda_code_match() -> None:
@@ -59,10 +59,10 @@ def test_repository_admission_keeps_cuda_code_match() -> None:
         matched_channels=("code_search",),
     )
 
-    result = run_repository_admission((candidate,), mode="shadow")
+    result = run_repository_admission((candidate,), mode="enforced")
 
     assert result.kept_count == 1
-    assert result.visible_candidates[0].admission.evidence.path_strength == "strong"
+    assert result.evaluated_candidates[0].admission.evidence.path_strength == "strong"
 
 
 def test_repository_admission_keeps_manifest_match() -> None:
@@ -78,10 +78,10 @@ def test_repository_admission_keeps_manifest_match() -> None:
         matched_channels=("code_search",),
     )
 
-    result = run_repository_admission((candidate,), mode="shadow")
+    result = run_repository_admission((candidate,), mode="enforced")
 
     assert result.kept_count == 1
-    assert result.visible_candidates[0].admission.evidence.path_strength == "strong"
+    assert result.evaluated_candidates[0].admission.evidence.path_strength == "strong"
 
 
 def test_repository_admission_keeps_readme_match_for_real_software_repo() -> None:
@@ -98,13 +98,14 @@ def test_repository_admission_keeps_readme_match_for_real_software_repo() -> Non
         matched_channels=("code_search",),
     )
 
-    result = run_repository_admission((candidate,), mode="shadow")
+    result = run_repository_admission((candidate,), mode="enforced")
 
     assert result.kept_count == 1
     assert result.rejected_count == 0
-    assert result.visible_candidates[0].admission.decision == "keep"
+    assert result.evaluated_candidates[0].admission.decision == "keep"
     assert (
-        result.visible_candidates[0].admission.evidence.path_strength == "descriptive"
+        result.evaluated_candidates[0].admission.evidence.path_strength
+        == "descriptive"
     )
 
 
@@ -119,16 +120,16 @@ def test_repository_admission_rejects_metadata_mirror_repo() -> None:
         language="",
         matched_channels=("repository_search",),
     )
-    result = run_repository_admission((candidate,), mode="shadow")
+    result = run_repository_admission((candidate,), mode="enforced")
 
     assert result.kept_count == 0
     assert result.rejected_count == 1
-    assert result.visible_candidates[0].admission.decision == "reject"
-    assert result.visible_candidates[0].admission.evidence.data_like_term_hits == (
+    assert result.evaluated_candidates[0].admission.decision == "reject"
+    assert result.evaluated_candidates[0].admission.evidence.data_like_term_hits == (
         "metadata",
         "mirror",
     )
-    assert result.visible_candidates[0].admission.reasons[0] == (
+    assert result.evaluated_candidates[0].admission.reasons[0] == (
         "Metadata looks like a data resource."
     )
 
@@ -146,11 +147,11 @@ def test_repository_admission_keeps_benchmark_heavy_scientific_software_repo() -
         matched_channels=("repository_search",),
     )
 
-    result = run_repository_admission((candidate,), mode="shadow")
+    result = run_repository_admission((candidate,), mode="enforced")
 
     assert result.kept_count == 1
     assert result.rejected_count == 0
-    assert result.visible_candidates[0].admission.decision == "keep"
+    assert result.evaluated_candidates[0].admission.decision == "keep"
 
 
 def test_repository_admission_keeps_software_repo_that_mentions_papers() -> None:
@@ -166,11 +167,34 @@ def test_repository_admission_keeps_software_repo_that_mentions_papers() -> None
         matched_channels=("repository_search",),
     )
 
-    result = run_repository_admission((candidate,), mode="shadow")
+    result = run_repository_admission((candidate,), mode="enforced")
 
     assert result.kept_count == 1
     assert result.rejected_count == 0
+    assert result.evaluated_candidates[0].admission.decision == "keep"
+
+
+def test_repository_admission_off_mode_shows_every_candidate() -> None:
+    candidate = _build_candidate(
+        item_id="github:repo:HeinrichHartmann/arxiv_meta",
+        title="HeinrichHartmann/arxiv_meta",
+        raw_text=(
+            "HeinrichHartmann/arxiv_meta\n"
+            "Arxiv metadata mirror."
+        ),
+        language="",
+        matched_channels=("repository_search",),
+    )
+
+    result = run_repository_admission((candidate,), mode="off")
+
+    assert result.kept_count == 1
+    assert result.rejected_count == 0
+    assert len(result.visible_candidates) == 1
     assert result.visible_candidates[0].admission.decision == "keep"
+    assert result.visible_candidates[0].admission.reasons == (
+        "Admission filter is disabled.",
+    )
 
 
 def test_repository_admission_enforced_mode_hides_rejected_candidates() -> None:

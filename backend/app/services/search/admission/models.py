@@ -7,7 +7,7 @@ from typing import Literal
 
 from app.services.search.retrieval.models import RepositoryCandidate
 
-AdmissionMode = Literal["off", "shadow", "enforced"]
+AdmissionMode = Literal["off", "enforced"]
 AdmissionDecisionLabel = Literal["keep", "reject"]
 AdmissionPathStrength = Literal["strong", "descriptive", "weak", "none"]
 
@@ -60,10 +60,10 @@ class AdmissionResult:
 
     @property
     def visible_candidates(self) -> tuple[EvaluatedRepositoryCandidate, ...]:
-        if self.mode == "enforced":
-            return tuple(
-                candidate
-                for candidate in self.evaluated_candidates
-                if candidate.admission.keep
-            )
-        return self.evaluated_candidates
+        if self.mode == "off":
+            return self.evaluated_candidates
+        return tuple(
+            candidate
+            for candidate in self.evaluated_candidates
+            if candidate.admission.keep
+        )
