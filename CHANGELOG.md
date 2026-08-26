@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/Mephistos-ML/SciScope/compare/v1.5.1...v1.6.0) (2026-08-26)
+
+
+### Features
+
+* **search:** add shadow admission filter for explore results ([d399fa9](https://github.com/Mephistos-ML/SciScope/commit/d399fa98cb0e619e7ecefc20ee4620e0f7629d64))
+
 ## [1.5.1](https://github.com/Mephistos-ML/SciScope/compare/v1.5.0...v1.5.1) (2026-08-22)
 
 
