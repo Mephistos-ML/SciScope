@@ -113,6 +113,55 @@ def test_run_external_repository_retrieval_merges_duplicate_repo_hits() -> None:
     assert candidate.provenance.hit_count == 2
 
 
+def test_merge_retrieval_hits_preserves_language_from_richer_duplicate_signal() -> None:
+    repository_signal = _build_repository_signal(
+        "github:repo:ecto/phyz",
+        query="quantum pair potential",
+    )
+    code_signal = Signal(
+        source="github",
+        kind="repository",
+        item_id="github:repo:ecto/phyz",
+        title="ecto/phyz",
+        url="https://github.com/ecto/phyz",
+        published_at=None,
+        raw_text="ecto/phyz\nMatched code path: src/pair_mie_fh.cpp",
+        payload={
+            "repo": "ecto/phyz",
+            "query": "pair potential",
+            "topics": [],
+            "language": "",
+            "stars": 0,
+        },
+    )
+
+    candidates = merge_retrieval_hits(
+        (
+            _build_hit(
+                source="github",
+                channel="repository_search",
+                query="quantum pair potential",
+                rank=1,
+                signal=repository_signal,
+            ),
+            _build_hit(
+                source="github",
+                channel="code_search",
+                query="pair potential",
+                rank=2,
+                signal=code_signal,
+            ),
+        )
+    )
+
+    assert len(candidates) == 1
+    candidate = candidates[0]
+    assert candidate.signal.payload["language"] == "Python"
+    assert candidate.signal.payload["stars"] == 12
+    assert candidate.signal.payload["topics"] == ["orca", "chemistry"]
+    assert "Matched code path:" in candidate.signal.raw_text
+
+
 def test_run_external_repository_retrieval_marks_partial_when_soft_timeout_stops_next_lane(
     monkeypatch,
 ) -> None:
