@@ -1,3 +1,10 @@
+## [1.6.4](https://github.com/Mephistos-ML/SciScope/compare/v1.6.3...v1.6.4) (2026-08-26)
+
+
+### Bug Fixes
+
+* **web:** improve mobile layout for explore results ([010f640](https://github.com/Mephistos-ML/SciScope/commit/010f640c857efd8f5f941854e2191aef38d1d4a4))
+
 ## [1.6.3](https://github.com/Mephistos-ML/SciScope/compare/v1.6.2...v1.6.3) (2026-08-26)
 
 

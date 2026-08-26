@@ -1,6 +1,6 @@
 {
   "name": "sciscope-frontend",
-  "version": "1.6.3",
+  "version": "1.6.4",
   "private": true,
   "engines": {
     "node": ">=20 <21",
