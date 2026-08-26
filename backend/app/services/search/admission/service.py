@@ -10,7 +10,7 @@ from app.services.search.admission.models import (
     AdmissionResult,
     EvaluatedRepositoryCandidate,
 )
-from app.services.search.admission.rules import build_admission_decision
+from app.services.search.admission.decision import build_admission_decision
 from app.services.search.retrieval.models import RepositoryCandidate
 
 
@@ -28,7 +28,6 @@ def run_repository_admission(
                 candidate=candidate,
                 admission=AdmissionDecision(
                     decision="keep",
-                    reasons=("Admission filter is disabled.",),
                     evidence=AdmissionEvidence(
                         matched_channels=candidate.provenance.matched_channels,
                         matched_query_count=len(candidate.provenance.matched_queries),

@@ -125,13 +125,7 @@ def test_repository_admission_rejects_metadata_mirror_repo() -> None:
     assert result.kept_count == 0
     assert result.rejected_count == 1
     assert result.evaluated_candidates[0].admission.decision == "reject"
-    assert result.evaluated_candidates[0].admission.evidence.data_like_term_hits == (
-        "metadata",
-        "mirror",
-    )
-    assert result.evaluated_candidates[0].admission.reasons[0] == (
-        "Metadata looks like a data resource."
-    )
+    assert result.evaluated_candidates[0].admission.evidence.path_strength == "none"
 
 
 def test_repository_admission_keeps_benchmark_heavy_scientific_software_repo() -> None:
@@ -154,16 +148,15 @@ def test_repository_admission_keeps_benchmark_heavy_scientific_software_repo() -
     assert result.evaluated_candidates[0].admission.decision == "keep"
 
 
-def test_repository_admission_keeps_software_repo_that_mentions_papers() -> None:
+def test_repository_admission_keeps_software_repo_with_paper_mentions_in_metadata() -> None:
     candidate = _build_candidate(
-        item_id="github:repo:ysyecust/lecture-to-notes",
-        title="ysyecust/lecture-to-notes",
+        item_id="github:repo:chemistry/qm-workbench",
+        title="chemistry/qm-workbench",
         raw_text=(
-            "ysyecust/lecture-to-notes\n"
-            "Turn YouTube and Bilibili lectures into LaTeX and PDF notes, and convert "
-            "academic papers into structured HTML pages."
+            "chemistry/qm-workbench\n"
+            "Quantum chemistry workbench with citation support for academic papers."
         ),
-        language="TypeScript",
+        language="Python",
         matched_channels=("repository_search",),
     )
 
@@ -172,6 +165,86 @@ def test_repository_admission_keeps_software_repo_that_mentions_papers() -> None
     assert result.kept_count == 1
     assert result.rejected_count == 0
     assert result.evaluated_candidates[0].admission.decision == "keep"
+
+
+def test_repository_admission_rejects_paper_list_repo_name() -> None:
+    candidate = _build_candidate(
+        item_id="github:repo:52CV/ICCV-2021-Papers",
+        title="52CV/ICCV-2021-Papers",
+        raw_text=(
+            "52CV/ICCV-2021-Papers\n"
+            "A curated list of ICCV 2021 papers."
+        ),
+        language="Python",
+        matched_channels=("code_search",),
+    )
+
+    result = run_repository_admission((candidate,), mode="enforced")
+
+    assert result.kept_count == 0
+    assert result.rejected_count == 1
+    assert result.evaluated_candidates[0].admission.decision == "reject"
+    assert result.evaluated_candidates[0].admission.evidence.path_strength == "none"
+
+
+def test_repository_admission_rejects_arxiv_digest_repo_name() -> None:
+    candidate = _build_candidate(
+        item_id="github:repo:iphysresearch/gw-arxiv-digest",
+        title="iphysresearch/gw-arxiv-digest",
+        raw_text=(
+            "iphysresearch/gw-arxiv-digest\n"
+            "Digest feed for arXiv papers in gravitational-wave research."
+        ),
+        language="Python",
+        matched_channels=("code_search",),
+    )
+
+    result = run_repository_admission((candidate,), mode="enforced")
+
+    assert result.kept_count == 0
+    assert result.rejected_count == 1
+    assert result.evaluated_candidates[0].admission.decision == "reject"
+    assert result.evaluated_candidates[0].admission.evidence.path_strength == "none"
+
+
+def test_repository_admission_rejects_tutorial_style_repo_name() -> None:
+    candidate = _build_candidate(
+        item_id="github:repo:lab/lammps-tutorial-slides",
+        title="lab/lammps-tutorial-slides",
+        raw_text=(
+            "lab/lammps-tutorial-slides\n"
+            "Tutorial slides for using LAMMPS in a materials lab."
+        ),
+        language="Python",
+        matched_channels=("code_search",),
+    )
+
+    result = run_repository_admission((candidate,), mode="enforced")
+
+    assert result.kept_count == 0
+    assert result.rejected_count == 1
+    assert result.evaluated_candidates[0].admission.decision == "reject"
+    assert result.evaluated_candidates[0].admission.evidence.path_strength == "none"
+
+
+def test_repository_admission_rejects_course_style_repo_name() -> None:
+    candidate = _build_candidate(
+        item_id="github:repo:school/quantum-course-notes",
+        title="school/quantum-course-notes",
+        raw_text=(
+            "school/quantum-course-notes\n"
+            "Course notes for an introduction to quantum chemistry."
+        ),
+        language="Jupyter Notebook",
+        matched_channels=("repository_search",),
+    )
+
+    result = run_repository_admission((candidate,), mode="enforced")
+
+    assert result.kept_count == 0
+    assert result.rejected_count == 1
+    assert result.evaluated_candidates[0].admission.decision == "reject"
+    assert result.evaluated_candidates[0].admission.evidence.path_strength == "none"
 
 
 def test_repository_admission_off_mode_shows_every_candidate() -> None:
@@ -192,9 +265,7 @@ def test_repository_admission_off_mode_shows_every_candidate() -> None:
     assert result.rejected_count == 0
     assert len(result.visible_candidates) == 1
     assert result.visible_candidates[0].admission.decision == "keep"
-    assert result.visible_candidates[0].admission.reasons == (
-        "Admission filter is disabled.",
-    )
+    assert result.visible_candidates[0].admission.evidence.path_strength == "none"
 
 
 def test_repository_admission_enforced_mode_hides_rejected_candidates() -> None:

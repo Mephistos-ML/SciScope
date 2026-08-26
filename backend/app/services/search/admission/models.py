@@ -33,7 +33,6 @@ class AdmissionDecision:
     """One keep or reject decision for one repository candidate."""
 
     decision: AdmissionDecisionLabel
-    reasons: tuple[str, ...]
     evidence: AdmissionEvidence
 
     @property
