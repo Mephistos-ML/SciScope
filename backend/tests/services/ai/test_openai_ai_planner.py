@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.services.ai.openai_planner import OpenAiSearchPlanner
+from app.services.ai.openai.planner import OpenAiSearchPlanner
 
 
 def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
@@ -30,7 +30,7 @@ def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
         }
 
     monkeypatch.setattr(
-        "app.services.ai.openai_planner.build_openai_json_response",
+        "app.services.ai.openai.planner.build_openai_json_response",
         _fake_response,
     )
 
@@ -61,7 +61,7 @@ def test_openai_planner_limits_normalized_query_count_to_ten(monkeypatch) -> Non
     planner = OpenAiSearchPlanner()
 
     monkeypatch.setattr(
-        "app.services.ai.openai_planner.build_openai_json_response",
+        "app.services.ai.openai.planner.build_openai_json_response",
         lambda **_: {
             "queries": [
                 "query 1",
@@ -101,7 +101,7 @@ def test_openai_planner_raises_when_normalized_queries_are_not_exactly_ten(
     planner = OpenAiSearchPlanner()
 
     monkeypatch.setattr(
-        "app.services.ai.openai_planner.build_openai_json_response",
+        "app.services.ai.openai.planner.build_openai_json_response",
         lambda **_: {
             "queries": [
                 "query 1",
@@ -126,7 +126,7 @@ def test_openai_planner_raises_for_invalid_payload(monkeypatch) -> None:
     planner = OpenAiSearchPlanner()
 
     monkeypatch.setattr(
-        "app.services.ai.openai_planner.build_openai_json_response",
+        "app.services.ai.openai.planner.build_openai_json_response",
         lambda **_: {
             "queries": "not-a-list",
         },

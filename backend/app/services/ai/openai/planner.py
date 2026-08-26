@@ -6,7 +6,7 @@ from typing import Any
 
 from app import config
 from app.models.ai import AiSearchPlan
-from app.services.ai.openai_client import build_openai_json_response
+from app.services.ai.openai.client import build_openai_json_response
 from app.services.ai.search_plans import normalize_search_queries
 
 _SEARCH_PLAN_JSON_SCHEMA: dict[str, Any] = {

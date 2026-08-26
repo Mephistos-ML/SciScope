@@ -1,6 +1,6 @@
 """AI-related service modules."""
 
-from app.services.ai.openai_client import (
+from app.services.ai.openai.client import (
     OpenAIClientConfigurationError,
     OpenAIResponseError,
 )
