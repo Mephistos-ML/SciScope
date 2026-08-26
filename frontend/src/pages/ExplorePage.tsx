@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 
-import type { AiSearchPlanPayload, ExploreResultItem, ViewerPayload } from "../types/api";
+import type {
+  AiSearchPlanPayload,
+  ExploreAdmissionSummaryPayload,
+  ExploreResultItem,
+  ViewerPayload,
+} from "../types/api";
 import { SourceBadge } from "../components/SourceBadge";
 import { TurnstileWidget } from "../components/TurnstileWidget";
 import exploreEmptyIllustration from "../assets/states/explore/explore-empty.svg";
@@ -16,6 +21,7 @@ type ExploreSearchFeedback = {
 type ExplorePageProps = {
   canSubscribe: boolean;
   exploreSearchFeedback: ExploreSearchFeedback | null;
+  lastAdmissionSummary: ExploreAdmissionSummaryPayload | null;
   lastAiSearchPlan: AiSearchPlanPayload | null;
   onRunSearch: () => void;
   onSignIn: () => void;
@@ -36,6 +42,7 @@ type ExplorePageProps = {
 export function ExplorePage({
   canSubscribe,
   exploreSearchFeedback,
+  lastAdmissionSummary,
   lastAiSearchPlan,
   onRunSearch,
   onSignIn,
@@ -221,6 +228,11 @@ export function ExplorePage({
                   ) : searchPending ? (
                     <span className="results-count-badge">Searching...</span>
                   ) : null}
+                  {lastAdmissionSummary?.mode === "shadow" ? (
+                    <span className="results-count-badge results-count-badge-debug">
+                      {lastAdmissionSummary.keptCount} keep / {lastAdmissionSummary.rejectedCount} reject
+                    </span>
+                  ) : null}
                 </div>
               </div>
               <div className="results-plan-summary">
@@ -332,6 +344,22 @@ export function ExplorePage({
                             <p className="repository-description">
                               {result.description || result.reason}
                             </p>
+                            {lastAdmissionSummary?.mode === "shadow" && result.admission ? (
+                              <div className="repository-admission-row">
+                                <span
+                                  className={
+                                    result.admission.decision === "keep"
+                                      ? "repository-admission-badge repository-admission-badge-keep"
+                                      : "repository-admission-badge repository-admission-badge-reject"
+                                  }
+                                >
+                                  {result.admission.decision === "keep" ? "Keep" : "Reject"}
+                                </span>
+                                <span className="repository-admission-copy">
+                                  {result.admission.reasons[0] ?? result.reason}
+                                </span>
+                              </div>
+                            ) : null}
                             {result.matchedTerms.length > 0 ? (
                               <div className="repository-term-row">
                                 {result.matchedTerms.map((term) => (
