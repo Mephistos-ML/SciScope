@@ -1,3 +1,10 @@
+## [1.6.2](https://github.com/Mephistos-ML/SciScope/compare/v1.6.1...v1.6.2) (2026-08-26)
+
+
+### Bug Fixes
+
+* **search:** reduce false rejects in admission filter and expand admission code signals for scientific repos ([8bf8f02](https://github.com/Mephistos-ML/SciScope/commit/8bf8f02db9ef8c196c045d46abe19ae74b494d26))
+
 ## [1.6.1](https://github.com/Mephistos-ML/SciScope/compare/v1.6.0...v1.6.1) (2026-08-26)
 
 
