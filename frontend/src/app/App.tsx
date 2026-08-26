@@ -17,7 +17,6 @@ import { AboutPage } from "../pages/AboutPage";
 import { ExplorePage } from "../pages/ExplorePage";
 import { FeedPage } from "../pages/FeedPage";
 import type {
-  ExploreAdmissionSummaryPayload,
   AiSearchPlanPayload,
   ExploreSearchJobPayload,
   ExploreResultItem,
@@ -39,8 +38,6 @@ export function App() {
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [results, setResults] = useState<ExploreResultItem[]>([]);
   const [lastAiSearchPlan, setLastAiSearchPlan] = useState<AiSearchPlanPayload | null>(null);
-  const [lastAdmissionSummary, setLastAdmissionSummary] =
-    useState<ExploreAdmissionSummaryPayload | null>(null);
   const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>([]);
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
   const [topicInput, setTopicInput] = useState("");
@@ -212,7 +209,6 @@ export function App() {
     setErrorMessage(null);
     setResults([]);
     setLastAiSearchPlan(null);
-    setLastAdmissionSummary(null);
     setExploreSearchFeedback(null);
     try {
       const job = await createExploreSearchJob({
@@ -246,7 +242,6 @@ export function App() {
         });
         setResults([]);
         setLastAiSearchPlan(null);
-        setLastAdmissionSummary(null);
       }
       setActiveExploreJobId(null);
       setSearchPending(false);
@@ -256,7 +251,6 @@ export function App() {
   function applyExploreSearchJobSnapshot(snapshot: ExploreSearchJobPayload) {
     setResults(snapshot.items);
     setLastAiSearchPlan(snapshot.aiSearchPlan);
-    setLastAdmissionSummary(snapshot.admission ?? null);
     if (snapshot.status !== "failed" && snapshot.status !== "completed_partial") {
       setExploreSearchFeedback(null);
     }
@@ -339,7 +333,6 @@ export function App() {
         <ExplorePage
           canSubscribe={Boolean(viewer)}
           exploreSearchFeedback={exploreSearchFeedback}
-          lastAdmissionSummary={lastAdmissionSummary}
           lastAiSearchPlan={lastAiSearchPlan}
           onRunSearch={() => void handleRunSearch()}
           onSignIn={() => void handleSignIn()}

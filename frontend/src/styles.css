@@ -900,11 +900,6 @@ input::placeholder {
   line-height: 18px;
 }
 
-.results-count-badge-debug {
-  background: rgba(24, 70, 134, 0.08);
-  color: var(--navy-800);
-}
-
 .query-chip-row {
   display: flex;
   justify-content: flex-end;
@@ -1018,40 +1013,6 @@ input::placeholder {
 
 .repository-description {
   font-size: 14px;
-}
-
-.repository-admission-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.repository-admission-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 8px;
-  border-radius: var(--radius-pill);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.repository-admission-badge-keep {
-  background: rgba(26, 127, 55, 0.12);
-  color: #17622d;
-}
-
-.repository-admission-badge-reject {
-  background: rgba(180, 83, 9, 0.12);
-  color: #9a4d07;
-}
-
-.repository-admission-copy {
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 18px;
 }
 
 .repository-term-row {

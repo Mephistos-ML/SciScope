@@ -140,40 +140,6 @@ def _build_explore_search_payload(
                     matched_queries=candidate.provenance.matched_queries,
                 ),
                 "matchedTerms": list(match.matched_terms),
-                "admission": {
-                    "decision": evaluated_candidate.admission.decision,
-                    "reasons": list(evaluated_candidate.admission.reasons),
-                    "evidence": {
-                        "matchedChannels": list(
-                            evaluated_candidate.admission.evidence.matched_channels
-                        ),
-                        "matchedQueryCount": (
-                            evaluated_candidate.admission.evidence.matched_query_count
-                        ),
-                        "hitCount": evaluated_candidate.admission.evidence.hit_count,
-                        "pathStrength": (
-                            evaluated_candidate.admission.evidence.path_strength
-                        ),
-                        "hasLanguage": (
-                            evaluated_candidate.admission.evidence.has_language
-                        ),
-                        "softwareTermHits": list(
-                            evaluated_candidate.admission.evidence.software_term_hits
-                        ),
-                        "dataLikeTermHits": list(
-                            evaluated_candidate.admission.evidence.data_like_term_hits
-                        ),
-                        "paperLikeTermHits": list(
-                            evaluated_candidate.admission.evidence.paper_like_term_hits
-                        ),
-                        "collectionTermHits": list(
-                            evaluated_candidate.admission.evidence.collection_term_hits
-                        ),
-                        "educationTermHits": list(
-                            evaluated_candidate.admission.evidence.education_term_hits
-                        ),
-                    },
-                },
             }
         )
 
@@ -192,11 +158,6 @@ def _build_explore_search_payload(
         "sourceStatuses": list(retrieved.source_statuses),
         "partial": retrieved.partial,
         "message": _build_partial_message(retrieved.warnings) if retrieved.partial else None,
-        "admission": {
-            "mode": admission.mode,
-            "keptCount": admission.kept_count,
-            "rejectedCount": admission.rejected_count,
-        },
     }
 
 

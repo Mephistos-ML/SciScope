@@ -559,68 +559,6 @@ def test_explore_search_keeps_retrieved_candidate_without_literal_query_phrase(
     assert payload["items"][0]["itemId"] == "github:repo:thermotools/lammps_mie_fh"
     assert payload["items"][0]["matchedTerms"] == []
     assert "code_search" in payload["items"][0]["reason"]
-    assert payload["items"][0]["admission"]["decision"] == "keep"
-
-
-def test_explore_search_shadow_mode_exposes_admission_debug_without_hiding_results(
-    monkeypatch,
-) -> None:
-    _allow_explore_access(monkeypatch)
-    monkeypatch.setattr(
-        "app.services.search.admission.service.EXPLORE_ADMISSION_MODE",
-        "shadow",
-    )
-    monkeypatch.setattr(
-        "app.services.search.explore.build_ai_search_plan",
-        lambda topic_description: _build_ready_repository_ai_plan("orca parser"),
-    )
-    weak_signal = Signal(
-        source="github",
-        kind="repository",
-        item_id="github:repo:HeinrichHartmann/arxiv_meta",
-        title="HeinrichHartmann/arxiv_meta",
-        url="https://github.com/HeinrichHartmann/arxiv_meta",
-        published_at=None,
-        raw_text="HeinrichHartmann/arxiv_meta\nArxiv metadata mirror.",
-        payload={
-            "repo": "HeinrichHartmann/arxiv_meta",
-            "query": "orca parser",
-            "topics": ["metadata"],
-            "language": "",
-            "stars": 0,
-        },
-    )
-    monkeypatch.setattr(
-        "app.services.search.explore.run_external_repository_retrieval",
-        lambda queries: _build_retrieved_candidates(
-            _build_code_only_explore_repository_signal(
-                "github:repo:thermotools/lammps_mie_fh",
-                query=queries[0],
-            ),
-            weak_signal,
-            source_statuses=(
-                {"source": "github", "status": "ok", "candidateCount": 2, "error": None},
-            ),
-            successful_source_count=1,
-        ),
-    )
-
-    with TestClient(app) as client:
-        response = client.post(
-            "/api/explore/search",
-            json={"topicDescription": "A python package for working with Orca."},
-        )
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["admission"] == {
-        "mode": "shadow",
-        "keptCount": 1,
-        "rejectedCount": 1,
-    }
-    assert len(payload["items"]) == 2
-    assert payload["items"][0]["admission"]["decision"] == "keep"
-    assert payload["items"][1]["admission"]["decision"] == "reject"
 
 
 def test_explore_search_enforced_mode_hides_rejected_candidates(monkeypatch) -> None:
@@ -672,13 +610,9 @@ def test_explore_search_enforced_mode_hides_rejected_candidates(monkeypatch) -> 
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["admission"] == {
-        "mode": "enforced",
-        "keptCount": 1,
-        "rejectedCount": 1,
-    }
     assert len(payload["items"]) == 1
     assert payload["items"][0]["itemId"] == "github:repo:thermotools/lammps_mie_fh"
+    assert "admission" not in payload
 
 
 def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:

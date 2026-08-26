@@ -117,18 +117,6 @@ export type ExploreResultItem = {
   score: number;
   reason: string;
   matchedTerms: string[];
-  admission?: ExploreAdmissionDecisionPayload;
-};
-
-export type ExploreAdmissionDecisionPayload = {
-  decision: "keep" | "reject";
-  reasons: string[];
-};
-
-export type ExploreAdmissionSummaryPayload = {
-  mode: "off" | "shadow" | "enforced";
-  keptCount: number;
-  rejectedCount: number;
 };
 
 export type ExploreSearchPayload = {
@@ -138,7 +126,6 @@ export type ExploreSearchPayload = {
   sourceStatuses?: SourceStatusPayload[];
   partial?: boolean;
   message?: string | null;
-  admission?: ExploreAdmissionSummaryPayload | null;
 };
 
 export type ExploreSearchJobStatus =
