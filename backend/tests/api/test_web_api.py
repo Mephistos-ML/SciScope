@@ -577,15 +577,15 @@ def test_explore_search_shadow_mode_exposes_admission_debug_without_hiding_resul
     weak_signal = Signal(
         source="github",
         kind="repository",
-        item_id="github:repo:docs-only/orca-notes",
-        title="docs-only/orca-notes",
-        url="https://github.com/docs-only/orca-notes",
+        item_id="github:repo:HeinrichHartmann/arxiv_meta",
+        title="HeinrichHartmann/arxiv_meta",
+        url="https://github.com/HeinrichHartmann/arxiv_meta",
         published_at=None,
-        raw_text="docs-only/orca-notes\nORCA notes dataset\nMatched code path: README.md",
+        raw_text="HeinrichHartmann/arxiv_meta\nArxiv metadata mirror.",
         payload={
-            "repo": "docs-only/orca-notes",
+            "repo": "HeinrichHartmann/arxiv_meta",
             "query": "orca parser",
-            "topics": ["notes"],
+            "topics": ["metadata"],
             "language": "",
             "stars": 0,
         },
@@ -602,7 +602,6 @@ def test_explore_search_shadow_mode_exposes_admission_debug_without_hiding_resul
                 {"source": "github", "status": "ok", "candidateCount": 2, "error": None},
             ),
             successful_source_count=1,
-            matched_channels=("code_search",),
         ),
     )
 
@@ -637,15 +636,15 @@ def test_explore_search_enforced_mode_hides_rejected_candidates(monkeypatch) -> 
     weak_signal = Signal(
         source="github",
         kind="repository",
-        item_id="github:repo:docs-only/orca-notes",
-        title="docs-only/orca-notes",
-        url="https://github.com/docs-only/orca-notes",
+        item_id="github:repo:HeinrichHartmann/arxiv_meta",
+        title="HeinrichHartmann/arxiv_meta",
+        url="https://github.com/HeinrichHartmann/arxiv_meta",
         published_at=None,
-        raw_text="docs-only/orca-notes\nORCA notes dataset\nMatched code path: README.md",
+        raw_text="HeinrichHartmann/arxiv_meta\nArxiv metadata mirror.",
         payload={
-            "repo": "docs-only/orca-notes",
+            "repo": "HeinrichHartmann/arxiv_meta",
             "query": "orca parser",
-            "topics": ["notes"],
+            "topics": ["metadata"],
             "language": "",
             "stars": 0,
         },
@@ -662,7 +661,6 @@ def test_explore_search_enforced_mode_hides_rejected_candidates(monkeypatch) -> 
                 {"source": "github", "status": "ok", "candidateCount": 2, "error": None},
             ),
             successful_source_count=1,
-            matched_channels=("code_search",),
         ),
     )
 

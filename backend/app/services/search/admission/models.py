@@ -9,6 +9,23 @@ from app.services.search.retrieval.models import RepositoryCandidate
 
 AdmissionMode = Literal["off", "shadow", "enforced"]
 AdmissionDecisionLabel = Literal["keep", "reject"]
+AdmissionPathStrength = Literal["strong", "descriptive", "weak", "none"]
+
+
+@dataclass(frozen=True)
+class AdmissionEvidence:
+    """Cheap evidence computed for one repository candidate."""
+
+    matched_channels: tuple[str, ...]
+    matched_query_count: int
+    hit_count: int
+    path_strength: AdmissionPathStrength
+    has_language: bool
+    software_term_hits: tuple[str, ...]
+    data_like_term_hits: tuple[str, ...]
+    paper_like_term_hits: tuple[str, ...]
+    collection_term_hits: tuple[str, ...]
+    education_term_hits: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -17,6 +34,7 @@ class AdmissionDecision:
 
     decision: AdmissionDecisionLabel
     reasons: tuple[str, ...]
+    evidence: AdmissionEvidence
 
     @property
     def keep(self) -> bool:

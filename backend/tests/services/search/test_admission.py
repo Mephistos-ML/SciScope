@@ -24,27 +24,53 @@ def test_repository_admission_keeps_code_like_candidate() -> None:
     assert result.kept_count == 1
     assert result.rejected_count == 0
     assert result.visible_candidates[0].admission.decision == "keep"
+    assert result.visible_candidates[0].admission.evidence.path_strength == "strong"
 
 
-def test_repository_admission_rejects_docs_like_weak_candidate() -> None:
+def test_repository_admission_keeps_readme_match_for_real_software_repo() -> None:
     candidate = _build_candidate(
-        item_id="github:repo:docs-only/orca-notes",
-        title="docs-only/orca-notes",
+        item_id="github:repo:xudonglirpi/QEQDL",
+        title="xudonglirpi/QEQDL",
         raw_text=(
-            "docs-only/orca-notes\n"
-            "ORCA notes dataset\n"
+            "xudonglirpi/QEQDL\n"
+            "Quantum-corrected LAMMPS extension.\n"
             "Matched code path: README.md"
         ),
-        language="",
-        topics=("notes",),
+        language="C++",
+        topics=("lammps", "molecular-simulation"),
         matched_channels=("code_search",),
     )
 
     result = run_repository_admission((candidate,), mode="shadow")
 
+    assert result.kept_count == 1
+    assert result.rejected_count == 0
+    assert result.visible_candidates[0].admission.decision == "keep"
+    assert (
+        result.visible_candidates[0].admission.evidence.path_strength == "descriptive"
+    )
+
+
+def test_repository_admission_rejects_metadata_mirror_repo() -> None:
+    candidate = _build_candidate(
+        item_id="github:repo:HeinrichHartmann/arxiv_meta",
+        title="HeinrichHartmann/arxiv_meta",
+        raw_text=(
+            "HeinrichHartmann/arxiv_meta\n"
+            "Arxiv metadata mirror."
+        ),
+        language="",
+        matched_channels=("repository_search",),
+    )
+    result = run_repository_admission((candidate,), mode="shadow")
+
     assert result.kept_count == 0
     assert result.rejected_count == 1
     assert result.visible_candidates[0].admission.decision == "reject"
+    assert result.visible_candidates[0].admission.evidence.data_like_term_hits == (
+        "metadata",
+        "mirror",
+    )
 
 
 def test_repository_admission_enforced_mode_hides_rejected_candidates() -> None:
@@ -60,16 +86,14 @@ def test_repository_admission_enforced_mode_hides_rejected_candidates() -> None:
         matched_channels=("code_search",),
     )
     weak_candidate = _build_candidate(
-        item_id="github:repo:docs-only/orca-notes",
-        title="docs-only/orca-notes",
+        item_id="github:repo:HeinrichHartmann/arxiv_meta",
+        title="HeinrichHartmann/arxiv_meta",
         raw_text=(
-            "docs-only/orca-notes\n"
-            "ORCA notes dataset\n"
-            "Matched code path: README.md"
+            "HeinrichHartmann/arxiv_meta\n"
+            "Arxiv metadata mirror."
         ),
         language="",
-        topics=("notes",),
-        matched_channels=("code_search",),
+        matched_channels=("repository_search",),
     )
 
     result = run_repository_admission(

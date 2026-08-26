@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.services.search.admission.models import AdmissionDecision
+from app.services.search.admission.models import AdmissionDecision, AdmissionEvidence
 from app.services.search.retrieval.models import RepositoryCandidate
 
 SOFTWARE_TERMS = (
@@ -30,31 +30,57 @@ SOFTWARE_TERMS = (
     "command line",
 )
 
-NOISE_TERMS = (
+DATA_LIKE_TERMS = (
     "dataset",
     "data set",
+    "metadata",
+    "corpus",
+    "archive",
+    "dump",
+    "mirror",
+    "records",
+)
+
+PAPER_LIKE_TERMS = (
     "benchmark",
-    "awesome",
     "paper",
     "papers",
     "literature",
     "reading list",
+    "bibliography",
+    "survey",
+)
+
+COLLECTION_TERMS = (
+    "awesome",
+    "list",
+    "collection",
+    "catalog",
+    "resources",
+    "resource list",
+    "index",
+)
+
+EDUCATION_TERMS = (
     "course",
     "lecture",
     "slides",
     "homework",
     "assignment",
     "notes",
+    "tutorial",
+    "tutorials",
 )
 
-CODE_PATH_SEGMENT_HINTS = (
+STRONG_PATH_SEGMENT_HINTS = (
     "src/",
     "lib/",
     "app/",
     "cmd/",
     "bin/",
-    "tests/",
-    "test/",
+    "python/",
+    "fortran/",
+    "lammps/",
     "pyproject.toml",
     "setup.py",
     "cargo.toml",
@@ -63,10 +89,9 @@ CODE_PATH_SEGMENT_HINTS = (
     "makefile",
 )
 
-CODE_PATH_EXTENSIONS = (
+STRONG_PATH_EXTENSIONS = (
     ".py",
     ".pyx",
-    ".ipynb",
     ".r",
     ".jl",
     ".f90",
@@ -87,13 +112,31 @@ CODE_PATH_EXTENSIONS = (
     ".sh",
 )
 
-NON_CODE_PATH_HINTS = (
+DESCRIPTIVE_PATH_HINTS = (
     "readme",
     "docs/",
     "doc/",
-    "notes/",
-    "paper/",
-    "slides/",
+    "examples/",
+    "example/",
+    "tutorial/",
+    "tutorials/",
+    "notebook/",
+    "notebooks/",
+)
+
+DESCRIPTIVE_PATH_EXTENSIONS = (".md", ".rst", ".txt", ".ipynb")
+
+WEAK_PATH_HINTS = (
+    "tests/",
+    "test/",
+    "unittest/",
+    "fixtures/",
+    "fixture/",
+    "mock/",
+    "mocks/",
+    "spec/",
+    "specs/",
+    "bench/",
 )
 
 
@@ -106,10 +149,14 @@ class CandidateFacts:
     hit_count: int
     has_language: bool
     language: str
+    matched_channels: tuple[str, ...]
     software_term_hits: tuple[str, ...]
-    noise_term_hits: tuple[str, ...]
-    has_code_like_path: bool
-    has_non_code_path: bool
+    data_like_term_hits: tuple[str, ...]
+    paper_like_term_hits: tuple[str, ...]
+    collection_term_hits: tuple[str, ...]
+    education_term_hits: tuple[str, ...]
+    path_strength: str
+    evidence: AdmissionEvidence
 
 
 def build_admission_decision(candidate: RepositoryCandidate) -> AdmissionDecision:
@@ -118,20 +165,38 @@ def build_admission_decision(candidate: RepositoryCandidate) -> AdmissionDecisio
     facts = _build_candidate_facts(candidate)
     keep_reasons = _build_keep_reasons(facts)
 
-    if facts.has_code_like_path:
+    if facts.path_strength == "strong":
         return AdmissionDecision(
             decision="keep",
-            reasons=_finalize_reasons(keep_reasons, "Matched a code-like file path."),
+            reasons=_finalize_reasons(keep_reasons, "Matched a strong code path."),
+            evidence=facts.evidence,
+        )
+
+    if facts.path_strength == "descriptive" and (
+        facts.has_language
+        or bool(facts.software_term_hits)
+        or facts.matched_query_count >= 2
+        or facts.hit_count >= 2
+    ):
+        return AdmissionDecision(
+            decision="keep",
+            reasons=_finalize_reasons(
+                keep_reasons,
+                "Matched a descriptive repository path.",
+            ),
+            evidence=facts.evidence,
         )
 
     if facts.has_code_search and (
         facts.has_language
         or bool(facts.software_term_hits)
         or facts.matched_query_count >= 2
+        or facts.hit_count >= 2
     ):
         return AdmissionDecision(
             decision="keep",
             reasons=_finalize_reasons(keep_reasons, "Matched via code search."),
+            evidence=facts.evidence,
         )
 
     if bool(facts.software_term_hits) and (
@@ -143,6 +208,7 @@ def build_admission_decision(candidate: RepositoryCandidate) -> AdmissionDecisio
                 keep_reasons,
                 "Metadata looks like scientific software.",
             ),
+            evidence=facts.evidence,
         )
 
     if facts.has_language and (facts.matched_query_count >= 2 or facts.hit_count >= 2):
@@ -152,17 +218,20 @@ def build_admission_decision(candidate: RepositoryCandidate) -> AdmissionDecisio
                 keep_reasons,
                 f"Declares {facts.language} as repository language.",
             ),
+            evidence=facts.evidence,
         )
 
     if _is_clear_reject(facts):
         return AdmissionDecision(
             decision="reject",
             reasons=_build_reject_reasons(facts),
+            evidence=facts.evidence,
         )
 
     return AdmissionDecision(
         decision="keep",
         reasons=("Kept by conservative default.",),
+        evidence=facts.evidence,
     )
 
 
@@ -178,19 +247,42 @@ def _build_candidate_facts(candidate: RepositoryCandidate) -> CandidateFacts:
     language = str(signal.payload.get("language") or "").strip()
     combined_text = " ".join(part for part in (title, raw_text, topics) if part)
     matched_path = _read_matched_code_path(signal.raw_text)
+    path_strength = _classify_path_strength(matched_path)
+    software_term_hits = _find_term_hits(combined_text, SOFTWARE_TERMS)
+    data_like_term_hits = _find_term_hits(combined_text, DATA_LIKE_TERMS)
+    paper_like_term_hits = _find_term_hits(combined_text, PAPER_LIKE_TERMS)
+    collection_term_hits = _find_term_hits(combined_text, COLLECTION_TERMS)
+    education_term_hits = _find_term_hits(combined_text, EDUCATION_TERMS)
+    matched_query_count = len(
+        [query for query in candidate.provenance.matched_queries if query.strip()]
+    )
+    evidence = AdmissionEvidence(
+        matched_channels=candidate.provenance.matched_channels,
+        matched_query_count=matched_query_count,
+        hit_count=candidate.provenance.hit_count,
+        path_strength=path_strength,
+        has_language=bool(language),
+        software_term_hits=software_term_hits,
+        data_like_term_hits=data_like_term_hits,
+        paper_like_term_hits=paper_like_term_hits,
+        collection_term_hits=collection_term_hits,
+        education_term_hits=education_term_hits,
+    )
 
     return CandidateFacts(
         has_code_search="code_search" in candidate.provenance.matched_channels,
-        matched_query_count=len(
-            [query for query in candidate.provenance.matched_queries if query.strip()]
-        ),
+        matched_query_count=matched_query_count,
         hit_count=candidate.provenance.hit_count,
         has_language=bool(language),
         language=language,
-        software_term_hits=_find_term_hits(combined_text, SOFTWARE_TERMS),
-        noise_term_hits=_find_term_hits(combined_text, NOISE_TERMS),
-        has_code_like_path=_path_looks_like_code(matched_path),
-        has_non_code_path=_path_has_any_hint(matched_path, NON_CODE_PATH_HINTS),
+        matched_channels=candidate.provenance.matched_channels,
+        software_term_hits=software_term_hits,
+        data_like_term_hits=data_like_term_hits,
+        paper_like_term_hits=paper_like_term_hits,
+        collection_term_hits=collection_term_hits,
+        education_term_hits=education_term_hits,
+        path_strength=path_strength,
+        evidence=evidence,
     )
 
 
@@ -198,6 +290,10 @@ def _build_keep_reasons(facts: CandidateFacts) -> tuple[str, ...]:
     reasons: list[str] = []
     if facts.has_code_search:
         reasons.append("Matched via code search.")
+    if facts.path_strength == "strong":
+        reasons.append("Matched a strong code path.")
+    if facts.path_strength == "descriptive":
+        reasons.append("Matched a descriptive repository path.")
     if facts.matched_query_count >= 2:
         reasons.append("Matched multiple discovery queries.")
     if facts.hit_count >= 2:
@@ -210,25 +306,49 @@ def _build_keep_reasons(facts: CandidateFacts) -> tuple[str, ...]:
 
 
 def _is_clear_reject(facts: CandidateFacts) -> bool:
-    if facts.has_code_like_path:
+    if _has_strong_software_evidence(facts):
         return False
-    if facts.has_code_search and not facts.has_non_code_path:
+
+    has_negative_intent = bool(
+        facts.data_like_term_hits
+        or facts.paper_like_term_hits
+        or facts.collection_term_hits
+        or facts.education_term_hits
+    )
+    if not has_negative_intent:
         return False
-    if facts.has_language or facts.software_term_hits:
-        return False
-    if facts.matched_query_count >= 2 or facts.hit_count >= 2:
-        return False
-    if facts.has_non_code_path:
+
+    if bool(facts.data_like_term_hits) and not bool(facts.software_term_hits):
         return True
-    return bool(facts.noise_term_hits)
+
+    if bool(facts.paper_like_term_hits) and bool(facts.collection_term_hits):
+        return True
+
+    if bool(facts.education_term_hits) and not (
+        facts.has_language or bool(facts.software_term_hits)
+    ):
+        return True
+
+    if facts.path_strength == "weak" and not (
+        facts.has_language or bool(facts.software_term_hits)
+    ):
+        return True
+
+    return not _has_soft_software_evidence(facts)
 
 
 def _build_reject_reasons(facts: CandidateFacts) -> tuple[str, ...]:
     reasons: list[str] = []
-    if facts.has_non_code_path:
-        reasons.append("Code search only matched a docs-like path.")
-    if facts.noise_term_hits:
-        reasons.append("Metadata looks non-software.")
+    if facts.data_like_term_hits:
+        reasons.append("Metadata looks like a data resource.")
+    if facts.paper_like_term_hits and facts.collection_term_hits:
+        reasons.append("Metadata looks like a paper or resource list.")
+    elif facts.paper_like_term_hits:
+        reasons.append("Metadata looks paper-centric.")
+    if facts.education_term_hits and not (facts.has_language or facts.software_term_hits):
+        reasons.append("Metadata looks educational rather than software-focused.")
+    if facts.path_strength == "weak":
+        reasons.append("Matched only a weak repository path.")
     reasons.append("Only weak retrieval evidence was available.")
     return tuple(dict.fromkeys(reasons))
 
@@ -244,16 +364,45 @@ def _find_term_hits(text: str, terms: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(term for term in terms if term in text)
 
 
-def _path_has_any_hint(path: str, hints: tuple[str, ...]) -> bool:
-    return bool(path) and any(hint in path for hint in hints)
-
-
-def _path_looks_like_code(path: str) -> bool:
+def _classify_path_strength(path: str) -> str:
     if not path:
-        return False
-    if any(hint in path for hint in CODE_PATH_SEGMENT_HINTS):
+        return "none"
+    if any(hint in path for hint in STRONG_PATH_SEGMENT_HINTS):
+        return "strong"
+    if path.endswith(STRONG_PATH_EXTENSIONS):
+        return "strong"
+    if any(hint in path for hint in DESCRIPTIVE_PATH_HINTS):
+        return "descriptive"
+    if path.endswith(DESCRIPTIVE_PATH_EXTENSIONS):
+        return "descriptive"
+    if any(hint in path for hint in WEAK_PATH_HINTS):
+        return "weak"
+    return "none"
+
+
+def _has_strong_software_evidence(facts: CandidateFacts) -> bool:
+    if facts.path_strength == "strong":
         return True
-    return path.endswith(CODE_PATH_EXTENSIONS)
+    if facts.has_code_search and (facts.has_language or bool(facts.software_term_hits)):
+        return True
+    if bool(facts.software_term_hits) and (
+        facts.has_language or facts.matched_query_count >= 2 or facts.hit_count >= 2
+    ):
+        return True
+    return False
+
+
+def _has_soft_software_evidence(facts: CandidateFacts) -> bool:
+    if facts.path_strength == "descriptive" and (
+        facts.has_language
+        or bool(facts.software_term_hits)
+        or facts.matched_query_count >= 2
+        or facts.hit_count >= 2
+    ):
+        return True
+    if facts.has_language and (facts.matched_query_count >= 2 or facts.hit_count >= 2):
+        return True
+    return False
 
 
 def _finalize_reasons(*reason_groups: tuple[str, ...] | str) -> tuple[str, ...]:

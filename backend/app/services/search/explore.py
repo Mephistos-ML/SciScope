@@ -143,6 +143,36 @@ def _build_explore_search_payload(
                 "admission": {
                     "decision": evaluated_candidate.admission.decision,
                     "reasons": list(evaluated_candidate.admission.reasons),
+                    "evidence": {
+                        "matchedChannels": list(
+                            evaluated_candidate.admission.evidence.matched_channels
+                        ),
+                        "matchedQueryCount": (
+                            evaluated_candidate.admission.evidence.matched_query_count
+                        ),
+                        "hitCount": evaluated_candidate.admission.evidence.hit_count,
+                        "pathStrength": (
+                            evaluated_candidate.admission.evidence.path_strength
+                        ),
+                        "hasLanguage": (
+                            evaluated_candidate.admission.evidence.has_language
+                        ),
+                        "softwareTermHits": list(
+                            evaluated_candidate.admission.evidence.software_term_hits
+                        ),
+                        "dataLikeTermHits": list(
+                            evaluated_candidate.admission.evidence.data_like_term_hits
+                        ),
+                        "paperLikeTermHits": list(
+                            evaluated_candidate.admission.evidence.paper_like_term_hits
+                        ),
+                        "collectionTermHits": list(
+                            evaluated_candidate.admission.evidence.collection_term_hits
+                        ),
+                        "educationTermHits": list(
+                            evaluated_candidate.admission.evidence.education_term_hits
+                        ),
+                    },
                 },
             }
         )
