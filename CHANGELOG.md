@@ -1,3 +1,11 @@
+## [1.6.3](https://github.com/Mephistos-ML/SciScope/compare/v1.6.2...v1.6.3) (2026-08-26)
+
+
+### Bug Fixes
+
+* **ai:** tighten planner queries for scientific retrieval ([3d829d3](https://github.com/Mephistos-ML/SciScope/commit/3d829d344c9f26b1bbaec94b1423e221150cea11))
+* **search:** preserve repository metadata when merging retrieval hits ([6416c5a](https://github.com/Mephistos-ML/SciScope/commit/6416c5a2d4d9c1e43d5c484a2692b76129c724b7))
+
 ## [1.6.2](https://github.com/Mephistos-ML/SciScope/compare/v1.6.1...v1.6.2) (2026-08-26)
 
 
