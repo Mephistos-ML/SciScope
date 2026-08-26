@@ -7,17 +7,19 @@ from fastapi import Request
 from app.models import ExploreTier
 from app.services.auth import get_current_user
 from app.services.security import verify_turnstile_token
-from app.services.search import (
+from app.services.search.access import (
     build_explore_access_denied_error,
     build_turnstile_failure_decision,
     check_explore_access,
-    create_explore_search_job,
-    get_explore_search_job,
     hash_explore_topic,
     read_explore_client_ip,
     record_allowed_explore_attempt,
     record_blocked_explore_attempt,
     resolve_explore_actor,
+)
+from app.services.search.explore import (
+    create_explore_search_job,
+    get_explore_search_job,
     run_explore_search,
 )
 

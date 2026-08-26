@@ -19,8 +19,8 @@ from app.api.routes import signals as signal_routes
 from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS, DATABASE_URL
 from app.database.session import check_database_connection
-from app.services.search import (
-    ExploreAccessDeniedError,
+from app.services.search.access.errors import ExploreAccessDeniedError
+from app.services.search.explore import (
     AiSearchPlanningError,
     ExploreSearchUnavailableError,
 )
