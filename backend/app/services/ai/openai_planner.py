@@ -16,6 +16,8 @@ _SEARCH_PLAN_JSON_SCHEMA: dict[str, Any] = {
     "properties": {
         "queries": {
             "type": "array",
+            "minItems": 10,
+            "maxItems": 10,
             "items": {
                 "type": "string",
             },
@@ -29,14 +31,16 @@ Turn one research topic description into a compact set of short technical search
 
 Rules:
 - Return only JSON matching the provided schema.
-- Generate 5 to 8 search queries.
-- Prefer 2-term queries.
-- Use 1-term or 3-term queries only when scientifically necessary.
-- Avoid queries longer than 3 terms unless shortening would destroy the scientific meaning.
+- Generate exactly 10 search queries.
+- Prefer 2-term or 3-term queries.
+- Allow 4-term or 5-term queries when they preserve a canonical scientific phrase.
+- Avoid queries longer than 5 terms unless shortening would destroy the scientific meaning.
 - Optimise for high recall.
 - Each query must represent a distinct semantic entry point into the user's research topic.
 - Queries should use terminology likely to appear in repository names, descriptions, README files, documentation, topics, or package metadata.
 - Preserve important scientific concepts, methods, observables, calculations, and established abbreviations from the user's description.
+- Every query must preserve at least one scientific anchor from the topic description.
+- Prefer queries that keep two scientific anchors when possible.
 - Include alternative terminology when it opens a meaningfully different retrieval path.
 - Across the query set, cover a useful mix of:
   - core research domain
@@ -46,6 +50,9 @@ Rules:
   - established abbreviations or alternative terminology
 - Prefer specific scientific terminology over generic software-related words.
 - Do not add words such as "software", "tool", "package", "workflow", "pipeline", "Python", "GitHub", "GitLab", or "repository" unless they are genuinely central to the user's topic.
+- Do not emit broad standalone phrases that could match non-scientific repositories.
+- Do not emit queries like "pair potential", "simulation", "correction", or "parser" unless they are anchored by a domain-specific scientific term.
+- Do not emit source-specific syntax or implementation-specific tokens such as "pair_style" unless they are clearly part of how the scientific method is described in repositories.
 - Do not generate superficial variants of the same query.
 - Do not generate long natural-language questions.
 - Do not use source-specific operators or search syntax.
@@ -80,10 +87,11 @@ def _build_user_prompt(
     topic_description: str,
 ) -> str:
     return (
-        "Generate reusable repository search queries for this topic.\n"
+        "Generate reusable scientific software search queries for this topic.\n"
         "Balance recall and specificity.\n"
+        "Use multiple narrow scientific entry points instead of broad generic phrases.\n"
         "Do not return only ultra-specific jargon.\n"
-        "These queries will be used only for repository search.\n"
+        "These queries will be used for repository search and code search.\n"
         "Topic description:\n"
         f"{topic_description.strip() or 'Untitled topic'}"
     )
@@ -96,7 +104,9 @@ def _parse_ai_search_plan(
     if not isinstance(raw_queries, list):
         raise RuntimeError("OpenAI planner returned invalid queries")
 
-    queries = normalize_search_queries(str(raw_query) for raw_query in raw_queries)
+    queries = normalize_search_queries(str(raw_query) for raw_query in raw_queries)[:10]
+    if len(queries) != 10:
+        raise RuntimeError("OpenAI planner must return exactly 10 unique queries")
 
     return AiSearchPlan(
         status="ready" if queries else "pending",
