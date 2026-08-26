@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/Mephistos-ML/SciScope/compare/v1.6.0...v1.6.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* **search:** refine admission rules for scientific software recall ([016fb4f](https://github.com/Mephistos-ML/SciScope/commit/016fb4f3f616e3203cd86ebe3c691a26fe44b332))
+
 # [1.6.0](https://github.com/Mephistos-ML/SciScope/compare/v1.5.1...v1.6.0) (2026-08-26)
 
 
