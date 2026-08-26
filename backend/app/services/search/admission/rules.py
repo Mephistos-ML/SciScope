@@ -28,6 +28,13 @@ SOFTWARE_TERMS = (
     "engine",
     "cli",
     "command line",
+    "implementation",
+    "integration",
+    "validation",
+    "validation suite",
+    "pair style",
+    "pair styles",
+    "skill",
 )
 
 DATA_LIKE_TERMS = (
@@ -42,7 +49,6 @@ DATA_LIKE_TERMS = (
 )
 
 PAPER_LIKE_TERMS = (
-    "benchmark",
     "paper",
     "papers",
     "literature",
@@ -78,28 +84,48 @@ STRONG_PATH_SEGMENT_HINTS = (
     "app/",
     "cmd/",
     "bin/",
+    "include/",
+    "bindings/",
+    "module/",
+    "modules/",
     "python/",
     "fortran/",
     "lammps/",
     "pyproject.toml",
     "setup.py",
+    "setup.cfg",
+    "requirements.txt",
+    "environment.yml",
+    "environment.yaml",
+    "project.toml",
+    "manifest.toml",
     "cargo.toml",
     "package.json",
     "cmakelists.txt",
+    "meson.build",
+    "sconstruct",
     "makefile",
 )
 
 STRONG_PATH_EXTENSIONS = (
     ".py",
     ".pyx",
+    ".pxd",
+    ".pxi",
     ".r",
     ".jl",
     ".f90",
+    ".f95",
+    ".f03",
+    ".f08",
     ".f",
     ".c",
     ".cc",
+    ".hh",
     ".cpp",
     ".cxx",
+    ".cu",
+    ".cuh",
     ".h",
     ".hpp",
     ".rs",
@@ -110,6 +136,7 @@ STRONG_PATH_EXTENSIONS = (
     ".mm",
     ".scala",
     ".sh",
+    ".tcc",
 )
 
 DESCRIPTIVE_PATH_HINTS = (
@@ -325,7 +352,9 @@ def _is_clear_reject(facts: CandidateFacts) -> bool:
         return True
 
     if bool(facts.education_term_hits) and not (
-        facts.has_language or bool(facts.software_term_hits)
+        facts.has_language
+        or bool(facts.software_term_hits)
+        or facts.path_strength == "descriptive"
     ):
         return True
 
@@ -334,7 +363,7 @@ def _is_clear_reject(facts: CandidateFacts) -> bool:
     ):
         return True
 
-    return not _has_soft_software_evidence(facts)
+    return False
 
 
 def _build_reject_reasons(facts: CandidateFacts) -> tuple[str, ...]:
@@ -344,12 +373,12 @@ def _build_reject_reasons(facts: CandidateFacts) -> tuple[str, ...]:
     if facts.paper_like_term_hits and facts.collection_term_hits:
         reasons.append("Metadata looks like a paper or resource list.")
     elif facts.paper_like_term_hits:
-        reasons.append("Metadata looks paper-centric.")
+        reasons.append("Metadata looks paper-focused without software evidence.")
     if facts.education_term_hits and not (facts.has_language or facts.software_term_hits):
         reasons.append("Metadata looks educational rather than software-focused.")
     if facts.path_strength == "weak":
         reasons.append("Matched only a weak repository path.")
-    reasons.append("Only weak retrieval evidence was available.")
+    reasons.append("Only weak software evidence was available.")
     return tuple(dict.fromkeys(reasons))
 
 
@@ -400,7 +429,9 @@ def _has_soft_software_evidence(facts: CandidateFacts) -> bool:
         or facts.hit_count >= 2
     ):
         return True
-    if facts.has_language and (facts.matched_query_count >= 2 or facts.hit_count >= 2):
+    if facts.has_language:
+        return True
+    if bool(facts.software_term_hits):
         return True
     return False
 
