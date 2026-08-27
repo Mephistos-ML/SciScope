@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 from app.models.signal import Signal
 from app.services.search.retrieval.merge import merge_retrieval_hits
 from app.services.search.retrieval import service as retrieval_service
@@ -162,16 +164,7 @@ def test_merge_retrieval_hits_preserves_language_from_richer_duplicate_signal() 
     assert "Matched code path:" in candidate.signal.raw_text
 
 
-def test_run_external_repository_retrieval_marks_partial_when_soft_timeout_stops_next_lane(
-    monkeypatch,
-) -> None:
-    monotonic_values = iter((0.0, 0.0, 0.0, 2.0))
-    monkeypatch.setattr(
-        retrieval_service,
-        "monotonic",
-        lambda: next(monotonic_values),
-    )
-
+def test_run_external_repository_retrieval_marks_partial_when_parallel_lane_misses_soft_timeout() -> None:
     def discover_github_candidates(_queries: tuple[str, ...]) -> list[Signal]:
         return [
             _build_repository_signal(
@@ -181,21 +174,25 @@ def test_run_external_repository_retrieval_marks_partial_when_soft_timeout_stops
         ]
 
     def discover_gitlab_candidates(_queries: tuple[str, ...]) -> list[Signal]:
-        raise AssertionError("The second lane should not start after the soft timeout.")
+        time.sleep(0.2)
+        return []
 
+    started_at = time.monotonic()
     retrieved = run_external_repository_retrieval(
         ("paramagnetic nmr",),
         discoverers=(
             ("github", "repository_search", discover_github_candidates),
             ("gitlab", "repository_search", discover_gitlab_candidates),
         ),
-        soft_deadline_monotonic=1.0,
+        soft_deadline_monotonic=time.monotonic() + 0.05,
     )
+    elapsed_seconds = time.monotonic() - started_at
 
     assert retrieved.successful_source_count == 1
     assert len(retrieved.candidates) == 1
     assert retrieved.partial is True
     assert "partial coverage" in retrieved.warnings[0]
+    assert elapsed_seconds < 0.15
 
 
 def _build_hit(
