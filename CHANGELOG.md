@@ -1,3 +1,14 @@
+# [1.8.0](https://github.com/Mephistos-ML/SciScope/compare/v1.7.2...v1.8.0) (2026-08-27)
+
+
+### Features
+
+* **search:** paginate GitHub code search candidates ([201574b](https://github.com/Mephistos-ML/SciScope/commit/201574bd6011f3653f44d20e168c53b483a8ac03))
+* **search:** parallelize and split retrieval orchestration ([07fd210](https://github.com/Mephistos-ML/SciScope/commit/07fd210fe30ab20abc39ec6f0a947959fc6a76e1))
+* **search:** parallelize external retrieval lanes ([3ae31a0](https://github.com/Mephistos-ML/SciScope/commit/3ae31a0cfe1d319aa569bcfdcca0c76b9388e32a))
+* **search:** tighten AI query planning for explore ([1305d2a](https://github.com/Mephistos-ML/SciScope/commit/1305d2aee685545fdf6a73cbe76084c6a35173de))
+* **web:** show high-level explore search stages ([a10b797](https://github.com/Mephistos-ML/SciScope/commit/a10b797dac8f6ed4d803e6eeb469588806a4c078)), closes [hi#level](https://github.com/hi/issues/level)
+
 ## [1.7.2](https://github.com/Mephistos-ML/SciScope/compare/v1.7.1...v1.7.2) (2026-08-27)
 
 
