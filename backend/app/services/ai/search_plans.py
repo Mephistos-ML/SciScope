@@ -53,6 +53,8 @@ def normalize_search_queries(values: Iterable[str]) -> tuple[str, ...]:
         normalized_values.append(normalized)
 
     return tuple(normalized_values)
+
+
 def serialize_ai_search_plan(plan: AiSearchPlan) -> dict[str, object]:
     """Serialize one search plan for API responses."""
 

@@ -27,6 +27,7 @@ type ExplorePageProps = {
   subscribePendingRepositoryId: string | null;
   subscribedRepositoryIds: string[];
   topicInput: string;
+  searchStageLabel: string | null;
   turnstileReady: boolean;
   turnstileResetKey: number;
   turnstileSiteKey: string | null;
@@ -44,6 +45,7 @@ export function ExplorePage({
   onTurnstileTokenChange,
   results,
   searchPending,
+  searchStageLabel,
   subscribePendingRepositoryId,
   subscribedRepositoryIds,
   topicInput,
@@ -219,7 +221,9 @@ export function ExplorePage({
                   {hasResults ? (
                     <span className="results-count-badge">{results.length} results</span>
                   ) : searchPending ? (
-                    <span className="results-count-badge">Searching...</span>
+                    <span className="results-count-badge">
+                      {searchStageLabel ?? "Searching repositories"}
+                    </span>
                   ) : null}
                 </div>
               </div>
