@@ -22,6 +22,7 @@ from app.services.search.explore import (
     get_explore_search_job,
     run_explore_search,
 )
+from app.services.search.observability import SearchLogContext, build_request_id
 
 
 def search_explore_response(
@@ -30,8 +31,14 @@ def search_explore_response(
 ) -> dict[str, object]:
     """Run an explore search from one topic description."""
 
-    topic_description = _authorize_explore_search_request(request, payload)
-    return run_explore_search(topic_description=topic_description)
+    topic_description, topic_hash = _authorize_explore_search_request(request, payload)
+    return run_explore_search(
+        topic_description=topic_description,
+        log_context=SearchLogContext(
+            request_id=build_request_id(),
+            topic_hash=topic_hash,
+        ),
+    )
 
 
 def create_explore_search_job_response(
@@ -40,8 +47,14 @@ def create_explore_search_job_response(
 ) -> dict[str, object]:
     """Create one background explore search job."""
 
-    topic_description = _authorize_explore_search_request(request, payload)
-    return create_explore_search_job(topic_description=topic_description)
+    topic_description, topic_hash = _authorize_explore_search_request(request, payload)
+    return create_explore_search_job(
+        topic_description=topic_description,
+        log_context=SearchLogContext(
+            request_id=build_request_id(),
+            topic_hash=topic_hash,
+        ),
+    )
 
 
 def get_explore_search_job_response(job_id: str) -> dict[str, object] | None:
@@ -53,7 +66,7 @@ def get_explore_search_job_response(job_id: str) -> dict[str, object] | None:
 def _authorize_explore_search_request(
     request: Request,
     payload: dict[str, object],
-) -> str:
+) -> tuple[str, str]:
     database_url = request.app.state.database_url
     topic_description = str(payload.get("topicDescription") or "").strip()
     turnstile_token = str(payload.get("turnstileToken") or "").strip()
@@ -103,4 +116,4 @@ def _authorize_explore_search_request(
         topic_hash=topic_hash,
         database_url=database_url,
     )
-    return topic_description
+    return topic_description, topic_hash
