@@ -19,6 +19,7 @@ import { FeedPage } from "../pages/FeedPage";
 import type {
   AiSearchPlanPayload,
   ExploreSearchJobPayload,
+  ExploreSearchJobStatus,
   ExploreResultItem,
   SubscriptionItem,
   Viewer,
@@ -55,6 +56,8 @@ export function App() {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [activeExploreJobId, setActiveExploreJobId] = useState<string | null>(null);
+  const [activeExploreJobStatus, setActiveExploreJobStatus] =
+    useState<ExploreSearchJobStatus | null>(null);
 
   useEffect(() => {
     const authError = readAuthErrorFromUrl();
@@ -115,11 +118,13 @@ export function App() {
         if (cancelled) {
           return;
         }
+        setActiveExploreJobStatus(snapshot.status);
 
         if (snapshot.status === "completed" || snapshot.status === "completed_partial") {
           applyExploreSearchJobSnapshot(snapshot);
           setSearchPending(false);
           setActiveExploreJobId(null);
+          setActiveExploreJobStatus(null);
           if (snapshot.status === "completed_partial" && snapshot.message) {
             setExploreSearchFeedback({
               message: snapshot.message,
@@ -134,6 +139,7 @@ export function App() {
         if (snapshot.status === "failed") {
           setSearchPending(false);
           setActiveExploreJobId(null);
+          setActiveExploreJobStatus(null);
           setExploreSearchFeedback({
             message: snapshot.error ?? "Failed to run search.",
             retryUntilEpochMs: null,
@@ -153,6 +159,7 @@ export function App() {
 
         setSearchPending(false);
         setActiveExploreJobId(null);
+        setActiveExploreJobStatus(null);
         setExploreSearchFeedback({
           message: error instanceof Error ? error.message : "Failed to refresh search status.",
           retryUntilEpochMs: null,
@@ -216,6 +223,7 @@ export function App() {
         turnstileToken,
       });
       setActiveExploreJobId(job.jobId);
+      setActiveExploreJobStatus(job.status);
       setTurnstileToken(null);
       setTurnstileResetKey((current) => current + 1);
     } catch (error) {
@@ -244,6 +252,7 @@ export function App() {
         setLastAiSearchPlan(null);
       }
       setActiveExploreJobId(null);
+      setActiveExploreJobStatus(null);
       setSearchPending(false);
     }
   }
@@ -344,6 +353,7 @@ export function App() {
           subscribePendingRepositoryId={createPendingRepositoryId}
           subscribedRepositoryIds={subscriptions.map((item) => item.repository.repositoryId)}
           topicInput={topicInput}
+          searchStageLabel={mapExploreJobStatusToStage(activeExploreJobStatus)}
           turnstileReady={Boolean(turnstileToken)}
           turnstileResetKey={turnstileResetKey}
           turnstileSiteKey={frontendConfig.turnstileSiteKey}
@@ -363,6 +373,18 @@ export function App() {
       {activeView === "about" ? <AboutPage /> : null}
     </AppShell>
   );
+}
+
+function mapExploreJobStatusToStage(
+  status: ExploreSearchJobStatus | null,
+): string | null {
+  if (status === "queued" || status === "planning") {
+    return "Understanding your topic";
+  }
+  if (status === "retrieving") {
+    return "Searching repositories";
+  }
+  return null;
 }
 
 function readAuthErrorFromUrl(): string | null {
