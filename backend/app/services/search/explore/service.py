@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from time import monotonic
 
+from app import config
 from app.services.ai import (
     OpenAIClientConfigurationError,
     OpenAIResponseError,
@@ -13,6 +15,11 @@ from app.services.ai import (
 )
 from app.services.search.admission import run_repository_admission
 from app.services.search.explore.matching import match_signal_to_terms
+from app.services.search.observability import (
+    SearchLogContext,
+    build_duration_ms,
+    log_search_event,
+)
 from app.services.search.retrieval import run_external_repository_retrieval
 
 logger = logging.getLogger(__name__)
@@ -40,56 +47,157 @@ def run_explore_search(
     progress_callback: ExploreSearchProgressCallback | None = None,
     soft_deadline_monotonic: float | None = None,
     hard_deadline_monotonic: float | None = None,
+    log_context: SearchLogContext | None = None,
 ) -> dict[str, object]:
     """Run a read-only repository search from one topic description."""
 
-    ai_search_plan = _plan_explore_search(topic_description=topic_description)
-    ai_search_plan_payload = serialize_ai_search_plan(ai_search_plan)
-    repository_queries = ai_search_plan.queries
-    if not repository_queries:
-        return {
-            "topicDescription": topic_description,
-            "aiSearchPlan": ai_search_plan_payload,
-            "items": [],
-            "sourceStatuses": [],
-        }
-
-    if progress_callback is None:
-        retrieval_options: dict[str, object] = {}
-        if soft_deadline_monotonic is not None:
-            retrieval_options["soft_deadline_monotonic"] = soft_deadline_monotonic
-        if hard_deadline_monotonic is not None:
-            retrieval_options["hard_deadline_monotonic"] = hard_deadline_monotonic
-        retrieved = run_external_repository_retrieval(
-            repository_queries,
-            **retrieval_options,
+    search_started_at = monotonic()
+    current_stage = "ai_planning"
+    repository_queries: tuple[str, ...] = ()
+    retrieved = None
+    if log_context is not None:
+        log_search_event(
+            logger=logger,
+            event="explore_search_started",
+            context=log_context,
+            mode="async" if log_context.job_id else "sync",
         )
-    else:
-        retrieval_options = {
-            "progress_callback": lambda partial: progress_callback(
-                _build_explore_search_payload(
-                    topic_description=topic_description,
-                    ai_search_plan_payload=ai_search_plan_payload,
-                    retrieved=partial,
+
+    try:
+        planning_started_at = monotonic()
+        ai_search_plan = _plan_explore_search(topic_description=topic_description)
+        ai_search_plan_payload = serialize_ai_search_plan(ai_search_plan)
+        repository_queries = tuple(ai_search_plan.queries)
+        if log_context is not None:
+            log_search_event(
+                logger=logger,
+                event="explore_ai_planning_completed",
+                context=log_context,
+                duration_ms=build_duration_ms(planning_started_at),
+                query_count=len(repository_queries),
+                planner=config.AI_PLANNER_MODE,
+            )
+
+        if not repository_queries:
+            payload = {
+                "topicDescription": topic_description,
+                "aiSearchPlan": ai_search_plan_payload,
+                "items": [],
+                "sourceStatuses": [],
+            }
+            if log_context is not None:
+                log_search_event(
+                    logger=logger,
+                    event="explore_search_completed",
+                    context=log_context,
+                    duration_ms=build_duration_ms(search_started_at),
+                    query_count=0,
+                    candidate_count=0,
+                    visible_result_count=0,
+                    response_build_duration_ms=0,
+                    partial=False,
+                    source_statuses=[],
                 )
-            ),
-        }
-        if soft_deadline_monotonic is not None:
-            retrieval_options["soft_deadline_monotonic"] = soft_deadline_monotonic
-        if hard_deadline_monotonic is not None:
-            retrieval_options["hard_deadline_monotonic"] = hard_deadline_monotonic
-        retrieved = run_external_repository_retrieval(
-            repository_queries,
-            **retrieval_options,
-        )
-    if retrieved.successful_source_count == 0:
-        raise ExploreSearchUnavailableError(list(retrieved.source_statuses))
+            return payload
 
-    return _build_explore_search_payload(
-        topic_description=topic_description,
-        ai_search_plan_payload=ai_search_plan_payload,
-        retrieved=retrieved,
-    )
+        current_stage = "retrieval"
+        if progress_callback is None:
+            retrieval_options: dict[str, object] = {}
+            if soft_deadline_monotonic is not None:
+                retrieval_options["soft_deadline_monotonic"] = soft_deadline_monotonic
+            if hard_deadline_monotonic is not None:
+                retrieval_options["hard_deadline_monotonic"] = hard_deadline_monotonic
+            retrieval_options["log_context"] = log_context
+            retrieved = run_external_repository_retrieval(
+                repository_queries,
+                **retrieval_options,
+            )
+        else:
+            retrieval_options = {
+                "progress_callback": lambda partial: progress_callback(
+                    _build_explore_search_payload(
+                        topic_description=topic_description,
+                        ai_search_plan_payload=ai_search_plan_payload,
+                        retrieved=partial,
+                        admission=run_repository_admission(partial.candidates),
+                    )
+                ),
+                "log_context": log_context,
+            }
+            if soft_deadline_monotonic is not None:
+                retrieval_options["soft_deadline_monotonic"] = soft_deadline_monotonic
+            if hard_deadline_monotonic is not None:
+                retrieval_options["hard_deadline_monotonic"] = hard_deadline_monotonic
+            retrieved = run_external_repository_retrieval(
+                repository_queries,
+                **retrieval_options,
+            )
+        if retrieved.successful_source_count == 0:
+            if log_context is not None:
+                log_search_event(
+                    logger=logger,
+                    event="explore_search_failed",
+                    context=log_context,
+                    level=logging.WARNING,
+                    duration_ms=build_duration_ms(search_started_at),
+                    stage="retrieval",
+                    error_code="all_sources_unavailable",
+                    error_message="Repository search is temporarily unavailable across all providers.",
+                    partial=retrieved.partial,
+                    query_count=len(repository_queries),
+                    source_statuses=_summarize_source_statuses(retrieved.source_statuses),
+                )
+            raise ExploreSearchUnavailableError(list(retrieved.source_statuses))
+
+        current_stage = "admission"
+        admission = run_repository_admission(
+            retrieved.candidates,
+            log_context=log_context,
+        )
+        current_stage = "response_build"
+        response_build_started_at = monotonic()
+        payload = _build_explore_search_payload(
+            topic_description=topic_description,
+            ai_search_plan_payload=ai_search_plan_payload,
+            retrieved=retrieved,
+            admission=admission,
+        )
+        response_build_duration_ms = build_duration_ms(response_build_started_at)
+        if log_context is not None:
+            log_search_event(
+                logger=logger,
+                event="explore_search_completed",
+                context=log_context,
+                duration_ms=build_duration_ms(search_started_at),
+                query_count=len(repository_queries),
+                candidate_count=len(retrieved.candidates),
+                visible_result_count=len(admission.visible_candidates),
+                response_build_duration_ms=response_build_duration_ms,
+                partial=retrieved.partial,
+                warning_count=len(retrieved.warnings),
+                source_statuses=_summarize_source_statuses(retrieved.source_statuses),
+            )
+        return payload
+    except (AiSearchPlanningError, ExploreSearchUnavailableError):
+        raise
+    except Exception as exc:
+        if log_context is not None:
+            log_search_event(
+                logger=logger,
+                event="explore_search_failed",
+                context=log_context,
+                level=logging.ERROR,
+                duration_ms=build_duration_ms(search_started_at),
+                stage=current_stage,
+                error_code="unexpected_error",
+                error_message=str(exc),
+                partial=bool(getattr(retrieved, "partial", False)),
+                query_count=len(repository_queries),
+                source_statuses=_summarize_source_statuses(
+                    getattr(retrieved, "source_statuses", ())
+                ),
+            )
+        raise
 
 
 def _plan_explore_search(*, topic_description: str):
@@ -111,8 +219,8 @@ def _build_explore_search_payload(
     topic_description: str,
     ai_search_plan_payload: dict[str, object],
     retrieved,
+    admission,
 ) -> dict[str, object]:
-    admission = run_repository_admission(retrieved.candidates)
     items: list[dict[str, object]] = []
     for evaluated_candidate in admission.visible_candidates:
         candidate = evaluated_candidate.candidate
@@ -205,3 +313,17 @@ def _build_partial_message(warnings: tuple[str, ...]) -> str | None:
     if len(visible_warnings) > 2:
         summary += f"; and {len(visible_warnings) - 2} more"
     return f"Search completed with partial coverage: {summary}"
+
+
+def _summarize_source_statuses(
+    source_statuses: tuple[dict[str, object], ...] | list[dict[str, object]],
+) -> list[dict[str, object]]:
+    return [
+        {
+            "source": status.get("source"),
+            "status": status.get("status"),
+            "candidateCount": status.get("candidateCount"),
+            "error": status.get("error"),
+        }
+        for status in source_statuses
+    ]

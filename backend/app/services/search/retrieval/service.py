@@ -14,6 +14,11 @@ from app.config import (
     GITLAB_BASE_URL,
 )
 from app.models.signal import Signal
+from app.services.search.observability import (
+    SearchLogContext,
+    build_duration_ms,
+    log_search_event,
+)
 from app.services.search.retrieval.merge import merge_retrieval_hits
 from app.services.search.retrieval.models import RetrievedCandidates, RetrievalHit
 from app.sources.common import RepositorySourceError, build_source_status
@@ -46,23 +51,41 @@ def run_external_repository_retrieval(
     progress_callback: RetrievalProgressCallback | None = None,
     soft_deadline_monotonic: float | None = None,
     hard_deadline_monotonic: float | None = None,
+    log_context: SearchLogContext | None = None,
 ) -> RetrievedCandidates:
     """Retrieve and deduplicate repository candidates across active sources."""
 
+    retrieval_started_at = monotonic() if log_context is not None else None
     retrieval_state = _discover_candidates_across_sources(
         queries,
         discoverers=discoverers,
         progress_callback=progress_callback,
         soft_deadline_monotonic=soft_deadline_monotonic,
         hard_deadline_monotonic=hard_deadline_monotonic,
+        log_context=log_context,
     )
-    return RetrievedCandidates(
-        candidates=merge_retrieval_hits(tuple(retrieval_state["candidates"])),
+    candidates = merge_retrieval_hits(tuple(retrieval_state["candidates"]))
+    retrieved = RetrievedCandidates(
+        candidates=candidates,
         source_statuses=tuple(retrieval_state["source_statuses"]),
         successful_source_count=int(retrieval_state["successful_source_count"]),
         partial=bool(retrieval_state["partial"]),
         warnings=tuple(str(warning) for warning in retrieval_state["warnings"]),
     )
+    if log_context is not None and retrieval_started_at is not None:
+        log_search_event(
+            logger=logger,
+            event="explore_retrieval_completed",
+            context=log_context,
+            duration_ms=build_duration_ms(retrieval_started_at),
+            query_count=len(queries),
+            candidate_hit_count=len(retrieval_state["candidates"]),
+            candidate_count=len(candidates),
+            successful_source_count=retrieved.successful_source_count,
+            partial=retrieved.partial,
+            warning_count=len(retrieved.warnings),
+        )
+    return retrieved
 
 
 def _discover_candidates_across_sources(
@@ -72,6 +95,7 @@ def _discover_candidates_across_sources(
     progress_callback: RetrievalProgressCallback | None = None,
     soft_deadline_monotonic: float | None = None,
     hard_deadline_monotonic: float | None = None,
+    log_context: SearchLogContext | None = None,
 ) -> dict[str, object]:
     candidates: list[RetrievalHit] = []
     source_statuses_by_source: dict[str, dict[str, object]] = {}
@@ -80,6 +104,21 @@ def _discover_candidates_across_sources(
     partial = False
 
     active_discoverers = _build_active_discoverers(discoverers)
+    if discoverers is None and not _supports_gitlab_global_code_search() and log_context is not None:
+        log_search_event(
+            logger=logger,
+            event="explore_retrieval_lane_failed",
+            context=log_context,
+            level=logging.INFO,
+            duration_ms=0,
+            source="gitlab",
+            channel="code_search",
+            status="disabled",
+            query_count=len(queries),
+            candidate_count=0,
+            error_code="unsupported_search_capability",
+            error_message="GitLab global code search is unsupported for this base URL.",
+        )
 
     for source_name, channel_name, discover_candidates, supports_deadline in active_discoverers:
         if _is_deadline_reached(soft_deadline_monotonic):
@@ -113,6 +152,7 @@ def _discover_candidates_across_sources(
             len(queries),
             _summarize_queries(queries),
         )
+        lane_started_at = monotonic()
         lane_deadline_monotonic = _build_lane_deadline_monotonic(
             channel_name=channel_name,
             hard_deadline_monotonic=hard_deadline_monotonic,
@@ -140,6 +180,21 @@ def _discover_candidates_across_sources(
                 _summarize_queries(queries),
                 exc.public_message,
             )
+            if log_context is not None:
+                log_search_event(
+                    logger=logger,
+                    event="explore_retrieval_lane_failed",
+                    context=log_context,
+                    level=logging.WARNING,
+                    duration_ms=build_duration_ms(lane_started_at),
+                    source=source_name,
+                    channel=channel_name,
+                    status=exc.status,
+                    query_count=len(queries),
+                    candidate_count=0,
+                    error_code=exc.status,
+                    error_message=exc.public_message,
+                )
             _merge_source_status(
                 source_statuses_by_source,
                 build_source_status(
@@ -169,6 +224,23 @@ def _discover_candidates_across_sources(
                 channel_name,
                 _summarize_queries(queries),
             )
+            if log_context is not None:
+                log_search_event(
+                    logger=logger,
+                    event="explore_retrieval_lane_failed",
+                    context=log_context,
+                    level=logging.ERROR,
+                    duration_ms=build_duration_ms(lane_started_at),
+                    source=source_name,
+                    channel=channel_name,
+                    status="error",
+                    query_count=len(queries),
+                    candidate_count=0,
+                    error_code="unexpected_error",
+                    error_message=(
+                        f"{SOURCE_DISPLAY_NAMES[source_name]} repository search is unavailable right now."
+                    ),
+                )
             _merge_source_status(
                 source_statuses_by_source,
                 build_source_status(
@@ -197,6 +269,18 @@ def _discover_candidates_across_sources(
             channel_name,
             len(source_candidates),
         )
+        if log_context is not None:
+            log_search_event(
+                logger=logger,
+                event="explore_retrieval_lane_completed",
+                context=log_context,
+                duration_ms=build_duration_ms(lane_started_at),
+                source=source_name,
+                channel=channel_name,
+                status="ok",
+                query_count=len(queries),
+                candidate_count=len(source_candidates),
+            )
         successful_sources.add(source_name)
         candidates.extend(
             RetrievalHit(

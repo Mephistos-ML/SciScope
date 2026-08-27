@@ -14,5 +14,6 @@ def apply_repo_name_gate(facts: CandidateFacts) -> AdmissionDecision | None:
 
     return AdmissionDecision(
         decision="reject",
+        bucket="repo_name_gate",
         evidence=facts.evidence,
     )

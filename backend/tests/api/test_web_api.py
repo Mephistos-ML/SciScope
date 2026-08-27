@@ -185,12 +185,18 @@ def _allow_explore_access(monkeypatch) -> None:
     )
 
 
-def _run_explore_job_inline(job_id: str, topic_description: str) -> None:
+def _run_explore_job_inline(
+    *,
+    job_id: str,
+    topic_description: str,
+    log_context=None,
+) -> None:
     from app.services.search.explore import jobs as search_jobs
 
     search_jobs._run_explore_search_job(
         job_id=job_id,
         topic_description=topic_description,
+        log_context=log_context,
     )
 
 
@@ -478,7 +484,7 @@ def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatc
     )
     monkeypatch.setattr(
         "app.services.search.explore.service.run_external_repository_retrieval",
-        lambda queries: _build_retrieved_candidates(
+        lambda queries, **kwargs: _build_retrieved_candidates(
             _build_explore_repository_signal(
                 "github:repo:Mephistos-ML/paranmr",
                 query=queries[0],
@@ -520,7 +526,7 @@ def test_explore_search_keeps_retrieved_candidate_without_literal_query_phrase(
     )
     monkeypatch.setattr(
         "app.services.search.explore.service.run_external_repository_retrieval",
-        lambda queries: RetrievedCandidates(
+        lambda queries, **kwargs: RetrievedCandidates(
             candidates=(
                 RepositoryCandidate(
                     repository_id="github:repo:thermotools/lammps_mie_fh",
@@ -589,7 +595,7 @@ def test_explore_search_enforced_mode_hides_rejected_candidates(monkeypatch) -> 
     )
     monkeypatch.setattr(
         "app.services.search.explore.service.run_external_repository_retrieval",
-        lambda queries: _build_retrieved_candidates(
+        lambda queries, **kwargs: _build_retrieved_candidates(
             _build_code_only_explore_repository_signal(
                 "github:repo:thermotools/lammps_mie_fh",
                 query=queries[0],
@@ -623,7 +629,7 @@ def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         "app.services.search.explore.service.run_external_repository_retrieval",
-        lambda queries: _build_retrieved_candidates(
+        lambda queries, **kwargs: _build_retrieved_candidates(
             source_statuses=(
                 {
                     "source": "github",
@@ -795,7 +801,7 @@ def test_explore_search_accepts_verified_turnstile_token_for_suspicious_guest(
     )
     monkeypatch.setattr(
         "app.services.search.explore.service.run_external_repository_retrieval",
-        lambda queries: _build_retrieved_candidates(
+        lambda queries, **kwargs: _build_retrieved_candidates(
             _build_explore_repository_signal(
                 "github:repo:Mephistos-ML/paranmr",
                 query=queries[0],

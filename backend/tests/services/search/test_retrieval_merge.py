@@ -165,7 +165,7 @@ def test_merge_retrieval_hits_preserves_language_from_richer_duplicate_signal() 
 def test_run_external_repository_retrieval_marks_partial_when_soft_timeout_stops_next_lane(
     monkeypatch,
 ) -> None:
-    monotonic_values = iter((0.0, 0.0, 2.0))
+    monotonic_values = iter((0.0, 0.0, 0.0, 2.0))
     monkeypatch.setattr(
         retrieval_service,
         "monotonic",

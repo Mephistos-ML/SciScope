@@ -12,6 +12,7 @@ def build_candidate_admission_decision(facts: CandidateFacts) -> AdmissionDecisi
     if facts.path_strength == "strong":
         return AdmissionDecision(
             decision="keep",
+            bucket="strong_code_keep",
             evidence=facts.evidence,
         )
 
@@ -23,6 +24,7 @@ def build_candidate_admission_decision(facts: CandidateFacts) -> AdmissionDecisi
     ):
         return AdmissionDecision(
             decision="keep",
+            bucket="descriptive_path_keep",
             evidence=facts.evidence,
         )
 
@@ -34,6 +36,7 @@ def build_candidate_admission_decision(facts: CandidateFacts) -> AdmissionDecisi
     ):
         return AdmissionDecision(
             decision="keep",
+            bucket="code_search_keep",
             evidence=facts.evidence,
         )
 
@@ -42,30 +45,35 @@ def build_candidate_admission_decision(facts: CandidateFacts) -> AdmissionDecisi
     ):
         return AdmissionDecision(
             decision="keep",
+            bucket="metadata_software_keep",
             evidence=facts.evidence,
         )
 
     if facts.has_language and (facts.matched_query_count >= 2 or facts.hit_count >= 2):
         return AdmissionDecision(
             decision="keep",
+            bucket="language_overlap_keep",
             evidence=facts.evidence,
         )
 
-    if _is_clear_candidate_reject(facts):
+    reject_bucket = _build_reject_bucket(facts)
+    if reject_bucket is not None:
         return AdmissionDecision(
             decision="reject",
+            bucket=reject_bucket,
             evidence=facts.evidence,
         )
 
     return AdmissionDecision(
         decision="keep",
+        bucket="conservative_keep",
         evidence=facts.evidence,
     )
 
 
-def _is_clear_candidate_reject(facts: CandidateFacts) -> bool:
+def _build_reject_bucket(facts: CandidateFacts) -> str | None:
     if _has_strong_software_evidence(facts):
-        return False
+        return None
 
     has_negative_intent = bool(
         facts.data_like_term_hits
@@ -74,27 +82,27 @@ def _is_clear_candidate_reject(facts: CandidateFacts) -> bool:
         or facts.education_term_hits
     )
     if not has_negative_intent:
-        return False
+        return None
 
     if bool(facts.data_like_term_hits) and not bool(facts.software_term_hits):
-        return True
+        return "data_like_reject"
 
     if bool(facts.paper_like_term_hits) and bool(facts.collection_term_hits):
-        return True
+        return "paper_like_reject"
 
     if bool(facts.education_term_hits) and not (
         facts.has_language
         or bool(facts.software_term_hits)
         or facts.path_strength == "descriptive"
     ):
-        return True
+        return "education_like_reject"
 
     if facts.path_strength == "weak" and not (
         facts.has_language or bool(facts.software_term_hits)
     ):
-        return True
+        return "weak_path_reject"
 
-    return False
+    return None
 
 
 def _has_strong_software_evidence(facts: CandidateFacts) -> bool:
