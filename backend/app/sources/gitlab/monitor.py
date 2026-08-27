@@ -1,4 +1,4 @@
-"""GitLab monitoring adapter for repository releases."""
+"""GitLab monitoring adapter for repository releases and commits."""
 
 from __future__ import annotations
 
@@ -7,7 +7,9 @@ from urllib.parse import quote_plus
 
 from app.models.signal import Signal
 from app.sources.common import (
+    RepositoryCommit,
     RepositoryRelease,
+    build_repository_main_commit_signal,
     build_repository_release_signal,
 )
 from app.sources.gitlab.client import GITLAB_API_BASE, fetch_json
@@ -16,14 +18,27 @@ from app.sources.gitlab.client import GITLAB_API_BASE, fetch_json
 def load_repo_activity(
     repo_full_name: str,
     *,
-    started_after: datetime | None,
+    release_started_after: datetime | None,
+    commit_started_after: datetime | None,
 ) -> list[Signal]:
-    """Load GitLab releases created after the monitoring start time."""
+    """Load GitLab releases and default-branch commits after their checkpoints."""
 
-    if started_after is None:
-        return []
-
-    return _load_release_signals(repo_full_name, started_after=started_after)
+    signals: list[Signal] = []
+    if release_started_after is not None:
+        signals.extend(
+            _load_release_signals(
+                repo_full_name,
+                started_after=release_started_after,
+            )
+        )
+    if commit_started_after is not None:
+        signals.extend(
+            _load_commit_signals(
+                repo_full_name,
+                started_after=commit_started_after,
+            )
+        )
+    return signals
 
 def _load_release_signals(
     repo_full_name: str,
@@ -69,6 +84,56 @@ def _load_release_signals(
             body=body,
         )
         signals.append(build_repository_release_signal(release))
+
+    return signals
+
+
+def _load_commit_signals(
+    repo_full_name: str,
+    *,
+    started_after: datetime,
+) -> list[Signal]:
+    encoded_repo = quote_plus(repo_full_name)
+    commits_url = (
+        f"{GITLAB_API_BASE}/projects/{encoded_repo}/repository/commits?per_page=10"
+    )
+    payload = fetch_json(commits_url)
+
+    if not isinstance(payload, list):
+        return []
+
+    signals: list[Signal] = []
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+
+        published_at = _parse_gitlab_datetime(
+            item.get("committed_date") or item.get("created_at"),
+        )
+        if published_at is None or published_at <= started_after:
+            continue
+
+        commit_sha = str(item.get("id") or "").strip()
+        if not commit_sha:
+            continue
+
+        message = str(item.get("message") or item.get("title") or "").strip()
+        title = str(item.get("title") or message.splitlines()[0] or "GitLab commit")
+        commit = RepositoryCommit(
+            source="gitlab",
+            repo_full_name=repo_full_name,
+            commit_sha=commit_sha,
+            title=title.strip(),
+            url=str(
+                item.get("web_url")
+                or f"https://gitlab.com/{repo_full_name}/-/commit/{commit_sha}"
+            ),
+            published_at=published_at,
+            branch="default",
+            author_name=str(item.get("author_name") or ""),
+            body=message,
+        )
+        signals.append(build_repository_main_commit_signal(commit))
 
     return signals
 

@@ -11,8 +11,10 @@ from app.models.signal import Signal
 from app.sources import github as github_source
 from app.sources import gitlab as gitlab_source
 from app.sources.common import (
+    REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
     REPOSITORY_RELEASE_CHECKPOINT_KEY,
     RepositorySourceError,
+    build_repository_main_commit_checkpoint,
     build_repository_release_checkpoint,
     read_repository_name,
 )
@@ -23,7 +25,12 @@ from app.storage.repositories import (
 
 logger = logging.getLogger(__name__)
 
-RepositoryActivityLoader = Callable[[str], list[Signal]]
+RepositoryActivityLoader = Callable[..., list[Signal]]
+
+MONITORED_CHECKPOINT_KEYS = (
+    REPOSITORY_RELEASE_CHECKPOINT_KEY,
+    REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
+)
 
 
 def sync_repository_baseline(
@@ -33,36 +40,39 @@ def sync_repository_baseline(
     baseline_started_at: datetime | None = None,
     database_url: str,
 ) -> None:
-    """Initialize the monitoring checkpoint for one explicit repository watch."""
+    """Initialize monitoring checkpoints for one explicit repository watch."""
 
-    if not _supports_release_monitoring(repository):
+    if not _supports_repository_monitoring(repository):
         return
 
     repo_name = read_repository_name(repository)
     if repo_name is None:
         return
 
-    checkpoint = get_repository_checkpoint(
-        subscription_id,
-        repository.repository_id,
-        REPOSITORY_RELEASE_CHECKPOINT_KEY,
-        database_url=database_url,
-    )
-    if checkpoint is not None:
-        return
-
     now = _ensure_utc(baseline_started_at or datetime.now(UTC))
-    upsert_repository_checkpoints(
-        (
+    missing_checkpoints: list[RepositoryCheckpoint] = []
+    for checkpoint_key in MONITORED_CHECKPOINT_KEYS:
+        checkpoint = get_repository_checkpoint(
+            subscription_id,
+            repository.repository_id,
+            checkpoint_key,
+            database_url=database_url,
+        )
+        if checkpoint is not None:
+            continue
+        missing_checkpoints.append(
             RepositoryCheckpoint(
                 subscription_id=subscription_id,
                 repository_id=repository.repository_id,
                 source=repository.source,
-                checkpoint_key=REPOSITORY_RELEASE_CHECKPOINT_KEY,
+                checkpoint_key=checkpoint_key,
                 checkpoint_value=now.isoformat(),
                 updated_at=now,
-            ),
-        ),
+            )
+        )
+
+    upsert_repository_checkpoints(
+        tuple(missing_checkpoints),
         database_url=database_url,
     )
 
@@ -74,19 +84,27 @@ def load_repository_signals(
     baseline_started_after: datetime | None = None,
     database_url: str,
 ) -> list[Signal]:
-    """Load live repository release signals and advance its checkpoint."""
+    """Load live repository events and advance their checkpoints."""
 
     repo_name = read_repository_name(repository)
     if repo_name is None:
         return []
 
-    started_after = _resolve_release_checkpoint(
+    release_started_after = _resolve_checkpoint(
         subscription_id,
         repository,
+        checkpoint_key=REPOSITORY_RELEASE_CHECKPOINT_KEY,
         baseline_started_after=baseline_started_after,
         database_url=database_url,
     )
-    if started_after is None:
+    commit_started_after = _resolve_checkpoint(
+        subscription_id,
+        repository,
+        checkpoint_key=REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
+        baseline_started_after=baseline_started_after,
+        database_url=database_url,
+    )
+    if release_started_after is None and commit_started_after is None:
         return []
 
     source_loader = _resolve_activity_loader(repository)
@@ -96,7 +114,8 @@ def load_repository_signals(
     try:
         signals = source_loader(
             repo_name,
-            started_after=started_after,
+            release_started_after=release_started_after,
+            commit_started_after=commit_started_after,
         )
     except RepositorySourceError as exc:
         logger.warning(
@@ -112,37 +131,61 @@ def load_repository_signals(
         )
         return []
 
-    latest_published_at = max(
+    latest_release_published_at = max(
         (
             signal.published_at
             for signal in signals
-            if signal.published_at is not None
+            if signal.kind == "release" and signal.published_at is not None
         ),
-        default=started_after,
+        default=release_started_after,
     )
-    checkpoint = build_repository_release_checkpoint(
-        subscription_id,
-        repository,
-        latest_published_at=latest_published_at,
-        fallback_started_after=started_after,
+    latest_commit_published_at = max(
+        (
+            signal.published_at
+            for signal in signals
+            if signal.kind == "commit" and signal.published_at is not None
+        ),
+        default=commit_started_after,
     )
-    if checkpoint is not None:
-        upsert_repository_checkpoints((checkpoint,), database_url=database_url)
+
+    checkpoints: list[RepositoryCheckpoint] = []
+    if release_started_after is not None:
+        checkpoint = build_repository_release_checkpoint(
+            subscription_id,
+            repository,
+            latest_published_at=latest_release_published_at,
+            fallback_started_after=release_started_after,
+        )
+        if checkpoint is not None:
+            checkpoints.append(checkpoint)
+
+    if commit_started_after is not None:
+        checkpoint = build_repository_main_commit_checkpoint(
+            subscription_id,
+            repository,
+            latest_published_at=latest_commit_published_at,
+            fallback_started_after=commit_started_after,
+        )
+        if checkpoint is not None:
+            checkpoints.append(checkpoint)
+
+    upsert_repository_checkpoints(tuple(checkpoints), database_url=database_url)
 
     return signals
 
 
-def _resolve_release_checkpoint(
+def _resolve_checkpoint(
     subscription_id: str,
     repository: Repository,
     *,
+    checkpoint_key: str,
     baseline_started_after: datetime | None,
     database_url: str,
 ) -> datetime | None:
     checkpoint = get_repository_checkpoint(
         subscription_id,
         repository.repository_id,
-        REPOSITORY_RELEASE_CHECKPOINT_KEY,
+        checkpoint_key,
         database_url=database_url,
     )
     if checkpoint is not None:
@@ -155,7 +198,7 @@ def _resolve_release_checkpoint(
 
 def _resolve_activity_loader(
     repository: Repository,
-) -> Callable[[str, datetime | None], list[Signal]] | None:
+) -> RepositoryActivityLoader | None:
     if repository.source == "github":
         return github_source.load_repo_activity
     if repository.source == "gitlab":
@@ -163,7 +206,7 @@ def _resolve_activity_loader(
     return None
 
 
-def _supports_release_monitoring(repository: Repository) -> bool:
+def _supports_repository_monitoring(repository: Repository) -> bool:
     return repository.source in {"github", "gitlab"}
 
 

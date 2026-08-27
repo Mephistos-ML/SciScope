@@ -15,11 +15,12 @@ from app.api.routes import auth as auth_routes
 from app.api.routes import control as control_routes
 from app.api.routes import dashboard as dashboard_routes
 from app.api.routes import explore as explore_routes
-from app.api.routes import signals as signal_routes
+from app.api.routes import feed as feed_routes
 from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS, DATABASE_URL
 from app.database.session import check_database_connection
 from app.logging import configure_logging
+from app.services.auth import get_current_user
 from app.services.search.access.errors import ExploreAccessDeniedError
 from app.services.search.explore import (
     AiSearchPlanningError,
@@ -272,24 +273,36 @@ def delete_subscription(request: Request, subscription_id: str) -> dict[str, boo
 def get_status(request: Request) -> dict[str, object]:
     """Return the current dashboard status payload."""
 
-    return signal_routes.get_status_response(request)
+    return control_routes.get_status_payload(database_url=request.app.state.database_url)
 
 
-@app.get("/api/signals")
-def get_signals(request: Request) -> dict[str, object]:
-    """Return the current signal list payload."""
+@app.get("/api/feed")
+def get_feed(request: Request) -> dict[str, object]:
+    """Return durable feed events for the current user."""
 
-    return signal_routes.get_signal_list_response(request)
-
-
-@app.get("/api/signals/{item_id}")
-def get_signal_detail(request: Request, item_id: str) -> dict[str, object]:
-    """Return detail payload for one signal if present."""
-
-    payload = signal_routes.get_signal_detail_response(request, item_id)
+    payload = feed_routes.get_feed_list_response(request)
     if payload is None:
         raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+    return payload
+
+
+@app.get("/api/feed/{event_id}")
+def get_feed_event(request: Request, event_id: str) -> dict[str, object]:
+    """Return one feed event for the current user if present."""
+
+    payload = feed_routes.get_feed_event_response(request, event_id)
+    if payload is None:
+        user = get_current_user(request, database_url=request.app.state.database_url)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required",
+            )
+        raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Signal not found",
+            detail="Feed event not found",
         )
     return payload

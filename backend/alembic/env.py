@@ -11,10 +11,10 @@ from sqlalchemy import engine_from_config, pool
 from app.database.base import Base
 from app.database.records import (
     ExploreSearchEventRecordModel,
+    FeedEventRecordModel,
     OAuthAccountRecordModel,
     RepositoryCheckpointRecordModel,
     RepositoryRecordModel,
-    SeenSignalRecordModel,
     SubscriptionRecordModel,
     UserRecordModel,
     UserSessionRecordModel,
@@ -24,11 +24,11 @@ REGISTERED_MODELS = (
     UserRecordModel,
     OAuthAccountRecordModel,
     UserSessionRecordModel,
-    SeenSignalRecordModel,
     RepositoryRecordModel,
     RepositoryCheckpointRecordModel,
     SubscriptionRecordModel,
     ExploreSearchEventRecordModel,
+    FeedEventRecordModel,
 )
 
 config = context.config

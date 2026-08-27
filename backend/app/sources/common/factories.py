@@ -10,10 +10,15 @@ from app.models.repository import (
     RepositoryCheckpoint,
 )
 from app.models.signal import Signal
-from app.sources.common.models import RepositoryCandidate, RepositoryRelease
+from app.sources.common.models import (
+    RepositoryCandidate,
+    RepositoryCommit,
+    RepositoryRelease,
+)
 
 
 REPOSITORY_RELEASE_CHECKPOINT_KEY = "latest_release_published_at"
+REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY = "latest_main_commit_published_at"
 
 
 def build_repository_candidate_signal(candidate: RepositoryCandidate) -> Signal:
@@ -81,6 +86,29 @@ def build_repository_release_signal(release: RepositoryRelease) -> Signal:
     )
 
 
+def build_repository_main_commit_signal(commit: RepositoryCommit) -> Signal:
+    """Convert one repository main-branch commit event into the shared signal shape."""
+
+    short_sha = commit.commit_sha[:7]
+    branch_suffix = f" ({commit.branch})" if commit.branch else ""
+    return Signal(
+        source=commit.source,
+        kind="commit",
+        item_id=f"{commit.repo_full_name}:commit:{commit.commit_sha}",
+        title=f"{commit.repo_full_name} commit {short_sha}{branch_suffix}",
+        url=commit.url,
+        published_at=commit.published_at,
+        raw_text=f"{commit.title}\n\n{commit.body}\n\n{commit.author_name}".strip(),
+        payload={
+            "repo": commit.repo_full_name,
+            "branch": commit.branch,
+            "commit_sha": commit.commit_sha,
+            "author_name": commit.author_name,
+            **commit.metadata,
+        },
+    )
+
+
 def build_repository_release_checkpoint(
     subscription_id: str,
     repository: Repository,
@@ -99,6 +127,29 @@ def build_repository_release_checkpoint(
         repository_id=repository.repository_id,
         source=repository.source,
         checkpoint_key=REPOSITORY_RELEASE_CHECKPOINT_KEY,
+        checkpoint_value=checkpoint_value.astimezone(UTC).isoformat(),
+        updated_at=datetime.now(UTC),
+    )
+
+
+def build_repository_main_commit_checkpoint(
+    subscription_id: str,
+    repository: Repository,
+    *,
+    latest_published_at: datetime | None,
+    fallback_started_after: datetime,
+) -> RepositoryCheckpoint | None:
+    """Build the next default-branch commit cursor for one watched repository."""
+
+    checkpoint_value = latest_published_at or fallback_started_after
+    if checkpoint_value is None:
+        return None
+
+    return RepositoryCheckpoint(
+        subscription_id=subscription_id,
+        repository_id=repository.repository_id,
+        source=repository.source,
+        checkpoint_key=REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
         checkpoint_value=checkpoint_value.astimezone(UTC).isoformat(),
         updated_at=datetime.now(UTC),
     )

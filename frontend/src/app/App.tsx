@@ -6,6 +6,7 @@ import {
   createExploreSearchJob,
   createSubscription,
   deleteSubscription,
+  fetchFeed,
   fetchExploreSearchJob,
   fetchMe,
   fetchSubscriptions,
@@ -16,8 +17,10 @@ import { AppShell } from "../components/AppShell";
 import { AboutPage } from "../pages/AboutPage";
 import { ExplorePage } from "../pages/ExplorePage";
 import { FeedPage } from "../pages/FeedPage";
+import { SubscriptionsPage } from "../pages/SubscriptionsPage";
 import type {
   AiSearchPlanPayload,
+  FeedEventItem,
   ExploreSearchJobPayload,
   ExploreSearchJobStatus,
   ExploreResultItem,
@@ -25,7 +28,7 @@ import type {
   Viewer,
 } from "../types/api";
 
-type AppView = "explore" | "feed" | "about";
+type AppView = "explore" | "feed" | "subscriptions" | "about";
 
 type ExploreSearchFeedback = {
   message: string;
@@ -39,6 +42,7 @@ export function App() {
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [results, setResults] = useState<ExploreResultItem[]>([]);
   const [lastAiSearchPlan, setLastAiSearchPlan] = useState<AiSearchPlanPayload | null>(null);
+  const [feedEvents, setFeedEvents] = useState<FeedEventItem[]>([]);
   const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>([]);
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
   const [topicInput, setTopicInput] = useState("");
@@ -82,26 +86,33 @@ export function App() {
 
   useEffect(() => {
     if (!viewer) {
+      setFeedEvents([]);
       setSubscriptions([]);
       setSelectedSubscriptionId(null);
       return;
     }
 
-    async function loadSubscriptions() {
+    async function loadViewerData() {
       try {
-        const payload = await fetchSubscriptions();
-        setSubscriptions(payload.items);
-        setSelectedSubscriptionId((currentId) => currentId ?? payload.items[0]?.subscriptionId ?? null);
+        const [subscriptionPayload, feedPayload] = await Promise.all([
+          fetchSubscriptions(),
+          fetchFeed(),
+        ]);
+        setSubscriptions(subscriptionPayload.items);
+        setFeedEvents(feedPayload.items);
+        setSelectedSubscriptionId(
+          (currentId) => currentId ?? subscriptionPayload.items[0]?.subscriptionId ?? null,
+        );
       } catch (error) {
         if (!isApiUnavailableError(error)) {
           setErrorMessage(
-            error instanceof Error ? error.message : "Failed to load subscriptions.",
+            error instanceof Error ? error.message : "Failed to load signed-in data.",
           );
         }
       }
     }
 
-    void loadSubscriptions();
+    void loadViewerData();
   }, [viewer]);
 
   useEffect(() => {
@@ -362,12 +373,18 @@ export function App() {
       ) : null}
       {activeView === "feed" ? (
         <FeedPage
+          feedEvents={feedEvents}
+          viewer={viewer}
+        />
+      ) : null}
+      {activeView === "subscriptions" ? (
+        <SubscriptionsPage
           deletePending={deletePending}
           selectedSubscriptionId={selectedSubscriptionId}
           subscriptions={subscriptions}
-          viewer={viewer}
           onDeleteSubscription={(subscriptionId) => void handleDeleteSubscription(subscriptionId)}
           onSelectSubscription={(subscriptionId) => void handleSelectSubscription(subscriptionId)}
+          viewer={viewer}
         />
       ) : null}
       {activeView === "about" ? <AboutPage /> : null}

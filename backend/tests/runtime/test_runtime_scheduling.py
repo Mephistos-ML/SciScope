@@ -11,19 +11,19 @@ from app.services import runtime
 def test_should_run_monitoring_when_never_run() -> None:
     STATE.last_scan_at = None
 
-    assert runtime._should_run_monitoring() is True
+    assert runtime.should_run_monitoring() is True
 
 
 def test_should_run_monitoring_after_interval_elapsed() -> None:
     STATE.last_scan_at = datetime.now(UTC) - timedelta(hours=3)
 
-    assert runtime._should_run_monitoring() is True
+    assert runtime.should_run_monitoring() is True
 
 
 def test_should_not_run_monitoring_before_interval_elapsed() -> None:
     STATE.last_scan_at = datetime.now(UTC) - timedelta(minutes=30)
 
-    assert runtime._should_run_monitoring() is False
+    assert runtime.should_run_monitoring() is False
 
 
 def test_start_monitoring_runs_baseline_without_immediate_scan(
@@ -32,11 +32,17 @@ def test_start_monitoring_runs_baseline_without_immediate_scan(
     calls: list[str] = []
 
     monkeypatch.setattr(
-        runtime,
-        "run_baseline_sync",
+        "app.services.runtime.control.run_baseline_sync",
         lambda *, database_url: calls.append(database_url),
     )
-    monkeypatch.setattr(runtime.threading, "Thread", _FakeThread)
+    monkeypatch.setattr(
+        "app.services.runtime.control._build_auto_scan_thread",
+        lambda *, database_url: _FakeThread(
+            target=lambda: None,
+            name="sciscope-auto-scan",
+            daemon=True,
+        ),
+    )
 
     STATE.auto_scan_started = False
     STATE.auto_scan_thread = None
