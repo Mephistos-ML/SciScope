@@ -1,3 +1,12 @@
+# [1.7.0](https://github.com/Mephistos-ML/SciScope/compare/v1.6.4...v1.7.0) (2026-08-27)
+
+
+### Features
+
+* **search:** add admission decision buckets ([6c87e03](https://github.com/Mephistos-ML/SciScope/commit/6c87e0334adab842047934ea168d2f0e3e338446))
+* **search:** add structured observability events ([ec7a842](https://github.com/Mephistos-ML/SciScope/commit/ec7a8424ea3587541090b657fd13b7f028126020))
+* **search:** enrich explore completion timing logs ([da8f34a](https://github.com/Mephistos-ML/SciScope/commit/da8f34af9638001981a3b2ce29d584bc38dcb42a))
+
 ## [1.6.4](https://github.com/Mephistos-ML/SciScope/compare/v1.6.3...v1.6.4) (2026-08-26)
 
 
