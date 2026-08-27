@@ -7,7 +7,7 @@ export type StatusPayload = {
   lastScanError: string | null;
   watchedRepositories: WatchedRepositoryPayload[];
   sourceCheckpoints: SourceCheckpointPayload[];
-  totalSignals: number;
+  totalFeedEvents: number;
 };
 
 export type Viewer = {
@@ -50,41 +50,31 @@ export type SourceCheckpointPayload = {
   updatedAt: string | null;
 };
 
-export type SignalListItem = {
-  itemId: string;
-  viewId: string;
+export type FeedEventItem = {
+  eventId: string;
   subscriptionId: string;
   repositoryId: string;
   repositoryFullName: string;
+  repositorySource: string;
+  repositoryUrl: string;
   selectedQuery: string | null;
   title: string;
+  summary: string;
   source: string;
   signalKind: string;
   url: string;
   publishedAt: string | null;
-  isNew: boolean;
+  createdAt: string | null;
 };
 
-export type SignalListPayload = {
-  items: SignalListItem[];
+export type FeedEventListPayload = {
+  items: FeedEventItem[];
 };
 
-export type SignalDetailPayload = {
-  itemId: string;
-  viewId: string;
-  subscriptionId: string;
-  repositoryId: string;
-  repositoryFullName: string;
-  selectedQuery: string | null;
-  title: string;
-  source: string;
-  signalKind: string;
-  url: string;
-  publishedAt: string | null;
+export type FeedEventDetailPayload = FeedEventItem & {
   rawText: string;
   normalizedText: string;
   metadata: Record<string, unknown>;
-  isNew: boolean;
 };
 
 export type RepositorySummary = {

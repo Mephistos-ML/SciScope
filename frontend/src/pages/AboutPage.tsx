@@ -49,10 +49,17 @@ export function AboutPage() {
               </p>
             </div>
             <div className="about-flow-item">
-              <strong>My Feed</strong>
+              <strong>Feed</strong>
               <p>
-                Keep subscribed repositories in a dedicated feed so important changes
-                can be surfaced in one place.
+                Review durable releases and default-branch commit events collected
+                after you subscribed to a repository.
+              </p>
+            </div>
+            <div className="about-flow-item">
+              <strong>Subscriptions</strong>
+              <p>
+                Manage the repositories you chose to monitor without mixing them
+                with the event stream itself.
               </p>
             </div>
           </div>
@@ -64,7 +71,8 @@ export function AboutPage() {
             <li>Cross-host repository discovery for scientific software.</li>
             <li>AI-generated search queries based on the user topic description.</li>
             <li>Repository-level subscriptions chosen directly from Explore results.</li>
-            <li>Feed views centered on repositories that the user explicitly follows.</li>
+            <li>Durable feed events for subscribed repositories.</li>
+            <li>Separate subscription management beside the feed itself.</li>
             <li>Links back to the original repository host from source badges.</li>
           </ul>
         </article>

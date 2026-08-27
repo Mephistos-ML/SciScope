@@ -4,9 +4,9 @@ import sciscopeLogo from "../assets/brand/sciscope-logo.svg";
 import type { ViewerPayload } from "../types/api";
 
 type AppShellProps = {
-  activeView: "explore" | "feed" | "about";
+  activeView: "explore" | "feed" | "subscriptions" | "about";
   children: ReactNode;
-  onNavigate: (view: "explore" | "feed" | "about") => void;
+  onNavigate: (view: "explore" | "feed" | "subscriptions" | "about") => void;
   onSignIn: () => void;
   onSignOut: () => void;
   signingIn: boolean;
@@ -91,7 +91,20 @@ export function AppShell({
             type="button"
           >
             <FeedIcon />
-            <span>My Feed</span>
+            <span>Feed</span>
+          </button>
+          <button
+            className={
+              activeView === "subscriptions"
+                ? "sidebar-nav-button sidebar-nav-button-active"
+                : "sidebar-nav-button"
+            }
+            aria-current={activeView === "subscriptions" ? "page" : undefined}
+            onClick={() => onNavigate("subscriptions")}
+            type="button"
+          >
+            <LibraryIcon />
+            <span>Subscriptions</span>
           </button>
         </nav>
       </aside>
@@ -148,6 +161,23 @@ function FeedIcon() {
       <rect x="3" y="3" width="14" height="14" rx="3" stroke="currentColor" strokeWidth="1.8" />
       <path d="M6 10H14" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
       <path d="M10 6L10 14" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function LibraryIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="sidebar-nav-icon"
+      viewBox="0 0 20 20"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M4.5 4.5H15.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+      <path d="M4.5 10H15.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+      <path d="M4.5 15.5H15.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+      <path d="M6 3.5V16.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
     </svg>
   );
 }

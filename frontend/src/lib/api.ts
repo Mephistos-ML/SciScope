@@ -1,9 +1,9 @@
 import type {
   ExploreAccessErrorPayload,
+  FeedEventDetailPayload,
+  FeedEventListPayload,
   ExploreSearchJobPayload,
   ExploreSearchPayload,
-  SignalDetailPayload,
-  SignalListPayload,
   StatusPayload,
   SubscriptionItem,
   SubscriptionListPayload,
@@ -198,12 +198,12 @@ export async function fetchExploreSearchJob(jobId: string): Promise<ExploreSearc
   return requestJson<ExploreSearchJobPayload>(`/api/explore/search-jobs/${jobId}`);
 }
 
-export async function fetchSignals(): Promise<SignalListPayload> {
-  return requestJson<SignalListPayload>("/api/signals");
+export async function fetchFeed(): Promise<FeedEventListPayload> {
+  return requestJson<FeedEventListPayload>("/api/feed");
 }
 
-export async function fetchSignalDetail(itemId: string): Promise<SignalDetailPayload> {
-  return requestJson<SignalDetailPayload>(`/api/signals/${itemId}`);
+export async function fetchFeedEvent(eventId: string): Promise<FeedEventDetailPayload> {
+  return requestJson<FeedEventDetailPayload>(`/api/feed/${eventId}`);
 }
 
 export async function startScan(): Promise<StatusPayload> {
