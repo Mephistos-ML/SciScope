@@ -1,3 +1,10 @@
+## [1.8.1](https://github.com/Mephistos-ML/SciScope/compare/v1.8.0...v1.8.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* **search:** tighten planner query generation rules ([cc1b635](https://github.com/Mephistos-ML/SciScope/commit/cc1b6357b7d87c975847dd400e7b54a13c971ae8))
+
 # [1.8.0](https://github.com/Mephistos-ML/SciScope/compare/v1.7.2...v1.8.0) (2026-08-27)
 
 
