@@ -348,15 +348,6 @@ export function ExplorePage({
                             <p className="repository-description">
                               {result.description || result.reason}
                             </p>
-                            {result.matchedTerms.length > 0 ? (
-                              <div className="repository-term-row">
-                                {result.matchedTerms.map((term) => (
-                                  <span className="repository-term-chip" key={`${result.itemId}-${term}`}>
-                                    {term}
-                                  </span>
-                                ))}
-                              </div>
-                            ) : null}
                           </div>
 
                           <div className="repository-cell" data-label="Source">
