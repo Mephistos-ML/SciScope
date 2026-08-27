@@ -24,6 +24,7 @@ def test_repository_admission_keeps_code_like_candidate() -> None:
     assert result.kept_count == 1
     assert result.rejected_count == 0
     assert result.evaluated_candidates[0].admission.decision == "keep"
+    assert result.evaluated_candidates[0].admission.bucket == "strong_code_keep"
     assert result.evaluated_candidates[0].admission.evidence.path_strength == "strong"
 
 
@@ -43,6 +44,7 @@ def test_repository_admission_keeps_fortran_code_match() -> None:
     result = run_repository_admission((candidate,), mode="enforced")
 
     assert result.kept_count == 1
+    assert result.evaluated_candidates[0].admission.bucket == "strong_code_keep"
     assert result.evaluated_candidates[0].admission.evidence.path_strength == "strong"
 
 
@@ -62,6 +64,7 @@ def test_repository_admission_keeps_cuda_code_match() -> None:
     result = run_repository_admission((candidate,), mode="enforced")
 
     assert result.kept_count == 1
+    assert result.evaluated_candidates[0].admission.bucket == "strong_code_keep"
     assert result.evaluated_candidates[0].admission.evidence.path_strength == "strong"
 
 
@@ -81,6 +84,7 @@ def test_repository_admission_keeps_manifest_match() -> None:
     result = run_repository_admission((candidate,), mode="enforced")
 
     assert result.kept_count == 1
+    assert result.evaluated_candidates[0].admission.bucket == "strong_code_keep"
     assert result.evaluated_candidates[0].admission.evidence.path_strength == "strong"
 
 
@@ -103,6 +107,7 @@ def test_repository_admission_keeps_readme_match_for_real_software_repo() -> Non
     assert result.kept_count == 1
     assert result.rejected_count == 0
     assert result.evaluated_candidates[0].admission.decision == "keep"
+    assert result.evaluated_candidates[0].admission.bucket == "descriptive_path_keep"
     assert (
         result.evaluated_candidates[0].admission.evidence.path_strength
         == "descriptive"
@@ -125,6 +130,7 @@ def test_repository_admission_rejects_metadata_mirror_repo() -> None:
     assert result.kept_count == 0
     assert result.rejected_count == 1
     assert result.evaluated_candidates[0].admission.decision == "reject"
+    assert result.evaluated_candidates[0].admission.bucket == "repo_name_gate"
     assert result.evaluated_candidates[0].admission.evidence.path_strength == "none"
 
 
@@ -146,6 +152,7 @@ def test_repository_admission_keeps_benchmark_heavy_scientific_software_repo() -
     assert result.kept_count == 1
     assert result.rejected_count == 0
     assert result.evaluated_candidates[0].admission.decision == "keep"
+    assert result.evaluated_candidates[0].admission.bucket == "metadata_software_keep"
 
 
 def test_repository_admission_keeps_software_repo_with_paper_mentions_in_metadata() -> None:
@@ -165,6 +172,7 @@ def test_repository_admission_keeps_software_repo_with_paper_mentions_in_metadat
     assert result.kept_count == 1
     assert result.rejected_count == 0
     assert result.evaluated_candidates[0].admission.decision == "keep"
+    assert result.evaluated_candidates[0].admission.bucket == "conservative_keep"
 
 
 def test_repository_admission_rejects_paper_list_repo_name() -> None:
@@ -184,6 +192,7 @@ def test_repository_admission_rejects_paper_list_repo_name() -> None:
     assert result.kept_count == 0
     assert result.rejected_count == 1
     assert result.evaluated_candidates[0].admission.decision == "reject"
+    assert result.evaluated_candidates[0].admission.bucket == "repo_name_gate"
     assert result.evaluated_candidates[0].admission.evidence.path_strength == "none"
 
 
@@ -204,6 +213,7 @@ def test_repository_admission_rejects_arxiv_digest_repo_name() -> None:
     assert result.kept_count == 0
     assert result.rejected_count == 1
     assert result.evaluated_candidates[0].admission.decision == "reject"
+    assert result.evaluated_candidates[0].admission.bucket == "repo_name_gate"
     assert result.evaluated_candidates[0].admission.evidence.path_strength == "none"
 
 
@@ -224,6 +234,7 @@ def test_repository_admission_rejects_tutorial_style_repo_name() -> None:
     assert result.kept_count == 0
     assert result.rejected_count == 1
     assert result.evaluated_candidates[0].admission.decision == "reject"
+    assert result.evaluated_candidates[0].admission.bucket == "repo_name_gate"
     assert result.evaluated_candidates[0].admission.evidence.path_strength == "none"
 
 
@@ -244,6 +255,7 @@ def test_repository_admission_rejects_course_style_repo_name() -> None:
     assert result.kept_count == 0
     assert result.rejected_count == 1
     assert result.evaluated_candidates[0].admission.decision == "reject"
+    assert result.evaluated_candidates[0].admission.bucket == "repo_name_gate"
     assert result.evaluated_candidates[0].admission.evidence.path_strength == "none"
 
 
@@ -265,6 +277,7 @@ def test_repository_admission_off_mode_shows_every_candidate() -> None:
     assert result.rejected_count == 0
     assert len(result.visible_candidates) == 1
     assert result.visible_candidates[0].admission.decision == "keep"
+    assert result.visible_candidates[0].admission.bucket == "admission_disabled"
     assert result.visible_candidates[0].admission.evidence.path_strength == "none"
 
 

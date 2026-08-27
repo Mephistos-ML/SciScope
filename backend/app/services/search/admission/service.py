@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 import logging
 from time import monotonic
 
@@ -40,6 +41,7 @@ def run_repository_admission(
                 candidate=candidate,
                 admission=AdmissionDecision(
                     decision="keep",
+                    bucket="admission_disabled",
                     evidence=AdmissionEvidence(
                         matched_channels=candidate.provenance.matched_channels,
                         matched_query_count=len(candidate.provenance.matched_queries),
@@ -71,6 +73,8 @@ def run_repository_admission(
                 candidate_count_in=len(candidates),
                 kept_count=result.kept_count,
                 rejected_count=result.rejected_count,
+                bucket_counts=_build_bucket_counts(result),
+                reject_bucket_counts=_build_reject_bucket_counts(result),
                 mode=result.mode,
             )
         return result
@@ -100,6 +104,25 @@ def run_repository_admission(
             candidate_count_in=len(candidates),
             kept_count=result.kept_count,
             rejected_count=result.rejected_count,
+            bucket_counts=_build_bucket_counts(result),
+            reject_bucket_counts=_build_reject_bucket_counts(result),
             mode=result.mode,
         )
     return result
+
+
+def _build_bucket_counts(result: AdmissionResult) -> dict[str, int]:
+    counts = Counter(
+        evaluated_candidate.admission.bucket
+        for evaluated_candidate in result.evaluated_candidates
+    )
+    return dict(sorted(counts.items()))
+
+
+def _build_reject_bucket_counts(result: AdmissionResult) -> dict[str, int]:
+    counts = Counter(
+        evaluated_candidate.admission.bucket
+        for evaluated_candidate in result.evaluated_candidates
+        if not evaluated_candidate.admission.keep
+    )
+    return dict(sorted(counts.items()))

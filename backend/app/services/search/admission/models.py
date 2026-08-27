@@ -10,6 +10,20 @@ from app.services.search.retrieval.models import RepositoryCandidate
 AdmissionMode = Literal["off", "enforced"]
 AdmissionDecisionLabel = Literal["keep", "reject"]
 AdmissionPathStrength = Literal["strong", "descriptive", "weak", "none"]
+AdmissionBucket = Literal[
+    "admission_disabled",
+    "repo_name_gate",
+    "strong_code_keep",
+    "descriptive_path_keep",
+    "code_search_keep",
+    "metadata_software_keep",
+    "language_overlap_keep",
+    "data_like_reject",
+    "paper_like_reject",
+    "education_like_reject",
+    "weak_path_reject",
+    "conservative_keep",
+]
 
 
 @dataclass(frozen=True)
@@ -33,6 +47,7 @@ class AdmissionDecision:
     """One keep or reject decision for one repository candidate."""
 
     decision: AdmissionDecisionLabel
+    bucket: AdmissionBucket
     evidence: AdmissionEvidence
 
     @property
