@@ -5,11 +5,9 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from queue import Empty, Queue
-from typing import Callable
 from urllib.parse import urlparse
 
 from app.config import GITLAB_BASE_URL
-from app.models.signal import Signal
 from app.services.search.observability import SearchLogContext, log_search_event
 from app.services.search.retrieval.lanes import (
     LaneResult,
@@ -26,10 +24,14 @@ from app.services.search.retrieval.timeouts import (
 )
 from app.sources.github.search import (
     discover_repository_candidates as discover_github_repository_candidates,
+)
+from app.sources.github.search import (
     discover_repository_candidates_from_code as discover_github_repository_candidates_from_code,
 )
 from app.sources.gitlab.search import (
     discover_repository_candidates as discover_gitlab_repository_candidates,
+)
+from app.sources.gitlab.search import (
     discover_repository_candidates_from_code as discover_gitlab_repository_candidates_from_code,
 )
 
@@ -78,7 +80,12 @@ def discover_candidates_across_sources(
         )
 
     lane_results: Queue[LaneResult] = Queue()
-    for source_name, channel_name, discover_candidates, supports_deadline in active_discoverers:
+    for (
+        source_name,
+        channel_name,
+        discover_candidates,
+        supports_deadline,
+    ) in active_discoverers:
         start_lane_worker(
             source_name=source_name,
             channel_name=channel_name,
@@ -100,9 +107,13 @@ def discover_candidates_across_sources(
             hard_deadline_monotonic=hard_deadline_monotonic,
         )
         try:
-            lane_result = lane_results.get(
-                timeout=wait_timeout_seconds,
-            ) if wait_timeout_seconds is not None else lane_results.get()
+            lane_result = (
+                lane_results.get(
+                    timeout=wait_timeout_seconds,
+                )
+                if wait_timeout_seconds is not None
+                else lane_results.get()
+            )
         except Empty:
             partial = True
             warning, log_level = build_deadline_warning(
