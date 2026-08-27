@@ -1,3 +1,12 @@
+# [1.9.0](https://github.com/Mephistos-ML/SciScope/compare/v1.8.2...v1.9.0) (2026-08-27)
+
+
+### Features
+
+* **feed:** replace signal delivery with durable user feed events ([5532268](https://github.com/Mephistos-ML/SciScope/commit/553226848dc1b6d691ab6dd685ebc56baeaaa1b7))
+* **monitoring:** track release and default-branch commit activity ([6d6f36e](https://github.com/Mephistos-ML/SciScope/commit/6d6f36e47977f4c4887b19073e25d6e4c62a1db6))
+* **web:** split feed and subscription management views ([15abf41](https://github.com/Mephistos-ML/SciScope/commit/15abf41aebcf7613619e93d4b9902882c333c989))
+
 ## [1.8.2](https://github.com/Mephistos-ML/SciScope/compare/v1.8.1...v1.8.2) (2026-08-27)
 
 
