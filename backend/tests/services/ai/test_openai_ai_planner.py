@@ -39,14 +39,14 @@ def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
         "magnetic susceptibility tensor",
         "pseudocontact shift",
     )
-    assert "scientific software discovery" in captured_prompts["system"]
-    assert "Generate 3 to 6 GitHub search queries" in captured_prompts["system"]
-    assert "Aim for 5 queries when possible." in captured_prompts["system"]
-    assert "host software" in captured_prompts["system"]
+    assert "scientific software repository discovery" in captured_prompts["system"]
+    assert "Generate exactly 5 search queries" in captured_prompts["system"]
+    assert "canonical short form of the topic" in captured_prompts["system"]
+    assert "Do not invent software names" in captured_prompts["system"]
     assert captured_prompts["user"].startswith("Topic description:\n")
 
 
-def test_openai_planner_limits_normalized_query_count_to_six(monkeypatch) -> None:
+def test_openai_planner_limits_normalized_query_count_to_five(monkeypatch) -> None:
     planner = OpenAiSearchPlanner()
 
     monkeypatch.setattr(
@@ -72,7 +72,6 @@ def test_openai_planner_limits_normalized_query_count_to_six(monkeypatch) -> Non
         "query 3",
         "query 4",
         "query 5",
-        "query 6",
     )
 
 
@@ -92,7 +91,7 @@ def test_openai_planner_raises_when_normalized_queries_are_below_minimum(
         },
     )
 
-    with pytest.raises(RuntimeError, match="3 to 6 unique queries"):
+    with pytest.raises(RuntimeError, match="5 unique queries"):
         planner.build_search_plan(topic_description="Paramagnetic NMR analysis workflows")
 
 

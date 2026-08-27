@@ -9,9 +9,7 @@ from app.models.ai import AiSearchPlan
 from app.services.ai.openai.client import build_openai_json_response
 from app.services.ai.search_plans import normalize_search_queries
 
-MIN_SEARCH_QUERY_COUNT = 3
-TARGET_SEARCH_QUERY_COUNT = 5
-MAX_SEARCH_QUERY_COUNT = 6
+SEARCH_QUERY_COUNT = 5
 
 _SEARCH_PLAN_JSON_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -20,8 +18,8 @@ _SEARCH_PLAN_JSON_SCHEMA: dict[str, Any] = {
     "properties": {
         "queries": {
             "type": "array",
-            "minItems": MIN_SEARCH_QUERY_COUNT,
-            "maxItems": MAX_SEARCH_QUERY_COUNT,
+            "minItems": SEARCH_QUERY_COUNT,
+            "maxItems": SEARCH_QUERY_COUNT,
             "items": {
                 "type": "string",
             },
@@ -29,25 +27,28 @@ _SEARCH_PLAN_JSON_SCHEMA: dict[str, Any] = {
     },
 }
 
-_SYSTEM_PROMPT = """Generate 3 to 6 GitHub search queries for scientific software discovery.
+_SYSTEM_PROMPT = """Generate exactly 5 search queries for scientific software repository discovery.
 
-Goal: find repositories implementing the described scientific method or software capability.
+Goal: maximize recall of domain-specific scientific software repositories while avoiding generic software, papers, datasets, tutorials, and unrelated tools.
 
 Rules:
+- Query 1 must be the canonical short form of the topic.
+- Stay close to the user topic and preserve its scientific meaning.
+- Do not invent software names, package names, frameworks, languages, or file names that are not explicitly mentioned in the topic.
+- Do not add a programming language unless it is explicitly mentioned in the topic.
+- Each query must represent a meaningfully different retrieval angle, not a minor rewording.
+- Prefer exact scientific method names, scientific subterms, implementation phrases, and domain-specific terminology that are likely to appear in repository metadata or code search.
+- Keep queries short: 2 to 6 words.
+- Avoid broad generic terms like: software, tool, analysis, project, model, python, dataset, paper, tutorial, notes, example.
+- Use only ASCII characters.
 - Return only JSON matching the provided schema.
-- Aim for 5 queries when possible.
-- Prefer narrow scientific queries over broad generic ones.
-- Each query must add a new retrieval angle.
-- Do not repeat the same phrase with minor rewording.
-- Avoid generic software terms unless tied to the scientific context.
-- Prefer short technical phrases, not full sentences.
-- Use these angles when possible:
-  1. host software
-  2. exact method
-  3. scientific synonym
-  4. implementation term
-  5. alternate domain phrase
-  6. optional extra query only if it is clearly distinct
+
+Use these retrieval angles when possible:
+  1. canonical topic phrase
+  2. exact method or algorithm name
+  3. domain-specific synonym or closely related scientific term
+  4. implementation-oriented phrase
+  5. alternate scientific phrasing that stays within the same topic
 """
 
 
@@ -75,10 +76,7 @@ def _build_user_prompt(
     *,
     topic_description: str,
 ) -> str:
-    return (
-        "Topic description:\n"
-        f"{topic_description.strip() or 'Untitled topic'}"
-    )
+    return f"Topic description:\n{topic_description.strip() or 'Untitled topic'}"
 
 
 def _parse_ai_search_plan(
@@ -89,10 +87,10 @@ def _parse_ai_search_plan(
         raise RuntimeError("OpenAI planner returned invalid queries")
 
     queries = normalize_search_queries(str(raw_query) for raw_query in raw_queries)[
-        :MAX_SEARCH_QUERY_COUNT
+        :SEARCH_QUERY_COUNT
     ]
-    if not MIN_SEARCH_QUERY_COUNT <= len(queries) <= MAX_SEARCH_QUERY_COUNT:
-        raise RuntimeError("OpenAI planner must return 3 to 6 unique queries")
+    if len(queries) != SEARCH_QUERY_COUNT:
+        raise RuntimeError("OpenAI planner must return 5 unique queries")
 
     return AiSearchPlan(
         status="ready" if queries else "pending",
