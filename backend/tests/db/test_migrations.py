@@ -110,6 +110,7 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
     assert inspector.has_table("user_sessions")
     assert inspector.has_table("explore_search_events")
     assert inspector.has_table("feed_events")
+    assert not inspector.has_table("seen_signals")
 
     with engine.connect() as connection:
         version = connection.execute(

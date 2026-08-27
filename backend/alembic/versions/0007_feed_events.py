@@ -23,6 +23,20 @@ def _has_index(
     return index_name in {index["name"] for index in inspector.get_indexes(table_name)}
 
 
+def _create_seen_signals_table() -> None:
+    op.create_table(
+        "seen_signals",
+        sa.Column("source", sa.String(), nullable=False),
+        sa.Column("item_id", sa.String(), nullable=False),
+        sa.Column("title", sa.Text(), nullable=False),
+        sa.Column("url", sa.Text(), nullable=False),
+        sa.Column("payload_json", sa.JSON(), nullable=False),
+        sa.Column("first_seen_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("last_seen_at", sa.DateTime(timezone=True), nullable=False),
+        sa.PrimaryKeyConstraint("source", "item_id"),
+    )
+
+
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
@@ -63,6 +77,12 @@ def upgrade() -> None:
             continue
         op.create_index(index_name, "feed_events", list(columns))
 
+    inspector = sa.inspect(bind)
+    if _has_table(inspector, "seen_signals"):
+        if _has_index(inspector, "seen_signals", "ix_seen_signals_source"):
+            op.drop_index("ix_seen_signals_source", table_name="seen_signals")
+        op.drop_table("seen_signals")
+
 
 def downgrade() -> None:
     bind = op.get_bind()
@@ -80,3 +100,8 @@ def downgrade() -> None:
         if _has_index(inspector, "feed_events", index_name):
             op.drop_index(index_name, table_name="feed_events")
     op.drop_table("feed_events")
+
+    inspector = sa.inspect(bind)
+    if not _has_table(inspector, "seen_signals"):
+        _create_seen_signals_table()
+        op.create_index("ix_seen_signals_source", "seen_signals", ["source"])
