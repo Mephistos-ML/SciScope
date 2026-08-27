@@ -19,6 +19,7 @@ from app.api.routes import signals as signal_routes
 from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS, DATABASE_URL
 from app.database.session import check_database_connection
+from app.logging import configure_logging
 from app.services.search.access.errors import ExploreAccessDeniedError
 from app.services.search.explore import (
     AiSearchPlanningError,
@@ -44,6 +45,7 @@ class CreateSubscriptionRequest(BaseModel):
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Fail fast if the configured database is unavailable at startup."""
 
+    configure_logging()
     _app.state.database_url = DATABASE_URL
     check_database_connection(_app.state.database_url)
     yield

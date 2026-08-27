@@ -88,6 +88,7 @@ REPLAY_FIXTURES_PATH = _read_optional_path_env(
     BACKEND_ROOT / "tests" / "fixtures" / "replay_signals.json",
 )
 APP_ENV = _read_required_env("APP_ENV")
+APP_LOG_LEVEL = (_read_optional_env("APP_LOG_LEVEL") or "INFO").upper()
 APP_HOST = _read_required_env("APP_HOST")
 APP_PORT = _read_required_int_env("APP_PORT")
 CORS_ORIGINS = _read_required_csv_env("CORS_ORIGINS")
@@ -168,6 +169,11 @@ EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS = _read_optional_int_env(
     30,
 )
 EXPLORE_ADMISSION_MODE = _read_optional_env("EXPLORE_ADMISSION_MODE") or "enforced"
+
+if APP_LOG_LEVEL not in {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}:
+    raise RuntimeError(
+        "APP_LOG_LEVEL must be one of: CRITICAL, DEBUG, ERROR, INFO, WARNING"
+    )
 
 if AUTH_SESSION_TTL_SECONDS <= 0:
     raise RuntimeError("AUTH_SESSION_TTL_SECONDS must be a positive integer")
