@@ -6,11 +6,15 @@ from datetime import UTC, datetime
 
 from app.models.repository import Repository
 from app.sources.common import (
+    REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
     REPOSITORY_RELEASE_CHECKPOINT_KEY,
     RepositoryCandidate,
+    RepositoryCommit,
     RepositoryRelease,
     build_repository_candidate_signal,
     build_repository_entity,
+    build_repository_main_commit_checkpoint,
+    build_repository_main_commit_signal,
     build_repository_release_checkpoint,
     build_repository_release_signal,
     read_repository_name,
@@ -89,6 +93,42 @@ def test_build_repository_release_signal_and_checkpoint_use_shared_contract() ->
     assert checkpoint is not None
     assert checkpoint.subscription_id == "sub_pnmr"
     assert checkpoint.checkpoint_key == REPOSITORY_RELEASE_CHECKPOINT_KEY
+
+
+def test_build_repository_main_commit_signal_and_checkpoint_use_shared_contract() -> None:
+    commit = RepositoryCommit(
+        source="github",
+        repo_full_name="Mephistos-ML/paranmr",
+        commit_sha="abcdef1234567890",
+        title="Improve PCS tensor fitting",
+        url="https://github.com/Mephistos-ML/paranmr/commit/abcdef1234567890",
+        published_at=datetime(2026, 7, 18, 11, 0, tzinfo=UTC),
+        branch="default",
+        author_name="Ernest",
+        body="Refine tensor optimization defaults.",
+    )
+    repository = Repository(
+        repository_id="github:repo:Mephistos-ML/paranmr",
+        source="github",
+        full_name="Mephistos-ML/paranmr",
+        url="https://github.com/Mephistos-ML/paranmr",
+        metadata={"repo": "Mephistos-ML/paranmr"},
+    )
+
+    signal = build_repository_main_commit_signal(commit)
+    checkpoint = build_repository_main_commit_checkpoint(
+        "sub_pnmr",
+        repository,
+        latest_published_at=commit.published_at,
+        fallback_started_after=datetime(2026, 7, 18, 10, 0, tzinfo=UTC),
+    )
+
+    assert signal.item_id == "Mephistos-ML/paranmr:commit:abcdef1234567890"
+    assert signal.payload["repo"] == "Mephistos-ML/paranmr"
+    assert signal.payload["commit_sha"] == "abcdef1234567890"
+    assert checkpoint is not None
+    assert checkpoint.subscription_id == "sub_pnmr"
+    assert checkpoint.checkpoint_key == REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY
 
 
 def test_read_repository_name_uses_metadata_then_full_name() -> None:

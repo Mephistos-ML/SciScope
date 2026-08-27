@@ -34,3 +34,19 @@ class RepositoryRelease:
     tag_name: str = ""
     body: str = ""
     metadata: dict[str, object] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class RepositoryCommit:
+    """One default-branch commit event emitted by a repository source."""
+
+    source: str
+    repo_full_name: str
+    commit_sha: str
+    title: str
+    url: str
+    published_at: datetime
+    branch: str = ""
+    author_name: str = ""
+    body: str = ""
+    metadata: dict[str, object] = field(default_factory=dict)

@@ -22,6 +22,8 @@ def test_load_repo_activity_builds_release_signals(monkeypatch) -> None:
                     "body": "Adds PCS fitting improvements.",
                 }
             ]
+        if url.endswith("/commits?per_page=10"):
+            return []
 
         raise AssertionError(f"Unexpected URL: {url}")
 
@@ -29,7 +31,8 @@ def test_load_repo_activity_builds_release_signals(monkeypatch) -> None:
 
     signals = github_monitor.load_repo_activity(
         "Mephistos-ML/paranmr",
-        started_after=started_after,
+        release_started_after=started_after,
+        commit_started_after=started_after,
     )
 
     assert len(signals) == 1
@@ -54,6 +57,8 @@ def test_load_repo_activity_ignores_events_before_start(monkeypatch) -> None:
                     "body": "Too old.",
                 }
             ]
+        if url.endswith("/commits?per_page=10"):
+            return []
 
         raise AssertionError(f"Unexpected URL: {url}")
 
@@ -61,7 +66,8 @@ def test_load_repo_activity_ignores_events_before_start(monkeypatch) -> None:
 
     signals = github_monitor.load_repo_activity(
         "Mephistos-ML/paranmr",
-        started_after=started_after,
+        release_started_after=started_after,
+        commit_started_after=started_after,
     )
 
     assert signals == []

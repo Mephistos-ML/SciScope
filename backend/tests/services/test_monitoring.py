@@ -8,6 +8,7 @@ from tests.conftest import build_test_database_url, migrate_test_database
 from app.models.repository import Repository, RepositoryCheckpoint
 from app.models.signal import Signal
 from app.services.monitoring import repositories as monitoring_service
+from app.sources.common import REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY
 from app.storage.repositories import (
     get_repository_checkpoint,
     upsert_repository_checkpoints,
@@ -56,6 +57,14 @@ def test_load_repository_signals_advances_checkpoint_from_latest_release(
                 checkpoint_value=started_after.isoformat(),
                 updated_at=started_after,
             ),
+            RepositoryCheckpoint(
+                subscription_id="sub_monitoring",
+                repository_id="github:repo:Mephistos-ML/paranmr",
+                source="github",
+                checkpoint_key=REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
+                checkpoint_value=started_after.isoformat(),
+                updated_at=started_after,
+            ),
         ),
         database_url=database_url,
     )
@@ -63,10 +72,12 @@ def test_load_repository_signals_advances_checkpoint_from_latest_release(
     def fake_load_repo_activity(
         repo_full_name: str,
         *,
-        started_after: datetime | None,
+        release_started_after: datetime | None,
+        commit_started_after: datetime | None,
     ) -> list[Signal]:
         assert repo_full_name == "Mephistos-ML/paranmr"
-        assert started_after == datetime(2026, 8, 20, 9, 30, tzinfo=UTC)
+        assert release_started_after == datetime(2026, 8, 20, 9, 30, tzinfo=UTC)
+        assert commit_started_after == started_after
         return [
             Signal(
                 source="github",
@@ -102,6 +113,15 @@ def test_load_repository_signals_advances_checkpoint_from_latest_release(
     assert len(signals) == 1
     assert checkpoint is not None
     assert checkpoint.checkpoint_value == published_at.isoformat()
+
+    commit_checkpoint = get_repository_checkpoint(
+        "sub_monitoring",
+        "github:repo:Mephistos-ML/paranmr",
+        REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
+        database_url=database_url,
+    )
+    assert commit_checkpoint is not None
+    assert commit_checkpoint.checkpoint_value == started_after.isoformat()
 
 
 def _build_repository() -> Repository:
