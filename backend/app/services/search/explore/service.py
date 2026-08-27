@@ -53,6 +53,8 @@ def run_explore_search(
 
     search_started_at = monotonic()
     current_stage = "ai_planning"
+    repository_queries: tuple[str, ...] = ()
+    retrieved = None
     if log_context is not None:
         log_search_event(
             logger=logger,
@@ -65,7 +67,7 @@ def run_explore_search(
         planning_started_at = monotonic()
         ai_search_plan = _plan_explore_search(topic_description=topic_description)
         ai_search_plan_payload = serialize_ai_search_plan(ai_search_plan)
-        repository_queries = ai_search_plan.queries
+        repository_queries = tuple(ai_search_plan.queries)
         if log_context is not None:
             log_search_event(
                 logger=logger,
@@ -92,7 +94,9 @@ def run_explore_search(
                     query_count=0,
                     candidate_count=0,
                     visible_result_count=0,
+                    response_build_duration_ms=0,
                     partial=False,
+                    source_statuses=[],
                 )
             return payload
 
@@ -140,6 +144,8 @@ def run_explore_search(
                     error_code="all_sources_unavailable",
                     error_message="Repository search is temporarily unavailable across all providers.",
                     partial=retrieved.partial,
+                    query_count=len(repository_queries),
+                    source_statuses=_summarize_source_statuses(retrieved.source_statuses),
                 )
             raise ExploreSearchUnavailableError(list(retrieved.source_statuses))
 
@@ -149,12 +155,14 @@ def run_explore_search(
             log_context=log_context,
         )
         current_stage = "response_build"
+        response_build_started_at = monotonic()
         payload = _build_explore_search_payload(
             topic_description=topic_description,
             ai_search_plan_payload=ai_search_plan_payload,
             retrieved=retrieved,
             admission=admission,
         )
+        response_build_duration_ms = build_duration_ms(response_build_started_at)
         if log_context is not None:
             log_search_event(
                 logger=logger,
@@ -164,8 +172,10 @@ def run_explore_search(
                 query_count=len(repository_queries),
                 candidate_count=len(retrieved.candidates),
                 visible_result_count=len(admission.visible_candidates),
+                response_build_duration_ms=response_build_duration_ms,
                 partial=retrieved.partial,
                 warning_count=len(retrieved.warnings),
+                source_statuses=_summarize_source_statuses(retrieved.source_statuses),
             )
         return payload
     except (AiSearchPlanningError, ExploreSearchUnavailableError):
@@ -181,7 +191,11 @@ def run_explore_search(
                 stage=current_stage,
                 error_code="unexpected_error",
                 error_message=str(exc),
-                partial=False,
+                partial=bool(getattr(retrieved, "partial", False)),
+                query_count=len(repository_queries),
+                source_statuses=_summarize_source_statuses(
+                    getattr(retrieved, "source_statuses", ())
+                ),
             )
         raise
 
@@ -299,3 +313,17 @@ def _build_partial_message(warnings: tuple[str, ...]) -> str | None:
     if len(visible_warnings) > 2:
         summary += f"; and {len(visible_warnings) - 2} more"
     return f"Search completed with partial coverage: {summary}"
+
+
+def _summarize_source_statuses(
+    source_statuses: tuple[dict[str, object], ...] | list[dict[str, object]],
+) -> list[dict[str, object]]:
+    return [
+        {
+            "source": status.get("source"),
+            "status": status.get("status"),
+            "candidateCount": status.get("candidateCount"),
+            "error": status.get("error"),
+        }
+        for status in source_statuses
+    ]
