@@ -8,6 +8,7 @@ from app.models.explore_access import (
     ExploreAccessOutcome,
     ExploreTier,
 )
+from app.models.feed import FeedEvent
 from app.models.repository import (
     Repository,
     RepositoryCheckpoint,
@@ -22,6 +23,7 @@ __all__ = [
     "ExploreActor",
     "ExploreLimitCode",
     "ExploreTier",
+    "FeedEvent",
     "Repository",
     "RepositoryCheckpoint",
     "Signal",

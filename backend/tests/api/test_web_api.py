@@ -200,64 +200,74 @@ def _run_explore_job_inline(
     )
 
 
-def test_status_and_signal_endpoints_return_json(monkeypatch) -> None:
-    STATE.signals.clear()
-    STATE.monitoring_started_at = None
-    STATE.last_scan_at = None
-    STATE.last_scan_error = None
-    STATE.auto_scan_started = False
-    STATE.auto_scan_stop_event.clear()
-    STATE.auto_scan_thread = None
+def test_status_and_feed_endpoints_return_json(monkeypatch) -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        database_url = build_test_database_url(Path(temp_dir) / "api-runtime-test.sqlite3")
+        migrate_test_database(database_url)
+        user = auth_storage.create_user(
+            user_id="user_test",
+            email="test@example.com",
+            display_name="Test User",
+            database_url=database_url,
+        )
 
-    monkeypatch.setattr(
-        runtime,
-        "list_all_subscription_watches",
-        lambda *, database_url: [_build_subscription_watch()],
-    )
-    monkeypatch.setattr(runtime, "load_replay_signals", lambda: [_build_raw_signal("demo")])
-    monkeypatch.setattr(
-        runtime,
-        "load_repository_signals",
-        lambda subscription_id, repository, *, baseline_started_after, database_url: [],
-    )
-    monkeypatch.setattr(
-        runtime,
-        "list_repository_checkpoints",
-        lambda subscription_id, repository_id, *, database_url: [],
-    )
-    monkeypatch.setattr(
-        runtime,
-        "load_seen_signal_ids",
-        lambda source, *, database_url: set(),
-    )
-    monkeypatch.setattr(
-        runtime,
-        "upsert_signals",
-        lambda signals, *, database_url: None,
-    )
+        STATE.monitoring_started_at = None
+        STATE.last_scan_at = None
+        STATE.last_scan_error = None
+        STATE.auto_scan_started = False
+        STATE.auto_scan_stop_event.clear()
+        STATE.auto_scan_thread = None
 
-    runtime.run_scan_cycle(database_url="sqlite:///api-runtime-test.sqlite3")
+        monkeypatch.setattr(
+            runtime,
+            "list_all_subscription_watches",
+            lambda *, database_url: [_build_subscription_watch()],
+        )
+        monkeypatch.setattr(runtime, "load_replay_signals", lambda: [_build_raw_signal("demo")])
+        monkeypatch.setattr(
+            runtime,
+            "load_repository_signals",
+            lambda subscription_id, repository, *, baseline_started_after, database_url: [],
+        )
+        monkeypatch.setattr(
+            runtime,
+            "list_repository_checkpoints",
+            lambda subscription_id, repository_id, *, database_url: [],
+        )
 
-    with TestClient(app) as client:
-        response = client.get("/api/status")
-        assert response.status_code == 200
-        status_payload = response.json()
-        assert status_payload["subscriptionCount"] == 1
-        assert status_payload["watchedRepositories"][0]["fullName"] == "Mephistos-ML/paranmr"
-        assert status_payload["sourceCheckpoints"] == []
-        assert status_payload["totalSignals"] == 1
+        runtime.run_scan_cycle(database_url=database_url)
 
-        response = client.get("/api/signals")
-        assert response.status_code == 200
-        signal_list = response.json()
-        assert len(signal_list["items"]) == 1
-        assert signal_list["items"][0]["subscriptionId"] == "sub_pnmr"
+        with TestClient(app) as client:
+            client.app.state.database_url = database_url
+            session_response = Response()
+            session_token = create_authenticated_session(
+                user.user_id,
+                session_response,
+                database_url=database_url,
+            )
+            client.cookies.set(AUTH_SESSION_COOKIE_NAME, session_token)
 
-        response = client.get("/api/signals/demo")
-        assert response.status_code == 200
-        detail_payload = response.json()
-        assert detail_payload["itemId"] == "demo"
-        assert detail_payload["repositoryId"] == "github:repo:Mephistos-ML/paranmr"
+            response = client.get("/api/status")
+            assert response.status_code == 200
+            status_payload = response.json()
+            assert status_payload["subscriptionCount"] == 1
+            assert status_payload["watchedRepositories"][0]["fullName"] == "Mephistos-ML/paranmr"
+            assert status_payload["sourceCheckpoints"] == []
+            assert status_payload["totalFeedEvents"] == 1
+
+            response = client.get("/api/feed")
+            assert response.status_code == 200
+            feed_list = response.json()
+            assert len(feed_list["items"]) == 1
+            assert feed_list["items"][0]["subscriptionId"] == "sub_pnmr"
+            assert feed_list["items"][0]["repositoryId"] == "github:repo:Mephistos-ML/paranmr"
+
+            event_id = feed_list["items"][0]["eventId"]
+            response = client.get(f"/api/feed/{event_id}")
+            assert response.status_code == 200
+            detail_payload = response.json()
+            assert detail_payload["title"] == "Mephistos-ML/paranmr release v0.3.0"
+            assert detail_payload["repositoryId"] == "github:repo:Mephistos-ML/paranmr"
 
 
 def test_root_health_and_ready_endpoints() -> None:
@@ -266,7 +276,7 @@ def test_root_health_and_ready_endpoints() -> None:
         assert response.status_code == 200
         payload = response.json()
         assert payload["service"] == "sciscope-api"
-        assert "/api/signals" in payload["endpoints"]
+        assert "/api/feed" in payload["endpoints"]
         assert "/ready" in payload["endpoints"]
 
         response = client.get("/health")
@@ -299,7 +309,7 @@ def test_api_start_and_stop_endpoints_return_status_json(monkeypatch) -> None:
             "lastScanError": None,
             "watchedRepositories": [],
             "sourceCheckpoints": [],
-            "totalSignals": 0,
+            "totalFeedEvents": 0,
         },
     )
 
@@ -313,14 +323,30 @@ def test_api_start_and_stop_endpoints_return_status_json(monkeypatch) -> None:
     assert stop_response.json()["subscriptionCount"] == 1
 
 
-def test_missing_signal_returns_404_json() -> None:
-    STATE.signals.clear()
+def test_missing_feed_event_returns_404_json() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        database_url = build_test_database_url(Path(temp_dir) / "feed-missing.sqlite3")
+        migrate_test_database(database_url)
+        user = auth_storage.create_user(
+            user_id="user_test_feed",
+            email="feed@example.com",
+            display_name="Feed User",
+            database_url=database_url,
+        )
 
-    with TestClient(app) as client:
-        response = client.get("/api/signals/missing")
+        with TestClient(app) as client:
+            client.app.state.database_url = database_url
+            session_response = Response()
+            session_token = create_authenticated_session(
+                user.user_id,
+                session_response,
+                database_url=database_url,
+            )
+            client.cookies.set(AUTH_SESSION_COOKIE_NAME, session_token)
+            response = client.get("/api/feed/missing")
 
     assert response.status_code == 404
-    assert response.json()["error"] == "Signal not found"
+    assert response.json()["error"] == "Feed event not found"
 
 
 def test_session_auth_and_subscription_endpoints(monkeypatch) -> None:

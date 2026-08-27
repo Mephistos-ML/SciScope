@@ -10,41 +10,32 @@ The backend owns:
 - Google-authenticated subscriptions
 - repository persistence
 - monitoring checkpoints
-- release signal ingestion
-- signal APIs
+- durable user feed events
 - background monitoring control
 
 ## Service Model
 
-The backend is built around one repository-first runtime:
+The backend is repository-first:
 
 - Explore returns repository candidates
 - subscriptions store explicit repository watches
-- monitoring loads signals for subscribed repositories
-- source differences live in hosting adapters
+- monitoring polls subscribed repositories for releases and default-branch commits
+- feed delivery is append-only per user
 
 Core domain objects:
 
 - `Repository`
 - `Subscription`
 - `Signal`
-- `SignalMatch`
+- `FeedEvent`
 
 ## API Areas
 
 ### Explore
 
 - `POST /api/explore/search`
-
-Input:
-
-- `topicDescription`
-
-Output:
-
-- AI-generated search queries
-- matched repository results
-- per-source status diagnostics
+- `POST /api/explore/search-jobs`
+- `GET /api/explore/search-jobs/{id}`
 
 ### Auth
 
@@ -53,11 +44,12 @@ Output:
 - `GET /api/auth/google/callback`
 - `POST /api/logout`
 
-Auth model:
+### Feed
 
-- Google OAuth
-- first-party user sessions
-- cookie-backed authenticated requests
+- `GET /api/feed`
+- `GET /api/feed/{id}`
+
+Feed entries are created only for events discovered after subscription time.
 
 ### Subscriptions
 
@@ -65,34 +57,21 @@ Auth model:
 - `POST /api/subscriptions`
 - `DELETE /api/subscriptions/{id}`
 
-Subscription payload model:
-
-- repository identity
-- repository source
-- repository full name
-- repository URL
-- `selectedQuery`
-
-### Monitoring And Signals
+### Monitoring
 
 - `POST /api/start`
 - `POST /api/stop`
 - `GET /api/status`
-- `GET /api/signals`
-- `GET /api/signals/{id}`
 
 ## Request Flows
 
 ### Explore Flow
 
-`topic description -> AI query plan -> GitHub/GitLab discovery -> deterministic matching -> result payload`
+`topic description -> AI query plan -> external retrieval -> admission -> result payload`
 
 Main modules:
 
-- `app/services/ai/`
-- `app/services/search/explore.py`
-- `app/services/search/matching.py`
-- `app/services/search/retrieval/`
+- `app/services/search/`
 - `app/sources/github/search/`
 - `app/sources/gitlab/search/`
 
@@ -110,35 +89,16 @@ Main modules:
 
 ### Monitoring Flow
 
-`subscription watch -> source checkpoint -> release fetch -> Signal -> signal view`
+`subscription watch -> source checkpoints -> releases and commits -> feed events`
 
 Main modules:
 
 - `app/services/runtime.py`
 - `app/services/monitoring/`
+- `app/services/feed/`
 - `app/sources/github/monitor.py`
 - `app/sources/gitlab/monitor.py`
-- `app/storage/signals/`
-
-## Source Adapter Model
-
-Active source adapters:
-
-- GitHub
-- GitLab
-
-Unavailable source modules:
-
-- Gitee
-- GitCode
-- GitVerse
-
-Adapter rules:
-
-- discovery adapters return repository `Signal` objects
-- monitoring adapters expose provider activity loaders
-- adapters shape source payloads and keep source-specific metadata
-- adapters do not own checkpoints or runtime orchestration
+- `app/storage/feed/`
 
 ## Persistence
 
@@ -147,7 +107,7 @@ Primary persistence areas:
 - `repositories`
 - `subscriptions`
 - `repository_checkpoints`
-- `seen_signals`
+- `feed_events`
 - auth tables for users, oauth accounts, and sessions
 
 Persistence stack:
@@ -155,34 +115,6 @@ Persistence stack:
 - SQLAlchemy
 - Postgres
 - Alembic migrations in `backend/alembic/versions/`
-
-## Monitoring Model
-
-Monitoring state is scoped to subscribed repositories.
-
-The runtime tracks:
-
-- subscribed repository set
-- source-specific release checkpoints
-- seen signal ids by `(source, item_id)`
-- in-memory signal views for API delivery
-
-## Code Layout
-
-- `backend/app/api/`
-  - FastAPI transport
-- `backend/app/services/`
-  - application logic
-- `backend/app/sources/`
-  - repository-hosting adapters and replay fixtures
-- `backend/app/storage/`
-  - persistence contracts
-- `backend/app/database/`
-  - SQLAlchemy records and sessions
-- `backend/app/models/`
-  - domain objects
-- `backend/tests/`
-  - backend test suite
 
 ## Architecture Contract
 
@@ -195,10 +127,3 @@ Core direction:
 - source adapters do external IO only
 - persistence logic stays in `storage`
 - orchestration lives in `services`
-
-## Engineering Notes
-
-- FastAPI is the HTTP transport
-- background monitoring runs inside the backend service
-- the runtime uses one shared `Signal` model across ingestion, matching, storage, and delivery
-- the schema history is managed through Alembic revision files

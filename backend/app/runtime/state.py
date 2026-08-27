@@ -11,7 +11,6 @@ import threading
 class RuntimeState:
     """Mutable in-memory runtime state for scan results and loop status."""
 
-    signals: dict[str, object] = field(default_factory=dict)
     explore_search_jobs: dict[str, dict[str, object]] = field(default_factory=dict)
     monitoring_started_at: datetime | None = None
     last_scan_at: datetime | None = None

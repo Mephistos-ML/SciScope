@@ -12,23 +12,6 @@ from sqlalchemy.types import JSON
 from app.database.base import Base
 
 
-class SeenSignalRecordModel(Base):
-    """Durable source-scoped identity anchors for raw signals."""
-
-    __tablename__ = "seen_signals"
-    __table_args__ = (
-        Index("ix_seen_signals_source", "source"),
-    )
-
-    source: Mapped[str] = mapped_column(String, primary_key=True)
-    item_id: Mapped[str] = mapped_column(String, primary_key=True)
-    title: Mapped[str] = mapped_column(Text, nullable=False)
-    url: Mapped[str] = mapped_column(Text, nullable=False)
-    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-
 class RepositoryRecordModel(Base):
     """Globally known watched repository."""
 
