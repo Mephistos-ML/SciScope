@@ -219,19 +219,23 @@ def test_status_and_feed_endpoints_return_json(monkeypatch) -> None:
         STATE.auto_scan_thread = None
 
         monkeypatch.setattr(
-            runtime,
-            "list_all_subscription_watches",
+            "app.services.runtime.cycle.list_all_subscription_watches",
             lambda *, database_url: [_build_subscription_watch()],
         )
-        monkeypatch.setattr(runtime, "load_replay_signals", lambda: [_build_raw_signal("demo")])
         monkeypatch.setattr(
-            runtime,
-            "load_repository_signals",
+            "app.services.runtime.cycle.load_replay_signals",
+            lambda: [_build_raw_signal("demo")],
+        )
+        monkeypatch.setattr(
+            "app.services.runtime.cycle.load_repository_signals",
             lambda subscription_id, repository, *, baseline_started_after, database_url: [],
         )
         monkeypatch.setattr(
-            runtime,
-            "list_repository_checkpoints",
+            "app.services.runtime.status.list_all_subscription_watches",
+            lambda *, database_url: [_build_subscription_watch()],
+        )
+        monkeypatch.setattr(
+            "app.services.runtime.status.list_repository_checkpoints",
             lambda subscription_id, repository_id, *, database_url: [],
         )
 
