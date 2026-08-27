@@ -1,3 +1,10 @@
+## [1.7.1](https://github.com/Mephistos-ML/SciScope/compare/v1.7.0...v1.7.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* **infra:** configure app log level at startup ([c0dc043](https://github.com/Mephistos-ML/SciScope/commit/c0dc0436ec679eb530da4122215ccecb7b1e7a48))
+
 # [1.7.0](https://github.com/Mephistos-ML/SciScope/compare/v1.6.4...v1.7.0) (2026-08-27)
 
 
