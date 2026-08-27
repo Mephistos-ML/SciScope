@@ -1,3 +1,10 @@
+## [1.7.2](https://github.com/Mephistos-ML/SciScope/compare/v1.7.1...v1.7.2) (2026-08-27)
+
+
+### Bug Fixes
+
+* **infra:** attach app logger handler for search events ([97cd0ef](https://github.com/Mephistos-ML/SciScope/commit/97cd0ef4a7d2584a0ae4cad7306d46506424c0ea))
+
 ## [1.7.1](https://github.com/Mephistos-ML/SciScope/compare/v1.7.0...v1.7.1) (2026-08-27)
 
 
