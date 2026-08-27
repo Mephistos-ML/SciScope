@@ -1,3 +1,11 @@
+## [1.8.2](https://github.com/Mephistos-ML/SciScope/compare/v1.8.1...v1.8.2) (2026-08-27)
+
+
+### Bug Fixes
+
+* **search:** reject thesis-style repository names ([2dddcc8](https://github.com/Mephistos-ML/SciScope/commit/2dddcc8318aa40f4ac3cbaed924a86c3122e066f))
+* **web:** remove matched-term chips from explore results ([519b507](https://github.com/Mephistos-ML/SciScope/commit/519b5078302377505f252b48a19d904e98a9ce81))
+
 ## [1.8.1](https://github.com/Mephistos-ML/SciScope/compare/v1.8.0...v1.8.1) (2026-08-27)
 
 
