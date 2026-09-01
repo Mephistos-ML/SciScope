@@ -184,6 +184,7 @@ export async function runExploreSearch(payload: {
 export async function createExploreSearchJob(payload: {
   topicDescription: string;
   turnstileToken?: string | null;
+  betaMode?: boolean;
 }): Promise<ExploreSearchJobPayload> {
   return requestJson<ExploreSearchJobPayload>("/api/explore/search-jobs", {
     method: "POST",

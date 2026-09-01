@@ -15,6 +15,7 @@ export type Viewer = {
   email: string;
   displayName: string;
   avatarUrl?: string | null;
+  features: string[];
 };
 
 export type ViewerPayload = {
@@ -106,6 +107,33 @@ export type ExploreResultItem = {
   query: string | null;
   score: number;
   reason: string;
+  beta?: ExploreBetaDiagnostic;
+};
+
+export type ExploreBetaDiagnostic = {
+  decision: {
+    status: "gate_rejected" | "admission_rejected" | "below_cutoff" | "included";
+    admissionBucket: string;
+    label: string;
+  };
+  scoreBreakdown: {
+    queryCoverage: number;
+    queryCoveragePoints: number;
+    matchLocationQuality: number;
+    matchLocationPoints: number;
+    evidenceDensity: number;
+    evidenceDensityPoints: number;
+    matchedQueryCount: number;
+    totalQueryCount: number;
+    evidenceCount: number;
+    hitCount: number;
+  };
+};
+
+export type ExploreBetaPayload = {
+  enabled: true;
+  candidateCount: number;
+  relevanceCutoff: number;
 };
 
 export type ExploreSearchPayload = {
@@ -115,6 +143,7 @@ export type ExploreSearchPayload = {
   sourceStatuses?: SourceStatusPayload[];
   partial?: boolean;
   message?: string | null;
+  beta?: ExploreBetaPayload | null;
 };
 
 export type ExploreSearchJobStatus =
@@ -132,6 +161,7 @@ export type ExploreSearchJobPayload = ExploreSearchPayload & {
   message: string | null;
   createdAt: string;
   updatedAt: string;
+  responseMode: "canonical" | "beta";
 };
 
 export type ExploreAccessErrorPayload = {

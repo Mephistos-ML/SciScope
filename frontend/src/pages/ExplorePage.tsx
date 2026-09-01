@@ -15,9 +15,12 @@ type ExploreSearchFeedback = {
 
 type ExplorePageProps = {
   canSubscribe: boolean;
+  betaEnabled: boolean;
+  betaMode: boolean;
   exploreSearchFeedback: ExploreSearchFeedback | null;
   lastAiSearchPlan: AiSearchPlanPayload | null;
   onRunSearch: () => void;
+  onBetaModeChange: (enabled: boolean) => void;
   onSignIn: () => void;
   onSubscribe: (result: ExploreResultItem) => void;
   onTopicInputChange: (value: string) => void;
@@ -36,9 +39,12 @@ type ExplorePageProps = {
 
 export function ExplorePage({
   canSubscribe,
+  betaEnabled,
+  betaMode,
   exploreSearchFeedback,
   lastAiSearchPlan,
   onRunSearch,
+  onBetaModeChange,
   onSignIn,
   onSubscribe,
   onTopicInputChange,
@@ -190,6 +196,21 @@ export function ExplorePage({
             >
               <span className="search-submit-button-label">{searchButtonLabel}</span>
             </button>
+            {betaEnabled ? (
+              <button
+                aria-pressed={betaMode}
+                className={
+                  betaMode
+                    ? "outline-button beta-mode-button beta-mode-button-active"
+                    : "outline-button beta-mode-button"
+                }
+                disabled={searchPending}
+                onClick={() => onBetaModeChange(!betaMode)}
+                type="button"
+              >
+                Beta diagnostics {betaMode ? "On" : "Off"}
+              </button>
+            ) : null}
           </div>
         </article>
       </section>
@@ -224,6 +245,9 @@ export function ExplorePage({
                     <span className="results-count-badge">
                       {searchStageLabel ?? "Searching repositories"}
                     </span>
+                  ) : null}
+                  {lastAiSearchPlan && results[0]?.beta ? (
+                    <span className="results-beta-badge">Beta diagnostics</span>
                   ) : null}
                 </div>
               </div>
@@ -340,6 +364,8 @@ export function ExplorePage({
                     {visibleResults.map((result) => {
                       const isSubscribed = subscribedRepositoryIds.includes(result.itemId);
                       const isPending = subscribePendingRepositoryId === result.itemId;
+                      const isCanonicalResult =
+                        !result.beta || result.beta.decision.status === "included";
 
                       return (
                         <div className="repository-row" key={result.itemId}>
@@ -348,6 +374,7 @@ export function ExplorePage({
                             <p className="repository-description">
                               {result.description || result.reason}
                             </p>
+                            {result.beta ? <BetaDiagnostic result={result} /> : null}
                           </div>
 
                           <div className="repository-cell" data-label="Source">
@@ -392,7 +419,9 @@ export function ExplorePage({
                                   ? "outline-button results-action-button results-action-button-subscribed"
                                   : "solid-button results-action-button"
                               }
-                              disabled={!canSubscribe || isSubscribed || isPending}
+                              disabled={
+                                !canSubscribe || !isCanonicalResult || isSubscribed || isPending
+                              }
                               onClick={() => onSubscribe(result)}
                               type="button"
                             >
@@ -491,6 +520,31 @@ function formatCompactNumber(value: number): string {
   }
 
   return `${value}`;
+}
+
+function BetaDiagnostic({ result }: { result: ExploreResultItem }) {
+  const diagnostic = result.beta;
+  if (!diagnostic) {
+    return null;
+  }
+
+  const { decision, scoreBreakdown } = diagnostic;
+  return (
+    <div className="repository-beta-diagnostic">
+      <span className={`repository-beta-status repository-beta-status-${decision.status}`}>
+        {decision.label}
+      </span>
+      <p className="repository-beta-score">
+        Score {result.score.toFixed(2)} = query coverage {scoreBreakdown.queryCoveragePoints.toFixed(2)}
+        /40 + match location {scoreBreakdown.matchLocationPoints.toFixed(2)}/45 + evidence density{" "}
+        {scoreBreakdown.evidenceDensityPoints.toFixed(2)}/15
+      </p>
+      <p className="repository-beta-meta">
+        {scoreBreakdown.matchedQueryCount}/{scoreBreakdown.totalQueryCount} queries, {scoreBreakdown.evidenceCount} unique evidences, {scoreBreakdown.hitCount} raw hits, location quality{" "}
+        {scoreBreakdown.matchLocationQuality.toFixed(2)}
+      </p>
+    </div>
+  );
 }
 
 function formatRetryCountdown(value: number | null): string {
