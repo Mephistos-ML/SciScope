@@ -196,6 +196,26 @@ def test_repository_admission_rejects_paper_list_repo_name() -> None:
     assert result.evaluated_candidates[0].admission.evidence.path_strength == "none"
 
 
+def test_repository_admission_rejects_review_style_repo_name() -> None:
+    candidate = _build_candidate(
+        item_id="github:repo:lab/quantum-method-review",
+        title="lab/quantum-method-review",
+        raw_text=(
+            "lab/quantum-method-review\n"
+            "A review of quantum chemistry methods."
+        ),
+        language="Python",
+        matched_channels=("repository_search",),
+    )
+
+    result = run_repository_admission((candidate,), mode="enforced")
+
+    assert result.kept_count == 0
+    assert result.rejected_count == 1
+    assert result.evaluated_candidates[0].admission.decision == "reject"
+    assert result.evaluated_candidates[0].admission.bucket == "repo_name_gate"
+
+
 def test_repository_admission_rejects_arxiv_digest_repo_name() -> None:
     candidate = _build_candidate(
         item_id="github:repo:iphysresearch/gw-arxiv-digest",

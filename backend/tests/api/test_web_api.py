@@ -644,7 +644,7 @@ def test_explore_search_keeps_retrieved_candidate_without_literal_query_phrase(
     payload = response.json()
     assert len(payload["items"]) == 1
     assert payload["items"][0]["itemId"] == "github:repo:thermotools/lammps_mie_fh"
-    assert payload["items"][0]["score"] >= 40.0
+    assert payload["items"][0]["score"] >= 50.0
 
 
 def test_explore_search_applies_ranking_order_and_relevance_cutoff(monkeypatch) -> None:
@@ -851,7 +851,7 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
     assert payload["beta"] == {
         "enabled": True,
         "candidateCount": 4,
-        "relevanceCutoff": 40.0,
+        "relevanceCutoff": 50.0,
     }
     diagnostics_by_id = {item["itemId"]: item["beta"] for item in payload["items"]}
     assert diagnostics_by_id["github:repo:thermotools/lammps_mie_fh"]["decision"]["status"] == "included"

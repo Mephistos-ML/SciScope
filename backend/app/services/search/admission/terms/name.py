@@ -4,6 +4,7 @@ REPO_NAME_REJECT_TERMS = (
     "arxiv",
     "paper",
     "papers",
+    "review",
     "preprint",
     "bibliography",
     "reading",

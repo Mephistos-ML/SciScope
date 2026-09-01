@@ -192,7 +192,7 @@ EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS = _read_optional_int_env(
 EXPLORE_ADMISSION_MODE = _read_optional_env("EXPLORE_ADMISSION_MODE") or "enforced"
 EXPLORE_SEARCH_RELEVANCE_CUTOFF = _read_optional_float_env(
     "EXPLORE_SEARCH_RELEVANCE_CUTOFF",
-    40.0,
+    50.0,
 )
 
 if APP_LOG_LEVEL not in {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}:
