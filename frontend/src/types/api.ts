@@ -106,7 +106,6 @@ export type ExploreResultItem = {
   query: string | null;
   score: number;
   reason: string;
-  matchedTerms: string[];
 };
 
 export type ExploreSearchPayload = {

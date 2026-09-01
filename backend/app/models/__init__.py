@@ -13,7 +13,7 @@ from app.models.repository import (
     Repository,
     RepositoryCheckpoint,
 )
-from app.models.signal import Signal, SignalMatch
+from app.models.signal import Signal
 from app.models.subscription import Subscription
 
 __all__ = [
@@ -27,6 +27,5 @@ __all__ = [
     "Repository",
     "RepositoryCheckpoint",
     "Signal",
-    "SignalMatch",
     "Subscription",
 ]

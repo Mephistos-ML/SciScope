@@ -14,12 +14,12 @@ from app.services.ai import (
     serialize_ai_search_plan,
 )
 from app.services.search.admission import run_repository_admission
-from app.services.search.explore.matching import match_signal_to_terms
 from app.services.search.observability import (
     SearchLogContext,
     build_duration_ms,
     log_search_event,
 )
+from app.services.search.ranking import rank_repository_candidates
 from app.services.search.retrieval import run_external_repository_retrieval
 
 logger = logging.getLogger(__name__)
@@ -115,11 +115,11 @@ def run_explore_search(
         else:
             retrieval_options = {
                 "progress_callback": lambda partial: progress_callback(
-                    _build_explore_search_payload(
+                    _build_ranked_explore_search_payload(
                         topic_description=topic_description,
                         ai_search_plan_payload=ai_search_plan_payload,
                         retrieved=partial,
-                        admission=run_repository_admission(partial.candidates),
+                        queries=repository_queries,
                     )
                 ),
                 "log_context": log_context,
@@ -154,13 +154,34 @@ def run_explore_search(
             retrieved.candidates,
             log_context=log_context,
         )
+        current_stage = "ranking"
+        ranking = rank_repository_candidates(
+            tuple(
+                evaluated_candidate.candidate
+                for evaluated_candidate in admission.visible_candidates
+            ),
+            queries=repository_queries,
+        )
+        if log_context is not None:
+            visible_candidates = ranking.visible_candidates
+            log_search_event(
+                logger=logger,
+                event="explore_ranking_completed",
+                context=log_context,
+                candidate_count=len(retrieved.candidates),
+                admitted_candidate_count=len(admission.visible_candidates),
+                visible_result_count=len(visible_candidates),
+                relevance_cutoff=ranking.relevance_cutoff,
+                top_score=(ranking.ranked_candidates[0].score if ranking.ranked_candidates else None),
+                lowest_visible_score=(visible_candidates[-1].score if visible_candidates else None),
+            )
         current_stage = "response_build"
         response_build_started_at = monotonic()
         payload = _build_explore_search_payload(
             topic_description=topic_description,
             ai_search_plan_payload=ai_search_plan_payload,
             retrieved=retrieved,
-            admission=admission,
+            ranking=ranking,
         )
         response_build_duration_ms = build_duration_ms(response_build_started_at)
         if log_context is not None:
@@ -171,7 +192,9 @@ def run_explore_search(
                 duration_ms=build_duration_ms(search_started_at),
                 query_count=len(repository_queries),
                 candidate_count=len(retrieved.candidates),
-                visible_result_count=len(admission.visible_candidates),
+                admitted_candidate_count=len(admission.visible_candidates),
+                visible_result_count=len(ranking.visible_candidates),
+                relevance_cutoff=ranking.relevance_cutoff,
                 response_build_duration_ms=response_build_duration_ms,
                 partial=retrieved.partial,
                 warning_count=len(retrieved.warnings),
@@ -219,16 +242,12 @@ def _build_explore_search_payload(
     topic_description: str,
     ai_search_plan_payload: dict[str, object],
     retrieved,
-    admission,
+    ranking,
 ) -> dict[str, object]:
     items: list[dict[str, object]] = []
-    for evaluated_candidate in admission.visible_candidates:
-        candidate = evaluated_candidate.candidate
+    for ranked_candidate in ranking.visible_candidates:
+        candidate = ranked_candidate.candidate
         signal = candidate.signal
-        match = match_signal_to_terms(
-            signal,
-            tuple(str(query) for query in ai_search_plan_payload.get("queries", [])),
-        )
 
         items.append(
             {
@@ -240,27 +259,10 @@ def _build_explore_search_payload(
                 "language": signal.payload.get("language"),
                 "stars": signal.payload.get("stars"),
                 "query": signal.payload.get("query"),
-                "score": _build_candidate_score(
-                    candidate.provenance.hit_count,
-                    match.score,
-                ),
-                "reason": _build_candidate_reason(
-                    match_reason=match.reason,
-                    matched=match.matched,
-                    matched_channels=candidate.provenance.matched_channels,
-                    matched_queries=candidate.provenance.matched_queries,
-                ),
-                "matchedTerms": list(match.matched_terms),
+                "score": ranked_candidate.score,
+                "reason": "Matched by SciScope search.",
             }
         )
-
-    items.sort(
-        key=lambda item: (
-            -float(item["score"]),
-            -int(item["stars"] or 0),
-            str(item["fullName"]).casefold(),
-        )
-    )
 
     return {
         "topicDescription": topic_description,
@@ -279,29 +281,27 @@ def _read_candidate_description(raw_text: str) -> str:
     return ""
 
 
-def _build_candidate_score(retrieval_hit_count: int, term_match_score: float) -> float:
-    return max(float(retrieval_hit_count), term_match_score)
-
-
-def _build_candidate_reason(
+def _build_ranked_explore_search_payload(
     *,
-    match_reason: str,
-    matched: bool,
-    matched_channels: tuple[str, ...],
-    matched_queries: tuple[str, ...],
-) -> str:
-    retrieval_reason = (
-        "Retrieved via "
-        f"{', '.join(matched_channels) or 'external search'}"
-        f" for {', '.join(repr(query) for query in matched_queries[:3])}"
+    topic_description: str,
+    ai_search_plan_payload: dict[str, object],
+    retrieved,
+    queries: tuple[str, ...],
+) -> dict[str, object]:
+    admission = run_repository_admission(retrieved.candidates)
+    ranking = rank_repository_candidates(
+        tuple(
+            evaluated_candidate.candidate
+            for evaluated_candidate in admission.visible_candidates
+        ),
+        queries=queries,
     )
-    if len(matched_queries) > 3:
-        retrieval_reason += f" and {len(matched_queries) - 3} more queries"
-    retrieval_reason += "."
-
-    if matched:
-        return f"{match_reason} {retrieval_reason}"
-    return retrieval_reason
+    return _build_explore_search_payload(
+        topic_description=topic_description,
+        ai_search_plan_payload=ai_search_plan_payload,
+        retrieved=retrieved,
+        ranking=ranking,
+    )
 
 
 def _build_partial_message(warnings: tuple[str, ...]) -> str | None:

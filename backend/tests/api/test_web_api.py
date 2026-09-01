@@ -23,6 +23,8 @@ from app.services.security.turnstile import TurnstileVerificationResult
 from app.services.search.retrieval.models import (
     CandidateProvenance,
     RepositoryCandidate,
+    RetrievalMatchEvidence,
+    RetrievalMatchLocation,
     RetrievedCandidates,
 )
 from app.storage import auth as auth_storage
@@ -125,6 +127,7 @@ def _build_retrieved_candidates(
     warnings: tuple[str, ...] = (),
     matched_channels: tuple[str, ...] = ("repository_search",),
     hit_count: int = 1,
+    match_locations: tuple[RetrievalMatchLocation, ...] | None = None,
 ) -> RetrievedCandidates:
     return RetrievedCandidates(
         candidates=tuple(
@@ -138,9 +141,26 @@ def _build_retrieved_candidates(
                         channel_name: 1 for channel_name in matched_channels
                     },
                     hit_count=hit_count,
+                    match_evidence=(
+                        RetrievalMatchEvidence(
+                            query=str(signal.payload.get("query") or ""),
+                            location=(
+                                (
+                                    match_locations[index]
+                                    if match_locations is not None
+                                    else None
+                                )
+                                or (
+                                    "code"
+                                    if "Matched code path:" in signal.raw_text
+                                    else "description"
+                                )
+                            ),
+                        ),
+                    ),
                 ),
             )
-            for signal in signals
+            for index, signal in enumerate(signals)
         ),
         source_statuses=source_statuses,
         successful_source_count=successful_source_count,
@@ -569,6 +589,13 @@ def test_explore_search_keeps_retrieved_candidate_without_literal_query_phrase(
                         matched_channels=("code_search",),
                         best_rank_by_channel={"code_search": 1},
                         hit_count=1,
+                        match_evidence=(
+                            RetrievalMatchEvidence(
+                                query=queries[0],
+                                location="code",
+                                path="src/pair_mie_fh.cpp",
+                            ),
+                        ),
                     ),
                 ),
             ),
@@ -593,8 +620,70 @@ def test_explore_search_keeps_retrieved_candidate_without_literal_query_phrase(
     payload = response.json()
     assert len(payload["items"]) == 1
     assert payload["items"][0]["itemId"] == "github:repo:thermotools/lammps_mie_fh"
-    assert payload["items"][0]["matchedTerms"] == []
-    assert "code_search" in payload["items"][0]["reason"]
+    assert payload["items"][0]["score"] >= 40.0
+
+
+def test_explore_search_applies_ranking_order_and_relevance_cutoff(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
+    queries = (
+        "lammps feynman-hibbs",
+        "feynman-hibbs mie potential",
+        "quantum-corrected mie potential",
+        "lammps pair style mie",
+        "semiclassical correction",
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan(*queries),
+    )
+    top_signal = _build_explore_repository_signal(
+        "github:repo:science/feynman-hibbs-mie",
+        query=queries[0],
+    )
+    top_signal = Signal(
+        source=top_signal.source,
+        kind=top_signal.kind,
+        item_id=top_signal.item_id,
+        title="science/feynman-hibbs-mie",
+        url=top_signal.url,
+        published_at=top_signal.published_at,
+        raw_text=top_signal.raw_text,
+        payload=top_signal.payload,
+    )
+    metadata_signal = _build_explore_repository_signal(
+        "github:repo:science/mie-solver",
+        query=queries[0],
+    )
+    weak_signal = _build_explore_repository_signal(
+        "github:repo:science/general-tools",
+        query=queries[0],
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.run_external_repository_retrieval",
+        lambda _queries, **kwargs: _build_retrieved_candidates(
+            top_signal,
+            metadata_signal,
+            weak_signal,
+            source_statuses=(
+                {"source": "github", "status": "ok", "candidateCount": 3, "error": None},
+            ),
+            successful_source_count=1,
+            match_locations=("name", "description", "other"),
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={"topicDescription": "LAMMPS Feynman-Hibbs Mie potential"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [item["itemId"] for item in payload["items"]] == [
+        top_signal.item_id,
+        metadata_signal.item_id,
+    ]
 
 
 def test_explore_search_enforced_mode_hides_rejected_candidates(monkeypatch) -> None:
