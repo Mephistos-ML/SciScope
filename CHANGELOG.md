@@ -1,3 +1,19 @@
+# [1.10.0](https://github.com/Mephistos-ML/SciScope/compare/v1.9.0...v1.10.0) (2026-09-01)
+
+
+### Bug Fixes
+
+* **search:** deduplicate ranking evidence density ([4747345](https://github.com/Mephistos-ML/SciScope/commit/47473457724c232cb687eb9c58267c50ef517746))
+
+
+### Features
+
+* **search:** add internal beta diagnostics mode ([41fc447](https://github.com/Mephistos-ML/SciScope/commit/41fc44794a3fec651cefa3d69ffa7af54abf8d77))
+* **search:** add source-agnostic heuristic ranking ([879446d](https://github.com/Mephistos-ML/SciScope/commit/879446dff4592aa5b997063dcc3d50aae5a8df70))
+* **search:** apply heuristic ranking to explore results ([0337dc3](https://github.com/Mephistos-ML/SciScope/commit/0337dc36dd02144558639465579cdd00a349f037))
+* **search:** rank repository matches by evidence location ([97247ca](https://github.com/Mephistos-ML/SciScope/commit/97247caedb646c161bcc15c1cff89218aee4393b))
+* **web:** add explore beta diagnostics toggle ([8891fd1](https://github.com/Mephistos-ML/SciScope/commit/8891fd117b24c737c5e6e4b5bd29f1130cefd6e1))
+
 # [1.9.0](https://github.com/Mephistos-ML/SciScope/compare/v1.8.2...v1.9.0) (2026-08-27)
 
 
