@@ -11,7 +11,7 @@ def calculate_relevance_score(features: RankingFeatures) -> float:
     """Calculate a bounded 0-100 relevance score from ranking features."""
 
     query_coverage = _query_coverage(features)
-    evidence_density = _evidence_density(features.hit_count)
+    evidence_density = _evidence_density(features.evidence_count)
     score = (
         40.0 * query_coverage
         + 45.0 * features.match_location_quality
@@ -31,7 +31,7 @@ def _query_coverage(features: RankingFeatures) -> float:
     return log1p(bounded_match_count) / log1p(features.total_query_count)
 
 
-def _evidence_density(hit_count: int) -> float:
-    if hit_count <= 0:
+def _evidence_density(evidence_count: int) -> float:
+    if evidence_count <= 0:
         return 0.0
-    return min(1.0, log1p(hit_count) / log1p(5))
+    return min(1.0, log1p(evidence_count) / log1p(5))

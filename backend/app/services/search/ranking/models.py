@@ -14,6 +14,7 @@ class RankingFeatures:
     matched_query_count: int
     total_query_count: int
     hit_count: int
+    evidence_count: int
     match_location_quality: float
 
 

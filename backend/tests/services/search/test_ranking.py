@@ -15,6 +15,7 @@ def test_ranking_rewards_multiple_independent_query_matches_with_diminishing_ret
             matched_query_count=1,
             total_query_count=5,
             hit_count=1,
+            evidence_count=1,
             match_location_quality=0.4,
         )
     )
@@ -23,6 +24,7 @@ def test_ranking_rewards_multiple_independent_query_matches_with_diminishing_ret
             matched_query_count=2,
             total_query_count=5,
             hit_count=2,
+            evidence_count=2,
             match_location_quality=0.4,
         )
     )
@@ -31,6 +33,7 @@ def test_ranking_rewards_multiple_independent_query_matches_with_diminishing_ret
             matched_query_count=5,
             total_query_count=5,
             hit_count=5,
+            evidence_count=5,
             match_location_quality=0.4,
         )
     )
@@ -45,6 +48,7 @@ def test_ranking_weights_name_match_more_than_description_match() -> None:
             matched_query_count=1,
             total_query_count=5,
             hit_count=1,
+            evidence_count=1,
             match_location_quality=1.0,
         )
     )
@@ -53,6 +57,7 @@ def test_ranking_weights_name_match_more_than_description_match() -> None:
             matched_query_count=1,
             total_query_count=5,
             hit_count=1,
+            evidence_count=1,
             match_location_quality=0.85,
         )
     )
@@ -66,6 +71,7 @@ def test_ranking_weights_readme_match_more_than_code_match() -> None:
             matched_query_count=1,
             total_query_count=5,
             hit_count=1,
+            evidence_count=1,
             match_location_quality=0.65,
         )
     )
@@ -74,11 +80,35 @@ def test_ranking_weights_readme_match_more_than_code_match() -> None:
             matched_query_count=1,
             total_query_count=5,
             hit_count=1,
+            evidence_count=1,
             match_location_quality=0.40,
         )
     )
 
     assert readme_match > code_match
+
+
+def test_ranking_does_not_reward_duplicate_raw_hits() -> None:
+    one_raw_hit = calculate_relevance_score(
+        RankingFeatures(
+            matched_query_count=1,
+            total_query_count=5,
+            hit_count=1,
+            evidence_count=1,
+            match_location_quality=0.4,
+        )
+    )
+    repeated_raw_hits = calculate_relevance_score(
+        RankingFeatures(
+            matched_query_count=1,
+            total_query_count=5,
+            hit_count=20,
+            evidence_count=1,
+            match_location_quality=0.4,
+        )
+    )
+
+    assert repeated_raw_hits == one_raw_hit
 
 
 def test_ranking_ignores_source_channel_and_matched_code_path() -> None:

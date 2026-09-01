@@ -35,6 +35,7 @@ def build_ranking_features(
         matched_query_count=len(candidate.provenance.matched_queries),
         total_query_count=len(normalized_queries),
         hit_count=candidate.provenance.hit_count,
+        evidence_count=len(evidence),
         match_location_quality=_build_match_location_quality(
             evidence,
             normalized_queries,
