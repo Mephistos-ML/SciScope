@@ -1,3 +1,10 @@
+## [1.10.1](https://github.com/Mephistos-ML/SciScope/compare/v1.10.0...v1.10.1) (2026-09-01)
+
+
+### Bug Fixes
+
+* **search:** tighten repository admission and ranking cutoff ([8e380f5](https://github.com/Mephistos-ML/SciScope/commit/8e380f5cefa8fcf0719d74abad0769c8286f8777))
+
 # [1.10.0](https://github.com/Mephistos-ML/SciScope/compare/v1.9.0...v1.10.0) (2026-09-01)
 
 
