@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from app.models.signal import Signal
+from app.services.search.retrieval.evidence import build_retrieval_match_evidence
 from app.services.search.retrieval.models import (
     CandidateProvenance,
     RepositoryCandidate,
     RetrievalHit,
+    RetrievalMatchEvidence,
 )
 
 
@@ -27,6 +29,7 @@ def merge_retrieval_hits(hits: tuple[RetrievalHit, ...]) -> tuple[RepositoryCand
                     matched_channels=(hit.channel,),
                     best_rank_by_channel={hit.channel: hit.rank},
                     hit_count=1,
+                    match_evidence=(build_retrieval_match_evidence(hit),),
                 ),
             )
             continue
@@ -56,6 +59,10 @@ def _merge_provenance(
         matched_channels=matched_channels,
         best_rank_by_channel=best_rank_by_channel,
         hit_count=existing.hit_count + 1,
+        match_evidence=_append_unique_evidence(
+            existing.match_evidence,
+            build_retrieval_match_evidence(incoming),
+        ),
     )
 
 
@@ -63,6 +70,15 @@ def _append_unique(values: tuple[str, ...], value: str) -> tuple[str, ...]:
     if value in values:
         return values
     return (*values, value)
+
+
+def _append_unique_evidence(
+    existing: tuple[RetrievalMatchEvidence, ...],
+    incoming: RetrievalMatchEvidence,
+) -> tuple[RetrievalMatchEvidence, ...]:
+    if incoming in existing:
+        return existing
+    return (*existing, incoming)
 
 
 def _select_preferred_signal(existing: Signal, incoming: Signal) -> Signal:

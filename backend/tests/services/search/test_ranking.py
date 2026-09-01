@@ -1,8 +1,12 @@
 from app.models.signal import Signal
+from app.services.search.ranking.models import RankingFeatures
 from app.services.search.ranking import rank_repository_candidates
 from app.services.search.ranking.score import calculate_relevance_score
-from app.services.search.ranking.models import RankingFeatures
-from app.services.search.retrieval import CandidateProvenance, RepositoryCandidate
+from app.services.search.retrieval import (
+    CandidateProvenance,
+    RepositoryCandidate,
+    RetrievalMatchEvidence,
+)
 
 
 def test_ranking_rewards_multiple_independent_query_matches_with_diminishing_returns() -> None:
@@ -11,9 +15,7 @@ def test_ranking_rewards_multiple_independent_query_matches_with_diminishing_ret
             matched_query_count=1,
             total_query_count=5,
             hit_count=1,
-            name_match=0.0,
-            description_match=0.0,
-            topics_match=0.0,
+            match_location_quality=0.4,
         )
     )
     two_matches = calculate_relevance_score(
@@ -21,9 +23,7 @@ def test_ranking_rewards_multiple_independent_query_matches_with_diminishing_ret
             matched_query_count=2,
             total_query_count=5,
             hit_count=2,
-            name_match=0.0,
-            description_match=0.0,
-            topics_match=0.0,
+            match_location_quality=0.4,
         )
     )
     five_matches = calculate_relevance_score(
@@ -31,9 +31,7 @@ def test_ranking_rewards_multiple_independent_query_matches_with_diminishing_ret
             matched_query_count=5,
             total_query_count=5,
             hit_count=5,
-            name_match=0.0,
-            description_match=0.0,
-            topics_match=0.0,
+            match_location_quality=0.4,
         )
     )
 
@@ -47,9 +45,7 @@ def test_ranking_weights_name_match_more_than_description_match() -> None:
             matched_query_count=1,
             total_query_count=5,
             hit_count=1,
-            name_match=1.0,
-            description_match=0.0,
-            topics_match=0.0,
+            match_location_quality=1.0,
         )
     )
     description_match = calculate_relevance_score(
@@ -57,13 +53,32 @@ def test_ranking_weights_name_match_more_than_description_match() -> None:
             matched_query_count=1,
             total_query_count=5,
             hit_count=1,
-            name_match=0.0,
-            description_match=1.0,
-            topics_match=0.0,
+            match_location_quality=0.85,
         )
     )
 
     assert name_match > description_match
+
+
+def test_ranking_weights_readme_match_more_than_code_match() -> None:
+    readme_match = calculate_relevance_score(
+        RankingFeatures(
+            matched_query_count=1,
+            total_query_count=5,
+            hit_count=1,
+            match_location_quality=0.65,
+        )
+    )
+    code_match = calculate_relevance_score(
+        RankingFeatures(
+            matched_query_count=1,
+            total_query_count=5,
+            hit_count=1,
+            match_location_quality=0.40,
+        )
+    )
+
+    assert readme_match > code_match
 
 
 def test_ranking_ignores_source_channel_and_matched_code_path() -> None:
@@ -71,6 +86,12 @@ def test_ranking_ignores_source_channel_and_matched_code_path() -> None:
         item_id="github:repo:science/mie-fh",
         source="github",
         matched_channels=("code_search",),
+        match_evidence=(
+            RetrievalMatchEvidence(
+                query="Feynman-Hibbs Mie potential",
+                location="description",
+            ),
+        ),
         raw_text=(
             "science/mie-fh\n"
             "Feynman-Hibbs Mie potential package.\n"
@@ -81,6 +102,12 @@ def test_ranking_ignores_source_channel_and_matched_code_path() -> None:
         item_id="gitlab:repo:science/mie-fh",
         source="gitlab",
         matched_channels=("repository_search",),
+        match_evidence=(
+            RetrievalMatchEvidence(
+                query="Feynman-Hibbs Mie potential",
+                location="description",
+            ),
+        ),
         raw_text="science/mie-fh\nFeynman-Hibbs Mie potential package.",
     )
 
@@ -107,6 +134,16 @@ def test_ranking_sorts_candidates_and_applies_relevance_cutoff() -> None:
             "feynman-hibbs mie potential",
         ),
         hit_count=2,
+        match_evidence=(
+            RetrievalMatchEvidence(
+                query="lammps feynman-hibbs",
+                location="description",
+            ),
+            RetrievalMatchEvidence(
+                query="feynman-hibbs mie potential",
+                location="description",
+            ),
+        ),
     )
     weak_candidate = _build_candidate(
         item_id="github:repo:other/example",
@@ -114,6 +151,12 @@ def test_ranking_sorts_candidates_and_applies_relevance_cutoff() -> None:
         raw_text="other/example\nGeneral scientific utilities.",
         matched_queries=("pair potential",),
         hit_count=1,
+        match_evidence=(
+            RetrievalMatchEvidence(
+                query="pair potential",
+                location="other",
+            ),
+        ),
     )
 
     result = rank_repository_candidates(
@@ -144,6 +187,7 @@ def _build_candidate(
     matched_channels: tuple[str, ...] = ("repository_search",),
     matched_queries: tuple[str, ...] = ("feynman-hibbs mie potential",),
     hit_count: int = 1,
+    match_evidence: tuple[RetrievalMatchEvidence, ...] = (),
 ) -> RepositoryCandidate:
     title = "science/mie-fh" if "science/mie-fh" in raw_text else item_id.split(":")[-1]
     signal = Signal(
@@ -164,5 +208,6 @@ def _build_candidate(
             matched_channels=matched_channels,
             best_rank_by_channel={channel: 1 for channel in matched_channels},
             hit_count=hit_count,
+            match_evidence=match_evidence,
         ),
     )

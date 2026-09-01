@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from dataclasses import replace
 
 from app.models.signal import Signal
 from app.services.search.retrieval.merge import merge_retrieval_hits
@@ -27,6 +28,7 @@ def _build_repository_signal(
         payload={
             "repo": "kragskow-group/orto",
             "query": query,
+            "description": "A python package for working with ORCA.",
             "topics": ["orca", "chemistry"],
             "language": "Python",
             "stars": 12,
@@ -39,9 +41,18 @@ def test_merge_retrieval_hits_accumulates_candidate_provenance() -> None:
         "gitlab:repo:kragskow-group/orto",
         query="orca python",
     )
-    second_signal = _build_repository_signal(
-        "gitlab:repo:kragskow-group/orto",
-        query="orca output parser python",
+    second_signal = replace(
+        _build_repository_signal(
+            "gitlab:repo:kragskow-group/orto",
+            query="orca output parser python",
+        ),
+        payload={
+            **_build_repository_signal(
+                "gitlab:repo:kragskow-group/orto",
+                query="orca output parser python",
+            ).payload,
+            "matched_path": "src/orto/parser.py",
+        },
     )
 
     candidates = merge_retrieval_hits(
@@ -80,6 +91,9 @@ def test_merge_retrieval_hits_accumulates_candidate_provenance() -> None:
         "code_search": 3,
     }
     assert candidate.provenance.hit_count == 2
+    assert candidate.provenance.match_evidence[0].location == "description"
+    assert candidate.provenance.match_evidence[1].location == "code"
+    assert candidate.provenance.match_evidence[1].path == "src/orto/parser.py"
 
 
 def test_run_external_repository_retrieval_merges_duplicate_repo_hits() -> None:
@@ -113,6 +127,7 @@ def test_run_external_repository_retrieval_merges_duplicate_repo_hits() -> None:
         "repository_search": 1,
     }
     assert candidate.provenance.hit_count == 2
+    assert len(candidate.provenance.match_evidence) == 2
 
 
 def test_merge_retrieval_hits_preserves_language_from_richer_duplicate_signal() -> None:
@@ -162,6 +177,117 @@ def test_merge_retrieval_hits_preserves_language_from_richer_duplicate_signal() 
     assert candidate.signal.payload["stars"] == 12
     assert candidate.signal.payload["topics"] == ["orca", "chemistry"]
     assert "Matched code path:" in candidate.signal.raw_text
+
+
+def test_merge_retrieval_hits_classifies_match_locations_by_strength() -> None:
+    name_signal = replace(
+        _build_repository_signal(
+            "github:repo:science/feynman-hibbs-mie",
+            query="feynman hibbs mie",
+        ),
+        title="science/feynman-hibbs-mie",
+        payload={
+            **_build_repository_signal(
+                "github:repo:science/feynman-hibbs-mie",
+                query="feynman hibbs mie",
+            ).payload,
+            "repo": "science/feynman-hibbs-mie",
+        },
+    )
+    description_signal = replace(
+        _build_repository_signal(
+            "github:repo:science/solver",
+            query="feynman hibbs mie",
+        ),
+        title="science/solver",
+        payload={
+            **_build_repository_signal(
+                "github:repo:science/solver",
+                query="feynman hibbs mie",
+            ).payload,
+            "repo": "science/solver",
+            "description": "Feynman-Hibbs Mie potential solver.",
+        },
+    )
+    readme_signal = _build_repository_signal(
+        "github:repo:science/readme-tool",
+        query="feynman hibbs mie",
+    )
+    readme_signal = replace(
+        readme_signal,
+        title="science/readme-tool",
+        payload={
+            **readme_signal.payload,
+            "repo": "science/readme-tool",
+            "description": "",
+            "matched_path": "README.md",
+        },
+    )
+    code_signal = replace(
+        readme_signal,
+        item_id="github:repo:science/code-tool",
+        title="science/code-tool",
+        payload={
+            **readme_signal.payload,
+            "repo": "science/code-tool",
+            "matched_path": "src/solver.cpp",
+        },
+    )
+    documentation_signal = replace(
+        readme_signal,
+        item_id="github:repo:science/docs-tool",
+        title="science/docs-tool",
+        payload={
+            **readme_signal.payload,
+            "repo": "science/docs-tool",
+            "matched_path": "docs/feynman_hibbs.md",
+        },
+    )
+
+    candidates = merge_retrieval_hits(
+        (
+            _build_hit(
+                source="github",
+                channel="repository_search",
+                query="feynman hibbs mie",
+                rank=1,
+                signal=name_signal,
+            ),
+            _build_hit(
+                source="github",
+                channel="repository_search",
+                query="feynman hibbs mie",
+                rank=1,
+                signal=description_signal,
+            ),
+            _build_hit(
+                source="github",
+                channel="code_search",
+                query="feynman hibbs mie",
+                rank=1,
+                signal=readme_signal,
+            ),
+            _build_hit(
+                source="github",
+                channel="code_search",
+                query="feynman hibbs mie",
+                rank=1,
+                signal=code_signal,
+            ),
+            _build_hit(
+                source="github",
+                channel="code_search",
+                query="feynman hibbs mie",
+                rank=1,
+                signal=documentation_signal,
+            ),
+        )
+    )
+
+    assert [
+        candidate.provenance.match_evidence[0].location
+        for candidate in candidates
+    ] == ["name", "description", "readme", "code", "documentation"]
 
 
 def test_run_external_repository_retrieval_marks_partial_when_parallel_lane_misses_soft_timeout() -> None:

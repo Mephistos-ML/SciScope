@@ -3,9 +3,30 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping
+from typing import Literal, Mapping
 
 from app.models.signal import Signal
+
+
+RetrievalMatchLocation = Literal[
+    "name",
+    "description",
+    "topic",
+    "readme",
+    "documentation",
+    "code",
+    "other",
+    "metadata",
+]
+
+
+@dataclass(frozen=True)
+class RetrievalMatchEvidence:
+    """One normalized query match observed for a repository candidate."""
+
+    query: str
+    location: RetrievalMatchLocation
+    path: str = ""
 
 
 @dataclass(frozen=True)
@@ -27,6 +48,7 @@ class CandidateProvenance:
     matched_channels: tuple[str, ...]
     best_rank_by_channel: Mapping[str, int]
     hit_count: int
+    match_evidence: tuple[RetrievalMatchEvidence, ...] = ()
 
 
 @dataclass(frozen=True)

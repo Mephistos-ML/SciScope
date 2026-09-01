@@ -14,17 +14,7 @@ class RankingFeatures:
     matched_query_count: int
     total_query_count: int
     hit_count: int
-    name_match: float
-    description_match: float
-    topics_match: float
-
-    @property
-    def metadata_match(self) -> float:
-        return (
-            0.50 * self.name_match
-            + 0.35 * self.description_match
-            + 0.15 * self.topics_match
-        )
+    match_location_quality: float
 
 
 @dataclass(frozen=True)
