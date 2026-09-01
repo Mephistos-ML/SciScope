@@ -96,12 +96,20 @@ def _read_required_csv_env(name: str) -> tuple[str, ...]:
     return values
 
 
+def _read_optional_csv_env(name: str) -> tuple[str, ...]:
+    raw_value = _read_optional_env(name)
+    if not raw_value:
+        return ()
+    return tuple(item.strip().lower() for item in raw_value.split(",") if item.strip())
+
+
 REPLAY_FIXTURES_PATH = _read_optional_path_env(
     "REPLAY_FIXTURES_PATH",
     BACKEND_ROOT / "tests" / "fixtures" / "replay_signals.json",
 )
 APP_ENV = _read_required_env("APP_ENV")
 APP_LOG_LEVEL = (_read_optional_env("APP_LOG_LEVEL") or "INFO").upper()
+BETA_USER_EMAILS = _read_optional_csv_env("BETA_USER_EMAILS")
 APP_HOST = _read_required_env("APP_HOST")
 APP_PORT = _read_required_int_env("APP_PORT")
 CORS_ORIGINS = _read_required_csv_env("CORS_ORIGINS")

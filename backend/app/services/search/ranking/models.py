@@ -19,12 +19,25 @@ class RankingFeatures:
 
 
 @dataclass(frozen=True)
+class RankingScoreBreakdown:
+    """Normalized ranking inputs and their weighted score contributions."""
+
+    query_coverage: float
+    query_coverage_points: float
+    match_location_quality: float
+    match_location_points: float
+    evidence_density: float
+    evidence_density_points: float
+
+
+@dataclass(frozen=True)
 class RankedRepositoryCandidate:
     """One candidate with its computed relevance evidence and score."""
 
     candidate: RepositoryCandidate
     features: RankingFeatures
     score: float
+    score_breakdown: RankingScoreBreakdown
 
 
 @dataclass(frozen=True)

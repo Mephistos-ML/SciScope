@@ -1,7 +1,10 @@
 from app.models.signal import Signal
 from app.services.search.ranking.models import RankingFeatures
 from app.services.search.ranking import rank_repository_candidates
-from app.services.search.ranking.score import calculate_relevance_score
+from app.services.search.ranking.score import (
+    build_relevance_score_breakdown,
+    calculate_relevance_score,
+)
 from app.services.search.retrieval import (
     CandidateProvenance,
     RepositoryCandidate,
@@ -109,6 +112,25 @@ def test_ranking_does_not_reward_duplicate_raw_hits() -> None:
     )
 
     assert repeated_raw_hits == one_raw_hit
+
+
+def test_ranking_score_breakdown_sums_to_the_relevance_score() -> None:
+    features = RankingFeatures(
+        matched_query_count=2,
+        total_query_count=5,
+        hit_count=3,
+        evidence_count=2,
+        match_location_quality=0.85,
+    )
+
+    breakdown = build_relevance_score_breakdown(features)
+
+    assert calculate_relevance_score(features) == round(
+        breakdown.query_coverage_points
+        + breakdown.match_location_points
+        + breakdown.evidence_density_points,
+        2,
+    )
 
 
 def test_ranking_ignores_source_channel_and_matched_code_path() -> None:

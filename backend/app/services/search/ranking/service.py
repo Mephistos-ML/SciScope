@@ -10,7 +10,10 @@ from app.services.search.ranking.models import (
     RankedRepositoryCandidate,
     RankingResult,
 )
-from app.services.search.ranking.score import calculate_relevance_score
+from app.services.search.ranking.score import (
+    build_relevance_score_breakdown,
+    calculate_relevance_score,
+)
 from app.services.search.retrieval import RepositoryCandidate
 
 
@@ -30,6 +33,7 @@ def rank_repository_candidates(
             candidate=candidate,
             features=features,
             score=calculate_relevance_score(features),
+            score_breakdown=build_relevance_score_breakdown(features),
         )
         for candidate in candidates
         for features in (build_ranking_features(candidate, queries),)
