@@ -23,6 +23,8 @@ from app.services.security.turnstile import TurnstileVerificationResult
 from app.services.search.retrieval.models import (
     CandidateProvenance,
     RepositoryCandidate,
+    RetrievalMatchEvidence,
+    RetrievalMatchLocation,
     RetrievedCandidates,
 )
 from app.storage import auth as auth_storage
@@ -125,6 +127,7 @@ def _build_retrieved_candidates(
     warnings: tuple[str, ...] = (),
     matched_channels: tuple[str, ...] = ("repository_search",),
     hit_count: int = 1,
+    match_locations: tuple[RetrievalMatchLocation, ...] | None = None,
 ) -> RetrievedCandidates:
     return RetrievedCandidates(
         candidates=tuple(
@@ -138,9 +141,26 @@ def _build_retrieved_candidates(
                         channel_name: 1 for channel_name in matched_channels
                     },
                     hit_count=hit_count,
+                    match_evidence=(
+                        RetrievalMatchEvidence(
+                            query=str(signal.payload.get("query") or ""),
+                            location=(
+                                (
+                                    match_locations[index]
+                                    if match_locations is not None
+                                    else None
+                                )
+                                or (
+                                    "code"
+                                    if "Matched code path:" in signal.raw_text
+                                    else "description"
+                                )
+                            ),
+                        ),
+                    ),
                 ),
             )
-            for signal in signals
+            for index, signal in enumerate(signals)
         ),
         source_statuses=source_statuses,
         successful_source_count=successful_source_count,
@@ -189,6 +209,7 @@ def _run_explore_job_inline(
     *,
     job_id: str,
     topic_description: str,
+    response_mode: str,
     log_context=None,
 ) -> None:
     from app.services.search.explore import jobs as search_jobs
@@ -196,6 +217,7 @@ def _run_explore_job_inline(
     search_jobs._run_explore_search_job(
         job_id=job_id,
         topic_description=topic_description,
+        response_mode=response_mode,
         log_context=log_context,
     )
 
@@ -480,6 +502,28 @@ def test_google_auth_callback_creates_user_session(monkeypatch) -> None:
             assert client.get("/api/me").json()["user"]["email"] == "scientist@example.com"
 
 
+def test_get_me_exposes_enabled_beta_features(monkeypatch) -> None:
+    user = auth_service.User(
+        user_id="user_beta",
+        email="faustrare@gmail.com",
+        display_name="Beta User",
+    )
+    monkeypatch.setattr(
+        "app.api.routes.auth.get_current_user",
+        lambda request, *, database_url: user,
+    )
+    monkeypatch.setattr(
+        "app.services.features.access.BETA_USER_EMAILS",
+        ("faustrare@gmail.com",),
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/api/me")
+
+    assert response.status_code == 200
+    assert response.json()["user"]["features"] == ["explore_beta"]
+
+
 def test_google_auth_callback_redirects_with_error_when_state_is_invalid(monkeypatch) -> None:
     monkeypatch.setattr(auth_service, "GOOGLE_CLIENT_ID", "google-client-id")
     monkeypatch.setattr(auth_service, "GOOGLE_CLIENT_SECRET", "google-client-secret")
@@ -569,6 +613,13 @@ def test_explore_search_keeps_retrieved_candidate_without_literal_query_phrase(
                         matched_channels=("code_search",),
                         best_rank_by_channel={"code_search": 1},
                         hit_count=1,
+                        match_evidence=(
+                            RetrievalMatchEvidence(
+                                query=queries[0],
+                                location="code",
+                                path="src/pair_mie_fh.cpp",
+                            ),
+                        ),
                     ),
                 ),
             ),
@@ -593,8 +644,70 @@ def test_explore_search_keeps_retrieved_candidate_without_literal_query_phrase(
     payload = response.json()
     assert len(payload["items"]) == 1
     assert payload["items"][0]["itemId"] == "github:repo:thermotools/lammps_mie_fh"
-    assert payload["items"][0]["matchedTerms"] == []
-    assert "code_search" in payload["items"][0]["reason"]
+    assert payload["items"][0]["score"] >= 40.0
+
+
+def test_explore_search_applies_ranking_order_and_relevance_cutoff(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
+    queries = (
+        "lammps feynman-hibbs",
+        "feynman-hibbs mie potential",
+        "quantum-corrected mie potential",
+        "lammps pair style mie",
+        "semiclassical correction",
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan(*queries),
+    )
+    top_signal = _build_explore_repository_signal(
+        "github:repo:science/feynman-hibbs-mie",
+        query=queries[0],
+    )
+    top_signal = Signal(
+        source=top_signal.source,
+        kind=top_signal.kind,
+        item_id=top_signal.item_id,
+        title="science/feynman-hibbs-mie",
+        url=top_signal.url,
+        published_at=top_signal.published_at,
+        raw_text=top_signal.raw_text,
+        payload=top_signal.payload,
+    )
+    metadata_signal = _build_explore_repository_signal(
+        "github:repo:science/mie-solver",
+        query=queries[0],
+    )
+    weak_signal = _build_explore_repository_signal(
+        "github:repo:science/general-tools",
+        query=queries[0],
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.run_external_repository_retrieval",
+        lambda _queries, **kwargs: _build_retrieved_candidates(
+            top_signal,
+            metadata_signal,
+            weak_signal,
+            source_statuses=(
+                {"source": "github", "status": "ok", "candidateCount": 3, "error": None},
+            ),
+            successful_source_count=1,
+            match_locations=("name", "description", "other"),
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={"topicDescription": "LAMMPS Feynman-Hibbs Mie potential"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [item["itemId"] for item in payload["items"]] == [
+        top_signal.item_id,
+        metadata_signal.item_id,
+    ]
 
 
 def test_explore_search_enforced_mode_hides_rejected_candidates(monkeypatch) -> None:
@@ -649,6 +762,119 @@ def test_explore_search_enforced_mode_hides_rejected_candidates(monkeypatch) -> 
     assert len(payload["items"]) == 1
     assert payload["items"][0]["itemId"] == "github:repo:thermotools/lammps_mie_fh"
     assert "admission" not in payload
+
+
+def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
+    beta_user = auth_service.User(
+        user_id="user_beta",
+        email="faustrare@gmail.com",
+        display_name="Beta User",
+    )
+    monkeypatch.setattr(
+        "app.api.routes.explore.get_current_user",
+        lambda request, *, database_url: beta_user,
+    )
+    monkeypatch.setattr(
+        "app.services.features.access.BETA_USER_EMAILS",
+        ("faustrare@gmail.com",),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan(
+            "query one",
+            "query two",
+            "query three",
+            "query four",
+            "query five",
+        ),
+    )
+    gate_signal = Signal(
+        source="github",
+        kind="repository",
+        item_id="github:repo:science/arxiv-index",
+        title="science/arxiv-index",
+        url="https://github.com/science/arxiv-index",
+        published_at=None,
+        raw_text="science/arxiv-index\nResearch index.",
+        payload={"repo": "science/arxiv-index", "query": "query one", "topics": []},
+    )
+    admission_signal = Signal(
+        source="github",
+        kind="repository",
+        item_id="github:repo:science/reference-hub",
+        title="science/reference-hub",
+        url="https://github.com/science/reference-hub",
+        published_at=None,
+        raw_text="science/reference-hub\nPaper collection for quantum chemistry.",
+        payload={"repo": "science/reference-hub", "query": "query one", "topics": []},
+    )
+    below_cutoff_signal = Signal(
+        source="github",
+        kind="repository",
+        item_id="github:repo:science/general-tools",
+        title="science/general-tools",
+        url="https://github.com/science/general-tools",
+        published_at=None,
+        raw_text="science/general-tools\nGeneral scientific utilities.",
+        payload={"repo": "science/general-tools", "query": "query one", "topics": []},
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.run_external_repository_retrieval",
+        lambda queries, **kwargs: _build_retrieved_candidates(
+            _build_code_only_explore_repository_signal(
+                "github:repo:thermotools/lammps_mie_fh",
+                query=queries[0],
+            ),
+            gate_signal,
+            admission_signal,
+            below_cutoff_signal,
+            source_statuses=(
+                {"source": "github", "status": "ok", "candidateCount": 4, "error": None},
+            ),
+            successful_source_count=1,
+            match_locations=("name", "description", "description", "other"),
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={
+                "topicDescription": "LAMMPS Feynman-Hibbs Mie potential",
+                "betaMode": True,
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["beta"] == {
+        "enabled": True,
+        "candidateCount": 4,
+        "relevanceCutoff": 40.0,
+    }
+    diagnostics_by_id = {item["itemId"]: item["beta"] for item in payload["items"]}
+    assert diagnostics_by_id["github:repo:thermotools/lammps_mie_fh"]["decision"]["status"] == "included"
+    assert diagnostics_by_id["github:repo:science/arxiv-index"]["decision"]["status"] == "gate_rejected"
+    assert diagnostics_by_id["github:repo:science/reference-hub"]["decision"]["status"] == "admission_rejected"
+    assert diagnostics_by_id["github:repo:science/general-tools"]["decision"]["status"] == "below_cutoff"
+    breakdown = diagnostics_by_id["github:repo:science/general-tools"]["scoreBreakdown"]
+    assert breakdown["matchedQueryCount"] == 1
+    assert breakdown["totalQueryCount"] == 5
+    assert breakdown["matchLocationPoints"] == 11.25
+
+
+def test_explore_search_beta_requires_feature_access(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={"topicDescription": "Paramagnetic NMR", "betaMode": True},
+        )
+
+    assert response.status_code == 403
+    assert response.json()["error"] == "Beta access is not enabled for this account."
 
 
 def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
@@ -897,6 +1123,62 @@ def test_explore_search_job_returns_completed_snapshot(monkeypatch) -> None:
 
     assert follow_up.status_code == 200
     assert follow_up.json()["status"] == "completed"
+
+
+def test_explore_search_beta_job_returns_diagnostics_snapshot(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
+    STATE.explore_search_jobs.clear()
+    beta_user = auth_service.User(
+        user_id="user_beta",
+        email="faustrare@gmail.com",
+        display_name="Beta User",
+    )
+    monkeypatch.setattr(
+        "app.api.routes.explore.get_current_user",
+        lambda request, *, database_url: beta_user,
+    )
+    monkeypatch.setattr(
+        "app.services.features.access.BETA_USER_EMAILS",
+        ("faustrare@gmail.com",),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.jobs._start_explore_search_job_runner",
+        _run_explore_job_inline,
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.run_external_repository_retrieval",
+        lambda queries, progress_callback=None, **kwargs: _build_retrieved_candidates(
+            _build_explore_repository_signal(
+                "github:repo:Mephistos-ML/paranmr",
+                query=queries[0],
+            ),
+            source_statuses=(
+                {"source": "github", "status": "ok", "candidateCount": 1, "error": None},
+            ),
+            successful_source_count=1,
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search-jobs",
+            json={"topicDescription": "Paramagnetic NMR", "betaMode": True},
+        )
+
+        assert response.status_code == 202
+        payload = response.json()
+        assert payload["responseMode"] == "beta"
+        assert payload["beta"]["enabled"] is True
+        assert payload["items"][0]["beta"]["decision"]["status"] == "included"
+
+        follow_up = client.get(f"/api/explore/search-jobs/{payload['jobId']}")
+
+    assert follow_up.status_code == 200
+    assert follow_up.json()["beta"]["candidateCount"] == 1
 
 
 def test_explore_search_job_returns_failed_snapshot_when_all_sources_fail(

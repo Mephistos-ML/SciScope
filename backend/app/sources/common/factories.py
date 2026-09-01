@@ -36,14 +36,19 @@ def build_repository_candidate_signal(candidate: RepositoryCandidate) -> Signal:
             description=candidate.description,
             topics=candidate.topics,
             language=candidate.language,
+            matched_path=candidate.matched_path,
+            matched_excerpt=candidate.matched_excerpt,
         ),
         payload={
             "repo": candidate.full_name,
             "author": candidate.owner_login,
+            "description": candidate.description,
             "topics": list(candidate.topics),
             "language": candidate.language,
             "stars": candidate.stars,
             "query": candidate.query,
+            "matched_path": candidate.matched_path,
+            "matched_excerpt": candidate.matched_excerpt,
         },
     )
 
@@ -173,12 +178,18 @@ def build_repository_text(
     description: str,
     topics: Sequence[str],
     language: str,
+    matched_path: str,
+    matched_excerpt: str,
 ) -> str:
     """Build one normalized repository text blob for matching."""
 
     parts: list[str] = [full_name, description]
+    if matched_path.strip():
+        parts.append(f"Matched code path: {matched_path.strip()}")
     if topics:
         parts.append(" ".join(topic.strip() for topic in topics if topic.strip()))
     if language.strip():
         parts.append(language.strip())
+    if matched_excerpt.strip():
+        parts.append(matched_excerpt.strip())
     return "\n".join(part.strip() for part in parts if part.strip())

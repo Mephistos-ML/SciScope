@@ -19,6 +19,8 @@ class RepositoryCandidate:
     language: str = ""
     stars: int = 0
     topics: tuple[str, ...] = ()
+    matched_path: str = ""
+    matched_excerpt: str = ""
 
 
 @dataclass(frozen=True)

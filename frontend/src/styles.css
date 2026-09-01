@@ -1015,6 +1015,67 @@ input::placeholder {
   font-size: 14px;
 }
 
+.beta-mode-button {
+  min-width: 170px;
+}
+
+.beta-mode-button-active {
+  border-color: #b57818;
+  background: #fff8e7;
+  color: #7a4b05;
+}
+
+.results-beta-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid #e8c77b;
+  border-radius: var(--radius-pill);
+  background: #fff8e7;
+  color: #7a4b05;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+.repository-beta-diagnostic {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-left: 3px solid #d7ad4a;
+  background: #fffbf1;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.repository-beta-status {
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.repository-beta-status-included {
+  color: #166534;
+}
+
+.repository-beta-status-below_cutoff {
+  color: #92400e;
+}
+
+.repository-beta-status-gate_rejected,
+.repository-beta-status-admission_rejected {
+  color: #a52929;
+}
+
+.repository-beta-score,
+.repository-beta-meta {
+  margin: 0;
+}
+
 .repository-term-row {
   display: flex;
   gap: 8px;

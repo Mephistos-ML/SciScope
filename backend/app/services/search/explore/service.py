@@ -13,8 +13,13 @@ from app.services.ai import (
     build_ai_search_plan,
     serialize_ai_search_plan,
 )
-from app.services.search.admission import run_repository_admission
-from app.services.search.explore.matching import match_signal_to_terms
+from app.services.search.explore.canonical import select_canonical_candidates
+from app.services.search.explore.evaluation import build_explore_search_evaluation
+from app.services.search.explore.response import (
+    ExploreResponseMode,
+    build_empty_explore_search_payload,
+    build_explore_search_payload,
+)
 from app.services.search.observability import (
     SearchLogContext,
     build_duration_ms,
@@ -44,6 +49,7 @@ class AiSearchPlanningError(RuntimeError):
 def run_explore_search(
     *,
     topic_description: str,
+    response_mode: ExploreResponseMode = "canonical",
     progress_callback: ExploreSearchProgressCallback | None = None,
     soft_deadline_monotonic: float | None = None,
     hard_deadline_monotonic: float | None = None,
@@ -61,6 +67,7 @@ def run_explore_search(
             event="explore_search_started",
             context=log_context,
             mode="async" if log_context.job_id else "sync",
+            response_mode=response_mode,
         )
 
     try:
@@ -79,12 +86,11 @@ def run_explore_search(
             )
 
         if not repository_queries:
-            payload = {
-                "topicDescription": topic_description,
-                "aiSearchPlan": ai_search_plan_payload,
-                "items": [],
-                "sourceStatuses": [],
-            }
+            payload = build_empty_explore_search_payload(
+                topic_description=topic_description,
+                ai_search_plan_payload=ai_search_plan_payload,
+                response_mode=response_mode,
+            )
             if log_context is not None:
                 log_search_event(
                     logger=logger,
@@ -115,11 +121,12 @@ def run_explore_search(
         else:
             retrieval_options = {
                 "progress_callback": lambda partial: progress_callback(
-                    _build_explore_search_payload(
+                    _build_explore_search_progress_payload(
                         topic_description=topic_description,
                         ai_search_plan_payload=ai_search_plan_payload,
                         retrieved=partial,
-                        admission=run_repository_admission(partial.candidates),
+                        queries=repository_queries,
+                        response_mode=response_mode,
                     )
                 ),
                 "log_context": log_context,
@@ -149,18 +156,36 @@ def run_explore_search(
                 )
             raise ExploreSearchUnavailableError(list(retrieved.source_statuses))
 
-        current_stage = "admission"
-        admission = run_repository_admission(
-            retrieved.candidates,
+        current_stage = "evaluation"
+        evaluation = build_explore_search_evaluation(
+            retrieved,
+            queries=repository_queries,
             log_context=log_context,
         )
+        if log_context is not None:
+            visible_candidates = select_canonical_candidates(evaluation)
+            log_search_event(
+                logger=logger,
+                event="explore_ranking_completed",
+                context=log_context,
+                candidate_count=len(retrieved.candidates),
+                admitted_candidate_count=len(evaluation.admission.visible_candidates),
+                visible_result_count=len(visible_candidates),
+                relevance_cutoff=evaluation.ranking.relevance_cutoff,
+                top_score=(
+                    evaluation.ranking.ranked_candidates[0].score
+                    if evaluation.ranking.ranked_candidates
+                    else None
+                ),
+                lowest_visible_score=(visible_candidates[-1].score if visible_candidates else None),
+            )
         current_stage = "response_build"
         response_build_started_at = monotonic()
-        payload = _build_explore_search_payload(
+        payload = build_explore_search_payload(
             topic_description=topic_description,
             ai_search_plan_payload=ai_search_plan_payload,
-            retrieved=retrieved,
-            admission=admission,
+            evaluation=evaluation,
+            response_mode=response_mode,
         )
         response_build_duration_ms = build_duration_ms(response_build_started_at)
         if log_context is not None:
@@ -171,7 +196,10 @@ def run_explore_search(
                 duration_ms=build_duration_ms(search_started_at),
                 query_count=len(repository_queries),
                 candidate_count=len(retrieved.candidates),
-                visible_result_count=len(admission.visible_candidates),
+                admitted_candidate_count=len(evaluation.admission.visible_candidates),
+                visible_result_count=len(visible_candidates),
+                relevance_cutoff=evaluation.ranking.relevance_cutoff,
+                response_mode=response_mode,
                 response_build_duration_ms=response_build_duration_ms,
                 partial=retrieved.partial,
                 warning_count=len(retrieved.warnings),
@@ -214,105 +242,24 @@ def _plan_explore_search(*, topic_description: str):
         ) from exc
 
 
-def _build_explore_search_payload(
+def _build_explore_search_progress_payload(
     *,
     topic_description: str,
     ai_search_plan_payload: dict[str, object],
     retrieved,
-    admission,
+    queries: tuple[str, ...],
+    response_mode: ExploreResponseMode,
 ) -> dict[str, object]:
-    items: list[dict[str, object]] = []
-    for evaluated_candidate in admission.visible_candidates:
-        candidate = evaluated_candidate.candidate
-        signal = candidate.signal
-        match = match_signal_to_terms(
-            signal,
-            tuple(str(query) for query in ai_search_plan_payload.get("queries", [])),
-        )
-
-        items.append(
-            {
-                "itemId": signal.item_id,
-                "source": signal.source,
-                "fullName": signal.title,
-                "url": signal.url,
-                "description": _read_candidate_description(signal.raw_text),
-                "language": signal.payload.get("language"),
-                "stars": signal.payload.get("stars"),
-                "query": signal.payload.get("query"),
-                "score": _build_candidate_score(
-                    candidate.provenance.hit_count,
-                    match.score,
-                ),
-                "reason": _build_candidate_reason(
-                    match_reason=match.reason,
-                    matched=match.matched,
-                    matched_channels=candidate.provenance.matched_channels,
-                    matched_queries=candidate.provenance.matched_queries,
-                ),
-                "matchedTerms": list(match.matched_terms),
-            }
-        )
-
-    items.sort(
-        key=lambda item: (
-            -float(item["score"]),
-            -int(item["stars"] or 0),
-            str(item["fullName"]).casefold(),
-        )
+    evaluation = build_explore_search_evaluation(
+        retrieved,
+        queries=queries,
     )
-
-    return {
-        "topicDescription": topic_description,
-        "aiSearchPlan": dict(ai_search_plan_payload),
-        "items": items,
-        "sourceStatuses": list(retrieved.source_statuses),
-        "partial": retrieved.partial,
-        "message": _build_partial_message(retrieved.warnings) if retrieved.partial else None,
-    }
-
-
-def _read_candidate_description(raw_text: str) -> str:
-    parts = [part.strip() for part in raw_text.splitlines() if part.strip()]
-    if len(parts) >= 2:
-        return parts[1]
-    return ""
-
-
-def _build_candidate_score(retrieval_hit_count: int, term_match_score: float) -> float:
-    return max(float(retrieval_hit_count), term_match_score)
-
-
-def _build_candidate_reason(
-    *,
-    match_reason: str,
-    matched: bool,
-    matched_channels: tuple[str, ...],
-    matched_queries: tuple[str, ...],
-) -> str:
-    retrieval_reason = (
-        "Retrieved via "
-        f"{', '.join(matched_channels) or 'external search'}"
-        f" for {', '.join(repr(query) for query in matched_queries[:3])}"
+    return build_explore_search_payload(
+        topic_description=topic_description,
+        ai_search_plan_payload=ai_search_plan_payload,
+        evaluation=evaluation,
+        response_mode=response_mode,
     )
-    if len(matched_queries) > 3:
-        retrieval_reason += f" and {len(matched_queries) - 3} more queries"
-    retrieval_reason += "."
-
-    if matched:
-        return f"{match_reason} {retrieval_reason}"
-    return retrieval_reason
-
-
-def _build_partial_message(warnings: tuple[str, ...]) -> str | None:
-    if not warnings:
-        return "Search completed with partial coverage."
-
-    visible_warnings = list(dict.fromkeys(warnings))
-    summary = "; ".join(visible_warnings[:2])
-    if len(visible_warnings) > 2:
-        summary += f"; and {len(visible_warnings) - 2} more"
-    return f"Search completed with partial coverage: {summary}"
 
 
 def _summarize_source_statuses(

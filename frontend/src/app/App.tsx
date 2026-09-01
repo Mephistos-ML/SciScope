@@ -62,6 +62,7 @@ export function App() {
   const [activeExploreJobId, setActiveExploreJobId] = useState<string | null>(null);
   const [activeExploreJobStatus, setActiveExploreJobStatus] =
     useState<ExploreSearchJobStatus | null>(null);
+  const [betaMode, setBetaMode] = useState(false);
 
   useEffect(() => {
     const authError = readAuthErrorFromUrl();
@@ -210,6 +211,7 @@ export function App() {
     try {
       const payload = await signOut();
       setViewer(payload.user);
+      setBetaMode(false);
       setActiveView("explore");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to sign out.");
@@ -232,6 +234,7 @@ export function App() {
       const job = await createExploreSearchJob({
         topicDescription: topicInput.trim(),
         turnstileToken,
+        betaMode: betaMode && (viewer?.features.includes("explore_beta") ?? false),
       });
       setActiveExploreJobId(job.jobId);
       setActiveExploreJobStatus(job.status);
@@ -354,6 +357,9 @@ export function App() {
           canSubscribe={Boolean(viewer)}
           exploreSearchFeedback={exploreSearchFeedback}
           lastAiSearchPlan={lastAiSearchPlan}
+          betaMode={betaMode}
+          betaEnabled={viewer?.features.includes("explore_beta") ?? false}
+          onBetaModeChange={setBetaMode}
           onRunSearch={() => void handleRunSearch()}
           onSignIn={() => void handleSignIn()}
           onSubscribe={(result) => void handleSubscribe(result)}

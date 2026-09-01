@@ -83,11 +83,6 @@ def discover_repository_candidates_from_code(
                 if isinstance(owner, dict):
                     owner_login = str(owner.get("login") or "")
 
-                description = _build_candidate_description(
-                    repository_description=str(repository.get("description") or ""),
-                    code_path=str(item.get("path") or ""),
-                )
-
                 candidate = RepositoryCandidate(
                     source="github",
                     full_name=full_name,
@@ -95,11 +90,12 @@ def discover_repository_candidates_from_code(
                         repository.get("html_url") or f"https://github.com/{full_name}"
                     ),
                     query=query,
-                    description=description,
+                    description=str(repository.get("description") or ""),
                     owner_login=owner_login,
                     language=str(repository.get("language") or ""),
                     stars=int(repository.get("stargazers_count") or 0),
                     topics=(),
+                    matched_path=str(item.get("path") or ""),
                 )
                 signals.append(build_repository_candidate_signal(candidate))
 
@@ -115,13 +111,3 @@ def _build_code_search_url(query: str, *, per_query_limit: int, page: int) -> st
         f"{GITHUB_API_BASE}/search/code"
         f"?q={encoded_query}&per_page={per_query_limit}&page={page}"
     )
-
-
-def _build_candidate_description(
-    *,
-    repository_description: str,
-    code_path: str,
-) -> str:
-    path_excerpt = f"Matched code path: {code_path.strip()}" if code_path.strip() else ""
-    parts = [repository_description.strip(), path_excerpt]
-    return "\n".join(part for part in parts if part)

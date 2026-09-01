@@ -33,6 +33,7 @@ class ExploreSearchRequest(BaseModel):
 
     topicDescription: str = ""
     turnstileToken: str | None = None
+    betaMode: bool = False
 
 
 class CreateSubscriptionRequest(BaseModel):
@@ -207,10 +208,10 @@ def create_explore_search_job(
 
 
 @app.get("/api/explore/search-jobs/{job_id}")
-def get_explore_search_job(job_id: str) -> dict[str, object]:
+def get_explore_search_job(request: Request, job_id: str) -> dict[str, object]:
     """Return one manual explore search job snapshot."""
 
-    payload = explore_routes.get_explore_search_job_response(job_id)
+    payload = explore_routes.get_explore_search_job_response(request, job_id)
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

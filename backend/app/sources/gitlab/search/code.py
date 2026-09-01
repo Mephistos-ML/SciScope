@@ -95,11 +95,6 @@ def discover_repository_candidates_from_code(
             if not full_name:
                 continue
 
-            description = _build_candidate_description(
-                project_description=str(project.get("description") or ""),
-                code_path=str(item.get("path") or ""),
-                code_excerpt=str(item.get("data") or ""),
-            )
             owner_login = full_name.split("/", 1)[0] if "/" in full_name else ""
             topics = project.get("topics")
             topic_list = [str(value) for value in topics] if isinstance(topics, list) else []
@@ -109,11 +104,13 @@ def discover_repository_candidates_from_code(
                 full_name=full_name,
                 url=str(project.get("web_url") or ""),
                 query=query,
-                description=description,
+                description=str(project.get("description") or ""),
                 owner_login=owner_login,
                 language="",
                 stars=int(project.get("star_count") or 0),
                 topics=tuple(topic_list),
+                matched_path=str(item.get("path") or ""),
+                matched_excerpt=str(item.get("data") or ""),
             )
             signals.append(build_repository_candidate_signal(candidate))
 
@@ -143,14 +140,3 @@ def _load_project_metadata(
     if isinstance(payload, dict):
         return payload
     return None
-
-
-def _build_candidate_description(
-    *,
-    project_description: str,
-    code_path: str,
-    code_excerpt: str,
-) -> str:
-    path_excerpt = f"Matched code path: {code_path.strip()}" if code_path.strip() else ""
-    parts = [project_description.strip(), path_excerpt, code_excerpt.strip()]
-    return "\n".join(part for part in parts if part)

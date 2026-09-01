@@ -73,6 +73,19 @@ def _read_optional_int_env(name: str, default: int) -> int:
         ) from exc
 
 
+def _read_optional_float_env(name: str, default: float) -> float:
+    raw_value = _read_optional_env(name)
+    if not raw_value:
+        return default
+
+    try:
+        return float(raw_value)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"Environment variable {name} must be a number, got {raw_value!r}"
+        ) from exc
+
+
 def _read_required_csv_env(name: str) -> tuple[str, ...]:
     raw_value = _read_required_env(name)
     values = tuple(item.strip() for item in raw_value.split(",") if item.strip())
@@ -83,12 +96,20 @@ def _read_required_csv_env(name: str) -> tuple[str, ...]:
     return values
 
 
+def _read_optional_csv_env(name: str) -> tuple[str, ...]:
+    raw_value = _read_optional_env(name)
+    if not raw_value:
+        return ()
+    return tuple(item.strip().lower() for item in raw_value.split(",") if item.strip())
+
+
 REPLAY_FIXTURES_PATH = _read_optional_path_env(
     "REPLAY_FIXTURES_PATH",
     BACKEND_ROOT / "tests" / "fixtures" / "replay_signals.json",
 )
 APP_ENV = _read_required_env("APP_ENV")
 APP_LOG_LEVEL = (_read_optional_env("APP_LOG_LEVEL") or "INFO").upper()
+BETA_USER_EMAILS = _read_optional_csv_env("BETA_USER_EMAILS")
 APP_HOST = _read_required_env("APP_HOST")
 APP_PORT = _read_required_int_env("APP_PORT")
 CORS_ORIGINS = _read_required_csv_env("CORS_ORIGINS")
@@ -169,6 +190,10 @@ EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS = _read_optional_int_env(
     30,
 )
 EXPLORE_ADMISSION_MODE = _read_optional_env("EXPLORE_ADMISSION_MODE") or "enforced"
+EXPLORE_SEARCH_RELEVANCE_CUTOFF = _read_optional_float_env(
+    "EXPLORE_SEARCH_RELEVANCE_CUTOFF",
+    40.0,
+)
 
 if APP_LOG_LEVEL not in {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}:
     raise RuntimeError(
@@ -245,3 +270,8 @@ if EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS <= 0:
 
 if EXPLORE_ADMISSION_MODE not in {"off", "enforced"}:
     raise RuntimeError("EXPLORE_ADMISSION_MODE must be one of: off, enforced")
+
+if not 0.0 <= EXPLORE_SEARCH_RELEVANCE_CUTOFF <= 100.0:
+    raise RuntimeError(
+        "EXPLORE_SEARCH_RELEVANCE_CUTOFF must be between 0 and 100"
+    )

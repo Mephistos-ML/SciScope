@@ -17,6 +17,7 @@ from app.services.search.explore.service import (
     ExploreSearchUnavailableError,
     run_explore_search,
 )
+from app.services.search.explore.response import ExploreResponseMode
 from app.services.search.observability import SearchLogContext, build_request_id
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ MAX_COMPLETED_JOB_AGE = timedelta(hours=12)
 def create_explore_search_job(
     *,
     topic_description: str,
+    response_mode: ExploreResponseMode = "canonical",
     log_context: SearchLogContext | None = None,
 ) -> dict[str, object]:
     """Create one background Explore search job and return its initial snapshot."""
@@ -44,6 +46,7 @@ def create_explore_search_job(
         "sourceStatuses": [],
         "error": None,
         "message": None,
+        "responseMode": response_mode,
         "createdAt": now,
         "updatedAt": now,
     }
@@ -55,6 +58,7 @@ def create_explore_search_job(
     _start_explore_search_job_runner(
         job_id=job_id,
         topic_description=topic_description,
+        response_mode=response_mode,
         log_context=_build_job_log_context(
             topic_description=topic_description,
             log_context=log_context,
@@ -77,12 +81,14 @@ def _start_explore_search_job_runner(
     *,
     job_id: str,
     topic_description: str,
+    response_mode: ExploreResponseMode,
     log_context: SearchLogContext | None = None,
 ) -> None:
     thread = threading.Thread(
         target=lambda: _run_explore_search_job(
             job_id=job_id,
             topic_description=topic_description,
+            response_mode=response_mode,
             log_context=log_context,
         ),
         name=f"sciscope-explore-job-{job_id[:8]}",
@@ -95,6 +101,7 @@ def _run_explore_search_job(
     *,
     job_id: str,
     topic_description: str,
+    response_mode: ExploreResponseMode,
     log_context: SearchLogContext | None = None,
 ) -> None:
     started_at = monotonic()
@@ -112,14 +119,13 @@ def _run_explore_search_job(
         _update_explore_search_job(job_id, status="planning")
         payload = run_explore_search(
             topic_description=topic_description,
-            progress_callback=lambda snapshot: _update_explore_search_job(
+            response_mode=response_mode,
+            progress_callback=lambda search_payload: _update_explore_search_job(
                 job_id,
                 status="retrieving",
-                aiSearchPlan=snapshot["aiSearchPlan"],
-                items=snapshot["items"],
-                sourceStatuses=snapshot["sourceStatuses"],
+                search_payload=search_payload,
                 error=None,
-                message=snapshot.get("message"),
+                message=search_payload.get("message"),
             ),
             soft_deadline_monotonic=soft_deadline_monotonic,
             hard_deadline_monotonic=hard_deadline_monotonic,
@@ -130,7 +136,7 @@ def _run_explore_search_job(
         _update_explore_search_job(
             job_id,
             status="failed",
-            sourceStatuses=exc.source_statuses,
+            search_payload={"sourceStatuses": exc.source_statuses},
             error=str(exc),
             message=None,
         )
@@ -159,7 +165,7 @@ def _run_explore_search_job(
         _update_explore_search_job(
             job_id,
             status="failed",
-            sourceStatuses=payload["sourceStatuses"],
+            search_payload={"sourceStatuses": payload["sourceStatuses"]},
             error=str(
                 payload.get("message")
                 or "Search timed out before any results were returned."
@@ -171,9 +177,7 @@ def _run_explore_search_job(
     _update_explore_search_job(
         job_id,
         status=completed_status,
-        aiSearchPlan=payload["aiSearchPlan"],
-        items=payload["items"],
-        sourceStatuses=payload["sourceStatuses"],
+        search_payload=payload,
         error=None,
         message=payload.get("message"),
     )
@@ -183,9 +187,7 @@ def _update_explore_search_job(
     job_id: str,
     *,
     status: str,
-    aiSearchPlan: dict[str, object] | None = None,
-    items: list[dict[str, object]] | None = None,
-    sourceStatuses: list[dict[str, object]] | None = None,
+    search_payload: dict[str, object] | None = None,
     error: str | None = None,
     message: str | None = None,
 ) -> None:
@@ -196,12 +198,8 @@ def _update_explore_search_job(
 
         snapshot["status"] = status
         snapshot["updatedAt"] = _now_isoformat()
-        if aiSearchPlan is not None:
-            snapshot["aiSearchPlan"] = deepcopy(aiSearchPlan)
-        if items is not None:
-            snapshot["items"] = deepcopy(items)
-        if sourceStatuses is not None:
-            snapshot["sourceStatuses"] = deepcopy(sourceStatuses)
+        if search_payload is not None:
+            snapshot.update(deepcopy(search_payload))
         snapshot["error"] = error
         snapshot["message"] = message
 

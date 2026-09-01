@@ -27,18 +27,6 @@ class Signal:
         object.__setattr__(self, "normalized_text", _build_normalized_text(self))
 
 
-@dataclass(frozen=True)
-class SignalMatch:
-    """Deterministic match result for V0 profile matching."""
-
-    source: str
-    item_id: str
-    matched: bool
-    score: float
-    matched_terms: tuple[str, ...] = ()
-    reason: str = ""
-
-
 def _build_normalized_text(signal: Signal) -> str:
     parts: list[str] = [
         signal.title,

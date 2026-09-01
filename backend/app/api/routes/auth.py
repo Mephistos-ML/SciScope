@@ -11,6 +11,7 @@ from app.services.auth import (
     get_current_user,
     sign_out_current_user,
 )
+from app.services.features import get_enabled_features
 
 
 def get_me_response(request: Request) -> dict[str, object]:
@@ -51,4 +52,5 @@ def _serialize_user(user) -> dict[str, object]:
         "email": user.email,
         "displayName": user.display_name,
         "avatarUrl": user.avatar_url,
+        "features": list(get_enabled_features(user.email)),
     }
