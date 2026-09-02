@@ -1,3 +1,16 @@
+# [1.11.0](https://github.com/Mephistos-ML/SciScope/compare/v1.10.1...v1.11.0) (2026-09-02)
+
+
+### Bug Fixes
+
+* **search:** retain code hits after query timeout ([e7a8877](https://github.com/Mephistos-ML/SciScope/commit/e7a8877c2578824a19b9e4f68c427b30a1a4f3f9))
+* **web:** clamp repository descriptions ([bbd628e](https://github.com/Mephistos-ML/SciScope/commit/bbd628e17f674b8c9a0fd4930fb4fe3e7f389138))
+
+
+### Features
+
+* **access:** bypass search quotas for internal users ([141790b](https://github.com/Mephistos-ML/SciScope/commit/141790b25ebb6305f05a671a6a282db3051078bd))
+
 ## [1.10.1](https://github.com/Mephistos-ML/SciScope/compare/v1.10.0...v1.10.1) (2026-09-01)
 
 
