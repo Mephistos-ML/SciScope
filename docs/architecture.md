@@ -2,201 +2,104 @@
 
 ## System Shape
 
-SciScope is a structured monolith with:
+SciScope is a structured monolith with one backend application, one frontend application, one database, and background monitoring inside the backend process.
 
-- one backend application
-- one frontend application
-- one database
-- background monitoring inside the backend process
+The system centres on topic-driven discovery, repositories, subscriptions, and Feed events.
 
-The runtime is repository-only.
+## End-to-End Flows
 
-The runtime hierarchy is centered on repositories, subscriptions, and signals.
+### Explore
 
-## End-to-End Flow
-
-### Explore Flow
-
-`topic description -> AI query plan -> repository discovery -> deterministic matching -> results`
+`topic description -> AI query plan -> external retrieval -> candidate merge -> admission -> ranking -> results`
 
 Ownership:
 
-- `services/ai/`
-  - builds search queries from the topic description
-- `sources/github/discovery.py`
-  - loads GitHub repository candidates
-- `sources/gitlab/discovery.py`
-  - loads GitLab repository candidates
-- `services/search/explore.py`
-  - merges source results, matches them against generated queries, and returns Explore payloads
+- `services/ai/`: builds a concise query plan from one topic description
+- `services/search/retrieval/`: coordinates source lanes, deadlines, merging, evidence, and partial coverage
+- `sources/github/search/` and `sources/gitlab/search/`: perform provider-specific repository retrieval and supported code retrieval
+- `services/search/admission/`: applies repository-name gates and conservative candidate checks
+- `services/search/ranking/`: builds source-independent features and explainable heuristic scores
+- `services/search/explore/`: owns job lifecycle and canonical versus restricted diagnostic response assembly
 
 Explore is read-only and does not create subscriptions.
 
-### Subscription Flow
+### Subscription
 
 `clicked repository -> repository upsert -> subscription create -> baseline sync`
 
-Ownership:
+The subscription is an explicit user decision to monitor one repository.
 
-- `api/routes/subscriptions.py`
-  - validates repo-centric request payloads
-- `services/subscriptions/service.py`
-  - builds a `Repository`, stores it, creates the subscription, and starts baseline sync
-- `storage/repositories.py`
-  - persists repository records and checkpoints
-- `storage/subscriptions.py`
-  - persists direct repository subscriptions
+### Monitoring
 
-The subscription is the explicit user decision to monitor one repository.
-
-### Monitoring Flow
-
-`subscription watch -> source-specific checkpoint -> release fetch -> Signal -> signal view`
+`subscription watch -> source checkpoints -> releases and default-branch commits -> append-only Feed events`
 
 Ownership:
 
-- `services/runtime.py`
-  - background scheduler and signal view assembly
-- `sources/runtime.py`
-  - routes each watch to the correct source adapter
-- `sources/github/monitor.py`
-  - loads GitHub releases for one subscribed repository
-- `sources/gitlab/monitor.py`
-  - loads GitLab releases for one subscribed repository
-- `storage/seen_signals.py`
-  - persists seen signal ids by `(source, item_id)`
-
-The monitoring loop processes repositories from user subscriptions.
+- `services/subscriptions/`: subscription lifecycle and baseline initialization
+- `services/monitoring/`: background scheduler and source polling
+- `services/feed/`: Feed-event assembly
+- `storage/`: repository, checkpoint, subscription, and Feed persistence
+- `sources/github/` and `sources/gitlab/`: provider monitoring adapters
 
 ## Stable Boundaries
 
 ### API
 
-Owns transport.
-
-- FastAPI request/response handling
-- auth redirects
-- payload validation
-- no source logic
-- no persistence logic
+Owns FastAPI transport, authentication boundaries, payload validation, and response mapping. It contains no source or persistence logic.
 
 ### AI Planning
 
-Owns query generation.
-
-- input: one topic description
-- output: one query plan
-- no repository storage
-- no subscription creation
+Owns generation of a search query plan from a topic description. It does not retrieve repositories, create subscriptions, or persist search candidates.
 
 ### Search
 
-Owns Explore behavior.
-
-- source discovery fan-out
-- deterministic matching
-- result ranking and serialization
-- no subscription persistence
-
-### Subscriptions
-
-Owns explicit repository watches.
-
-- create
-- list
-- delete
-- baseline initialization
+Owns topic-driven Explore behavior: retrieval orchestration, candidate merge, admission, ranking, asynchronous jobs, partial coverage, and response assembly. It does not persist subscriptions.
 
 ### Sources
 
-Own repository-hosting adapters.
-
-- repository discovery
-- release monitoring
-- source auth
-- checkpoint resolution
-
-Sources do not decide whether a repository should be subscribed.
+Own provider-specific external IO: authentication, repository retrieval, supported code retrieval, release and commit monitoring, and checkpoint resolution. Sources do not apply admission or ranking policy.
 
 ### Storage
 
-Owns persistence contracts.
+Owns persistence contracts for repositories, subscriptions, checkpoints, Feed events, auth records, and Explore usage. SQLAlchemy records stay under `database/records/` and are used only by storage.
 
-- repositories
-- subscriptions
-- seen signals
-- auth records
+### Monitoring
 
-### Runtime
+Owns periodic scans, monitoring control, and the creation of user Feed events from subscribed repositories.
 
-Owns the monitoring loop.
+## Search Delivery Policy
 
-- start / stop
-- periodic scans
-- signal views
-- status payloads
+Admission runs before ranking. It is deliberately conservative and removes obvious non-software candidates such as paper lists, teaching materials, and repository-name classes excluded by policy.
+
+Ranking uses an explainable heuristic baseline:
+
+- query coverage with diminishing returns
+- strongest match location for each query
+- bounded evidence density
+
+Normal Explore results must pass the configured relevance cutoff. Restricted beta diagnostics can inspect candidates rejected by gates, admission, or the cutoff without changing canonical delivery.
+
+External failures are coverage information, not empty results. Completed candidates remain available when a lane times out or one source is unavailable. Provider rate limits stop further work for the affected lane and surface a retry window when supplied by the provider.
 
 ## Domain Model
 
 Core objects:
 
-- `Repository`
-- `Subscription`
-- `Signal`
-- `SignalMatch`
+- `Repository`: canonical identity and provider metadata for a monitored repository
+- `Subscription`: one repository watch owned by one user
+- `Signal`: canonical provider event shape
+- `FeedEvent`: durable per-user delivery record for a discovered release or default-branch commit
 
-### Repository
+## Provider Coverage
 
-One canonical watched repository with:
+GitHub supports repository retrieval, code retrieval, and monitoring.
 
-- `repository_id`
-- `source`
-- `full_name`
-- `url`
-- `metadata`
+GitLab supports repository retrieval and monitoring. GitLab.com global code retrieval is disabled because its public API does not provide the required global blob-search capability.
 
-### Subscription
+Gitee, GitCode, and GitVerse remain unavailable source modules.
 
-One direct watch owned by one user.
+## Dependency Direction
 
-- `subscription_id`
-- `user_id`
-- `repository_id`
-- `selected_query`
-- `created_at`
+`api -> services -> sources/storage -> database`
 
-### Signal
-
-One canonical internal signal object used everywhere.
-
-- source and item identity
-- signal kind
-- title and url
-- published time
-- `raw_text`
-- `normalized_text`
-- `payload`
-
-The `Signal` model stores both raw and normalized text.
-
-## Source Contracts
-
-Repository discovery adapters return candidate repository `Signal` objects.
-
-Monitoring adapters return release `Signal` objects for one subscribed repository.
-
-Both contracts keep these rules:
-
-- source adapter fetches and shapes data
-- source adapter keeps source-specific payload details
-- matching stays outside the source layer
-- deduplication anchor is `(source, item_id)`
-
-## Constraints
-
-- Explore is public, Feed is user-owned
-- subscriptions are repository-only
-- monitoring is release-only
-- GitHub and GitLab are active providers
-- Gitee, GitCode, and GitVerse return unavailable or empty results
-- the Feed UI focuses on subscriptions and does not render monitored signal streams
+`models` and `config` are shared layers. The complete change contract is maintained in [AI_CONTRACT.md](../AI_CONTRACT.md).

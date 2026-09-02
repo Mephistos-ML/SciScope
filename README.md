@@ -1,222 +1,103 @@
 # SciScope
 
-SciScope is a live repository discovery and monitoring service for narrow research workflows.
+SciScope is a live service for discovering and monitoring domain-specific scientific software.
 
-Public service:
+Public service: `https://sciscope.uk/`
 
-- `https://sciscope.uk/`
-
-SciScope turns a research topic description into a monitored repository watchlist:
-
-`topic description -> AI search queries -> repository results -> explicit subscribe -> release monitoring`
-
-## Product Snapshot
-
-- Explore is public and search-driven
-- subscriptions are explicit per-repository watches
-- repository hostings are the source family
-
-The service is built around one operational assumption:
-
-- repositories are the monitored object
-- source differences belong to hosting adapters
-- monitoring starts only after an explicit user subscription
+`topic description -> AI query plan -> external retrieval -> admission -> ranking -> results -> explicit subscribe -> monitoring -> feed`
 
 ## What The Service Does
 
-- public Explore flow from a free-form topic description
-- AI-generated repository search queries
-- repository discovery on GitHub and GitLab
-- per-result `Subscribe` actions in Explore
-- Google sign-in for saved subscriptions
-- direct repository subscriptions in Postgres
-- repository release checkpoints per subscription
-- background monitoring loop for subscribed repositories
-- signal storage and signal APIs backed by one shared `Signal` model
+- accepts a free-form scientific topic description
+- generates a concise AI-assisted query plan
+- retrieves repository and, where supported, code-search candidates from GitHub and GitLab
+- merges duplicate candidates and records source-independent match evidence
+- removes obvious non-software repositories through conservative admission gates
+- ranks retained repositories with an explainable heuristic score and configurable cutoff
+- runs searches asynchronously and returns completed work when a source is slow, rate-limited, or unavailable
+- lets signed-in users subscribe to repositories
+- monitors subscribed repositories for releases and default-branch commits
+- delivers new activity through an append-only personal Feed
 
-User flow:
+## User Flow
 
-1. User enters a topic description in Explore.
-2. SciScope generates repository search queries.
-3. GitHub and GitLab return candidate repositories.
-4. User explicitly subscribes to selected repositories.
-5. Backend stores repository watches and initializes monitoring checkpoints.
-6. Monitoring loads release signals for subscribed repositories.
+1. A user enters a topic description in Explore.
+2. SciScope generates a small set of distinct search queries.
+3. External retrieval lanes collect repository candidates.
+4. SciScope deduplicates candidates, applies admission, and ranks the retained pool.
+5. The normal Explore response shows repositories above the relevance cutoff.
+6. The user explicitly subscribes to repositories worth monitoring.
+7. New releases and default-branch commits appear in the user's Feed.
 
-Runtime rules:
+Explore does not require sign-in. Subscriptions and Feed access require Google sign-in because they are user-owned.
 
-- Explore does not require sign-in.
-- Feed requires Google sign-in because subscriptions are user-owned.
-- Monitoring is repository-first and does not persist topic descriptions.
-- The frontend does not expose `Start` / `Stop`; the monitoring loop is controlled through backend endpoints.
+## Ranking
 
-## Engineering Signals
+SciScope currently uses a transparent heuristic baseline rather than a learned model. The score combines:
 
-- live public product at `sciscope.uk`
-- typed frontend and backend codebase
-- persistent relational storage with Alembic-managed schema
-- Google OAuth for user-owned subscriptions
-- explicit source adapters for GitHub and GitLab
-- background monitoring with persisted release checkpoints
-- one canonical `Signal` model across ingestion, matching, storage, and delivery
-- backend signal and subscription APIs separated from the web UI
-- repository-level subscriptions instead of implicit watchlists
-- test-backed backend code in the repository
+- query coverage, with diminishing returns for additional matching queries
+- match location, where repository metadata is stronger evidence than an incidental code match
+- bounded evidence density, so repetitive hits cannot dominate the result
 
-## Core Concepts
-
-### Explore
-
-Explore is a read-only discovery surface.
-
-- input: one topic description
-- output: ranked repository results
-- sources: GitHub and GitLab
-- persistence: none
-
-### Subscription
-
-A subscription is one explicit repository watch.
-
-Stored fields:
-
-- `subscription_id`
-- `user_id`
-- `repository_id`
-- `selected_query`
-- `created_at`
-
-`selected_query` is only a snapshot of the query that produced the clicked result. The subscription itself is repository-centric.
-
-### Signal
-
-SciScope uses one canonical `Signal` model.
-
-It contains:
-
-- source identity
-- signal kind
-- item id
-- title
-- url
-- published time
-- raw text
-- normalized text
-- payload
-
-The backend uses a single `Signal` type that carries both raw and normalized text.
-
-## Architecture
-
-SciScope is a structured monolith with a split frontend/backend workspace.
-
-System shape:
-
-- React + TypeScript frontend
-- FastAPI backend
-- Postgres persistence
-- SQLAlchemy + Alembic for data access and migrations
-- background monitoring inside the backend service
-
-Backend shape:
-
-Main backend areas:
-
-- `backend/app/api/`
-  - FastAPI transport and route wiring
-- `backend/app/services/ai/`
-  - AI query planning from topic descriptions
-- `backend/app/services/search/`
-  - Explore search and deterministic matching
-- `backend/app/services/monitoring/`
-  - repository monitoring orchestration and checkpoints
-- `backend/app/services/subscriptions/`
-  - create/list/delete direct repository subscriptions
-- `backend/app/services/runtime.py`
-  - monitoring orchestration and signal views
-- `backend/app/sources/`
-  - repository-hosting adapters and replay fixtures
-- `backend/app/storage/`
-  - repositories, subscriptions, signals, explore usage, auth
-- `backend/app/database/records/`
-  - SQLAlchemy record models used only by storage
-- `backend/alembic/`
-  - database migrations
-
-Key domain objects:
-
-- `Repository`
-- `Subscription`
-- `Signal`
-- `SignalMatch`
+The formula and relevance cutoff are versionable product policy. They will be tuned against a verified evaluation set before a future learning-to-rank stage.
 
 ## Source Coverage
 
 Active:
 
-- GitHub repository discovery
-- GitHub release monitoring
-- GitLab repository discovery
-- GitLab release monitoring
+- GitHub repository and code retrieval
+- GitHub release and default-branch commit monitoring
+- GitLab repository retrieval
+- GitLab release and default-branch commit monitoring
 
-Unavailable source modules:
+GitLab.com global code search is disabled because its public API does not provide the required global blob-search capability. GitLab repository retrieval and monitoring remain active.
 
-- Gitee
-- GitCode
-- GitVerse
+## Architecture
 
-Placeholder source rules:
+SciScope is a structured monolith with a React + TypeScript frontend, FastAPI backend, and Postgres persistence layer.
 
-- they may expose discovery and provider activity loaders
-- they must not export monitoring checkpoint orchestration
-- they should match the same public surface shape as active source packages
+Main backend areas:
 
-## Service Surfaces
+- `backend/app/api/`: FastAPI transport, auth, and request validation
+- `backend/app/services/ai/`: AI query planning
+- `backend/app/services/search/`: retrieval, admission, ranking, async jobs, and observability
+- `backend/app/services/subscriptions/`: repository subscriptions
+- `backend/app/services/monitoring/`: repository monitoring and Feed creation
+- `backend/app/sources/`: GitHub and GitLab provider adapters
+- `backend/app/storage/`: persistence contracts
+- `backend/app/database/records/`: SQLAlchemy records used only by storage
+- `backend/alembic/`: database migrations
 
-### Web App
+The core dependency direction is `api -> services -> sources/storage -> database`. Details are recorded in [AI_CONTRACT.md](AI_CONTRACT.md) and [docs/architecture.md](docs/architecture.md).
 
-- public Explore interface
-- Google-authenticated subscription and Feed interface
-- repository result pages rendered through the frontend app
-
-### Backend API
-
-- Explore search endpoints
-- subscription endpoints
-- signal endpoints
-- monitoring control endpoints
-- Google OAuth session endpoints
-
-## Scope Boundaries
-
-The repository excludes:
-
-- non-repository source families such as papers, conferences, or social feeds
-- automatic subscription creation from Explore results
-- persistent topic objects in the runtime path
-- ranking beyond deterministic term matching
-- a finished Feed UI for rendering monitored signals
-- notifications or digests
-
-## Useful API Endpoints
+## API Surfaces
 
 - `POST /api/explore/search`
+- `POST /api/explore/search-jobs`
+- `GET /api/explore/search-jobs/{id}`
 - `GET /api/subscriptions`
 - `POST /api/subscriptions`
 - `DELETE /api/subscriptions/{id}`
-- `GET /api/signals`
-- `GET /api/signals/{id}`
+- `GET /api/feed`
+- `GET /api/feed/{id}`
 - `POST /api/start`
 - `POST /api/stop`
 
-## Development Notes
+## Operations
+
+- External provider failures and timeouts degrade search coverage rather than discarding completed work.
+- GitHub code retrieval stops after a provider rate-limit response and reports a retry window when the provider supplies one.
+- Search emits structured events for planning, retrieval, admission, ranking, and completion.
+- Public search quotas and abuse controls are configured through environment variables.
+- Restricted beta diagnostics are available only to configured internal users.
+
+## Development
 
 - Python backend: `>=3.11`
-- Frontend: Vite + React + TypeScript
-- Persistent state runs through Postgres via SQLAlchemy + Alembic
-- Google OAuth gates user-owned subscriptions
-- Backend architecture notes live in [backend/README.md](/Users/ernestborysenko/git/SciScope/backend/README.md)
-- Architecture contract for future changes lives in [AI_CONTRACT.md](/Users/ernestborysenko/git/SciScope/AI_CONTRACT.md)
+- Frontend: Vite, React, and TypeScript
+- Database: Postgres with SQLAlchemy and Alembic
+
+Backend setup and operations are documented in [backend/README.md](backend/README.md).
 
 ## Author
 
