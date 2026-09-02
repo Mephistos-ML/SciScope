@@ -39,7 +39,8 @@ def test_discover_repository_candidates_from_code_builds_repository_signal(
     assert len(signals) == 1
     signal = signals[0]
     assert signal.kind == "repository"
-    assert signal.item_id == "gitlab:repo:kragskow-group/orto"
+    assert signal.item_id == "gitlab:repo:42"
+    assert signal.payload["provider_repository_id"] == "42"
     assert signal.payload["query"] == "orca python package"
     assert signal.payload["stars"] == 19
     assert "Matched code path: src/orto/io/orca_output.py" in signal.raw_text
@@ -88,5 +89,5 @@ def test_discover_repository_candidates_from_code_skips_project_when_metadata_fa
 
     assert len(signals) == 1
     signal = signals[0]
-    assert signal.item_id == "gitlab:repo:thermotools/lammps_mie_fh"
+    assert signal.item_id == "gitlab:repo:43"
     assert signal.payload["query"] == "feynman hibbs lammps"

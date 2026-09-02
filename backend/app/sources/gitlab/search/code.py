@@ -104,6 +104,7 @@ def discover_repository_candidates_from_code(
                 full_name=full_name,
                 url=str(project.get("web_url") or ""),
                 query=query,
+                provider_repository_id=str(project.get("id") or project_id),
                 description=str(project.get("description") or ""),
                 owner_login=owner_login,
                 language="",

@@ -54,6 +54,7 @@ def discover_repository_candidates(
                 full_name=full_name,
                 url=str(item.get("web_url") or ""),
                 query=query,
+                provider_repository_id=str(item.get("id") or ""),
                 description=description,
                 owner_login=owner_login,
                 language="",

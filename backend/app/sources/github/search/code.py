@@ -90,6 +90,7 @@ def discover_repository_candidates_from_code(
                         repository.get("html_url") or f"https://github.com/{full_name}"
                     ),
                     query=query,
+                    provider_repository_id=str(repository.get("id") or ""),
                     description=str(repository.get("description") or ""),
                     owner_login=owner_login,
                     language=str(repository.get("language") or ""),

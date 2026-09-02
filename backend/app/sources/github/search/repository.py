@@ -66,6 +66,7 @@ def discover_repository_candidates(
                 full_name=full_name,
                 url=str(item.get("html_url") or f"https://github.com/{full_name}"),
                 query=query,
+                provider_repository_id=str(item.get("id") or ""),
                 description=description,
                 owner_login=owner_login,
                 language=language,
