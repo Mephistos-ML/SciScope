@@ -371,7 +371,7 @@ export function ExplorePage({
                         <div className="repository-row" key={result.itemId}>
                           <div className="repository-main-cell">
                             <p className="repository-title">{result.fullName}</p>
-                            <p className="repository-description">
+                            <p className="repository-description repository-about">
                               {result.description || result.reason}
                             </p>
                             {result.beta ? <BetaDiagnostic result={result} /> : null}
