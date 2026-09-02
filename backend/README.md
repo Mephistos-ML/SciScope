@@ -7,7 +7,7 @@ SciScope backend is the API, auth, search, persistence, and monitoring layer beh
 The backend owns:
 
 - public asynchronous Explore search
-- AI query planning, external retrieval, admission, and heuristic ranking
+- AI query planning, local catalog retrieval, external fallback, admission, and heuristic ranking
 - Google-authenticated subscriptions
 - repository persistence and monitoring checkpoints
 - durable, append-only user Feed events
@@ -59,7 +59,7 @@ Feed events are created only for activity discovered after subscription time. Re
 
 ### Explore Flow
 
-`topic description -> AI query plan -> parallel retrieval lanes -> candidate merge -> admission -> heuristic ranking -> result payload`
+`topic description -> AI query plan -> local catalog retrieval -> parallel external fallback lanes when coverage is low -> candidate merge -> admission -> heuristic ranking -> result payload`
 
 Main modules:
 
@@ -95,14 +95,14 @@ Main modules:
 
 Primary persistence areas:
 
-- repositories
+- repository catalog profiles and query-specific retrieval evidence
 - subscriptions
 - repository checkpoints
 - feed events
 - Explore usage records
 - users, OAuth accounts, and sessions
 
-Search execution state is runtime-local. Repository candidates are persisted only after a subscription; SciScope does not crawl or mirror whole repository hosts.
+Search execution state is runtime-local. Admitted external candidates are persisted as compact catalog profiles and query-specific retrieval evidence; SciScope does not crawl or mirror whole repository hosts.
 
 Persistence uses SQLAlchemy and Postgres. Alembic migrations live in `alembic/versions/`.
 

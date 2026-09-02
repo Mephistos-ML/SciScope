@@ -27,7 +27,11 @@ def build_repository_candidate_signal(candidate: RepositoryCandidate) -> Signal:
     return Signal(
         source=candidate.source,
         kind="repository",
-        item_id=f"{candidate.source}:repo:{candidate.full_name}",
+        item_id=(
+            f"{candidate.source}:repo:{candidate.provider_repository_id}"
+            if candidate.provider_repository_id
+            else f"{candidate.source}:repo:{candidate.full_name}"
+        ),
         title=candidate.full_name,
         url=candidate.url,
         published_at=None,
@@ -41,6 +45,7 @@ def build_repository_candidate_signal(candidate: RepositoryCandidate) -> Signal:
         ),
         payload={
             "repo": candidate.full_name,
+            "provider_repository_id": candidate.provider_repository_id,
             "author": candidate.owner_login,
             "description": candidate.description,
             "topics": list(candidate.topics),
@@ -64,11 +69,17 @@ def build_repository_entity(signal: Signal) -> Repository:
         url=signal.url,
         metadata={
             "repo": repo_name,
-            "query": signal.payload.get("query"),
-            "topics": signal.payload.get("topics", []),
-            "language": signal.payload.get("language"),
-            "stars": signal.payload.get("stars"),
         },
+        provider_repository_id=str(signal.payload.get("provider_repository_id") or ""),
+        owner_login=str(signal.payload.get("author") or ""),
+        description=str(signal.payload.get("description") or ""),
+        language=str(signal.payload.get("language") or ""),
+        stars=int(signal.payload.get("stars") or 0),
+        topics=tuple(
+            str(topic)
+            for topic in signal.payload.get("topics", [])
+            if str(topic).strip()
+        ),
     )
 
 

@@ -42,6 +42,7 @@ def search_explore_response(
     return run_explore_search(
         topic_description=topic_description,
         response_mode=response_mode,
+        database_url=request.app.state.database_url,
         log_context=SearchLogContext(
             request_id=build_request_id(),
             topic_hash=topic_hash,

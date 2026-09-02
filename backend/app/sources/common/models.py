@@ -14,6 +14,7 @@ class RepositoryCandidate:
     full_name: str
     url: str
     query: str
+    provider_repository_id: str = ""
     description: str = ""
     owner_login: str = ""
     language: str = ""

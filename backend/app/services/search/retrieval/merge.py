@@ -43,6 +43,55 @@ def merge_retrieval_hits(hits: tuple[RetrievalHit, ...]) -> tuple[RepositoryCand
     return tuple(merged.values())
 
 
+def merge_repository_candidates(
+    candidates: tuple[RepositoryCandidate, ...],
+) -> tuple[RepositoryCandidate, ...]:
+    """Deduplicate candidate pools that were retrieved by different backends."""
+
+    merged: dict[str, RepositoryCandidate] = {}
+    for candidate in candidates:
+        existing = merged.get(candidate.repository_id)
+        if existing is None:
+            merged[candidate.repository_id] = candidate
+            continue
+        merged[candidate.repository_id] = RepositoryCandidate(
+            repository_id=candidate.repository_id,
+            signal=_merge_signals(existing.signal, candidate.signal),
+            provenance=CandidateProvenance(
+                matched_queries=tuple(
+                    dict.fromkeys(
+                        (*existing.provenance.matched_queries, *candidate.provenance.matched_queries)
+                    )
+                ),
+                matched_channels=tuple(
+                    dict.fromkeys(
+                        (*existing.provenance.matched_channels, *candidate.provenance.matched_channels)
+                    )
+                ),
+                best_rank_by_channel={
+                    channel: min(
+                        rank
+                        for rank in (
+                            existing.provenance.best_rank_by_channel.get(channel),
+                            candidate.provenance.best_rank_by_channel.get(channel),
+                        )
+                        if rank is not None
+                    )
+                    for channel in (
+                        *existing.provenance.best_rank_by_channel,
+                        *candidate.provenance.best_rank_by_channel,
+                    )
+                },
+                hit_count=existing.provenance.hit_count + candidate.provenance.hit_count,
+                match_evidence=_append_many_unique_evidence(
+                    existing.provenance.match_evidence,
+                    candidate.provenance.match_evidence,
+                ),
+            ),
+        )
+    return tuple(merged.values())
+
+
 def _merge_provenance(
     existing: CandidateProvenance,
     incoming: RetrievalHit,
@@ -79,6 +128,16 @@ def _append_unique_evidence(
     if incoming in existing:
         return existing
     return (*existing, incoming)
+
+
+def _append_many_unique_evidence(
+    existing: tuple[RetrievalMatchEvidence, ...],
+    incoming: tuple[RetrievalMatchEvidence, ...],
+) -> tuple[RetrievalMatchEvidence, ...]:
+    merged = existing
+    for item in incoming:
+        merged = _append_unique_evidence(merged, item)
+    return merged
 
 
 def _select_preferred_signal(existing: Signal, incoming: Signal) -> Signal:

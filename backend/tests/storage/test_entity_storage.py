@@ -8,13 +8,16 @@ from tests.conftest import build_test_database_url, migrate_test_database
 from app.models.repository import (
     Repository,
     RepositoryCheckpoint,
+    RepositorySearchEvidence,
 )
 from app.storage.repositories import (
+    find_catalog_repository_matches,
     get_repository_checkpoint,
     get_repository,
     list_repositories,
     list_repository_checkpoints,
     upsert_repositories,
+    upsert_repository_search_evidence,
     upsert_repository_checkpoints,
 )
 from app.storage.subscriptions import create_subscription, list_subscription_watches_for_user
@@ -80,6 +83,49 @@ def test_create_subscription_returns_direct_repository_watch(tmp_path) -> None:
     assert len(watches) == 1
     assert watches[0].repository.full_name == "Mephistos-ML/paranmr"
     assert watches[0].selected_query == "paramagnetic nmr"
+
+
+def test_catalog_search_uses_profile_and_durable_query_evidence(tmp_path) -> None:
+    database_url = build_test_database_url(tmp_path / "catalog.sqlite3")
+    migrate_test_database(database_url)
+    repository = Repository(
+        repository_id="github:repo:123",
+        source="github",
+        provider_repository_id="123",
+        full_name="Mephistos-ML/paranmr",
+        url="https://github.com/Mephistos-ML/paranmr",
+        description="Paramagnetic NMR fitting toolkit.",
+        language="Python",
+        topics=("paramagnetic-nmr", "pcs"),
+    )
+    upsert_repositories((repository,), database_url=database_url)
+    upsert_repository_search_evidence(
+        (
+            RepositorySearchEvidence(
+                repository_id=repository.repository_id,
+                query_normalized="paramagnetic relaxation",
+                channel="code_search",
+                match_location="code",
+                matched_path="paranmr/relaxation.py",
+                matched_excerpt="Fit paramagnetic relaxation rates.",
+                provider_rank=3,
+            ),
+        ),
+        database_url=database_url,
+    )
+
+    pnmr_matches = find_catalog_repository_matches(
+        ("paramagnetic nmr",),
+        database_url=database_url,
+    )
+    relaxation_matches = find_catalog_repository_matches(
+        ("relaxation",),
+        database_url=database_url,
+    )
+
+    assert [match.repository.repository_id for match in pnmr_matches] == ["github:repo:123"]
+    assert [match.repository.repository_id for match in relaxation_matches] == ["github:repo:123"]
+    assert relaxation_matches[0].evidence[0].matched_path == "paranmr/relaxation.py"
 
 
 def test_upsert_repository_checkpoints_persists_monitoring_cursor(tmp_path) -> None:

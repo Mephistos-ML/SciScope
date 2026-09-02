@@ -10,11 +10,12 @@ The system centres on topic-driven discovery, repositories, subscriptions, and F
 
 ### Explore
 
-`topic description -> AI query plan -> external retrieval -> candidate merge -> admission -> ranking -> results`
+`topic description -> AI query plan -> local catalog retrieval -> external fallback when coverage is low -> candidate merge -> admission -> ranking -> results`
 
 Ownership:
 
 - `services/ai/`: builds a concise query plan from one topic description
+- `services/search/catalog.py`: maps catalog records into standard retrieval candidates and persists admitted external discoveries
 - `services/search/retrieval/`: coordinates source lanes, deadlines, merging, evidence, and partial coverage
 - `sources/github/search/` and `sources/gitlab/search/`: perform provider-specific repository retrieval and supported code retrieval
 - `services/search/admission/`: applies repository-name gates and conservative candidate checks
@@ -38,7 +39,7 @@ Ownership:
 - `services/subscriptions/`: subscription lifecycle and baseline initialization
 - `services/monitoring/`: background scheduler and source polling
 - `services/feed/`: Feed-event assembly
-- `storage/`: repository, checkpoint, subscription, and Feed persistence
+- `storage/`: catalog repository profiles, retrieval evidence, checkpoints, subscriptions, and Feed persistence
 - `sources/github/` and `sources/gitlab/`: provider monitoring adapters
 
 ## Stable Boundaries
@@ -85,7 +86,8 @@ External failures are coverage information, not empty results. Completed candida
 
 Core objects:
 
-- `Repository`: canonical identity and provider metadata for a monitored repository
+- `Repository`: canonical identity and current provider metadata for a catalog repository
+- `RepositorySearchEvidence`: durable query-specific evidence of where a repository matched
 - `Subscription`: one repository watch owned by one user
 - `Signal`: canonical provider event shape
 - `FeedEvent`: durable per-user delivery record for a discovered release or default-branch commit
