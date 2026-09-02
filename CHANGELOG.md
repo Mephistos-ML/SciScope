@@ -1,3 +1,10 @@
+## [1.11.2](https://github.com/Mephistos-ML/SciScope/compare/v1.11.1...v1.11.2) (2026-09-02)
+
+
+### Bug Fixes
+
+* **search:** stop code retrieval after rate limits ([3e3244a](https://github.com/Mephistos-ML/SciScope/commit/3e3244acb5746cbc7fc6733355f3f9a0f1ac60d5))
+
 ## [1.11.1](https://github.com/Mephistos-ML/SciScope/compare/v1.11.0...v1.11.1) (2026-09-02)
 
 
