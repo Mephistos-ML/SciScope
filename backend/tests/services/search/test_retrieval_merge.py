@@ -9,6 +9,7 @@ from app.models.signal import Signal
 from app.services.search.retrieval.merge import merge_retrieval_hits
 from app.services.search.retrieval import service as retrieval_service
 from app.services.search.retrieval.service import run_external_repository_retrieval
+from app.sources.common import RepositorySourceError
 
 
 def _build_repository_signal(
@@ -319,6 +320,47 @@ def test_run_external_repository_retrieval_marks_partial_when_parallel_lane_miss
     assert retrieved.partial is True
     assert "partial coverage" in retrieved.warnings[0]
     assert elapsed_seconds < 0.15
+
+
+def test_run_external_repository_retrieval_retains_completed_code_queries_after_timeout() -> None:
+    def discover_github_code_candidates(queries: tuple[str, ...]) -> list[Signal]:
+        query = queries[0]
+        if query == "timed out query":
+            raise RepositorySourceError(
+                source="github",
+                status="timed_out",
+                public_message="GitHub code search timed out right now.",
+            )
+        return [
+            _build_repository_signal(
+                f"github:repo:science/{query.replace(' ', '-')}",
+                query=query,
+            )
+        ]
+
+    retrieved = run_external_repository_retrieval(
+        ("first query", "timed out query", "last query"),
+        discoverers=(
+            ("github", "code_search", discover_github_code_candidates),
+        ),
+    )
+
+    assert [candidate.repository_id for candidate in retrieved.candidates] == [
+        "github:repo:science/first-query",
+        "github:repo:science/last-query",
+    ]
+    assert retrieved.partial is True
+    assert retrieved.source_statuses == (
+        {
+            "source": "github",
+            "status": "ok",
+            "candidateCount": 2,
+            "error": None,
+        },
+    )
+    assert retrieved.warnings == (
+        "GitHub code search returned timed_out for 1 query and retained results from 2 completed queries.",
+    )
 
 
 def _build_hit(

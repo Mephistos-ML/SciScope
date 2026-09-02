@@ -18,6 +18,7 @@ from app.services.search.observability import (
 )
 from app.services.search.retrieval.merge import merge_retrieval_hits
 from app.services.search.retrieval.models import RetrievedCandidates, RetrievalHit
+from app.services.search.retrieval.timeouts import is_deadline_reached
 from app.sources.common import RepositorySourceError, build_source_status
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,17 @@ class LaneResult:
     started_at_monotonic: float
     source_candidates: list[Signal] = field(default_factory=list)
     source_error: RepositorySourceError | None = None
+    query_failures: tuple["QueryFailure", ...] = ()
+    completed_query_count: int | None = None
     crashed: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class QueryFailure:
+    """One failed query within an otherwise completed retrieval lane."""
+
+    query: str
+    error: RepositorySourceError
 
 
 def start_lane_worker(
@@ -168,11 +179,17 @@ def consume_lane_result(
             f"{SOURCE_DISPLAY_NAMES[source_name]} {channel_name.replace('_', ' ')} crashed.",
         )
 
+    query_failures = lane_result.query_failures
+    completed_query_count = lane_result.completed_query_count
     logger.info(
-        "Explore retrieval completed for source=%s channel=%s candidate_count=%s",
+        (
+            "Explore retrieval completed for source=%s channel=%s candidate_count=%s "
+            "failed_query_count=%s"
+        ),
         source_name,
         channel_name,
         len(lane_result.source_candidates),
+        len(query_failures),
     )
     if log_context is not None:
         log_search_event(
@@ -182,11 +199,29 @@ def consume_lane_result(
             duration_ms=build_duration_ms(lane_result.started_at_monotonic),
             source=source_name,
             channel=channel_name,
-            status="ok",
+            status="partial" if query_failures else "ok",
             query_count=len(queries),
             candidate_count=len(lane_result.source_candidates),
+            completed_query_count=completed_query_count,
+            failed_query_count=len(query_failures),
         )
-    successful_sources.add(source_name)
+        for query_failure in query_failures:
+            log_search_event(
+                logger=logger,
+                event="explore_retrieval_query_failed",
+                context=log_context,
+                level=logging.WARNING,
+                duration_ms=build_duration_ms(lane_result.started_at_monotonic),
+                source=source_name,
+                channel=channel_name,
+                status=query_failure.error.status,
+                query=query_failure.query,
+                error_code=query_failure.error.status,
+                error_message=query_failure.error.public_message,
+            )
+    lane_succeeded = completed_query_count is None or completed_query_count > 0
+    if lane_succeeded:
+        successful_sources.add(source_name)
     candidates.extend(
         RetrievalHit(
             source=source_name,
@@ -197,16 +232,40 @@ def consume_lane_result(
         )
         for index, signal in enumerate(lane_result.source_candidates, start=1)
     )
-    merge_source_status(
-        source_statuses_by_source,
-        build_source_status(
-            source=source_name,
-            status="ok",
-            candidate_count=len(lane_result.source_candidates),
-            error=None,
+    if lane_succeeded:
+        merge_source_status(
+            source_statuses_by_source,
+            build_source_status(
+                source=source_name,
+                status="ok",
+                candidate_count=len(lane_result.source_candidates),
+                error=None,
+            ),
+        )
+    else:
+        first_failure = query_failures[0].error
+        merge_source_status(
+            source_statuses_by_source,
+            build_source_status(
+                source=source_name,
+                status=first_failure.status,
+                candidate_count=0,
+                error=first_failure.public_message,
+            ),
+        )
+    if not query_failures:
+        return False, None
+
+    failed_statuses = {failure.error.status for failure in query_failures}
+    status_summary = ", ".join(sorted(failed_statuses))
+    return (
+        True,
+        (
+            f"{SOURCE_DISPLAY_NAMES[source_name]} {channel_name.replace('_', ' ')} "
+            f"returned {status_summary} for {len(query_failures)} query "
+            f"and retained results from {completed_query_count or 0} completed queries."
         ),
     )
-    return False, None
 
 
 def emit_retrieval_progress(
@@ -284,9 +343,10 @@ def _run_lane_worker(
     )
     lane_started_at = monotonic()
     try:
-        source_candidates = run_discoverer(
-            discover_candidates,
-            queries,
+        source_candidates, query_failures, completed_query_count = _run_lane_discoverer(
+            channel_name=channel_name,
+            discover_candidates=discover_candidates,
+            queries=queries,
             lane_deadline_monotonic=deadline_monotonic,
             supports_deadline=supports_deadline,
         )
@@ -334,8 +394,54 @@ def _run_lane_worker(
             channel_name=channel_name,
             started_at_monotonic=lane_started_at,
             source_candidates=source_candidates,
+            query_failures=query_failures,
+            completed_query_count=completed_query_count,
         )
     )
+
+
+def _run_lane_discoverer(
+    *,
+    channel_name: str,
+    discover_candidates: RepositoryDiscoverer,
+    queries: Sequence[str],
+    lane_deadline_monotonic: float | None,
+    supports_deadline: bool,
+) -> tuple[list[Signal], tuple[QueryFailure, ...], int | None]:
+    """Run a lane, retaining completed code-search queries after local failures."""
+
+    if channel_name != "code_search":
+        return (
+            run_discoverer(
+                discover_candidates,
+                queries,
+                lane_deadline_monotonic=lane_deadline_monotonic,
+                supports_deadline=supports_deadline,
+            ),
+            (),
+            None,
+        )
+
+    source_candidates: list[Signal] = []
+    query_failures: list[QueryFailure] = []
+    completed_query_count = 0
+    for query in queries:
+        try:
+            source_candidates.extend(
+                run_discoverer(
+                    discover_candidates,
+                    (query,),
+                    lane_deadline_monotonic=lane_deadline_monotonic,
+                    supports_deadline=supports_deadline,
+                )
+            )
+            completed_query_count += 1
+        except RepositorySourceError as exc:
+            query_failures.append(QueryFailure(query=query, error=exc))
+            if is_deadline_reached(lane_deadline_monotonic):
+                break
+
+    return source_candidates, tuple(query_failures), completed_query_count
 
 
 def summarize_queries(queries: Sequence[str], *, max_items: int = 5) -> str:
