@@ -1,3 +1,12 @@
+# [1.12.0](https://github.com/Mephistos-ML/SciScope/compare/v1.11.2...v1.12.0) (2026-09-02)
+
+
+### Features
+
+* **catalog:** add persistent repository catalog ([1a4df28](https://github.com/Mephistos-ML/SciScope/commit/1a4df283605a3325f4ad6cbd85ea2b6f1bf41d4b))
+* **search:** use local repository catalog before providers ([dfe18ed](https://github.com/Mephistos-ML/SciScope/commit/dfe18ed9cccba06000aa4e0c16be693fe03b4250))
+* **sources:** expose stable provider repository ids ([2dd66ea](https://github.com/Mephistos-ML/SciScope/commit/2dd66ea402810db08e6d931e5ebf7ab01fd4cd99))
+
 ## [1.11.2](https://github.com/Mephistos-ML/SciScope/compare/v1.11.1...v1.11.2) (2026-09-02)
 
 
