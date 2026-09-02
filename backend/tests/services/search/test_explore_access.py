@@ -134,10 +134,10 @@ def test_has_search_quota_bypass_matches_normalized_email(monkeypatch) -> None:
     monkeypatch.setattr(
         access_policy,
         "SEARCH_QUOTA_BYPASS_USER_EMAILS",
-        ("faustrare@gmail.com",),
+        ("internal@example.com",),
     )
 
-    assert access_policy.has_search_quota_bypass(" FaustRare@Gmail.com ") is True
+    assert access_policy.has_search_quota_bypass(" Internal@Example.com ") is True
     assert access_policy.has_search_quota_bypass("other@example.com") is False
 
 

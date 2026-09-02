@@ -505,7 +505,7 @@ def test_google_auth_callback_creates_user_session(monkeypatch) -> None:
 def test_get_me_exposes_enabled_beta_features(monkeypatch) -> None:
     user = auth_service.User(
         user_id="user_beta",
-        email="faustrare@gmail.com",
+        email="beta@example.com",
         display_name="Beta User",
     )
     monkeypatch.setattr(
@@ -514,7 +514,7 @@ def test_get_me_exposes_enabled_beta_features(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         "app.services.features.access.BETA_USER_EMAILS",
-        ("faustrare@gmail.com",),
+        ("beta@example.com",),
     )
 
     with TestClient(app) as client:
@@ -527,7 +527,7 @@ def test_get_me_exposes_enabled_beta_features(monkeypatch) -> None:
 def test_explore_search_bypasses_quota_for_internal_email(monkeypatch) -> None:
     user = auth_service.User(
         user_id="user_internal",
-        email="faustrare@gmail.com",
+        email="internal@example.com",
         display_name="Internal User",
     )
     recorded: dict[str, object] = {}
@@ -550,7 +550,7 @@ def test_explore_search_bypasses_quota_for_internal_email(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         "app.services.search.access.policy.SEARCH_QUOTA_BYPASS_USER_EMAILS",
-        ("faustrare@gmail.com",),
+        ("internal@example.com",),
     )
 
     def check_access(actor, turnstile_verified=False, bypass_quota=False, *, database_url):
@@ -824,7 +824,7 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
     _allow_explore_access(monkeypatch)
     beta_user = auth_service.User(
         user_id="user_beta",
-        email="faustrare@gmail.com",
+        email="beta@example.com",
         display_name="Beta User",
     )
     monkeypatch.setattr(
@@ -833,7 +833,7 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
     )
     monkeypatch.setattr(
         "app.services.features.access.BETA_USER_EMAILS",
-        ("faustrare@gmail.com",),
+        ("beta@example.com",),
     )
     monkeypatch.setattr(
         "app.services.search.explore.service.build_ai_search_plan",
@@ -1186,7 +1186,7 @@ def test_explore_search_beta_job_returns_diagnostics_snapshot(monkeypatch) -> No
     STATE.explore_search_jobs.clear()
     beta_user = auth_service.User(
         user_id="user_beta",
-        email="faustrare@gmail.com",
+        email="beta@example.com",
         display_name="Beta User",
     )
     monkeypatch.setattr(
@@ -1195,7 +1195,7 @@ def test_explore_search_beta_job_returns_diagnostics_snapshot(monkeypatch) -> No
     )
     monkeypatch.setattr(
         "app.services.features.access.BETA_USER_EMAILS",
-        ("faustrare@gmail.com",),
+        ("beta@example.com",),
     )
     monkeypatch.setattr(
         "app.services.search.explore.jobs._start_explore_search_job_runner",
