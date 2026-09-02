@@ -19,7 +19,7 @@ Ownership:
 - `sources/github/search/` and `sources/gitlab/search/`: perform provider-specific repository retrieval and supported code retrieval
 - `services/search/admission/`: applies repository-name gates and conservative candidate checks
 - `services/search/ranking/`: builds source-independent features and explainable heuristic scores
-- `services/search/explore/`: owns job lifecycle and canonical versus restricted diagnostic response assembly
+- `services/search/explore/`: owns job lifecycle and Explore response assembly
 
 Explore is read-only and does not create subscriptions.
 
@@ -71,13 +71,13 @@ Owns periodic scans, monitoring control, and the creation of user Feed events fr
 
 Admission runs before ranking. It is deliberately conservative and removes obvious non-software candidates such as paper lists, teaching materials, and repository-name classes excluded by policy.
 
-Ranking uses an explainable heuristic baseline:
+Ranking uses an explainable heuristic score:
 
 - query coverage with diminishing returns
 - strongest match location for each query
 - bounded evidence density
 
-Normal Explore results must pass the configured relevance cutoff. Restricted beta diagnostics can inspect candidates rejected by gates, admission, or the cutoff without changing canonical delivery.
+Explore results must pass the relevance cutoff. Beta diagnostics show candidates rejected by gates, admission, or the cutoff to configured internal users.
 
 External failures are coverage information, not empty results. Completed candidates remain available when a lane times out or one source is unavailable. Provider rate limits stop further work for the affected lane and surface a retry window when supplied by the provider.
 

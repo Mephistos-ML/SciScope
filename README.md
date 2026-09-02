@@ -10,7 +10,7 @@ Public service: `https://sciscope.uk/`
 
 - accepts a free-form scientific topic description
 - generates a concise AI-assisted query plan
-- retrieves repository and, where supported, code-search candidates from GitHub and GitLab
+- retrieves repository candidates from GitHub and GitLab, plus code-search candidates from GitHub
 - merges duplicate candidates and records source-independent match evidence
 - removes obvious non-software repositories through conservative admission gates
 - ranks retained repositories with an explainable heuristic score and configurable cutoff
@@ -25,7 +25,7 @@ Public service: `https://sciscope.uk/`
 2. SciScope generates a small set of distinct search queries.
 3. External retrieval lanes collect repository candidates.
 4. SciScope deduplicates candidates, applies admission, and ranks the retained pool.
-5. The normal Explore response shows repositories above the relevance cutoff.
+5. Explore shows repositories above the relevance cutoff.
 6. The user explicitly subscribes to repositories worth monitoring.
 7. New releases and default-branch commits appear in the user's Feed.
 
@@ -33,13 +33,13 @@ Explore does not require sign-in. Subscriptions and Feed access require Google s
 
 ## Ranking
 
-SciScope currently uses a transparent heuristic baseline rather than a learned model. The score combines:
+SciScope uses an explainable heuristic score. It combines:
 
 - query coverage, with diminishing returns for additional matching queries
 - match location, where repository metadata is stronger evidence than an incidental code match
 - bounded evidence density, so repetitive hits cannot dominate the result
 
-The formula and relevance cutoff are versionable product policy. They will be tuned against a verified evaluation set before a future learning-to-rank stage.
+The relevance cutoff controls which repositories appear in Explore.
 
 ## Source Coverage
 
@@ -85,7 +85,7 @@ The core dependency direction is `api -> services -> sources/storage -> database
 
 ## Operations
 
-- External provider failures and timeouts degrade search coverage rather than discarding completed work.
+- External provider failures and timeouts return completed work with partial coverage.
 - GitHub code retrieval stops after a provider rate-limit response and reports a retry window when the provider supplies one.
 - Search emits structured events for planning, retrieval, admission, ranking, and completion.
 - Public search quotas and abuse controls are configured through environment variables.

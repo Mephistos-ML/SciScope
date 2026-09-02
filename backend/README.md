@@ -70,9 +70,9 @@ Main modules:
 - `app/sources/github/search/`
 - `app/sources/gitlab/search/`
 
-Explore runs as an asynchronous job. Repository and code-search lanes are isolated by source and timeout budget. A source failure or code-query timeout produces partial coverage while retaining completed candidates. GitHub code search stops after a rate-limit response and reports a provider retry window when available.
+Explore runs as an asynchronous job. Repository and code-search lanes have separate source and timeout budgets. A source failure or code-query timeout returns completed candidates with partial coverage. GitHub code search stops after a rate-limit response and reports the provider retry time.
 
-Admission removes obvious non-software candidates. Ranking scores the retained pool from query coverage, source-independent match location, and bounded evidence density. The configurable relevance cutoff controls normal Explore delivery; restricted beta diagnostics can expose the full evaluated pool.
+Admission removes obvious non-software candidates. Ranking scores the retained pool from query coverage, source-independent match location, and bounded evidence density. The relevance cutoff controls Explore delivery. Beta diagnostics can expose the full evaluated pool for configured internal users.
 
 ### Subscription Flow
 
@@ -118,7 +118,7 @@ Important environment variables:
 - `BETA_USER_EMAILS`: restricted diagnostic access
 - `SEARCH_QUOTA_BYPASS_USER_EMAILS`: restricted bypass for SciScope product quotas only; it does not bypass provider limits
 
-Provider authentication, rate limits, and unavailable search capabilities are handled in `sources/` and exposed through source statuses rather than hidden as empty results.
+Provider authentication, rate limits, and unavailable search capabilities are handled in `sources/` and exposed through source statuses.
 
 ## Architecture Contract
 
