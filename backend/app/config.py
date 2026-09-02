@@ -197,6 +197,10 @@ EXPLORE_SEARCH_RELEVANCE_CUTOFF = _read_optional_float_env(
     "EXPLORE_SEARCH_RELEVANCE_CUTOFF",
     50.0,
 )
+EXPLORE_LOCAL_RESULT_MINIMUM = _read_optional_int_env(
+    "EXPLORE_LOCAL_RESULT_MINIMUM",
+    20,
+)
 
 if APP_LOG_LEVEL not in {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}:
     raise RuntimeError(
@@ -278,3 +282,6 @@ if not 0.0 <= EXPLORE_SEARCH_RELEVANCE_CUTOFF <= 100.0:
     raise RuntimeError(
         "EXPLORE_SEARCH_RELEVANCE_CUTOFF must be between 0 and 100"
     )
+
+if EXPLORE_LOCAL_RESULT_MINIMUM <= 0:
+    raise RuntimeError("EXPLORE_LOCAL_RESULT_MINIMUM must be a positive integer")

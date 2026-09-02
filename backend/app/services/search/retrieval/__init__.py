@@ -9,6 +9,7 @@ from app.services.search.retrieval.models import (
     RetrievalHit,
 )
 from app.services.search.retrieval.service import run_external_repository_retrieval
+from app.services.search.retrieval.merge import merge_repository_candidates
 
 __all__ = [
     "CandidateProvenance",
@@ -17,5 +18,6 @@ __all__ = [
     "RetrievalMatchLocation",
     "RetrievedCandidates",
     "RetrievalHit",
+    "merge_repository_candidates",
     "run_external_repository_retrieval",
 ]
