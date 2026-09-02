@@ -103,6 +103,9 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
     assert inspector.has_table("repositories")
     assert "repository_id" in repository_columns
     assert "full_name" in repository_columns
+    assert "provider_repository_id" in repository_columns
+    assert "search_text" in repository_columns
+    assert inspector.has_table("repository_search_evidence")
     assert inspector.has_table("repository_checkpoints")
     assert "repository_id" in checkpoint_columns
     assert inspector.has_table("users")
@@ -117,4 +120,4 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
             sa.text("SELECT version_num FROM alembic_version")
         ).scalar_one()
 
-    assert version == "0007_feed_events"
+    assert version == "0008_repository_catalog"

@@ -10,14 +10,17 @@ from app.models.explore_access import (
 )
 from app.models.feed import FeedEvent
 from app.models.repository import (
+    CatalogRepositoryMatch,
     Repository,
     RepositoryCheckpoint,
+    RepositorySearchEvidence,
 )
 from app.models.signal import Signal
 from app.models.subscription import Subscription
 
 __all__ = [
     "AiSearchPlan",
+    "CatalogRepositoryMatch",
     "ExploreAccessDecision",
     "ExploreAccessOutcome",
     "ExploreActor",
@@ -26,6 +29,7 @@ __all__ = [
     "FeedEvent",
     "Repository",
     "RepositoryCheckpoint",
+    "RepositorySearchEvidence",
     "Signal",
     "Subscription",
 ]

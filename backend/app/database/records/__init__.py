@@ -10,6 +10,7 @@ from app.database.records.feed import FeedEventRecordModel
 from app.database.records.repositories import (
     RepositoryCheckpointRecordModel,
     RepositoryRecordModel,
+    RepositorySearchEvidenceRecordModel,
     SubscriptionRecordModel,
 )
 
@@ -19,6 +20,7 @@ __all__ = [
     "OAuthAccountRecordModel",
     "RepositoryCheckpointRecordModel",
     "RepositoryRecordModel",
+    "RepositorySearchEvidenceRecordModel",
     "SubscriptionRecordModel",
     "UserRecordModel",
     "UserSessionRecordModel",
