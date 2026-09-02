@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 import logging
 
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import DBAPIError
 
 from app.models.repository import Repository, RepositorySearchEvidence
 from app.models.signal import Signal
@@ -34,7 +34,7 @@ def retrieve_catalog_candidates(
     candidates: list[RepositoryCandidate] = []
     try:
         matches = find_catalog_repository_matches(queries, database_url=database_url)
-    except OperationalError:
+    except DBAPIError:
         logger.exception("Catalog retrieval failed; falling back to external providers.")
         return ()
 
@@ -131,7 +131,7 @@ def persist_catalog_candidates(
     try:
         upsert_repositories(repositories, database_url=database_url)
         upsert_repository_search_evidence(evidence, database_url=database_url)
-    except OperationalError:
+    except DBAPIError:
         logger.exception("Catalog ingestion failed after external retrieval.")
 
 

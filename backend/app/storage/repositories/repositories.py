@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import exists, func, or_, select
 
 from app.database.records import (
     RepositoryRecordModel,
@@ -154,15 +154,18 @@ def find_catalog_repository_matches(
         )
         for query in normalized_queries
     ]
+    evidence_matches = exists(
+        select(1)
+        .select_from(RepositorySearchEvidenceRecordModel)
+        .where(
+            RepositorySearchEvidenceRecordModel.repository_id
+            == RepositoryRecordModel.repository_id
+        )
+        .where(or_(*evidence_conditions))
+    )
     statement = (
         select(RepositoryRecordModel)
-        .outerjoin(
-            RepositorySearchEvidenceRecordModel,
-            RepositorySearchEvidenceRecordModel.repository_id
-            == RepositoryRecordModel.repository_id,
-        )
-        .where(or_(*profile_conditions, *evidence_conditions))
-        .distinct()
+        .where(or_(*profile_conditions, evidence_matches))
         .order_by(RepositoryRecordModel.stars.desc(), RepositoryRecordModel.full_name.asc())
         .limit(limit)
     )
