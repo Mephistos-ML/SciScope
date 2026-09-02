@@ -195,13 +195,13 @@ def _allow_explore_access(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         "app.api.routes.explore.check_explore_access",
-        lambda actor, turnstile_verified=False, *, database_url: ExploreAccessDecision(
+        lambda actor, turnstile_verified=False, bypass_quota=False, *, database_url: ExploreAccessDecision(
             allowed=True
         ),
     )
     monkeypatch.setattr(
         "app.api.routes.explore.record_allowed_explore_attempt",
-        lambda actor, *, topic_hash, database_url: None,
+        lambda actor, *, topic_hash, quota_bypassed=False, database_url: None,
     )
 
 
@@ -505,7 +505,7 @@ def test_google_auth_callback_creates_user_session(monkeypatch) -> None:
 def test_get_me_exposes_enabled_beta_features(monkeypatch) -> None:
     user = auth_service.User(
         user_id="user_beta",
-        email="faustrare@gmail.com",
+        email="beta@example.com",
         display_name="Beta User",
     )
     monkeypatch.setattr(
@@ -514,7 +514,7 @@ def test_get_me_exposes_enabled_beta_features(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         "app.services.features.access.BETA_USER_EMAILS",
-        ("faustrare@gmail.com",),
+        ("beta@example.com",),
     )
 
     with TestClient(app) as client:
@@ -522,6 +522,62 @@ def test_get_me_exposes_enabled_beta_features(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert response.json()["user"]["features"] == ["explore_beta"]
+
+
+def test_explore_search_bypasses_quota_for_internal_email(monkeypatch) -> None:
+    user = auth_service.User(
+        user_id="user_internal",
+        email="internal@example.com",
+        display_name="Internal User",
+    )
+    recorded: dict[str, object] = {}
+    monkeypatch.setattr(
+        "app.api.routes.explore.get_current_user",
+        lambda request, *, database_url: user,
+    )
+    monkeypatch.setattr(
+        "app.api.routes.explore.resolve_explore_actor",
+        lambda request, user, *, database_url: ExploreActor(
+            tier=ExploreTier.USER,
+            subject_type="user",
+            subject_key="user_internal",
+            user_id="user_internal",
+        ),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.explore.hash_explore_topic",
+        lambda topic_description: "topic_hash",
+    )
+    monkeypatch.setattr(
+        "app.services.search.access.policy.SEARCH_QUOTA_BYPASS_USER_EMAILS",
+        ("internal@example.com",),
+    )
+
+    def check_access(actor, turnstile_verified=False, bypass_quota=False, *, database_url):
+        assert bypass_quota is True
+        return ExploreAccessDecision(allowed=True)
+
+    monkeypatch.setattr("app.api.routes.explore.check_explore_access", check_access)
+    monkeypatch.setattr(
+        "app.api.routes.explore.record_allowed_explore_attempt",
+        lambda actor, *, topic_hash, quota_bypassed=False, database_url: recorded.update(
+            topic_hash=topic_hash,
+            quota_bypassed=quota_bypassed,
+        ),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.explore.run_explore_search",
+        lambda **kwargs: {"items": []},
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={"topicDescription": "Paramagnetic NMR analysis workflows"},
+        )
+
+    assert response.status_code == 200
+    assert recorded == {"topic_hash": "topic_hash", "quota_bypassed": True}
 
 
 def test_google_auth_callback_redirects_with_error_when_state_is_invalid(monkeypatch) -> None:
@@ -768,7 +824,7 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
     _allow_explore_access(monkeypatch)
     beta_user = auth_service.User(
         user_id="user_beta",
-        email="faustrare@gmail.com",
+        email="beta@example.com",
         display_name="Beta User",
     )
     monkeypatch.setattr(
@@ -777,7 +833,7 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
     )
     monkeypatch.setattr(
         "app.services.features.access.BETA_USER_EMAILS",
-        ("faustrare@gmail.com",),
+        ("beta@example.com",),
     )
     monkeypatch.setattr(
         "app.services.search.explore.service.build_ai_search_plan",
@@ -935,7 +991,7 @@ def test_explore_search_returns_structured_access_denial_payload(
     )
     monkeypatch.setattr(
         "app.api.routes.explore.check_explore_access",
-        lambda actor, turnstile_verified=False, *, database_url: ExploreAccessDecision(
+        lambda actor, turnstile_verified=False, bypass_quota=False, *, database_url: ExploreAccessDecision(
             allowed=False,
             code=ExploreLimitCode.GUEST_COOLDOWN,
             message="Please wait 30 seconds before running another search.",
@@ -987,7 +1043,7 @@ def test_explore_search_returns_turnstile_requirement_payload(
     )
     monkeypatch.setattr(
         "app.api.routes.explore.check_explore_access",
-        lambda actor, turnstile_verified=False, *, database_url: ExploreAccessDecision(
+        lambda actor, turnstile_verified=False, bypass_quota=False, *, database_url: ExploreAccessDecision(
             allowed=False,
             code=ExploreLimitCode.TURNSTILE_REQUIRED,
             message="Please complete the verification challenge before continuing.",
@@ -1042,14 +1098,14 @@ def test_explore_search_accepts_verified_turnstile_token_for_suspicious_guest(
         lambda token, *, remote_ip=None: TurnstileVerificationResult(success=True),
     )
 
-    def _check_access(actor, turnstile_verified=False, *, database_url):
+    def _check_access(actor, turnstile_verified=False, bypass_quota=False, *, database_url):
         assert turnstile_verified is True
         return ExploreAccessDecision(allowed=True)
 
     monkeypatch.setattr("app.api.routes.explore.check_explore_access", _check_access)
     monkeypatch.setattr(
         "app.api.routes.explore.record_allowed_explore_attempt",
-        lambda actor, *, topic_hash, database_url: None,
+        lambda actor, *, topic_hash, quota_bypassed=False, database_url: None,
     )
     monkeypatch.setattr(
         "app.services.search.explore.service.build_ai_search_plan",
@@ -1130,7 +1186,7 @@ def test_explore_search_beta_job_returns_diagnostics_snapshot(monkeypatch) -> No
     STATE.explore_search_jobs.clear()
     beta_user = auth_service.User(
         user_id="user_beta",
-        email="faustrare@gmail.com",
+        email="beta@example.com",
         display_name="Beta User",
     )
     monkeypatch.setattr(
@@ -1139,7 +1195,7 @@ def test_explore_search_beta_job_returns_diagnostics_snapshot(monkeypatch) -> No
     )
     monkeypatch.setattr(
         "app.services.features.access.BETA_USER_EMAILS",
-        ("faustrare@gmail.com",),
+        ("beta@example.com",),
     )
     monkeypatch.setattr(
         "app.services.search.explore.jobs._start_explore_search_job_runner",

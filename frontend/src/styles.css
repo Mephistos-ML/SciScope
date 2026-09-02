@@ -1015,6 +1015,13 @@ input::placeholder {
   font-size: 14px;
 }
 
+.repository-about {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
 .beta-mode-button {
   min-width: 170px;
 }

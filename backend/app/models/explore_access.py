@@ -31,6 +31,7 @@ class ExploreAccessOutcome(StrEnum):
     """Persisted access outcomes for one explore attempt."""
 
     ALLOWED = "allowed"
+    ALLOWED_INTERNAL = "allowed_internal"
     BLOCKED_DISABLED = "blocked_disabled"
     BLOCKED_COOLDOWN = "blocked_cooldown"
     BLOCKED_QUOTA = "blocked_quota"

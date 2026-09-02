@@ -12,6 +12,7 @@ from app.config import (
     EXPLORE_QUOTA_WINDOW_SECONDS,
     EXPLORE_USER_COOLDOWN_SECONDS,
     EXPLORE_USER_DAILY_LIMIT,
+    SEARCH_QUOTA_BYPASS_USER_EMAILS,
     TURNSTILE_ENABLED,
 )
 from app.models.explore_access import (
@@ -73,6 +74,15 @@ def get_global_explore_daily_limit() -> int:
     """Return the global explore usage cap for the active window."""
 
     return EXPLORE_GLOBAL_DAILY_LIMIT
+
+
+def has_search_quota_bypass(email: str | None) -> bool:
+    """Return whether an authenticated email bypasses product search quotas."""
+
+    normalized_email = (email or "").strip().lower()
+    return bool(
+        normalized_email and normalized_email in SEARCH_QUOTA_BYPASS_USER_EMAILS
+    )
 
 
 def should_require_turnstile(actor: ExploreActor) -> bool:
