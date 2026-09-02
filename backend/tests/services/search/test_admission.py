@@ -279,6 +279,26 @@ def test_repository_admission_rejects_thesis_style_repo_name() -> None:
     assert result.evaluated_candidates[0].admission.evidence.path_strength == "none"
 
 
+def test_repository_admission_rejects_conference_style_repo_name() -> None:
+    candidate = _build_candidate(
+        item_id="github:repo:lab/quantum-conferences-2025",
+        title="lab/quantum-conferences-2025",
+        raw_text=(
+            "lab/quantum-conferences-2025\n"
+            "Conference materials for quantum chemistry researchers."
+        ),
+        language="",
+        matched_channels=("repository_search",),
+    )
+
+    result = run_repository_admission((candidate,), mode="enforced")
+
+    assert result.kept_count == 0
+    assert result.rejected_count == 1
+    assert result.evaluated_candidates[0].admission.decision == "reject"
+    assert result.evaluated_candidates[0].admission.bucket == "repo_name_gate"
+
+
 def test_repository_admission_rejects_course_style_repo_name() -> None:
     candidate = _build_candidate(
         item_id="github:repo:school/quantum-course-notes",

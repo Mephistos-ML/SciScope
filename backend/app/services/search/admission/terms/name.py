@@ -19,6 +19,8 @@ REPO_NAME_REJECT_TERMS = (
     "msc",
     "bsc",
     "slides",
+    "conference",
+    "conferences",
     "course",
     "courses",
     "coursework",
