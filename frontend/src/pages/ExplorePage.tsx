@@ -528,12 +528,13 @@ function BetaDiagnostic({ result }: { result: ExploreResultItem }) {
     return null;
   }
 
-  const { decision, scoreBreakdown } = diagnostic;
+  const { decision, retrievalOrigin, scoreBreakdown } = diagnostic;
   return (
     <div className="repository-beta-diagnostic">
       <span className={`repository-beta-status repository-beta-status-${decision.status}`}>
         {decision.label}
       </span>
+      <p className="repository-beta-meta">{retrievalOrigin.label}</p>
       <p className="repository-beta-score">
         Score {result.score.toFixed(2)} = query coverage {scoreBreakdown.queryCoveragePoints.toFixed(2)}
         /40 + match location {scoreBreakdown.matchLocationPoints.toFixed(2)}/45 + evidence density{" "}

@@ -44,6 +44,7 @@ def build_beta_diagnostics(
                 score=ranked.score,
                 relevance_cutoff=ranking.relevance_cutoff,
             ),
+            "retrievalOrigin": _build_retrieval_origin(ranked.candidate.provenance.origins),
             "scoreBreakdown": {
                 "queryCoverage": ranked.score_breakdown.query_coverage,
                 "queryCoveragePoints": ranked.score_breakdown.query_coverage_points,
@@ -58,6 +59,24 @@ def build_beta_diagnostics(
             },
         }
     return diagnostics
+
+
+def _build_retrieval_origin(origins: tuple[str, ...]) -> dict[str, str]:
+    origin_set = set(origins)
+    if "catalog" in origin_set and "provider" in origin_set:
+        return {
+            "kind": "catalog_and_provider",
+            "label": "Loaded from SciScope catalog and refreshed by provider search",
+        }
+    if "catalog" in origin_set:
+        return {
+            "kind": "catalog",
+            "label": "Loaded from SciScope catalog",
+        }
+    return {
+        "kind": "provider",
+        "label": "Retrieved from external provider search",
+    }
 
 
 def _build_beta_decision(

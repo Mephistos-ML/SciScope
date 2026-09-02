@@ -105,6 +105,7 @@ def retrieve_catalog_candidates(
                     best_rank_by_channel=best_rank_by_channel,
                     hit_count=max(1, sum(item.hit_count for item in match.evidence)),
                     match_evidence=evidence,
+                    origins=("catalog",),
                 ),
             )
         )

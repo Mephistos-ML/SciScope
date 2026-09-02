@@ -87,6 +87,11 @@ def merge_repository_candidates(
                     existing.provenance.match_evidence,
                     candidate.provenance.match_evidence,
                 ),
+                origins=tuple(
+                    dict.fromkeys(
+                        (*existing.provenance.origins, *candidate.provenance.origins)
+                    )
+                ),
             ),
         )
     return tuple(merged.values())
@@ -112,6 +117,7 @@ def _merge_provenance(
             existing.match_evidence,
             build_retrieval_match_evidence(incoming),
         ),
+        origins=existing.origins,
     )
 
 

@@ -116,6 +116,10 @@ export type ExploreBetaDiagnostic = {
     admissionBucket: string;
     label: string;
   };
+  retrievalOrigin: {
+    kind: "catalog" | "provider" | "catalog_and_provider";
+    label: string;
+  };
   scoreBreakdown: {
     queryCoverage: number;
     queryCoveragePoints: number;

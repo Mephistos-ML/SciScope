@@ -49,6 +49,7 @@ class CandidateProvenance:
     best_rank_by_channel: Mapping[str, int]
     hit_count: int
     match_evidence: tuple[RetrievalMatchEvidence, ...] = ()
+    origins: tuple[str, ...] = ("provider",)
 
 
 @dataclass(frozen=True)
