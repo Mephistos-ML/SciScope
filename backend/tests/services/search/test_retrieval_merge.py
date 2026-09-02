@@ -7,7 +7,6 @@ from dataclasses import replace
 
 from app.models.signal import Signal
 from app.services.search.retrieval.merge import merge_retrieval_hits
-from app.services.search.retrieval import service as retrieval_service
 from app.services.search.retrieval.service import run_external_repository_retrieval
 from app.sources.common import RepositorySourceError
 
