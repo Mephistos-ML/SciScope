@@ -109,6 +109,28 @@ def test_fetch_json_classifies_rate_limits(monkeypatch) -> None:
     assert exc_info.value.status == "rate_limited"
 
 
+def test_fetch_json_reads_rate_limit_retry_after(monkeypatch) -> None:
+    monkeypatch.setattr(github_client, "build_auth_headers", lambda: {"Authorization": "Bearer token"})
+
+    def fake_urlopen(_request, timeout):  # type: ignore[no-untyped-def]
+        del timeout
+        raise HTTPError(
+            url="https://api.github.com/test",
+            code=429,
+            msg="Too Many Requests",
+            hdrs={"Retry-After": "134"},
+            fp=None,
+        )
+
+    monkeypatch.setattr(github_client, "urlopen", fake_urlopen)
+
+    with pytest.raises(RepositorySourceError) as exc_info:
+        github_client.fetch_json("https://api.github.com/test")
+
+    assert exc_info.value.status == "rate_limited"
+    assert exc_info.value.retry_after_seconds == 134
+
+
 def test_fetch_json_classifies_transport_timeouts(monkeypatch) -> None:
     monkeypatch.setattr(
         github_client,

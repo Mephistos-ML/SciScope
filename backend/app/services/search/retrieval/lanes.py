@@ -256,15 +256,15 @@ def consume_lane_result(
     if not query_failures:
         return False, None
 
-    failed_statuses = {failure.error.status for failure in query_failures}
-    status_summary = ", ".join(sorted(failed_statuses))
+    warning = _build_query_failure_warning(
+        source_name=source_name,
+        channel_name=channel_name,
+        query_failures=query_failures,
+        completed_query_count=completed_query_count or 0,
+    )
     return (
         True,
-        (
-            f"{SOURCE_DISPLAY_NAMES[source_name]} {channel_name.replace('_', ' ')} "
-            f"returned {status_summary} for {len(query_failures)} query "
-            f"and retained results from {completed_query_count or 0} completed queries."
-        ),
+        warning,
     )
 
 
@@ -438,10 +438,66 @@ def _run_lane_discoverer(
             completed_query_count += 1
         except RepositorySourceError as exc:
             query_failures.append(QueryFailure(query=query, error=exc))
-            if is_deadline_reached(lane_deadline_monotonic):
+            if exc.status == "rate_limited" or is_deadline_reached(
+                lane_deadline_monotonic
+            ):
                 break
 
     return source_candidates, tuple(query_failures), completed_query_count
+
+
+def _build_query_failure_warning(
+    *,
+    source_name: str,
+    channel_name: str,
+    query_failures: tuple[QueryFailure, ...],
+    completed_query_count: int,
+) -> str:
+    """Build one user-facing warning for a partially completed code-search lane."""
+
+    display_name = SOURCE_DISPLAY_NAMES[source_name]
+    channel_label = channel_name.replace("_", " ")
+    rate_limit_failure = next(
+        (
+            failure
+            for failure in query_failures
+            if failure.error.status == "rate_limited"
+        ),
+        None,
+    )
+    if rate_limit_failure is not None:
+        retry_message = _format_retry_after(
+            rate_limit_failure.error.retry_after_seconds
+        )
+        return (
+            f"{display_name} {channel_label} is rate-limited. {retry_message} "
+            f"Retained results from {completed_query_count} completed queries."
+        )
+
+    failed_statuses = {failure.error.status for failure in query_failures}
+    status_summary = ", ".join(sorted(failed_statuses))
+    return (
+        f"{display_name} {channel_label} returned {status_summary} for "
+        f"{len(query_failures)} query and retained results from "
+        f"{completed_query_count} completed queries."
+    )
+
+
+def _format_retry_after(retry_after_seconds: int | None) -> str:
+    if retry_after_seconds is None:
+        return "Please try again later."
+
+    minutes, seconds = divmod(retry_after_seconds, 60)
+    if minutes == 0:
+        unit = "second" if seconds == 1 else "seconds"
+        return f"Try again in {seconds} {unit}."
+    if seconds == 0:
+        unit = "minute" if minutes == 1 else "minutes"
+        return f"Try again in {minutes} {unit}."
+
+    minute_unit = "minute" if minutes == 1 else "minutes"
+    second_unit = "second" if seconds == 1 else "seconds"
+    return f"Try again in {minutes} {minute_unit} {seconds} {second_unit}."
 
 
 def summarize_queries(queries: Sequence[str], *, max_items: int = 5) -> str:

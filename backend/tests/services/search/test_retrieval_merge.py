@@ -362,6 +362,42 @@ def test_run_external_repository_retrieval_retains_completed_code_queries_after_
     )
 
 
+def test_run_external_repository_retrieval_stops_code_lane_after_rate_limit() -> None:
+    attempted_queries: list[str] = []
+
+    def discover_github_code_candidates(queries: tuple[str, ...]) -> list[Signal]:
+        query = queries[0]
+        attempted_queries.append(query)
+        if query == "rate limited query":
+            raise RepositorySourceError(
+                source="github",
+                status="rate_limited",
+                public_message="GitHub repository search is rate-limited right now.",
+                retry_after_seconds=134,
+            )
+        return [
+            _build_repository_signal(
+                "github:repo:science/first-query",
+                query=query,
+            )
+        ]
+
+    retrieved = run_external_repository_retrieval(
+        ("first query", "rate limited query", "unattempted query"),
+        discoverers=(
+            ("github", "code_search", discover_github_code_candidates),
+        ),
+    )
+
+    assert attempted_queries == ["first query", "rate limited query"]
+    assert len(retrieved.candidates) == 1
+    assert retrieved.partial is True
+    assert retrieved.warnings == (
+        "GitHub code search is rate-limited. Try again in 2 minutes 14 seconds. "
+        "Retained results from 1 completed queries.",
+    )
+
+
 def _build_hit(
     *,
     source: str,

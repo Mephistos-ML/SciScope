@@ -24,11 +24,13 @@ class RepositorySourceError(RuntimeError):
         source: str,
         status: RepositorySourceStatusCode,
         public_message: str,
+        retry_after_seconds: int | None = None,
     ) -> None:
         super().__init__(public_message)
         self.source = source
         self.status = status
         self.public_message = public_message
+        self.retry_after_seconds = retry_after_seconds
 
 
 def build_source_status(

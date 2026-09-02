@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from math import ceil
 import time
 from time import monotonic
 from urllib.error import HTTPError, URLError
@@ -118,6 +119,7 @@ def _build_source_error(exc: HTTPError) -> RepositorySourceError:
                 source="github",
                 status="rate_limited",
                 public_message="GitHub repository search is rate-limited right now.",
+                retry_after_seconds=_read_retry_after_seconds(exc),
             )
         return RepositorySourceError(
             source="github",
@@ -130,6 +132,7 @@ def _build_source_error(exc: HTTPError) -> RepositorySourceError:
             source="github",
             status="rate_limited",
             public_message="GitHub repository search is rate-limited right now.",
+            retry_after_seconds=_read_retry_after_seconds(exc),
         )
 
     return RepositorySourceError(
@@ -173,3 +176,28 @@ def _read_error_message(exc: HTTPError) -> str:
     if isinstance(payload, dict):
         return str(payload.get("message") or exc.reason)
     return str(exc.reason)
+
+
+def _read_retry_after_seconds(exc: HTTPError) -> int | None:
+    """Read a provider retry delay from rate-limit response headers."""
+
+    retry_after = _read_positive_seconds(exc.headers.get("Retry-After"))
+    if retry_after is not None:
+        return retry_after
+
+    reset_timestamp = _read_positive_seconds(exc.headers.get("X-RateLimit-Reset"))
+    if reset_timestamp is None:
+        return None
+
+    return max(1, ceil(reset_timestamp - time.time()))
+
+
+def _read_positive_seconds(raw_value: str | None) -> int | None:
+    if raw_value is None:
+        return None
+
+    try:
+        value = ceil(float(raw_value))
+    except ValueError:
+        return None
+    return value if value > 0 else None
