@@ -1,3 +1,10 @@
+## [1.11.1](https://github.com/Mephistos-ML/SciScope/compare/v1.11.0...v1.11.1) (2026-09-02)
+
+
+### Bug Fixes
+
+* **search:** reject conference repositories by name ([24108e7](https://github.com/Mephistos-ML/SciScope/commit/24108e76de22e20865d254092d65ec6d08c0e16e))
+
 # [1.11.0](https://github.com/Mephistos-ML/SciScope/compare/v1.10.1...v1.11.0) (2026-09-02)
 
 
