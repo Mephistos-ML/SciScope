@@ -1,3 +1,10 @@
+## [1.12.1](https://github.com/Mephistos-ML/SciScope/compare/v1.12.0...v1.12.1) (2026-09-02)
+
+
+### Bug Fixes
+
+* **search:** avoid JSON distinct in catalog retrieval ([e197658](https://github.com/Mephistos-ML/SciScope/commit/e197658817b0bf0a5fd33a264c26c7985c630eff))
+
 # [1.12.0](https://github.com/Mephistos-ML/SciScope/compare/v1.11.2...v1.12.0) (2026-09-02)
 
 
