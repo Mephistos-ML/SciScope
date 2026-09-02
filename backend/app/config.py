@@ -110,6 +110,9 @@ REPLAY_FIXTURES_PATH = _read_optional_path_env(
 APP_ENV = _read_required_env("APP_ENV")
 APP_LOG_LEVEL = (_read_optional_env("APP_LOG_LEVEL") or "INFO").upper()
 BETA_USER_EMAILS = _read_optional_csv_env("BETA_USER_EMAILS")
+SEARCH_QUOTA_BYPASS_USER_EMAILS = _read_optional_csv_env(
+    "SEARCH_QUOTA_BYPASS_USER_EMAILS"
+)
 APP_HOST = _read_required_env("APP_HOST")
 APP_PORT = _read_required_int_env("APP_PORT")
 CORS_ORIGINS = _read_required_csv_env("CORS_ORIGINS")

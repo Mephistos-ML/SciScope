@@ -14,6 +14,7 @@ from app.services.search.access import (
     build_turnstile_failure_decision,
     check_explore_access,
     hash_explore_topic,
+    has_search_quota_bypass,
     read_explore_client_ip,
     record_allowed_explore_attempt,
     record_blocked_explore_attempt,
@@ -105,6 +106,7 @@ def _authorize_explore_search_request(
         database_url=database_url,
     )
     turnstile_verified = False
+    quota_bypassed = has_search_quota_bypass(user.email if user else None)
 
     if actor.tier is ExploreTier.SUSPICIOUS and turnstile_token:
         verification = verify_turnstile_token(
@@ -127,6 +129,7 @@ def _authorize_explore_search_request(
     decision = check_explore_access(
         actor,
         turnstile_verified=turnstile_verified,
+        bypass_quota=quota_bypassed,
         database_url=database_url,
     )
 
@@ -149,6 +152,7 @@ def _authorize_explore_search_request(
     record_allowed_explore_attempt(
         actor,
         topic_hash=topic_hash,
+        quota_bypassed=quota_bypassed,
         database_url=database_url,
     )
     response_mode = "beta" if beta_requested else "canonical"

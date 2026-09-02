@@ -83,6 +83,7 @@ def check_explore_access(
     actor: ExploreActor,
     *,
     turnstile_verified: bool = False,
+    bypass_quota: bool = False,
     now: datetime | None = None,
     database_url: str = DATABASE_URL,
 ) -> ExploreAccessDecision:
@@ -96,6 +97,9 @@ def check_explore_access(
 
     if should_require_turnstile(actor) and not turnstile_verified:
         return build_turnstile_required_decision()
+
+    if bypass_quota:
+        return ExploreAccessDecision(allowed=True)
 
     quota_window_start = current_time - timedelta(seconds=policy.quota_window_seconds)
     global_limit = get_global_explore_daily_limit()
@@ -155,6 +159,7 @@ def record_allowed_explore_attempt(
     actor: ExploreActor,
     *,
     topic_hash: str,
+    quota_bypassed: bool = False,
     created_at: datetime | None = None,
     database_url: str = DATABASE_URL,
 ) -> None:
@@ -166,7 +171,11 @@ def record_allowed_explore_attempt(
         subject_key=actor.subject_key,
         ip_hash=actor.ip_hash,
         topic_hash=topic_hash,
-        outcome=str(ExploreAccessOutcome.ALLOWED),
+        outcome=str(
+            ExploreAccessOutcome.ALLOWED_INTERNAL
+            if quota_bypassed
+            else ExploreAccessOutcome.ALLOWED
+        ),
         created_at=created_at,
         database_url=database_url,
     )
