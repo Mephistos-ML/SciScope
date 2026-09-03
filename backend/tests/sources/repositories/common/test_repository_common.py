@@ -24,6 +24,7 @@ from app.sources.common import (
 def test_build_repository_candidate_signal_uses_shared_shape() -> None:
     candidate = RepositoryCandidate(
         source="github",
+        provider_repository_id="123",
         full_name="Mephistos-ML/paranmr",
         url="https://github.com/Mephistos-ML/paranmr",
         query="paramagnetic nmr",
@@ -36,7 +37,7 @@ def test_build_repository_candidate_signal_uses_shared_shape() -> None:
 
     signal = build_repository_candidate_signal(candidate)
 
-    assert signal.item_id == "github:repo:Mephistos-ML/paranmr"
+    assert signal.item_id == "github:repo:123"
     assert signal.payload["repo"] == "Mephistos-ML/paranmr"
     assert signal.payload["query"] == "paramagnetic nmr"
     assert "Paramagnetic NMR tooling." in signal.raw_text
@@ -46,6 +47,7 @@ def test_build_repository_entity_reuses_repository_metadata() -> None:
     signal = build_repository_candidate_signal(
         RepositoryCandidate(
             source="github",
+            provider_repository_id="123",
             full_name="Mephistos-ML/paranmr",
             url="https://github.com/Mephistos-ML/paranmr",
             query="paramagnetic nmr",

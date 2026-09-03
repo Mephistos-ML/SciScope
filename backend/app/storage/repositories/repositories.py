@@ -16,6 +16,7 @@ from app.models.repository import (
     CatalogRepositoryMatch,
     Repository,
     RepositorySearchEvidence,
+    parse_repository_id,
 )
 
 
@@ -33,9 +34,9 @@ def upsert_repositories(
     with session_scope(database_url) as session:
         for repository in repositories:
             record = session.get(RepositoryRecordModel, repository.repository_id)
-            provider_repository_id = (
-                repository.provider_repository_id.strip()
-                or _provider_repository_id_from_legacy_key(repository)
+            provider_repository_id = repository.provider_repository_id.strip() or parse_repository_id(
+                repository.repository_id,
+                source=repository.source,
             )
             search_text = _build_search_text(repository)
             if record is None:
@@ -316,13 +317,6 @@ def _build_search_text(repository: Repository) -> str:
         )
         if value.strip()
     )
-
-
-def _provider_repository_id_from_legacy_key(repository: Repository) -> str:
-    prefix = f"{repository.source}:repo:"
-    if repository.repository_id.startswith(prefix):
-        return repository.repository_id.removeprefix(prefix)
-    return repository.repository_id
 
 
 def _normalize_queries(queries: Sequence[str]) -> tuple[str, ...]:

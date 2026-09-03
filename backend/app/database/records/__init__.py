@@ -13,6 +13,10 @@ from app.database.records.repositories import (
     RepositorySearchEvidenceRecordModel,
     SubscriptionRecordModel,
 )
+from app.database.records.ranking_dataset import (
+    RankingDatasetExampleRecordModel,
+    RankingDatasetRunRecordModel,
+)
 
 __all__ = [
     "ExploreSearchEventRecordModel",
@@ -21,6 +25,8 @@ __all__ = [
     "RepositoryCheckpointRecordModel",
     "RepositoryRecordModel",
     "RepositorySearchEvidenceRecordModel",
+    "RankingDatasetExampleRecordModel",
+    "RankingDatasetRunRecordModel",
     "SubscriptionRecordModel",
     "UserRecordModel",
     "UserSessionRecordModel",

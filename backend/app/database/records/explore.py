@@ -13,21 +13,21 @@ from app.database.base import Base
 class ExploreSearchEventRecordModel(Base):
     """Persisted explore access attempt for quotas, cooldowns, and telemetry."""
 
-    __tablename__ = "explore_search_events"
+    __tablename__ = "search_access_events"
     __table_args__ = (
         Index(
-            "ix_explore_search_events_subject_created_at",
+            "ix_search_access_events_subject_created_at",
             "subject_type",
             "subject_key",
             "created_at",
         ),
         Index(
-            "ix_explore_search_events_outcome_created_at",
+            "ix_search_access_events_outcome_created_at",
             "outcome",
             "created_at",
         ),
-        Index("ix_explore_search_events_created_at", "created_at"),
-        Index("ix_explore_search_events_user_id_created_at", "user_id", "created_at"),
+        Index("ix_search_access_events_created_at", "created_at"),
+        Index("ix_search_access_events_user_id_created_at", "user_id", "created_at"),
     )
 
     event_id: Mapped[str] = mapped_column(String, primary_key=True)

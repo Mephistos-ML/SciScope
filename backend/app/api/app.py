@@ -16,6 +16,7 @@ from app.api.routes import control as control_routes
 from app.api.routes import dashboard as dashboard_routes
 from app.api.routes import explore as explore_routes
 from app.api.routes import feed as feed_routes
+from app.api.routes import ranking_dataset as ranking_dataset_routes
 from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS, DATABASE_URL
 from app.database.session import check_database_connection
@@ -41,6 +42,11 @@ class CreateSubscriptionRequest(BaseModel):
 
     repository: dict[str, str] = Field(default_factory=dict)
     selectedQuery: str | None = None
+
+
+class SaveRankingDatasetRequest(BaseModel):
+    searchJobId: str
+    labels: dict[str, int] = Field(default_factory=dict)
 
 
 @asynccontextmanager
@@ -218,6 +224,19 @@ def get_explore_search_job(request: Request, job_id: str) -> dict[str, object]:
             detail="Explore search job not found",
         )
     return payload
+
+
+@app.post("/api/internal/ranking-dataset/runs", status_code=status.HTTP_201_CREATED)
+def save_ranking_dataset_run(
+    request: Request,
+    payload: SaveRankingDatasetRequest,
+) -> dict[str, object]:
+    """Persist one explicit, manually labelled Explore beta dataset run."""
+
+    return ranking_dataset_routes.save_ranking_dataset_run_response(
+        request,
+        payload.model_dump(),
+    )
 
 
 @app.get("/api/subscriptions")

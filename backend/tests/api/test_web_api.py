@@ -407,7 +407,7 @@ def test_session_auth_and_subscription_endpoints(monkeypatch) -> None:
                 "/api/subscriptions",
                 json={
                     "repository": {
-                        "itemId": "github:repo:Mephistos-ML/paranmr",
+                            "itemId": "github:repo:123",
                         "source": "github",
                         "fullName": "Mephistos-ML/paranmr",
                         "url": "https://github.com/Mephistos-ML/paranmr",
@@ -426,7 +426,7 @@ def test_session_auth_and_subscription_endpoints(monkeypatch) -> None:
             assert len(listed["items"]) == 1
             assert (
                 listed["items"][0]["repository"]["repositoryId"]
-                == "github:repo:Mephistos-ML/paranmr"
+                == "github:repo:123"
             )
 
             subscription_id = listed["items"][0]["subscriptionId"]

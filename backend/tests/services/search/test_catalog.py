@@ -36,6 +36,7 @@ def test_catalog_retrieval_keeps_query_specific_evidence(tmp_path) -> None:
                 "language": "Python",
                 "topics": ["paramagnetic-nmr"],
                 "stars": 14,
+                "provider_updated_at": "2026-09-03T12:30:00+00:00",
                 "matched_excerpt": "Fits paramagnetic relaxation rates.",
             },
         ),
@@ -63,6 +64,8 @@ def test_catalog_retrieval_keeps_query_specific_evidence(tmp_path) -> None:
     relaxation = retrieve_catalog_candidates(("relaxation",), database_url=database_url)
 
     assert pnmr[0].repository_id == "github:repo:123"
+    assert pnmr[0].signal.payload["query"] == "paramagnetic nmr"
+    assert pnmr[0].signal.payload["provider_updated_at"] == "2026-09-03T12:30:00+00:00"
     assert pnmr[0].provenance.match_evidence[0].location == "description"
     assert relaxation[0].provenance.matched_queries == ("relaxation",)
     assert relaxation[0].provenance.match_evidence[0].location == "code"

@@ -29,11 +29,11 @@ class UserRecordModel(Base):
 class OAuthAccountRecordModel(Base):
     """Linked external identity provider account."""
 
-    __tablename__ = "oauth_accounts"
+    __tablename__ = "user_identities"
     __table_args__ = (
-        Index("ix_oauth_accounts_user_id_provider", "user_id", "provider"),
+        Index("ix_user_identities_user_id_provider", "user_id", "provider"),
         Index(
-            "ux_oauth_accounts_provider_subject",
+            "ux_user_identities_provider_subject",
             "provider",
             "provider_subject",
             unique=True,

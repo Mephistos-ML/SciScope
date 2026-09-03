@@ -876,6 +876,60 @@ input::placeholder {
   gap: 10px;
 }
 
+.results-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 18px 0 12px;
+}
+
+.ranking-dataset-panel {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: var(--border-subtle-strong);
+  border-radius: var(--radius-card);
+  background: var(--teal-100);
+}
+
+.ranking-dataset-copy,
+.ranking-dataset-message {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.repository-actions-cell select {
+  min-height: 36px;
+  padding: 7px 8px;
+  border: var(--border-subtle);
+  border-radius: var(--radius-button);
+  background: var(--surface-primary);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.results-sort-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.results-sort-control select {
+  min-height: 36px;
+  padding: 7px 30px 7px 10px;
+  border: var(--border-subtle);
+  border-radius: var(--radius-button);
+  background: var(--surface-primary);
+  color: var(--text-primary);
+  font: inherit;
+}
+
 .results-plan-summary {
   max-width: 540px;
   align-items: flex-end;
@@ -952,10 +1006,10 @@ input::placeholder {
 .repository-table-head,
 .repository-row {
   display: grid;
-  grid-template-columns: minmax(0, 2.4fr) minmax(112px, 0.82fr) minmax(92px, 0.72fr) minmax(80px, 0.6fr) minmax(150px, 0.9fr) minmax(132px, 0.78fr);
+  grid-template-columns: minmax(0, 2.4fr) minmax(112px, 0.82fr) minmax(80px, 0.6fr) minmax(112px, 0.8fr) minmax(132px, 0.78fr);
   gap: 16px;
   align-items: center;
-  min-width: 980px;
+  min-width: 810px;
 }
 
 .repository-table-head {
@@ -1127,13 +1181,6 @@ input::placeholder {
   color: var(--navy-900);
 }
 
-.repository-language-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--navy-700);
-}
-
 .repository-muted-value {
   color: var(--text-tertiary);
 }
@@ -1183,7 +1230,6 @@ input::placeholder {
 .repository-skeleton-copy,
 .repository-skeleton-badge,
 .repository-skeleton-meta,
-.repository-skeleton-query,
 .repository-skeleton-button {
   display: block;
 }
@@ -1214,12 +1260,6 @@ input::placeholder {
 
 .repository-skeleton-meta-short {
   width: 42px;
-}
-
-.repository-skeleton-query {
-  width: min(132px, 92%);
-  height: 18px;
-  border-radius: 8px;
 }
 
 .repository-skeleton-button {
@@ -1633,6 +1673,15 @@ input::placeholder {
   }
 
   .results-header {
+    flex-direction: column;
+  }
+
+  .results-toolbar {
+    justify-content: flex-start;
+  }
+
+  .ranking-dataset-panel {
+    align-items: flex-start;
     flex-direction: column;
   }
 

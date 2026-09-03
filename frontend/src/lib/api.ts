@@ -199,6 +199,17 @@ export async function fetchExploreSearchJob(jobId: string): Promise<ExploreSearc
   return requestJson<ExploreSearchJobPayload>(`/api/explore/search-jobs/${jobId}`);
 }
 
+export async function saveRankingDatasetRun(payload: {
+  searchJobId: string;
+  labels: Record<string, 0 | 1 | 2>;
+}): Promise<{ runId: string; candidateCount: number; labeledCount: number }> {
+  return requestJson("/api/internal/ranking-dataset/runs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function fetchFeed(): Promise<FeedEventListPayload> {
   return requestJson<FeedEventListPayload>("/api/feed");
 }

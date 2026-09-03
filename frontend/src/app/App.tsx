@@ -60,6 +60,7 @@ export function App() {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [activeExploreJobId, setActiveExploreJobId] = useState<string | null>(null);
+  const [lastCompletedExploreJobId, setLastCompletedExploreJobId] = useState<string | null>(null);
   const [activeExploreJobStatus, setActiveExploreJobStatus] =
     useState<ExploreSearchJobStatus | null>(null);
   const [betaMode, setBetaMode] = useState(false);
@@ -134,6 +135,7 @@ export function App() {
 
         if (snapshot.status === "completed" || snapshot.status === "completed_partial") {
           applyExploreSearchJobSnapshot(snapshot);
+          setLastCompletedExploreJobId(snapshot.jobId);
           setSearchPending(false);
           setActiveExploreJobId(null);
           setActiveExploreJobStatus(null);
@@ -228,6 +230,7 @@ export function App() {
     setSearchPending(true);
     setErrorMessage(null);
     setResults([]);
+    setLastCompletedExploreJobId(null);
     setLastAiSearchPlan(null);
     setExploreSearchFeedback(null);
     try {
@@ -366,6 +369,7 @@ export function App() {
           onTopicInputChange={setTopicInput}
           onTurnstileTokenChange={setTurnstileToken}
           results={results}
+          searchJobId={lastCompletedExploreJobId}
           searchPending={searchPending}
           subscribePendingRepositoryId={createPendingRepositoryId}
           subscribedRepositoryIds={subscriptions.map((item) => item.repository.repositoryId)}

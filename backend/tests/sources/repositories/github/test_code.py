@@ -16,9 +16,11 @@ def test_discover_repository_candidates_from_code_builds_repository_signal(
                 "items": [
                     {
                         "repository": {
+                            "id": 101,
                             "full_name": "kragskow-group/orto",
                             "html_url": "https://github.com/kragskow-group/orto",
                             "description": "",
+                            "updated_at": "2026-09-03T12:30:00Z",
                             "owner": {"login": "kragskow-group"},
                         },
                         "path": "src/orto/io/orca_output.py",
@@ -38,8 +40,9 @@ def test_discover_repository_candidates_from_code_builds_repository_signal(
     assert len(signals) == 1
     signal = signals[0]
     assert signal.kind == "repository"
-    assert signal.item_id == "github:repo:kragskow-group/orto"
+    assert signal.item_id == "github:repo:101"
     assert signal.payload["query"] == "orca python package"
+    assert signal.payload["provider_updated_at"] == "2026-09-03T12:30:00+00:00"
     assert "Matched code path: src/orto/io/orca_output.py" in signal.raw_text
 
 
@@ -55,6 +58,7 @@ def test_discover_repository_candidates_from_code_reads_second_page(
                 "items": [
                     {
                         "repository": {
+                            "id": 101,
                             "full_name": "kragskow-group/orto",
                             "html_url": "https://github.com/kragskow-group/orto",
                             "description": "",
@@ -69,6 +73,7 @@ def test_discover_repository_candidates_from_code_reads_second_page(
                 "items": [
                     {
                         "repository": {
+                            "id": 202,
                             "full_name": "thermotools/lammps_mie_fh",
                             "html_url": "https://github.com/thermotools/lammps_mie_fh",
                             "description": "",

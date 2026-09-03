@@ -27,6 +27,7 @@ def test_discover_repository_candidates_from_code_builds_repository_signal(
             "description": "",
             "topics": ["orca", "chemistry"],
             "star_count": 19,
+            "last_activity_at": "2026-09-03T12:30:00Z",
         }
 
     monkeypatch.setattr(gitlab_code_search, "fetch_json", fake_fetch_json)
@@ -43,6 +44,7 @@ def test_discover_repository_candidates_from_code_builds_repository_signal(
     assert signal.payload["provider_repository_id"] == "42"
     assert signal.payload["query"] == "orca python package"
     assert signal.payload["stars"] == 19
+    assert signal.payload["provider_updated_at"] == "2026-09-03T12:30:00+00:00"
     assert "Matched code path: src/orto/io/orca_output.py" in signal.raw_text
 
 

@@ -104,6 +104,7 @@ export type ExploreResultItem = {
   description: string;
   language: string | null;
   stars: number | null;
+  providerUpdatedAt: string | null;
   query: string | null;
   score: number;
   reason: string;
