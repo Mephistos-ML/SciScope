@@ -1,3 +1,15 @@
+# [1.13.0](https://github.com/Mephistos-ML/SciScope/compare/v1.12.1...v1.13.0) (2026-09-03)
+
+
+### Bug Fixes
+
+* **catalog:** standardize canonical repository profiles ([932505b](https://github.com/Mephistos-ML/SciScope/commit/932505b5b0fc29b92be1a3d0ca0d15812f8c25b6))
+
+
+### Features
+
+* **explore:** add result controls and beta dataset capture ([fa4b96a](https://github.com/Mephistos-ML/SciScope/commit/fa4b96a3a371913a153c6e2883e6529a376afa4d))
+
 ## [1.12.1](https://github.com/Mephistos-ML/SciScope/compare/v1.12.0...v1.12.1) (2026-09-02)
 
 
