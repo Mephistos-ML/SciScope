@@ -1,3 +1,11 @@
+# [1.14.0](https://github.com/Mephistos-ML/SciScope/compare/v1.13.1...v1.14.0) (2026-09-03)
+
+
+### Features
+
+* **search:** add hybrid semantic catalog retrieval ([388737b](https://github.com/Mephistos-ML/SciScope/commit/388737bd262aa30c3eefc91429c474e100f05046))
+* **storage:** add semantic catalog indexes ([eba5a20](https://github.com/Mephistos-ML/SciScope/commit/eba5a208d40beb0cefc60845f8ba6bf4e74e953c))
+
 ## [1.13.1](https://github.com/Mephistos-ML/SciScope/compare/v1.13.0...v1.13.1) (2026-09-03)
 
 
