@@ -253,6 +253,20 @@ def list_repositories_by_ids(
     return [_to_repository(row) for row in rows]
 
 
+def list_repository_search_evidence(
+    *,
+    database_url: str,
+) -> list[RepositorySearchEvidence]:
+    """Return catalog query evidence for an administrative semantic backfill."""
+
+    statement = select(RepositorySearchEvidenceRecordModel).order_by(
+        RepositorySearchEvidenceRecordModel.query_normalized.asc()
+    )
+    with session_scope(database_url) as session:
+        rows = session.scalars(statement).all()
+    return [_to_evidence(row) for row in rows]
+
+
 def get_repository(
     repository_id: str,
     *,
