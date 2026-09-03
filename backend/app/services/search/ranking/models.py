@@ -16,6 +16,7 @@ class RankingFeatures:
     hit_count: int
     evidence_count: int
     match_location_quality: float
+    query_coverage_alignment: float = 0.0
 
 
 @dataclass(frozen=True)

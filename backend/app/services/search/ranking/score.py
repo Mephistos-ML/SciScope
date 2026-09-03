@@ -46,11 +46,12 @@ def _query_coverage(features: RankingFeatures) -> float:
     if features.total_query_count <= 0 or features.matched_query_count <= 0:
         return 0.0
 
-    bounded_match_count = min(
-        features.matched_query_count,
-        features.total_query_count,
+    coverage = features.query_coverage_alignment
+    if coverage <= 0.0:
+        coverage = float(features.matched_query_count)
+    return log1p(min(coverage, features.total_query_count)) / log1p(
+        features.total_query_count
     )
-    return log1p(bounded_match_count) / log1p(features.total_query_count)
 
 
 def _evidence_density(evidence_count: int) -> float:

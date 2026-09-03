@@ -115,6 +115,8 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
     assert inspector.has_table("user_feed_events")
     assert inspector.has_table("ranking_dataset_runs")
     assert inspector.has_table("ranking_dataset_examples")
+    assert inspector.has_table("repository_query_embeddings")
+    assert inspector.has_table("repository_profile_embeddings")
     assert not inspector.has_table("seen_signals")
 
     with engine.connect() as connection:
@@ -122,4 +124,4 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
             sa.text("SELECT version_num FROM alembic_version")
         ).scalar_one()
 
-    assert version == "0009_product_table_names"
+    assert version == "0010_semantic_catalog"

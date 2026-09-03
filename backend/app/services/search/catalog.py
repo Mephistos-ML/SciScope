@@ -19,6 +19,11 @@ from app.services.search.retrieval import (
     RepositoryCandidate,
     RetrievalMatchEvidence,
 )
+from app.services.search.retrieval.merge import merge_repository_candidates
+from app.services.search.semantic import (
+    persist_semantic_catalog_documents,
+    retrieve_semantic_catalog_candidates,
+)
 from app.storage.repositories import (
     find_catalog_repository_matches,
     upsert_repositories,
@@ -119,7 +124,11 @@ def retrieve_catalog_candidates(
                 ),
             )
         )
-    return tuple(candidates)
+    semantic_candidates = retrieve_semantic_catalog_candidates(
+        queries,
+        database_url=database_url,
+    )
+    return merge_repository_candidates(tuple((*candidates, *semantic_candidates)))
 
 
 def persist_catalog_candidates(
@@ -142,6 +151,11 @@ def persist_catalog_candidates(
     try:
         upsert_repositories(repositories, database_url=database_url)
         upsert_repository_search_evidence(evidence, database_url=database_url)
+        persist_semantic_catalog_documents(
+            repositories,
+            tuple(item.query_normalized for item in evidence),
+            database_url=database_url,
+        )
     except DBAPIError:
         logger.exception("Catalog ingestion failed after external retrieval.")
 

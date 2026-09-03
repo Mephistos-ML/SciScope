@@ -91,6 +91,42 @@ def test_ranking_weights_readme_match_more_than_code_match() -> None:
     assert readme_match > code_match
 
 
+def test_ranking_discounts_semantic_evidence_without_using_its_origin() -> None:
+    direct = _build_candidate(
+        item_id="github:repo:direct",
+        source="github",
+        raw_text="direct\nParamagnetic NMR fitting toolkit.",
+        match_evidence=(
+            RetrievalMatchEvidence(
+                query="paramagnetic nmr fitting",
+                location="description",
+            ),
+        ),
+    )
+    semantic = _build_candidate(
+        item_id="github:repo:semantic",
+        source="github",
+        raw_text="semantic\nParamagnetic NMR fitting toolkit.",
+        match_evidence=(
+            RetrievalMatchEvidence(
+                query="paramagnetic nmr fitting",
+                location="description",
+                alignment=0.8,
+            ),
+        ),
+    )
+
+    result = rank_repository_candidates(
+        (semantic, direct),
+        queries=("paramagnetic nmr fitting",),
+        relevance_cutoff=0.0,
+    )
+
+    assert result.ranked_candidates[0].candidate.repository_id == direct.repository_id
+    assert result.ranked_candidates[0].features.query_coverage_alignment == 1.0
+    assert result.ranked_candidates[1].features.query_coverage_alignment == 0.8
+
+
 def test_ranking_does_not_reward_duplicate_raw_hits() -> None:
     one_raw_hit = calculate_relevance_score(
         RankingFeatures(
