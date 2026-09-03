@@ -7,6 +7,7 @@ import logging
 from time import monotonic
 from urllib.parse import quote_plus
 
+from app.models.repository import parse_provider_updated_at
 from app.models.signal import Signal
 from app.sources.common import (
     RepositoryCandidate,
@@ -112,6 +113,9 @@ def discover_repository_candidates_from_code(
                 topics=tuple(topic_list),
                 matched_path=str(item.get("path") or ""),
                 matched_excerpt=str(item.get("data") or ""),
+                provider_updated_at=parse_provider_updated_at(
+                    project.get("last_activity_at")
+                ),
             )
             signals.append(build_repository_candidate_signal(candidate))
 

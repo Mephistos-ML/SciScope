@@ -30,8 +30,9 @@ def test_upsert_repositories_persists_global_repositories(tmp_path) -> None:
     upsert_repositories(
         [
             Repository(
-                repository_id="github:repo:Mephistos-ML/paranmr",
+                repository_id="github:repo:123",
                 source="github",
+                provider_repository_id="123",
                 full_name="Mephistos-ML/paranmr",
                 url="https://github.com/Mephistos-ML/paranmr",
                 metadata={"stars": 12},
@@ -43,7 +44,7 @@ def test_upsert_repositories_persists_global_repositories(tmp_path) -> None:
     repositories = list_repositories(source="github", database_url=database_url)
 
     assert len(repositories) == 1
-    assert repositories[0].repository_id == "github:repo:Mephistos-ML/paranmr"
+    assert repositories[0].repository_id == "github:repo:123"
     assert repositories[0].full_name == "Mephistos-ML/paranmr"
     assert repositories[0].metadata["stars"] == 12
 
@@ -55,8 +56,9 @@ def test_create_subscription_returns_direct_repository_watch(tmp_path) -> None:
     upsert_repositories(
         [
             Repository(
-                repository_id="github:repo:Mephistos-ML/paranmr",
+                repository_id="github:repo:123",
                 source="github",
+                provider_repository_id="123",
                 full_name="Mephistos-ML/paranmr",
                 url="https://github.com/Mephistos-ML/paranmr",
                 metadata={"stars": 14},
@@ -67,17 +69,17 @@ def test_create_subscription_returns_direct_repository_watch(tmp_path) -> None:
 
     subscription = create_subscription(
         user_id="user_1",
-        repository_id="github:repo:Mephistos-ML/paranmr",
+        repository_id="github:repo:123",
         selected_query="paramagnetic nmr",
         database_url=database_url,
     )
     repository = get_repository(
-        "github:repo:Mephistos-ML/paranmr",
+        "github:repo:123",
         database_url=database_url,
     )
     watches = list_subscription_watches_for_user("user_1", database_url=database_url)
 
-    assert subscription.repository_id == "github:repo:Mephistos-ML/paranmr"
+    assert subscription.repository_id == "github:repo:123"
     assert subscription.selected_query == "paramagnetic nmr"
     assert repository is not None
     assert len(watches) == 1

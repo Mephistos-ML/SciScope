@@ -22,6 +22,7 @@ class RepositoryCandidate:
     topics: tuple[str, ...] = ()
     matched_path: str = ""
     matched_excerpt: str = ""
+    provider_updated_at: datetime | None = None
 
 
 @dataclass(frozen=True)

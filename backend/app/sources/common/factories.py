@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 from app.models.repository import (
     Repository,
     RepositoryCheckpoint,
+    build_repository_id,
+    parse_provider_updated_at,
 )
 from app.models.signal import Signal
 from app.sources.common.models import (
@@ -27,10 +29,9 @@ def build_repository_candidate_signal(candidate: RepositoryCandidate) -> Signal:
     return Signal(
         source=candidate.source,
         kind="repository",
-        item_id=(
-            f"{candidate.source}:repo:{candidate.provider_repository_id}"
-            if candidate.provider_repository_id
-            else f"{candidate.source}:repo:{candidate.full_name}"
+        item_id=build_repository_id(
+            candidate.source,
+            candidate.provider_repository_id,
         ),
         title=candidate.full_name,
         url=candidate.url,
@@ -54,6 +55,11 @@ def build_repository_candidate_signal(candidate: RepositoryCandidate) -> Signal:
             "query": candidate.query,
             "matched_path": candidate.matched_path,
             "matched_excerpt": candidate.matched_excerpt,
+            "provider_updated_at": (
+                candidate.provider_updated_at.isoformat()
+                if candidate.provider_updated_at is not None
+                else None
+            ),
         },
     )
 
@@ -79,6 +85,9 @@ def build_repository_entity(signal: Signal) -> Repository:
             str(topic)
             for topic in signal.payload.get("topics", [])
             if str(topic).strip()
+        ),
+        provider_updated_at=parse_provider_updated_at(
+            signal.payload.get("provider_updated_at")
         ),
     )
 

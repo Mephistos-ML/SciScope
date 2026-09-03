@@ -7,6 +7,7 @@ import logging
 from time import monotonic
 from urllib.parse import quote_plus
 
+from app.models.repository import parse_provider_updated_at
 from app.models.signal import Signal
 from app.sources.common import (
     RepositoryCandidate,
@@ -75,7 +76,8 @@ def discover_repository_candidates_from_code(
                     continue
 
                 full_name = str(repository.get("full_name") or "").strip()
-                if not full_name:
+                provider_repository_id = str(repository.get("id") or "").strip()
+                if not full_name or not provider_repository_id:
                     continue
 
                 owner = repository.get("owner")
@@ -90,13 +92,16 @@ def discover_repository_candidates_from_code(
                         repository.get("html_url") or f"https://github.com/{full_name}"
                     ),
                     query=query,
-                    provider_repository_id=str(repository.get("id") or ""),
+                    provider_repository_id=provider_repository_id,
                     description=str(repository.get("description") or ""),
                     owner_login=owner_login,
                     language=str(repository.get("language") or ""),
                     stars=int(repository.get("stargazers_count") or 0),
                     topics=(),
                     matched_path=str(item.get("path") or ""),
+                    provider_updated_at=parse_provider_updated_at(
+                        repository.get("updated_at")
+                    ),
                 )
                 signals.append(build_repository_candidate_signal(candidate))
 

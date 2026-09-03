@@ -8,7 +8,11 @@ import logging
 
 from sqlalchemy.exc import DBAPIError
 
-from app.models.repository import Repository, RepositorySearchEvidence
+from app.models.repository import (
+    Repository,
+    RepositorySearchEvidence,
+    parse_provider_updated_at,
+)
 from app.models.signal import Signal
 from app.services.search.retrieval import (
     CandidateProvenance,
@@ -56,6 +60,12 @@ def retrieve_catalog_candidates(
                 "topics": list(repository.topics),
                 "language": repository.language,
                 "stars": repository.stars,
+                "provider_updated_at": (
+                    repository.provider_updated_at.isoformat()
+                    if repository.provider_updated_at is not None
+                    else None
+                ),
+                "query": match.matched_queries[0] if match.matched_queries else None,
             },
         )
         evidence = tuple(
@@ -155,6 +165,9 @@ def _build_repository(candidate: RepositoryCandidate, *, now: datetime) -> Repos
         first_seen_at=now,
         last_seen_at=now,
         last_retrieved_at=now,
+        provider_updated_at=parse_provider_updated_at(
+            payload.get("provider_updated_at")
+        ),
     )
 
 

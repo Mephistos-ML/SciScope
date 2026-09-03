@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from time import monotonic
 from urllib.parse import quote_plus
 
+from app.models.repository import parse_provider_updated_at
 from app.models.signal import Signal
 from app.sources.common import (
     RepositoryCandidate,
@@ -46,7 +47,8 @@ def discover_repository_candidates(
                 continue
 
             full_name = str(item.get("full_name") or "").strip()
-            if not full_name:
+            provider_repository_id = str(item.get("id") or "").strip()
+            if not full_name or not provider_repository_id:
                 continue
 
             description = str(item.get("description") or "")
@@ -66,12 +68,13 @@ def discover_repository_candidates(
                 full_name=full_name,
                 url=str(item.get("html_url") or f"https://github.com/{full_name}"),
                 query=query,
-                provider_repository_id=str(item.get("id") or ""),
+                provider_repository_id=provider_repository_id,
                 description=description,
                 owner_login=owner_login,
                 language=language,
                 stars=stars,
                 topics=tuple(topic_list),
+                provider_updated_at=parse_provider_updated_at(item.get("updated_at")),
             )
             signals.append(build_repository_candidate_signal(candidate))
 

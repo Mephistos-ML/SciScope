@@ -14,6 +14,9 @@ from app.models.repository import (
     Repository,
     RepositoryCheckpoint,
     RepositorySearchEvidence,
+    build_repository_id,
+    parse_provider_updated_at,
+    parse_repository_id,
 )
 from app.models.signal import Signal
 from app.models.subscription import Subscription
@@ -30,6 +33,9 @@ __all__ = [
     "Repository",
     "RepositoryCheckpoint",
     "RepositorySearchEvidence",
+    "build_repository_id",
+    "parse_provider_updated_at",
+    "parse_repository_id",
     "Signal",
     "Subscription",
 ]
