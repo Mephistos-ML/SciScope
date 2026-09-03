@@ -15,12 +15,12 @@ from app.database.base import Base
 class FeedEventRecordModel(Base):
     """Append-only feed event stored per user subscription."""
 
-    __tablename__ = "feed_events"
+    __tablename__ = "user_feed_events"
     __table_args__ = (
-        Index("ix_feed_events_user_created_at", "user_id", "created_at"),
-        Index("ix_feed_events_user_published_at", "user_id", "published_at"),
-        Index("ix_feed_events_subscription_created_at", "subscription_id", "created_at"),
-        Index("ix_feed_events_repository_created_at", "repository_id", "created_at"),
+        Index("ix_user_feed_events_user_created_at", "user_id", "created_at"),
+        Index("ix_user_feed_events_user_published_at", "user_id", "published_at"),
+        Index("ix_user_feed_events_subscription_created_at", "subscription_id", "created_at"),
+        Index("ix_user_feed_events_repository_created_at", "repository_id", "created_at"),
     )
 
     event_id: Mapped[str] = mapped_column(String, primary_key=True)

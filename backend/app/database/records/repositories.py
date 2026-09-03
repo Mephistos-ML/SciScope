@@ -50,10 +50,10 @@ class RepositoryRecordModel(Base):
 class RepositorySearchEvidenceRecordModel(Base):
     """Durable source-independent retrieval evidence for one catalog repository."""
 
-    __tablename__ = "repository_search_evidence"
+    __tablename__ = "repository_query_evidence"
     __table_args__ = (
-        Index("ix_repository_search_evidence_query", "query_normalized"),
-        Index("ix_repository_search_evidence_repository", "repository_id"),
+        Index("ix_repository_query_evidence_query", "query_normalized"),
+        Index("ix_repository_query_evidence_repository", "repository_id"),
     )
 
     repository_id: Mapped[str] = mapped_column(String, primary_key=True)
@@ -71,9 +71,9 @@ class RepositorySearchEvidenceRecordModel(Base):
 class RepositoryCheckpointRecordModel(Base):
     """Per-subscription monitoring cursor for a repository."""
 
-    __tablename__ = "repository_checkpoints"
+    __tablename__ = "subscription_scan_cursors"
     __table_args__ = (
-        Index("ix_repository_checkpoints_subscription", "subscription_id"),
+        Index("ix_subscription_scan_cursors_subscription", "subscription_id"),
     )
 
     subscription_id: Mapped[str] = mapped_column(String, primary_key=True)
@@ -87,10 +87,10 @@ class RepositoryCheckpointRecordModel(Base):
 class SubscriptionRecordModel(Base):
     """Persisted user subscription."""
 
-    __tablename__ = "subscriptions"
+    __tablename__ = "repository_subscriptions"
     __table_args__ = (
-        Index("ix_subscriptions_user_id_created_at", "user_id", "created_at"),
-        Index("ux_subscriptions_user_repository", "user_id", "repository_id", unique=True),
+        Index("ix_repository_subscriptions_user_id_created_at", "user_id", "created_at"),
+        Index("ux_repository_subscriptions_user_repository", "user_id", "repository_id", unique=True),
     )
 
     subscription_id: Mapped[str] = mapped_column(String, primary_key=True)

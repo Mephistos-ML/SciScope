@@ -84,7 +84,7 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
     inspector = sa.inspect(engine)
     subscription_columns = {
         column["name"]
-        for column in inspector.get_columns("subscriptions")
+        for column in inspector.get_columns("repository_subscriptions")
     }
     repository_columns = {
         column["name"]
@@ -92,7 +92,7 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
     }
     checkpoint_columns = {
         column["name"]
-        for column in inspector.get_columns("repository_checkpoints")
+        for column in inspector.get_columns("subscription_scan_cursors")
     }
 
     assert "topic_description" not in subscription_columns
@@ -105,14 +105,16 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
     assert "full_name" in repository_columns
     assert "provider_repository_id" in repository_columns
     assert "search_text" in repository_columns
-    assert inspector.has_table("repository_search_evidence")
-    assert inspector.has_table("repository_checkpoints")
+    assert inspector.has_table("repository_query_evidence")
+    assert inspector.has_table("subscription_scan_cursors")
     assert "repository_id" in checkpoint_columns
     assert inspector.has_table("users")
-    assert inspector.has_table("oauth_accounts")
+    assert inspector.has_table("user_identities")
     assert inspector.has_table("user_sessions")
-    assert inspector.has_table("explore_search_events")
-    assert inspector.has_table("feed_events")
+    assert inspector.has_table("search_access_events")
+    assert inspector.has_table("user_feed_events")
+    assert inspector.has_table("ranking_dataset_runs")
+    assert inspector.has_table("ranking_dataset_examples")
     assert not inspector.has_table("seen_signals")
 
     with engine.connect() as connection:
@@ -120,4 +122,4 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
             sa.text("SELECT version_num FROM alembic_version")
         ).scalar_one()
 
-    assert version == "0008_repository_catalog"
+    assert version == "0009_product_table_names"
