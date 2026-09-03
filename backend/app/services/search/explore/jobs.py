@@ -31,6 +31,7 @@ def create_explore_search_job(
     *,
     topic_description: str,
     response_mode: ExploreResponseMode = "canonical",
+    owner_user_id: str | None = None,
     log_context: SearchLogContext | None = None,
 ) -> dict[str, object]:
     """Create one background Explore search job and return its initial snapshot."""
@@ -47,6 +48,7 @@ def create_explore_search_job(
         "error": None,
         "message": None,
         "responseMode": response_mode,
+        "ownerUserId": owner_user_id,
         "createdAt": now,
         "updatedAt": now,
     }

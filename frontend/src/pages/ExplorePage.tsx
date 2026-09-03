@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { AiSearchPlanPayload, ExploreResultItem, ViewerPayload } from "../types/api";
 import { SourceBadge } from "../components/SourceBadge";
 import { TurnstileWidget } from "../components/TurnstileWidget";
+import { RankingDatasetLabeler, RankingDatasetLabelSelect } from "../features/ranking-dataset/RankingDatasetLabeler";
 import exploreEmptyIllustration from "../assets/states/explore/explore-empty.svg";
 import noResultsIllustration from "../assets/states/explore/search-no-results.svg";
 
@@ -12,6 +13,8 @@ type ExploreSearchFeedback = {
   signInSuggested: boolean;
   turnstileRequired: boolean;
 };
+
+type ExploreSortOption = "relevance" | "recent_activity" | "stars";
 
 type ExplorePageProps = {
   canSubscribe: boolean;
@@ -26,6 +29,7 @@ type ExplorePageProps = {
   onTopicInputChange: (value: string) => void;
   onTurnstileTokenChange: (token: string | null) => void;
   results: ExploreResultItem[];
+  searchJobId: string | null;
   searchPending: boolean;
   subscribePendingRepositoryId: string | null;
   subscribedRepositoryIds: string[];
@@ -50,6 +54,7 @@ export function ExplorePage({
   onTopicInputChange,
   onTurnstileTokenChange,
   results,
+  searchJobId,
   searchPending,
   searchStageLabel,
   subscribePendingRepositoryId,
@@ -66,6 +71,8 @@ export function ExplorePage({
   const requiresTurnstile = exploreSearchFeedback?.turnstileRequired === true;
   const [retrySecondsRemaining, setRetrySecondsRemaining] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortOption, setSortOption] = useState<ExploreSortOption>("relevance");
+  const [datasetLabels, setDatasetLabels] = useState<Record<string, 0 | 1 | 2>>({});
 
   useEffect(() => {
     const retryUntilEpochMs = exploreSearchFeedback?.retryUntilEpochMs;
@@ -89,7 +96,11 @@ export function ExplorePage({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [results]);
+  }, [results, sortOption]);
+
+  useEffect(() => {
+    setDatasetLabels({});
+  }, [searchJobId]);
 
   const retryLockActive = retrySecondsRemaining !== null && retrySecondsRemaining > 0;
   const searchDisabled =
@@ -105,8 +116,12 @@ export function ExplorePage({
       ? "Complete Verification"
       : "Run Search";
   const showLoadingResults = searchPending;
-  const totalPages = Math.max(1, Math.ceil(results.length / RESULTS_PER_PAGE));
-  const visibleResults = results.slice(
+  const sortedResults = useMemo(
+    () => sortExploreResults(results, sortOption),
+    [results, sortOption],
+  );
+  const totalPages = Math.max(1, Math.ceil(sortedResults.length / RESULTS_PER_PAGE));
+  const visibleResults = sortedResults.slice(
     (currentPage - 1) * RESULTS_PER_PAGE,
     currentPage * RESULTS_PER_PAGE,
   );
@@ -284,15 +299,35 @@ export function ExplorePage({
               </div>
             </div>
 
+            {hasResults ? (
+              <div className="results-toolbar">
+                <label className="results-sort-control" htmlFor="explore-sort">
+                  <span>Sort by</span>
+                  <select
+                    id="explore-sort"
+                    onChange={(event) => setSortOption(event.target.value as ExploreSortOption)}
+                    value={sortOption}
+                  >
+                    <option value="relevance">Relevance</option>
+                    <option value="recent_activity">Recent activity</option>
+                    <option value="stars">Stars</option>
+                  </select>
+                </label>
+              </div>
+            ) : null}
+
+            {betaMode && results[0]?.beta && hasResults ? (
+              <RankingDatasetLabeler key={searchJobId} searchJobId={searchJobId} results={results} labels={datasetLabels} />
+            ) : null}
+
             {showLoadingResults ? (
               <>
                 <div className="repository-table">
                   <div className="repository-table-head">
                     <span>Repository</span>
                     <span>Source</span>
-                    <span>Language</span>
                     <span>Stars</span>
-                    <span>Query</span>
+                    <span>Activity</span>
                     <span>Actions</span>
                   </div>
 
@@ -318,23 +353,16 @@ export function ExplorePage({
 
                         <div
                           className="repository-cell repository-metadata-cell"
-                          data-label="Language"
-                        >
-                          <span className="repository-skeleton-meta skeleton-shimmer" />
-                        </div>
-
-                        <div
-                          className="repository-cell repository-metadata-cell"
                           data-label="Stars"
                         >
                           <span className="repository-skeleton-meta repository-skeleton-meta-short skeleton-shimmer" />
                         </div>
 
                         <div
-                          className="repository-cell repository-query-cell"
-                          data-label="Query"
+                          className="repository-cell repository-metadata-cell"
+                          data-label="Activity"
                         >
-                          <span className="repository-skeleton-query skeleton-shimmer" />
+                          <span className="repository-skeleton-meta skeleton-shimmer" />
                         </div>
 
                         <div
@@ -354,9 +382,8 @@ export function ExplorePage({
                   <div className="repository-table-head">
                     <span>Repository</span>
                     <span>Source</span>
-                    <span>Language</span>
                     <span>Stars</span>
-                    <span>Query</span>
+                    <span>Activity</span>
                     <span>Actions</span>
                   </div>
 
@@ -383,30 +410,16 @@ export function ExplorePage({
 
                           <div
                             className="repository-cell repository-metadata-cell"
-                            data-label="Language"
-                          >
-                            {result.language ? (
-                              <span className="repository-dot-metadata">
-                                <span className="repository-language-dot" aria-hidden="true" />
-                                {result.language}
-                              </span>
-                            ) : (
-                              <span className="repository-muted-value">-</span>
-                            )}
-                          </div>
-
-                          <div
-                            className="repository-cell repository-metadata-cell"
                             data-label="Stars"
                           >
                             {result.stars !== null ? formatCompactNumber(result.stars) : "-"}
                           </div>
 
                           <div
-                            className="repository-cell repository-query-cell"
-                            data-label="Query"
+                            className="repository-cell repository-metadata-cell"
+                            data-label="Activity"
                           >
-                            {result.query || "No Query Snapshot"}
+                            {formatProviderActivity(result.providerUpdatedAt)}
                           </div>
 
                           <div
@@ -427,6 +440,17 @@ export function ExplorePage({
                             >
                               {isSubscribed ? "Subscribed" : isPending ? "Saving..." : "Subscribe"}
                             </button>
+                            {betaMode && result.beta ? (
+                              <RankingDatasetLabelSelect
+                                value={datasetLabels[result.itemId]}
+                                onChange={(label) => setDatasetLabels((current) => {
+                                  const next = { ...current };
+                                  if (label === null) delete next[result.itemId];
+                                  else next[result.itemId] = label;
+                                  return next;
+                                })}
+                              />
+                            ) : null}
                           </div>
                         </div>
                       );
@@ -520,6 +544,53 @@ function formatCompactNumber(value: number): string {
   }
 
   return `${value}`;
+}
+
+function formatProviderActivity(value: string | null): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("en", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+function sortExploreResults(
+  results: ExploreResultItem[],
+  sortOption: ExploreSortOption,
+): ExploreResultItem[] {
+  return [...results].sort((left, right) => {
+    const primaryDifference =
+      sortOption === "recent_activity"
+        ? compareProviderActivity(left.providerUpdatedAt, right.providerUpdatedAt)
+        : sortOption === "stars"
+          ? (right.stars ?? -1) - (left.stars ?? -1)
+          : right.score - left.score;
+
+    if (primaryDifference !== 0) return primaryDifference;
+
+    const relevanceDifference = right.score - left.score;
+    if (relevanceDifference !== 0) return relevanceDifference;
+
+    return left.fullName.localeCompare(right.fullName);
+  });
+}
+
+function compareProviderActivity(left: string | null, right: string | null): number {
+  const leftTimestamp = readTimestamp(left);
+  const rightTimestamp = readTimestamp(right);
+  if (leftTimestamp === null && rightTimestamp === null) return 0;
+  if (leftTimestamp === null) return 1;
+  if (rightTimestamp === null) return -1;
+  return rightTimestamp - leftTimestamp;
+}
+
+function readTimestamp(value: string | null): number | null {
+  if (!value) return null;
+  const timestamp = new Date(value).getTime();
+  return Number.isNaN(timestamp) ? null : timestamp;
 }
 
 function BetaDiagnostic({ result }: { result: ExploreResultItem }) {
