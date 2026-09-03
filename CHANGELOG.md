@@ -1,3 +1,10 @@
+## [1.13.1](https://github.com/Mephistos-ML/SciScope/compare/v1.13.0...v1.13.1) (2026-09-03)
+
+
+### Bug Fixes
+
+* **ranking:** normalize catalog query evidence ([ba39f5b](https://github.com/Mephistos-ML/SciScope/commit/ba39f5b3ba012f76d1883b46ffb4e7ca23108d2d))
+
 # [1.13.0](https://github.com/Mephistos-ML/SciScope/compare/v1.12.1...v1.13.0) (2026-09-03)
 
 
