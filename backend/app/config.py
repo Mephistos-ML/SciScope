@@ -197,9 +197,41 @@ EXPLORE_SEARCH_RELEVANCE_CUTOFF = _read_optional_float_env(
     "EXPLORE_SEARCH_RELEVANCE_CUTOFF",
     50.0,
 )
-EXPLORE_LOCAL_RESULT_MINIMUM = _read_optional_int_env(
-    "EXPLORE_LOCAL_RESULT_MINIMUM",
+EXPLORE_LOCAL_MIN_STRONG_RESULTS = _read_optional_int_env(
+    "EXPLORE_LOCAL_MIN_STRONG_RESULTS",
+    10,
+)
+EXPLORE_LOCAL_REQUIRED_QUERY_COVERAGE = _read_optional_float_env(
+    "EXPLORE_LOCAL_REQUIRED_QUERY_COVERAGE",
+    0.80,
+)
+EXPLORE_LOCAL_MIN_QUERY_ALIGNMENT = _read_optional_float_env(
+    "EXPLORE_LOCAL_MIN_QUERY_ALIGNMENT",
+    0.80,
+)
+SEMANTIC_CATALOG_ENABLED = _read_bool_env("SEMANTIC_CATALOG_ENABLED", False)
+SEMANTIC_EMBEDDING_MODEL = (
+    _read_optional_env("SEMANTIC_EMBEDDING_MODEL") or "text-embedding-3-small"
+)
+SEMANTIC_EMBEDDING_DIMENSIONS = _read_optional_int_env(
+    "SEMANTIC_EMBEDDING_DIMENSIONS",
+    1536,
+)
+SEMANTIC_CATALOG_QUERY_LIMIT = _read_optional_int_env(
+    "SEMANTIC_CATALOG_QUERY_LIMIT",
     20,
+)
+SEMANTIC_CATALOG_PROFILE_LIMIT = _read_optional_int_env(
+    "SEMANTIC_CATALOG_PROFILE_LIMIT",
+    20,
+)
+SEMANTIC_CATALOG_MIN_SIMILARITY = _read_optional_float_env(
+    "SEMANTIC_CATALOG_MIN_SIMILARITY",
+    0.72,
+)
+SEMANTIC_EMBEDDING_BATCH_SIZE = _read_optional_int_env(
+    "SEMANTIC_EMBEDDING_BATCH_SIZE",
+    100,
 )
 
 if APP_LOG_LEVEL not in {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}:
@@ -283,5 +315,25 @@ if not 0.0 <= EXPLORE_SEARCH_RELEVANCE_CUTOFF <= 100.0:
         "EXPLORE_SEARCH_RELEVANCE_CUTOFF must be between 0 and 100"
     )
 
-if EXPLORE_LOCAL_RESULT_MINIMUM <= 0:
-    raise RuntimeError("EXPLORE_LOCAL_RESULT_MINIMUM must be a positive integer")
+if EXPLORE_LOCAL_MIN_STRONG_RESULTS <= 0:
+    raise RuntimeError("EXPLORE_LOCAL_MIN_STRONG_RESULTS must be a positive integer")
+
+if not 0.0 < EXPLORE_LOCAL_REQUIRED_QUERY_COVERAGE <= 1.0:
+    raise RuntimeError("EXPLORE_LOCAL_REQUIRED_QUERY_COVERAGE must be in (0, 1]")
+
+if not 0.0 <= EXPLORE_LOCAL_MIN_QUERY_ALIGNMENT <= 1.0:
+    raise RuntimeError("EXPLORE_LOCAL_MIN_QUERY_ALIGNMENT must be between 0 and 1")
+
+if SEMANTIC_EMBEDDING_DIMENSIONS != 1536:
+    raise RuntimeError(
+        "SEMANTIC_EMBEDDING_DIMENSIONS must be 1536 for the current pgvector schema"
+    )
+
+if SEMANTIC_CATALOG_QUERY_LIMIT <= 0 or SEMANTIC_CATALOG_PROFILE_LIMIT <= 0:
+    raise RuntimeError("Semantic catalog retrieval limits must be positive integers")
+
+if not 0.0 <= SEMANTIC_CATALOG_MIN_SIMILARITY <= 1.0:
+    raise RuntimeError("SEMANTIC_CATALOG_MIN_SIMILARITY must be between 0 and 1")
+
+if SEMANTIC_EMBEDDING_BATCH_SIZE <= 0:
+    raise RuntimeError("SEMANTIC_EMBEDDING_BATCH_SIZE must be a positive integer")
