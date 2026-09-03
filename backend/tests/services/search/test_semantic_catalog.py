@@ -1,0 +1,55 @@
+"""Tests for source-agnostic semantic catalog candidates."""
+
+from __future__ import annotations
+
+from app import config
+from app.models.repository import Repository
+from app.services.search import semantic
+
+
+def test_semantic_retrieval_maps_historical_evidence_to_the_current_query(monkeypatch) -> None:
+    monkeypatch.setattr(config, "SEMANTIC_CATALOG_ENABLED", True)
+    monkeypatch.setattr(semantic, "semantic_catalog_is_available", lambda **_: True)
+    monkeypatch.setattr(semantic, "_embed_texts", lambda _: ((0.1, 0.2),))
+    monkeypatch.setattr(
+        semantic,
+        "find_semantic_query_evidence",
+        lambda *_, **__: [
+            {
+                "repository_id": "github:repo:123",
+                "query_normalized": "paramagnetic nmr fitting",
+                "channel": "code_search",
+                "match_location": "readme",
+                "matched_path": "README.md",
+                "provider_rank": 4,
+                "hit_count": 1,
+                "similarity": 0.82,
+            }
+        ],
+    )
+    monkeypatch.setattr(semantic, "find_semantic_profiles", lambda *_, **__: [])
+    monkeypatch.setattr(
+        semantic,
+        "list_repositories_by_ids",
+        lambda *_, **__: [
+            Repository(
+                repository_id="github:repo:123",
+                source="github",
+                full_name="Mephistos-ML/paranmr",
+                url="https://github.com/Mephistos-ML/paranmr",
+                description="Paramagnetic NMR fitting toolkit.",
+            )
+        ],
+    )
+
+    candidates = semantic.retrieve_semantic_catalog_candidates(
+        ("PCS tensor estimation",),
+        database_url="postgresql://example.test/sciscope",
+    )
+
+    evidence = candidates[0].provenance.match_evidence[0]
+    assert candidates[0].provenance.matched_queries == ("pcs tensor estimation",)
+    assert evidence.query == "pcs tensor estimation"
+    assert evidence.location == "readme"
+    assert evidence.path == "README.md"
+    assert evidence.alignment == 0.82

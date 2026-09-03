@@ -30,6 +30,7 @@ def build_ranking_features(
         _normalize_query(query) for query in queries if query.strip()
     )
     evidence = candidate.provenance.match_evidence
+    alignment_by_query = _build_alignment_by_query(evidence)
 
     return RankingFeatures(
         matched_query_count=len(candidate.provenance.matched_queries),
@@ -39,6 +40,9 @@ def build_ranking_features(
         match_location_quality=_build_match_location_quality(
             evidence,
             normalized_queries,
+        ),
+        query_coverage_alignment=sum(
+            alignment_by_query.get(query, 0.0) for query in normalized_queries
         ),
     )
 
@@ -55,7 +59,7 @@ def _build_match_location_quality(
         normalized_query = _normalize_query(item.query)
         if not normalized_query:
             continue
-        weight = _MATCH_LOCATION_WEIGHTS[item.location]
+        weight = _MATCH_LOCATION_WEIGHTS[item.location] * item.alignment
         best_weight_by_query[normalized_query] = max(
             best_weight_by_query.get(normalized_query, 0.0),
             weight,
@@ -69,6 +73,20 @@ def _build_match_location_quality(
     if not matched_weights:
         return 0.0
     return sum(matched_weights) / len(matched_weights)
+
+
+def _build_alignment_by_query(
+    evidence: Sequence[RetrievalMatchEvidence],
+) -> dict[str, float]:
+    alignment_by_query: dict[str, float] = {}
+    for item in evidence:
+        query = _normalize_query(item.query)
+        if query:
+            alignment_by_query[query] = max(
+                alignment_by_query.get(query, 0.0),
+                min(1.0, max(0.0, item.alignment)),
+            )
+    return alignment_by_query
 
 
 def _normalize_query(query: str) -> str:

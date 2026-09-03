@@ -27,6 +27,7 @@ class RetrievalMatchEvidence:
     query: str
     location: RetrievalMatchLocation
     path: str = ""
+    alignment: float = 1.0
 
 
 @dataclass(frozen=True)

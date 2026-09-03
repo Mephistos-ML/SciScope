@@ -53,6 +53,7 @@ def build_beta_diagnostics(
                 "evidenceDensity": ranked.score_breakdown.evidence_density,
                 "evidenceDensityPoints": ranked.score_breakdown.evidence_density_points,
                 "matchedQueryCount": ranked.features.matched_query_count,
+                "queryCoverageAlignment": ranked.features.query_coverage_alignment,
                 "totalQueryCount": ranked.features.total_query_count,
                 "evidenceCount": ranked.features.evidence_count,
                 "hitCount": ranked.features.hit_count,
