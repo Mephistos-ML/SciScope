@@ -27,7 +27,7 @@ def build_ranking_features(
     """Build ranking features without relying on source or retrieval channel."""
 
     normalized_queries = tuple(
-        query.strip() for query in queries if query.strip()
+        _normalize_query(query) for query in queries if query.strip()
     )
     evidence = candidate.provenance.match_evidence
 
@@ -52,7 +52,7 @@ def _build_match_location_quality(
 
     best_weight_by_query: dict[str, float] = {}
     for item in evidence:
-        normalized_query = item.query.strip()
+        normalized_query = _normalize_query(item.query)
         if not normalized_query:
             continue
         weight = _MATCH_LOCATION_WEIGHTS[item.location]
@@ -69,3 +69,9 @@ def _build_match_location_quality(
     if not matched_weights:
         return 0.0
     return sum(matched_weights) / len(matched_weights)
+
+
+def _normalize_query(query: str) -> str:
+    """Make query identity stable across provider and catalog retrieval."""
+
+    return " ".join(query.casefold().split())

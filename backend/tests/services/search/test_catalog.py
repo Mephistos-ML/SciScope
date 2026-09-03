@@ -7,6 +7,7 @@ from app.services.search.catalog import (
     persist_catalog_candidates,
     retrieve_catalog_candidates,
 )
+from app.services.search.ranking import rank_repository_candidates
 from app.services.search.retrieval import (
     CandidateProvenance,
     RepositoryCandidate,
@@ -70,3 +71,52 @@ def test_catalog_retrieval_keeps_query_specific_evidence(tmp_path) -> None:
     assert relaxation[0].provenance.matched_queries == ("relaxation",)
     assert relaxation[0].provenance.match_evidence[0].location == "code"
     assert relaxation[0].provenance.match_evidence[0].path == "paranmr/relaxation.py"
+
+
+def test_catalog_evidence_keeps_its_location_for_a_case_variant_current_query(tmp_path) -> None:
+    """Historical evidence must rank against the current query, not its old casing."""
+
+    database_url = build_test_database_url(tmp_path / "catalog-case.sqlite3")
+    migrate_test_database(database_url)
+    candidate = RepositoryCandidate(
+        repository_id="github:repo:123",
+        signal=Signal(
+            source="github",
+            kind="repository",
+            item_id="github:repo:123",
+            title="Mephistos-ML/paranmr",
+            url="https://github.com/Mephistos-ML/paranmr",
+            published_at=None,
+            raw_text="Paramagnetic NMR fitting toolkit.",
+            payload={
+                "repo": "Mephistos-ML/paranmr",
+                "provider_repository_id": "123",
+                "author": "Mephistos-ML",
+                "description": "Paramagnetic NMR fitting toolkit.",
+            },
+        ),
+        provenance=CandidateProvenance(
+            matched_queries=("paramagnetic nmr shifts",),
+            matched_channels=("repository_search",),
+            best_rank_by_channel={"repository_search": 1},
+            hit_count=1,
+            match_evidence=(
+                RetrievalMatchEvidence(
+                    query="paramagnetic nmr shifts",
+                    location="description",
+                ),
+            ),
+        ),
+    )
+    persist_catalog_candidates((candidate,), database_url=database_url)
+
+    local_candidates = retrieve_catalog_candidates(
+        ("Paramagnetic NMR",),
+        database_url=database_url,
+    )
+    ranked = rank_repository_candidates(
+        local_candidates,
+        queries=("Paramagnetic NMR",),
+    )
+
+    assert ranked.ranked_candidates[0].features.match_location_quality == 0.85
