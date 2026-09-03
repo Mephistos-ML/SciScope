@@ -19,6 +19,7 @@ from app.services.search.catalog import (
     retrieve_catalog_candidates,
 )
 from app.services.search.explore.evaluation import build_explore_search_evaluation
+from app.services.search.explore.local_catalog import assess_local_catalog_sufficiency
 from app.services.search.explore.response import (
     ExploreResponseMode,
     build_empty_explore_search_payload,
@@ -130,7 +131,22 @@ def run_explore_search(
             queries=repository_queries,
             log_context=log_context,
         )
-        if len(select_canonical_candidates(local_evaluation)) >= config.EXPLORE_LOCAL_RESULT_MINIMUM:
+        local_catalog = assess_local_catalog_sufficiency(
+            local_evaluation,
+            queries=repository_queries,
+        )
+        if log_context is not None:
+            log_search_event(
+                logger=logger,
+                event="explore_local_catalog_evaluated",
+                context=log_context,
+                strong_candidate_count=local_catalog.strong_candidate_count,
+                query_coverage=local_catalog.query_coverage,
+                covered_query_count=local_catalog.covered_query_count,
+                required_covered_query_count=local_catalog.required_covered_query_count,
+                sufficient=local_catalog.sufficient,
+            )
+        if local_catalog.sufficient:
             retrieved = local_retrieved
             evaluation = local_evaluation
         else:
