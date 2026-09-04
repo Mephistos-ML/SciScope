@@ -1,3 +1,10 @@
+## [1.14.2](https://github.com/Mephistos-ML/SciScope/compare/v1.14.1...v1.14.2) (2026-09-04)
+
+
+### Bug Fixes
+
+* **search:** bound semantic embedding batches ([fd0124b](https://github.com/Mephistos-ML/SciScope/commit/fd0124b1f12c872dd47158ee88f21beaa31dfa20))
+
 ## [1.14.1](https://github.com/Mephistos-ML/SciScope/compare/v1.14.0...v1.14.1) (2026-09-04)
 
 
