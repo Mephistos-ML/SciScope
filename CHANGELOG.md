@@ -1,3 +1,10 @@
+## [1.14.3](https://github.com/Mephistos-ML/SciScope/compare/v1.14.2...v1.14.3) (2026-09-04)
+
+
+### Bug Fixes
+
+* **explore:** always refresh external discovery ([fcbce55](https://github.com/Mephistos-ML/SciScope/commit/fcbce55e149c8235ba80142791a8362f0fed354d))
+
 ## [1.14.2](https://github.com/Mephistos-ML/SciScope/compare/v1.14.1...v1.14.2) (2026-09-04)
 
 
