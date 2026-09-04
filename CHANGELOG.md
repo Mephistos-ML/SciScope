@@ -1,3 +1,10 @@
+## [1.14.1](https://github.com/Mephistos-ML/SciScope/compare/v1.14.0...v1.14.1) (2026-09-04)
+
+
+### Bug Fixes
+
+* **search:** fail semantic backfills on embedding errors ([07233eb](https://github.com/Mephistos-ML/SciScope/commit/07233ebd4af440001a7df82ae82753e171aeb243))
+
 # [1.14.0](https://github.com/Mephistos-ML/SciScope/compare/v1.13.1...v1.14.0) (2026-09-03)
 
 
