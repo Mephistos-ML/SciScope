@@ -67,3 +67,30 @@ def test_backfill_propagates_embedding_errors(monkeypatch) -> None:
 
     with pytest.raises(semantic.SemanticEmbeddingError, match="forbidden"):
         semantic.backfill_semantic_catalog(database_url="postgresql://example.test/sciscope")
+
+
+def test_profile_text_bounds_provider_metadata(monkeypatch) -> None:
+    monkeypatch.setattr(config, "SEMANTIC_EMBEDDING_MAX_INPUT_CHARS", 30)
+    repository = Repository(
+        repository_id="github:repo:123",
+        source="github",
+        full_name="owner/repository",
+        url="https://github.com/owner/repository",
+        description="A description that is longer than the embedding document budget.",
+    )
+
+    assert semantic._profile_text(repository) == "owner/repository\nA description"
+
+
+def test_document_batches_respect_item_and_character_limits(monkeypatch) -> None:
+    monkeypatch.setattr(config, "SEMANTIC_EMBEDDING_BATCH_SIZE", 3)
+    monkeypatch.setattr(config, "SEMANTIC_EMBEDDING_BATCH_MAX_CHARS", 10)
+
+    batches = semantic._document_batches(
+        {"first": "aaaaaa", "second": "bbbbbb", "third": "cc", "fourth": "dd"}
+    )
+
+    assert batches == (
+        (("first", "aaaaaa"),),
+        (("second", "bbbbbb"), ("third", "cc"), ("fourth", "dd")),
+    )

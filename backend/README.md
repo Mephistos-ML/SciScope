@@ -112,7 +112,7 @@ Important environment variables:
 
 - `APP_LOG_LEVEL`: structured search-event log level; use `INFO` in deployed environments
 - `AI_PLANNER_MODE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_TIMEOUT_SECONDS`: query-planning configuration
-- `SEMANTIC_CATALOG_ENABLED`, `SEMANTIC_EMBEDDING_MODEL`, `SEMANTIC_CATALOG_MIN_SIMILARITY`: opt-in pgvector hybrid catalog retrieval. After the migration, run `python -m scripts.backfill_semantic_catalog` once in the deployed backend environment.
+- `SEMANTIC_CATALOG_ENABLED`, `SEMANTIC_EMBEDDING_MODEL`, `SEMANTIC_CATALOG_MIN_SIMILARITY`: opt-in pgvector hybrid catalog retrieval. After the migration, run `python backend/scripts/backfill_semantic_catalog.py` once in the deployed backend environment.
 - `EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS`, `EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS`: async job budgets
 - `EXPLORE_SEARCH_REPOSITORY_LANE_TIMEOUT_SECONDS`, `EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS`: retrieval lane budgets
 - `EXPLORE_ADMISSION_MODE`, `EXPLORE_SEARCH_RELEVANCE_CUTOFF`: canonical result policy

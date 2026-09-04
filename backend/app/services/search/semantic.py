@@ -178,15 +178,22 @@ def _persist_documents(
     )
     if not missing:
         return
-    vectors = tuple(
-        vector
-        for batch in _batches(tuple(missing.values()), config.SEMANTIC_EMBEDDING_BATCH_SIZE)
-        for vector in _embed_texts(batch)
-    )
-    payload = {
-        key: (_content_hash(content), vector)
-        for (key, content), vector in zip(missing.items(), vectors, strict=True)
-    }
+    payload: dict[str, tuple[str, tuple[float, ...]]] = {}
+    for batch in _document_batches(missing):
+        try:
+            vectors = _embed_texts(tuple(content for _, content in batch))
+        except SemanticEmbeddingError as exc:
+            sample_keys = ", ".join(key for key, _ in batch[:3])
+            raise SemanticEmbeddingError(
+                "Embedding batch failed for "
+                f"{len(batch)} documents (sample keys: {sample_keys})."
+            ) from exc
+        payload.update(
+            {
+                key: (_content_hash(content), vector)
+                for (key, content), vector in zip(batch, vectors, strict=True)
+            }
+        )
     upsert(
         payload,
         embedding_model=config.SEMANTIC_EMBEDDING_MODEL,
@@ -309,7 +316,7 @@ def _normalize(query: str) -> str:
 
 
 def _profile_text(repository: Repository) -> str:
-    return "\n".join(
+    text = "\n".join(
         value.strip()
         for value in (
             repository.full_name,
@@ -318,14 +325,31 @@ def _profile_text(repository: Repository) -> str:
         )
         if value.strip()
     )
+    return text[: config.SEMANTIC_EMBEDDING_MAX_INPUT_CHARS]
 
 
 def _content_hash(content: str) -> str:
     return sha256(content.encode("utf-8")).hexdigest()
 
 
-def _batches(values: Sequence[str], size: int) -> tuple[tuple[str, ...], ...]:
-    return tuple(
-        tuple(values[index : index + size])
-        for index in range(0, len(values), size)
-    )
+def _document_batches(
+    documents: Mapping[str, str],
+) -> tuple[tuple[tuple[str, str], ...], ...]:
+    """Keep embedding requests bounded by both item count and input size."""
+
+    batches: list[tuple[tuple[str, str], ...]] = []
+    current: list[tuple[str, str]] = []
+    current_chars = 0
+    for key, content in documents.items():
+        if current and (
+            len(current) >= config.SEMANTIC_EMBEDDING_BATCH_SIZE
+            or current_chars + len(content) > config.SEMANTIC_EMBEDDING_BATCH_MAX_CHARS
+        ):
+            batches.append(tuple(current))
+            current = []
+            current_chars = 0
+        current.append((key, content))
+        current_chars += len(content)
+    if current:
+        batches.append(tuple(current))
+    return tuple(batches)

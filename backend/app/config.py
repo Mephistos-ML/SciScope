@@ -233,6 +233,14 @@ SEMANTIC_EMBEDDING_BATCH_SIZE = _read_optional_int_env(
     "SEMANTIC_EMBEDDING_BATCH_SIZE",
     100,
 )
+SEMANTIC_EMBEDDING_MAX_INPUT_CHARS = _read_optional_int_env(
+    "SEMANTIC_EMBEDDING_MAX_INPUT_CHARS",
+    6_000,
+)
+SEMANTIC_EMBEDDING_BATCH_MAX_CHARS = _read_optional_int_env(
+    "SEMANTIC_EMBEDDING_BATCH_MAX_CHARS",
+    40_000,
+)
 
 if APP_LOG_LEVEL not in {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}:
     raise RuntimeError(
@@ -337,3 +345,9 @@ if not 0.0 <= SEMANTIC_CATALOG_MIN_SIMILARITY <= 1.0:
 
 if SEMANTIC_EMBEDDING_BATCH_SIZE <= 0:
     raise RuntimeError("SEMANTIC_EMBEDDING_BATCH_SIZE must be a positive integer")
+
+if SEMANTIC_EMBEDDING_MAX_INPUT_CHARS <= 0:
+    raise RuntimeError("SEMANTIC_EMBEDDING_MAX_INPUT_CHARS must be a positive integer")
+
+if SEMANTIC_EMBEDDING_BATCH_MAX_CHARS <= 0:
+    raise RuntimeError("SEMANTIC_EMBEDDING_BATCH_MAX_CHARS must be a positive integer")
