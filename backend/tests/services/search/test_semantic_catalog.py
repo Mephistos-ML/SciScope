@@ -5,6 +5,7 @@ from __future__ import annotations
 from app import config
 from app.models.repository import Repository
 from app.services.search import semantic
+import pytest
 
 
 def test_semantic_retrieval_maps_historical_evidence_to_the_current_query(monkeypatch) -> None:
@@ -53,3 +54,16 @@ def test_semantic_retrieval_maps_historical_evidence_to_the_current_query(monkey
     assert evidence.location == "readme"
     assert evidence.path == "README.md"
     assert evidence.alignment == 0.82
+
+
+def test_backfill_propagates_embedding_errors(monkeypatch) -> None:
+    monkeypatch.setattr(semantic, "list_repositories", lambda **_: [])
+    monkeypatch.setattr(semantic, "list_repository_search_evidence", lambda **_: [])
+    monkeypatch.setattr(
+        semantic,
+        "persist_semantic_catalog_documents",
+        lambda *_, **__: (_ for _ in ()).throw(semantic.SemanticEmbeddingError("forbidden")),
+    )
+
+    with pytest.raises(semantic.SemanticEmbeddingError, match="forbidden"):
+        semantic.backfill_semantic_catalog(database_url="postgresql://example.test/sciscope")

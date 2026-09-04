@@ -39,6 +39,7 @@ def persist_semantic_catalog_documents(
     *,
     database_url: str,
     force: bool = False,
+    raise_on_error: bool = False,
 ) -> None:
     """Embed changed catalog documents after their canonical records are persisted."""
 
@@ -71,6 +72,8 @@ def persist_semantic_catalog_documents(
         )
     except (DBAPIError, SemanticEmbeddingError):
         logger.exception("Semantic catalog ingestion failed without affecting search.")
+        if raise_on_error:
+            raise
 
 
 def backfill_semantic_catalog(*, database_url: str) -> tuple[int, int]:
@@ -83,6 +86,7 @@ def backfill_semantic_catalog(*, database_url: str) -> tuple[int, int]:
         tuple(item.query_normalized for item in evidence),
         database_url=database_url,
         force=True,
+        raise_on_error=True,
     )
     return len(repositories), len({item.query_normalized for item in evidence})
 
@@ -274,8 +278,12 @@ def _embed_texts(inputs: Sequence[str]) -> tuple[tuple[float, ...], ...]:
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:
+        preview = exc.response.text.strip().replace("\n", " ")
+        if len(preview) > 500:
+            preview = f"{preview[:500]}..."
         raise SemanticEmbeddingError(
-            f"Embedding request failed with status {exc.response.status_code}."
+            "Embedding request failed with status "
+            f"{exc.response.status_code}: {preview or '<empty response>'}"
         ) from exc
     payload = response.json()
     data = payload.get("data") if isinstance(payload, dict) else None
