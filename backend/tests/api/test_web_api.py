@@ -645,6 +645,58 @@ def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatc
     assert payload["sourceStatuses"][1]["status"] == "unauthorized"
 
 
+def test_explore_search_refreshes_external_candidates_after_a_strong_catalog_match(
+    monkeypatch,
+) -> None:
+    _allow_explore_access(monkeypatch)
+    query = "paramagnetic nmr"
+    monkeypatch.setattr(
+        "app.services.search.explore.service.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan(query),
+    )
+    local_candidates = _build_retrieved_candidates(
+        *(
+            _build_explore_repository_signal(
+                f"github:repo:catalog-{index}",
+                query=query,
+            )
+            for index in range(10)
+        ),
+        source_statuses=(),
+        successful_source_count=1,
+    ).candidates
+    monkeypatch.setattr(
+        "app.services.search.explore.service.retrieve_catalog_candidates",
+        lambda *_, **__: local_candidates,
+    )
+    external_calls: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        "app.services.search.explore.service.run_external_repository_retrieval",
+        lambda queries, **kwargs: (
+            external_calls.append(queries)
+            or _build_retrieved_candidates(
+                _build_explore_repository_signal(
+                    "github:repo:external-paranmr",
+                    query=queries[0],
+                ),
+                source_statuses=(
+                    {"source": "github", "status": "ok", "candidateCount": 1, "error": None},
+                ),
+                successful_source_count=1,
+            )
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={"topicDescription": "Paramagnetic NMR analysis workflows"},
+        )
+
+    assert response.status_code == 200
+    assert external_calls == [(query,)]
+
+
 def test_explore_search_keeps_retrieved_candidate_without_literal_query_phrase(
     monkeypatch,
 ) -> None:

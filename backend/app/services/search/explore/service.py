@@ -19,7 +19,6 @@ from app.services.search.catalog import (
     retrieve_catalog_candidates,
 )
 from app.services.search.explore.evaluation import build_explore_search_evaluation
-from app.services.search.explore.local_catalog import assess_local_catalog_sufficiency
 from app.services.search.explore.response import (
     ExploreResponseMode,
     build_empty_explore_search_payload,
@@ -121,76 +120,47 @@ def run_explore_search(
             repository_queries,
             database_url=database_url,
         )
-        local_retrieved = RetrievedCandidates(
-            candidates=local_candidates,
-            source_statuses=(),
-            successful_source_count=1 if local_candidates else 0,
+        current_stage = "external_retrieval"
+        external_retrieved = _run_external_retrieval(
+            repository_queries,
+            local_candidates=local_candidates,
+            topic_description=topic_description,
+            ai_search_plan_payload=ai_search_plan_payload,
+            response_mode=response_mode,
+            progress_callback=progress_callback,
+            soft_deadline_monotonic=soft_deadline_monotonic,
+            hard_deadline_monotonic=hard_deadline_monotonic,
+            log_context=log_context,
         )
-        local_evaluation = build_explore_search_evaluation(
-            local_retrieved,
+        retrieved = RetrievedCandidates(
+            candidates=merge_repository_candidates(
+                (*local_candidates, *external_retrieved.candidates)
+            ),
+            source_statuses=external_retrieved.source_statuses,
+            successful_source_count=(
+                external_retrieved.successful_source_count
+                + (1 if local_candidates else 0)
+            ),
+            partial=external_retrieved.partial,
+            warnings=external_retrieved.warnings,
+        )
+        evaluation = build_explore_search_evaluation(
+            retrieved,
             queries=repository_queries,
             log_context=log_context,
         )
-        local_catalog = assess_local_catalog_sufficiency(
-            local_evaluation,
-            queries=repository_queries,
+        admitted_repository_ids = {
+            item.candidate.repository_id
+            for item in evaluation.admission.visible_candidates
+        }
+        persist_catalog_candidates(
+            tuple(
+                candidate
+                for candidate in external_retrieved.candidates
+                if candidate.repository_id in admitted_repository_ids
+            ),
+            database_url=database_url,
         )
-        if log_context is not None:
-            log_search_event(
-                logger=logger,
-                event="explore_local_catalog_evaluated",
-                context=log_context,
-                strong_candidate_count=local_catalog.strong_candidate_count,
-                query_coverage=local_catalog.query_coverage,
-                covered_query_count=local_catalog.covered_query_count,
-                required_covered_query_count=local_catalog.required_covered_query_count,
-                sufficient=local_catalog.sufficient,
-            )
-        if local_catalog.sufficient:
-            retrieved = local_retrieved
-            evaluation = local_evaluation
-        else:
-            current_stage = "external_retrieval"
-            external_retrieved = _run_external_retrieval(
-                repository_queries,
-                local_candidates=local_candidates,
-                topic_description=topic_description,
-                ai_search_plan_payload=ai_search_plan_payload,
-                response_mode=response_mode,
-                progress_callback=progress_callback,
-                soft_deadline_monotonic=soft_deadline_monotonic,
-                hard_deadline_monotonic=hard_deadline_monotonic,
-                log_context=log_context,
-            )
-            retrieved = RetrievedCandidates(
-                candidates=merge_repository_candidates(
-                    (*local_candidates, *external_retrieved.candidates)
-                ),
-                source_statuses=external_retrieved.source_statuses,
-                successful_source_count=(
-                    external_retrieved.successful_source_count
-                    + (1 if local_candidates else 0)
-                ),
-                partial=external_retrieved.partial,
-                warnings=external_retrieved.warnings,
-            )
-            evaluation = build_explore_search_evaluation(
-                retrieved,
-                queries=repository_queries,
-                log_context=log_context,
-            )
-            admitted_repository_ids = {
-                item.candidate.repository_id
-                for item in evaluation.admission.visible_candidates
-            }
-            persist_catalog_candidates(
-                tuple(
-                    candidate
-                    for candidate in external_retrieved.candidates
-                    if candidate.repository_id in admitted_repository_ids
-                ),
-                database_url=database_url,
-            )
 
         if retrieved.successful_source_count == 0:
             if log_context is not None:

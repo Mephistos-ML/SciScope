@@ -116,7 +116,7 @@ Important environment variables:
 - `EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS`, `EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS`: async job budgets
 - `EXPLORE_SEARCH_REPOSITORY_LANE_TIMEOUT_SECONDS`, `EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS`: retrieval lane budgets
 - `EXPLORE_ADMISSION_MODE`, `EXPLORE_SEARCH_RELEVANCE_CUTOFF`: canonical result policy
-- `EXPLORE_LOCAL_MIN_STRONG_RESULTS`, `EXPLORE_LOCAL_REQUIRED_QUERY_COVERAGE`, `EXPLORE_LOCAL_MIN_QUERY_ALIGNMENT`: quality-based policy for deciding when the local catalog may skip external discovery
+- External discovery runs for every Explore search and is merged with local catalog candidates before source-agnostic admission and ranking.
 - `BETA_USER_EMAILS`: restricted diagnostic access
 - `SEARCH_QUOTA_BYPASS_USER_EMAILS`: restricted bypass for SciScope product quotas only; it does not bypass provider limits
 

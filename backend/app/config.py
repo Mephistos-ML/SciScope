@@ -197,18 +197,6 @@ EXPLORE_SEARCH_RELEVANCE_CUTOFF = _read_optional_float_env(
     "EXPLORE_SEARCH_RELEVANCE_CUTOFF",
     50.0,
 )
-EXPLORE_LOCAL_MIN_STRONG_RESULTS = _read_optional_int_env(
-    "EXPLORE_LOCAL_MIN_STRONG_RESULTS",
-    10,
-)
-EXPLORE_LOCAL_REQUIRED_QUERY_COVERAGE = _read_optional_float_env(
-    "EXPLORE_LOCAL_REQUIRED_QUERY_COVERAGE",
-    0.80,
-)
-EXPLORE_LOCAL_MIN_QUERY_ALIGNMENT = _read_optional_float_env(
-    "EXPLORE_LOCAL_MIN_QUERY_ALIGNMENT",
-    0.80,
-)
 SEMANTIC_CATALOG_ENABLED = _read_bool_env("SEMANTIC_CATALOG_ENABLED", False)
 SEMANTIC_EMBEDDING_MODEL = (
     _read_optional_env("SEMANTIC_EMBEDDING_MODEL") or "text-embedding-3-small"
@@ -322,15 +310,6 @@ if not 0.0 <= EXPLORE_SEARCH_RELEVANCE_CUTOFF <= 100.0:
     raise RuntimeError(
         "EXPLORE_SEARCH_RELEVANCE_CUTOFF must be between 0 and 100"
     )
-
-if EXPLORE_LOCAL_MIN_STRONG_RESULTS <= 0:
-    raise RuntimeError("EXPLORE_LOCAL_MIN_STRONG_RESULTS must be a positive integer")
-
-if not 0.0 < EXPLORE_LOCAL_REQUIRED_QUERY_COVERAGE <= 1.0:
-    raise RuntimeError("EXPLORE_LOCAL_REQUIRED_QUERY_COVERAGE must be in (0, 1]")
-
-if not 0.0 <= EXPLORE_LOCAL_MIN_QUERY_ALIGNMENT <= 1.0:
-    raise RuntimeError("EXPLORE_LOCAL_MIN_QUERY_ALIGNMENT must be between 0 and 1")
 
 if SEMANTIC_EMBEDDING_DIMENSIONS != 1536:
     raise RuntimeError(
