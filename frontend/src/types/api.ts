@@ -66,10 +66,14 @@ export type FeedEventItem = {
   url: string;
   publishedAt: string | null;
   createdAt: string | null;
+  readAt: string | null;
 };
 
 export type FeedEventListPayload = {
   items: FeedEventItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  unreadCount: number;
 };
 
 export type FeedEventDetailPayload = FeedEventItem & {
@@ -90,6 +94,7 @@ export type SubscriptionItem = {
   repository: RepositorySummary;
   selectedQuery: string | null;
   createdAt: string;
+  unreadEventCount: number;
 };
 
 export type SubscriptionListPayload = {

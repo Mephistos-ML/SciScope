@@ -29,3 +29,13 @@ class FeedEvent:
     normalized_text: str
     metadata: dict[str, Any] = field(default_factory=dict)
     created_at: datetime | None = None
+    read_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class FeedCursor:
+    """Stable position in one user's reverse-chronological Feed."""
+
+    published_at: datetime | None
+    created_at: datetime
+    event_id: str

@@ -4,6 +4,40 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Protocol
+
+from app.models.repository import Repository
+from app.models.signal import Signal
+
+
+@dataclass(frozen=True)
+class JsonResponse:
+    """JSON payload returned by a provider request and its final URL."""
+
+    payload: object
+    url: str
+
+
+@dataclass(frozen=True)
+class RepositoryActivity:
+    """Repository events returned by one provider scan."""
+
+    signals: tuple[Signal, ...]
+    redirected: bool = False
+
+
+class RepositoryMonitor(Protocol):
+    """Source adapter contract for repository monitoring."""
+
+    def load_repository_activity(
+        self,
+        repository: Repository,
+        *,
+        release_started_after: datetime | None,
+        commit_started_after: datetime | None,
+    ) -> RepositoryActivity: ...
+
+    def refresh_repository_profile(self, repository: Repository) -> Repository: ...
 
 
 @dataclass(frozen=True)

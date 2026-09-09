@@ -10,6 +10,8 @@ import {
   fetchExploreSearchJob,
   fetchMe,
   fetchSubscriptions,
+  markAllFeedEventsRead,
+  markFeedEventRead,
   signOut,
 } from "../lib/api";
 import { frontendConfig } from "../lib/config";
@@ -43,6 +45,12 @@ export function App() {
   const [results, setResults] = useState<ExploreResultItem[]>([]);
   const [lastAiSearchPlan, setLastAiSearchPlan] = useState<AiSearchPlanPayload | null>(null);
   const [feedEvents, setFeedEvents] = useState<FeedEventItem[]>([]);
+  const [unreadFeedCount, setUnreadFeedCount] = useState(0);
+  const [feedState, setFeedState] = useState<"all" | "unread">("all");
+  const [feedSubscriptionId, setFeedSubscriptionId] = useState<string | null>(null);
+  const [feedNextCursor, setFeedNextCursor] = useState<string | null>(null);
+  const [feedHasMore, setFeedHasMore] = useState(false);
+  const [feedLoadPending, setFeedLoadPending] = useState(false);
   const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>([]);
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
   const [topicInput, setTopicInput] = useState("");
@@ -53,6 +61,7 @@ export function App() {
     null,
   );
   const [deletePending, setDeletePending] = useState(false);
+  const [feedUpdatePending, setFeedUpdatePending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [exploreSearchFeedback, setExploreSearchFeedback] = useState<ExploreSearchFeedback | null>(
     null,
@@ -89,6 +98,10 @@ export function App() {
   useEffect(() => {
     if (!viewer) {
       setFeedEvents([]);
+      setUnreadFeedCount(0);
+      setFeedState("all");
+      setFeedNextCursor(null);
+      setFeedHasMore(false);
       setSubscriptions([]);
       setSelectedSubscriptionId(null);
       return;
@@ -102,6 +115,10 @@ export function App() {
         ]);
         setSubscriptions(subscriptionPayload.items);
         setFeedEvents(feedPayload.items);
+        setUnreadFeedCount(feedPayload.unreadCount);
+        setFeedState("all");
+        setFeedNextCursor(feedPayload.nextCursor);
+        setFeedHasMore(feedPayload.hasMore);
         setSelectedSubscriptionId(
           (currentId) => currentId ?? subscriptionPayload.items[0]?.subscriptionId ?? null,
         );
@@ -343,6 +360,91 @@ export function App() {
     }
   }
 
+  async function handleMarkFeedEventRead(eventId: string) {
+    setFeedUpdatePending(true);
+    try {
+      const event = await markFeedEventRead(eventId);
+      setFeedEvents((current) =>
+        feedState === "unread"
+          ? current.filter((item) => item.eventId !== eventId)
+          : current.map((item) => (item.eventId === eventId ? event : item)),
+      );
+      setUnreadFeedCount((current) => Math.max(0, current - 1));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to mark Feed event as read.");
+    } finally {
+      setFeedUpdatePending(false);
+    }
+  }
+
+  async function handleMarkAllFeedEventsRead() {
+    setFeedUpdatePending(true);
+    try {
+      await markAllFeedEventsRead();
+      const readAt = new Date().toISOString();
+      setFeedEvents((current) => current.map((item) => ({ ...item, readAt })));
+      setUnreadFeedCount(0);
+      if (feedState === "unread") {
+        setFeedEvents([]);
+        setFeedNextCursor(null);
+        setFeedHasMore(false);
+      }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to mark Feed events as read.");
+    } finally {
+      setFeedUpdatePending(false);
+    }
+  }
+
+  async function handleFeedStateChange(nextState: "all" | "unread") {
+    if (nextState === feedState) return;
+    setFeedLoadPending(true);
+    try {
+      const payload = await fetchFeed({ state: nextState });
+      setFeedState(nextState);
+      setFeedEvents(payload.items);
+      setFeedNextCursor(payload.nextCursor);
+      setFeedHasMore(payload.hasMore);
+      setUnreadFeedCount(payload.unreadCount);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to load Feed events.");
+    } finally {
+      setFeedLoadPending(false);
+    }
+  }
+
+  async function handleLoadOlderFeedEvents() {
+    if (!feedNextCursor) return;
+    setFeedLoadPending(true);
+    try {
+      const payload = await fetchFeed({ cursor: feedNextCursor, state: feedState, subscriptionId: feedSubscriptionId ?? undefined });
+      setFeedEvents((current) => [...current, ...payload.items]);
+      setFeedNextCursor(payload.nextCursor);
+      setFeedHasMore(payload.hasMore);
+      setUnreadFeedCount(payload.unreadCount);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to load older Feed events.");
+    } finally {
+      setFeedLoadPending(false);
+    }
+  }
+
+  async function handleViewSubscriptionFeed(subscriptionId: string) {
+    setFeedLoadPending(true);
+    try {
+      const payload = await fetchFeed({ subscriptionId });
+      setFeedSubscriptionId(subscriptionId);
+      setFeedState("all");
+      setFeedEvents(payload.items);
+      setFeedNextCursor(payload.nextCursor);
+      setFeedHasMore(payload.hasMore);
+      setUnreadFeedCount(payload.unreadCount);
+      setActiveView("feed");
+    } finally {
+      setFeedLoadPending(false);
+    }
+  }
+
   return (
     <AppShell
       activeView={activeView}
@@ -351,6 +453,7 @@ export function App() {
       onSignOut={() => void handleSignOut()}
       signingIn={signingIn}
       signingOut={signingOut}
+      unreadFeedCount={unreadFeedCount}
       viewer={viewer}
     >
       {errorMessage ? <section className="shell-alert shell-alert-error">{errorMessage}</section> : null}
@@ -383,7 +486,17 @@ export function App() {
       ) : null}
       {activeView === "feed" ? (
         <FeedPage
+          feedUpdatePending={feedUpdatePending}
+          feedLoadPending={feedLoadPending}
           feedEvents={feedEvents}
+          feedHasMore={feedHasMore}
+          feedState={feedState}
+          feedSubscriptionId={feedSubscriptionId}
+          unreadFeedCount={unreadFeedCount}
+          onLoadOlder={() => void handleLoadOlderFeedEvents()}
+          onMarkAllRead={() => void handleMarkAllFeedEventsRead()}
+          onMarkRead={(eventId) => void handleMarkFeedEventRead(eventId)}
+          onStateChange={(state) => void handleFeedStateChange(state)}
           viewer={viewer}
         />
       ) : null}
@@ -394,6 +507,7 @@ export function App() {
           subscriptions={subscriptions}
           onDeleteSubscription={(subscriptionId) => void handleDeleteSubscription(subscriptionId)}
           onSelectSubscription={(subscriptionId) => void handleSelectSubscription(subscriptionId)}
+          onViewAllUpdates={(subscriptionId) => void handleViewSubscriptionFeed(subscriptionId)}
           viewer={viewer}
         />
       ) : null}

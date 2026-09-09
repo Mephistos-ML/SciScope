@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request, Response, status
+from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
@@ -65,7 +65,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=list(CORS_ORIGINS),
     allow_credentials=True,
-    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
 
@@ -297,14 +297,64 @@ def get_status(request: Request) -> dict[str, object]:
 
 
 @app.get("/api/feed")
-def get_feed(request: Request) -> dict[str, object]:
+def get_feed(
+    request: Request,
+    limit: int = Query(default=20, ge=1, le=50),
+    cursor: str | None = None,
+    state: str = "all",
+    subscription_id: str | None = None,
+) -> dict[str, object]:
     """Return durable feed events for the current user."""
 
-    payload = feed_routes.get_feed_list_response(request)
+    try:
+        payload = feed_routes.get_feed_list_response(
+            request,
+            limit=limit,
+            cursor=cursor,
+            state=state,
+            subscription_id=subscription_id,
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required",
+        )
+    return payload
+
+
+@app.post("/api/feed/read-all")
+def mark_all_feed_events_read(request: Request) -> dict[str, int]:
+    """Mark every Feed event as read for the current user."""
+
+    payload = feed_routes.mark_all_feed_events_read_response(request)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+    return payload
+
+
+@app.patch("/api/feed/{event_id}")
+def mark_feed_event_read(request: Request, event_id: str) -> dict[str, object]:
+    """Mark one Feed event as read for the current user."""
+
+    payload = feed_routes.mark_feed_event_read_response(request, event_id)
+    if payload is None:
+        user = get_current_user(request, database_url=request.app.state.database_url)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Feed event not found",
         )
     return payload
 

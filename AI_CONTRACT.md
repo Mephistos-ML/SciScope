@@ -156,6 +156,93 @@ Examples:
 - `services` may import `storage`, but `storage` must not import `services`
 - `storage` may import `database.records`, but `services` must not
 
+## Design and Abstraction Principles
+
+Prefer the simplest design that fully satisfies the current product requirement.
+
+Do not add abstractions for hypothetical future consumers, providers, workflows,
+or compatibility needs. Generalize only when the code already has multiple real
+implementations, or when a documented extension boundary requires it.
+
+An abstraction is justified only when it:
+
+- represents a real domain, transport, or capability concept;
+- has one clear responsibility;
+- hides meaningful implementation variation;
+- makes the calling code simpler than direct composition.
+
+Do not introduce abstractions that only rename, forward, unwrap, repackage, or
+preserve an obsolete internal API.
+
+Examples of usually unjustified code:
+
+- pass-through wrappers;
+- duplicate functions that differ only by an optional return value;
+- aliases that conceal rather than clarify a concept;
+- interfaces with a single implementation and no defined extension boundary;
+- configuration or indirection created only for imagined future flexibility.
+
+When changing an internal API, update all internal callers in the same change.
+Backward compatibility is required only for documented external contracts,
+persisted data, public APIs, plugins, or independently deployed consumers.
+
+## Dependency Inversion and Composition
+
+Business logic must depend on stable capabilities, not concrete infrastructure
+implementations.
+
+Concrete implementations are selected at the composition boundary. Application
+services must not contain implementation-selection logic for infrastructure,
+transport, providers, databases, or delivery channels.
+
+The composition boundary owns registration and wiring. Services own business
+rules. Infrastructure owns implementation details.
+
+A conditional is acceptable when it expresses a product rule. A conditional
+whose purpose is to select an implementation belongs in composition.
+
+## API and Data Contract Design
+
+Give each concept one authoritative representation and one clear owner.
+
+Use named data structures when multiple values form one meaningful result.
+Do not use positional tuples for values with distinct semantics.
+
+Do not leak transport, persistence, provider, or presentation details across
+layers unless that detail is part of the receiving layer's explicit contract.
+
+Do not persist presentation-only values such as labels, colours, icons, or
+localized text. Persist canonical facts; derive presentation at the edge.
+
+## Schema Migration Discipline
+
+Treat an unmerged, undeployed migration as part of the current change, not as
+immutable history. Before creating a new migration, check whether the relevant
+schema change has already been merged and deployed to a shared environment.
+
+If it has not, amend the existing migration and its tests instead of creating a
+follow-on revision for the same feature. Delete any superseded local revision.
+Create a new revision only when the earlier migration is already part of shared
+or deployed history, where rewriting it would break an existing database path.
+
+## Change Quality Gate
+
+Before completing a change, review the diff and ask:
+
+1. Is every new abstraction necessary today?
+2. Would deleting an added layer make the design clearer without losing a real
+   requirement?
+3. Does each layer own only the decisions appropriate to that layer?
+4. Did a concrete implementation leak into business logic?
+5. Did the change create duplicate representations, APIs, or sources of truth?
+6. Is the new code easier to remove, replace, test, and explain than the code
+   it replaces?
+7. Is the change the smallest cohesive solution to the requested behavior?
+8. Does this schema change belong in an existing unmerged migration rather than
+   a new revision?
+
+If any answer is uncertain, simplify the design before proceeding.
+
 ## Public Surface Rule
 
 If one package needs functionality from another package, prefer importing from that package's public surface, not from random inner modules.

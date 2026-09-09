@@ -21,6 +21,7 @@ from app.sources.common.models import (
 
 REPOSITORY_RELEASE_CHECKPOINT_KEY = "latest_release_published_at"
 REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY = "latest_main_commit_published_at"
+MAX_PROVIDER_EVENT_BODY_BYTES = 32 * 1024
 
 
 def build_repository_candidate_signal(candidate: RepositoryCandidate) -> Signal:
@@ -95,6 +96,7 @@ def build_repository_entity(signal: Signal) -> Repository:
 def build_repository_release_signal(release: RepositoryRelease) -> Signal:
     """Convert one repository release event into the shared signal shape."""
 
+    body, body_truncated = _limit_provider_event_body(release.body)
     return Signal(
         source=release.source,
         kind="release",
@@ -102,11 +104,12 @@ def build_repository_release_signal(release: RepositoryRelease) -> Signal:
         title=f"{release.repo_full_name} release {release.title}",
         url=release.url,
         published_at=release.published_at,
-        raw_text=f"{release.title}\n\n{release.body}\n\n{release.tag_name}".strip(),
+        raw_text=f"{release.title}\n\n{body}\n\n{release.tag_name}".strip(),
         payload={
             "repo": release.repo_full_name,
             "tag_name": release.tag_name,
             **release.metadata,
+            **({"body_truncated": True} if body_truncated else {}),
         },
     )
 
@@ -116,6 +119,7 @@ def build_repository_main_commit_signal(commit: RepositoryCommit) -> Signal:
 
     short_sha = commit.commit_sha[:7]
     branch_suffix = f" ({commit.branch})" if commit.branch else ""
+    body, body_truncated = _limit_provider_event_body(commit.body)
     return Signal(
         source=commit.source,
         kind="commit",
@@ -123,15 +127,28 @@ def build_repository_main_commit_signal(commit: RepositoryCommit) -> Signal:
         title=f"{commit.repo_full_name} commit {short_sha}{branch_suffix}",
         url=commit.url,
         published_at=commit.published_at,
-        raw_text=f"{commit.title}\n\n{commit.body}\n\n{commit.author_name}".strip(),
+        raw_text=f"{commit.title}\n\n{body}\n\n{commit.author_name}".strip(),
         payload={
             "repo": commit.repo_full_name,
             "branch": commit.branch,
             "commit_sha": commit.commit_sha,
             "author_name": commit.author_name,
             **commit.metadata,
+            **({"body_truncated": True} if body_truncated else {}),
         },
     )
+
+
+def _limit_provider_event_body(value: str) -> tuple[str, bool]:
+    """Keep provider event bodies within the durable-storage budget."""
+
+    encoded = value.encode("utf-8")
+    if len(encoded) <= MAX_PROVIDER_EVENT_BODY_BYTES:
+        return value, False
+
+    suffix = "…"
+    truncated = encoded[: MAX_PROVIDER_EVENT_BODY_BYTES - len(suffix.encode("utf-8"))]
+    return f"{truncated.decode('utf-8', errors='ignore').rstrip()}{suffix}", True
 
 
 def build_repository_release_checkpoint(

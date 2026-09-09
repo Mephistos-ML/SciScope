@@ -67,9 +67,10 @@ def test_fetch_json_includes_auth_headers(monkeypatch) -> None:
         lambda: {"PRIVATE-TOKEN": "test-token"},
     )
 
-    payload = gitlab_client.fetch_json("https://gitlab.com/api/v4/test")
+    response = gitlab_client.fetch_json("https://gitlab.com/api/v4/test")
 
-    assert payload == {"ok": True}
+    assert response.payload == {"ok": True}
+    assert response.url == "https://gitlab.com/api/v4/test"
     assert captured_headers["Private-token"] == "test-token"
     assert captured_headers["Accept"] == "application/json"
 

@@ -113,6 +113,14 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
     assert inspector.has_table("user_sessions")
     assert inspector.has_table("search_access_events")
     assert inspector.has_table("user_feed_events")
+    feed_columns = {
+        column["name"] for column in inspector.get_columns("user_feed_events")
+    }
+    assert "read_at" in feed_columns
+    feed_indexes = {index["name"] for index in inspector.get_indexes("user_feed_events")}
+    assert "ix_user_feed_events_user_chronological" in feed_indexes
+    assert "ix_user_feed_events_user_read_chronological" in feed_indexes
+    assert "ix_user_feed_events_user_subscription_chronological" in feed_indexes
     assert inspector.has_table("ranking_dataset_runs")
     assert inspector.has_table("ranking_dataset_examples")
     assert inspector.has_table("repository_query_embeddings")
@@ -124,4 +132,4 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
             sa.text("SELECT version_num FROM alembic_version")
         ).scalar_one()
 
-    assert version == "0010_semantic_catalog"
+    assert version == "0011_feed_read_state"

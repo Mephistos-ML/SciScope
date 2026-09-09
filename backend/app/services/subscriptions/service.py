@@ -41,6 +41,7 @@ def list_subscription_payloads(
                 },
                 "selectedQuery": item.selected_query,
                 "createdAt": item.created_at,
+                "unreadEventCount": item.unread_event_count,
             }
             for item in subscriptions
         ]

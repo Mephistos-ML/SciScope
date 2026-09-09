@@ -1,6 +1,7 @@
 """Shared helpers for repository-style source adapters."""
 
 from app.sources.common.factories import (
+    MAX_PROVIDER_EVENT_BODY_BYTES,
     REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
     REPOSITORY_RELEASE_CHECKPOINT_KEY,
     build_repository_candidate_signal,
@@ -17,8 +18,11 @@ from app.sources.common.deadlines import (
     read_remaining_timeout_seconds,
 )
 from app.sources.common.models import (
+    JsonResponse,
+    RepositoryActivity,
     RepositoryCandidate,
     RepositoryCommit,
+    RepositoryMonitor,
     RepositoryRelease,
 )
 from app.sources.common.source_status import (
@@ -30,8 +34,12 @@ from app.sources.common.source_status import (
 __all__ = [
     "REPOSITORY_RELEASE_CHECKPOINT_KEY",
     "REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY",
+    "MAX_PROVIDER_EVENT_BODY_BYTES",
+    "JsonResponse",
+    "RepositoryActivity",
     "RepositoryCandidate",
     "RepositoryCommit",
+    "RepositoryMonitor",
     "RepositoryRelease",
     "RepositorySourceError",
     "RepositorySourceStatusCode",

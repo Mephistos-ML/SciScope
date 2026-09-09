@@ -2,55 +2,91 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from urllib.parse import quote_plus
 
+from app.models.repository import Repository
 from app.models.signal import Signal
 from app.sources.common import (
+    RepositoryActivity,
     RepositoryCommit,
     RepositoryRelease,
     build_repository_main_commit_signal,
     build_repository_release_signal,
+    read_repository_name,
 )
-from app.sources.gitlab.client import GITLAB_API_BASE, fetch_json
+from app.sources.gitlab.client import (
+    GITLAB_API_BASE,
+    fetch_json,
+)
 
 
-def load_repo_activity(
-    repo_full_name: str,
+def load_repository_activity(
+    repository: Repository,
     *,
     release_started_after: datetime | None,
     commit_started_after: datetime | None,
-) -> list[Signal]:
-    """Load GitLab releases and default-branch commits after their checkpoints."""
+) -> RepositoryActivity:
+    """Load repository activity and report whether its provider URL redirected."""
+
+    repo_full_name = read_repository_name(repository)
+    if repo_full_name is None:
+        return RepositoryActivity(signals=())
 
     signals: list[Signal] = []
+    redirected = False
     if release_started_after is not None:
-        signals.extend(
-            _load_release_signals(
-                repo_full_name,
-                started_after=release_started_after,
-            )
+        release_signals, release_redirected = _load_release_signals(
+            repo_full_name,
+            started_after=release_started_after,
         )
+        signals.extend(release_signals)
+        redirected = redirected or release_redirected
     if commit_started_after is not None:
-        signals.extend(
-            _load_commit_signals(
-                repo_full_name,
-                started_after=commit_started_after,
-            )
+        commit_signals, commit_redirected = _load_commit_signals(
+            repo_full_name,
+            started_after=commit_started_after,
         )
-    return signals
+        signals.extend(commit_signals)
+        redirected = redirected or commit_redirected
+    return RepositoryActivity(signals=tuple(signals), redirected=redirected)
+
+
+def refresh_repository_profile(repository: Repository) -> Repository:
+    """Load the canonical GitLab profile by immutable provider project ID."""
+
+    provider_repository_id = repository.provider_repository_id.strip()
+    if not provider_repository_id:
+        return repository
+
+    response = fetch_json(
+        f"{GITLAB_API_BASE}/projects/{quote_plus(provider_repository_id)}"
+    )
+    payload = response.payload
+    if not isinstance(payload, dict):
+        return repository
+
+    full_name = str(payload.get("path_with_namespace") or "").strip()
+    url = str(payload.get("web_url") or "").strip()
+    if not full_name or not url:
+        return repository
+    metadata = dict(repository.metadata)
+    metadata["repo"] = full_name
+    return replace(repository, full_name=full_name, url=url, metadata=metadata)
 
 def _load_release_signals(
     repo_full_name: str,
     *,
     started_after: datetime,
-) -> list[Signal]:
+) -> tuple[list[Signal], bool]:
     encoded_repo = quote_plus(repo_full_name)
     releases_url = f"{GITLAB_API_BASE}/projects/{encoded_repo}/releases?per_page=10"
-    payload = fetch_json(releases_url)
+    response = fetch_json(releases_url)
+    payload = response.payload
 
     if not isinstance(payload, list):
-        return []
+        return [], response.url != releases_url
 
     signals: list[Signal] = []
     for item in payload:
@@ -85,22 +121,23 @@ def _load_release_signals(
         )
         signals.append(build_repository_release_signal(release))
 
-    return signals
+    return signals, response.url != releases_url
 
 
 def _load_commit_signals(
     repo_full_name: str,
     *,
     started_after: datetime,
-) -> list[Signal]:
+) -> tuple[list[Signal], bool]:
     encoded_repo = quote_plus(repo_full_name)
     commits_url = (
         f"{GITLAB_API_BASE}/projects/{encoded_repo}/repository/commits?per_page=10"
     )
-    payload = fetch_json(commits_url)
+    response = fetch_json(commits_url)
+    payload = response.payload
 
     if not isinstance(payload, list):
-        return []
+        return [], response.url != commits_url
 
     signals: list[Signal] = []
     for item in payload:
@@ -135,7 +172,8 @@ def _load_commit_signals(
         )
         signals.append(build_repository_main_commit_signal(commit))
 
-    return signals
+    return signals, response.url != commits_url
+
 
 
 def _parse_gitlab_datetime(value: object) -> datetime | None:

@@ -210,12 +210,29 @@ export async function saveRankingDatasetRun(payload: {
   });
 }
 
-export async function fetchFeed(): Promise<FeedEventListPayload> {
-  return requestJson<FeedEventListPayload>("/api/feed");
+export async function fetchFeed(options: { cursor?: string; state?: "all" | "unread"; subscriptionId?: string; limit?: number } = {}): Promise<FeedEventListPayload> {
+  const parameters = new URLSearchParams({ limit: String(options.limit ?? 20), state: options.state ?? "all" });
+  if (options.cursor) {
+    parameters.set("cursor", options.cursor);
+  }
+  if (options.subscriptionId) parameters.set("subscription_id", options.subscriptionId);
+  return requestJson<FeedEventListPayload>(`/api/feed?${parameters}`);
 }
 
 export async function fetchFeedEvent(eventId: string): Promise<FeedEventDetailPayload> {
   return requestJson<FeedEventDetailPayload>(`/api/feed/${eventId}`);
+}
+
+export async function markFeedEventRead(eventId: string): Promise<FeedEventDetailPayload> {
+  return requestJson<FeedEventDetailPayload>(`/api/feed/${eventId}`, {
+    method: "PATCH",
+  });
+}
+
+export async function markAllFeedEventsRead(): Promise<{ updatedCount: number }> {
+  return requestJson<{ updatedCount: number }>("/api/feed/read-all", {
+    method: "POST",
+  });
 }
 
 export async function startScan(): Promise<StatusPayload> {
