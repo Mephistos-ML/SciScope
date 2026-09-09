@@ -68,22 +68,6 @@ class RepositorySearchEvidenceRecordModel(Base):
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
-class RepositoryCheckpointRecordModel(Base):
-    """Per-subscription monitoring cursor for a repository."""
-
-    __tablename__ = "subscription_scan_cursors"
-    __table_args__ = (
-        Index("ix_subscription_scan_cursors_subscription", "subscription_id"),
-    )
-
-    subscription_id: Mapped[str] = mapped_column(String, primary_key=True)
-    repository_id: Mapped[str] = mapped_column(String, primary_key=True)
-    checkpoint_key: Mapped[str] = mapped_column(String, primary_key=True)
-    source: Mapped[str] = mapped_column(String, nullable=False)
-    checkpoint_value: Mapped[str] = mapped_column(Text, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-
 class SubscriptionRecordModel(Base):
     """Persisted user subscription."""
 

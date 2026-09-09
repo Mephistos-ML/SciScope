@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from app.services.search.admission import AdmissionResult, run_repository_admission
-from app.services.search.observability import SearchLogContext
+from app.services.search.observability.context import SearchLogContext
 from app.services.search.ranking import RankingResult, rank_repository_candidates
 from app.services.search.retrieval import RetrievedCandidates
 

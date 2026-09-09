@@ -5,28 +5,28 @@ from __future__ import annotations
 from fastapi import Request
 from fastapi import HTTPException, status
 
-from app.models import ExploreTier
-from app.services.auth import get_current_user
-from app.services.features import has_feature
-from app.services.security import verify_turnstile_token
-from app.services.search.access import (
-    build_explore_access_denied_error,
+from app.models.explore_access import ExploreTier
+from app.services.auth.service import get_current_user
+from app.services.features.access import has_feature
+from app.services.security.turnstile import verify_turnstile_token
+from app.services.search.access.errors import build_explore_access_denied_error
+from app.services.search.access.policy import has_search_quota_bypass
+from app.services.search.access.service import (
     build_turnstile_failure_decision,
     check_explore_access,
     hash_explore_topic,
-    has_search_quota_bypass,
     read_explore_client_ip,
     record_allowed_explore_attempt,
     record_blocked_explore_attempt,
     resolve_explore_actor,
 )
-from app.services.search.explore import (
+from app.services.search.explore.jobs import (
     create_explore_search_job,
     get_explore_search_job,
-    run_explore_search,
 )
+from app.services.search.explore.service import run_explore_search
 from app.services.search.explore.response import ExploreResponseMode
-from app.services.search.observability import SearchLogContext, build_request_id
+from app.services.search.observability.context import SearchLogContext, build_request_id
 
 
 def search_explore_response(

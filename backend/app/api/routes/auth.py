@@ -5,13 +5,13 @@ from __future__ import annotations
 from fastapi import Request, Response
 from fastapi.responses import RedirectResponse
 
-from app.services.auth import (
+from app.services.auth.service import (
     build_google_auth_redirect_response,
     complete_google_auth_callback,
     get_current_user,
     sign_out_current_user,
 )
-from app.services.features import get_enabled_features
+from app.services.features.access import get_enabled_features
 
 
 def get_me_response(request: Request) -> dict[str, object]:

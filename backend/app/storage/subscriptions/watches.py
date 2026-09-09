@@ -7,7 +7,8 @@ from datetime import UTC, datetime
 
 from sqlalchemy import and_, func, select
 
-from app.database.records import FeedEventRecordModel, RepositoryRecordModel, SubscriptionRecordModel
+from app.database.records.feed import FeedEventRecordModel
+from app.database.records.repositories import RepositoryRecordModel, SubscriptionRecordModel
 from app.database.session import session_scope
 from app.models.repository import Repository
 

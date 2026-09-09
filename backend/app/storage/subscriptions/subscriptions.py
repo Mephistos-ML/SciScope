@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import delete, select
 
-from app.database.records import SubscriptionRecordModel
+from app.database.records.repositories import SubscriptionRecordModel
 from app.database.session import session_scope
 
 

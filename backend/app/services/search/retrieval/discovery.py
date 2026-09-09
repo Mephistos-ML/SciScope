@@ -8,7 +8,8 @@ from queue import Empty, Queue
 from urllib.parse import urlparse
 
 from app.config import GITLAB_BASE_URL
-from app.services.search.observability import SearchLogContext, log_search_event
+from app.services.search.observability.context import SearchLogContext
+from app.services.search.observability.service import log_search_event
 from app.services.search.retrieval.lanes import (
     LaneResult,
     RepositoryDiscoverer,
@@ -22,16 +23,16 @@ from app.services.search.retrieval.timeouts import (
     build_lane_deadline_monotonic,
     read_wait_timeout_seconds,
 )
-from app.sources.github.search import (
+from app.sources.github.search.repository import (
     discover_repository_candidates as discover_github_repository_candidates,
 )
-from app.sources.github.search import (
+from app.sources.github.search.code import (
     discover_repository_candidates_from_code as discover_github_repository_candidates_from_code,
 )
-from app.sources.gitlab.search import (
+from app.sources.gitlab.search.repository import (
     discover_repository_candidates as discover_gitlab_repository_candidates,
 )
-from app.sources.gitlab.search import (
+from app.sources.gitlab.search.code import (
     discover_repository_candidates_from_code as discover_gitlab_repository_candidates_from_code,
 )
 

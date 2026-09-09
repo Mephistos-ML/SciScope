@@ -3,19 +3,15 @@
 from __future__ import annotations
 
 from app.config import DATABASE_URL
-from app.services.monitoring import sync_repository_baseline
 from app.models.repository import Repository
-from app.services.auth import User
+from app.services.auth.service import User
 from app.services.subscriptions.repositories import build_subscribed_repository
-from app.storage.repositories import (
-    delete_repository_checkpoints_for_subscription,
-    upsert_repositories,
-)
-from app.storage.subscriptions import (
+from app.storage.repositories.repositories import upsert_repositories
+from app.storage.subscriptions.subscriptions import (
     create_subscription,
     delete_subscription_for_user,
-    list_subscription_watches_for_user,
 )
+from app.storage.subscriptions.watches import list_subscription_watches_for_user
 
 
 def list_subscription_payloads(
@@ -74,12 +70,6 @@ def create_subscription_payload(
         selected_query=selected_query,
         database_url=database_url,
     )
-    sync_repository_baseline(
-        subscription.subscription_id,
-        repository,
-        database_url=database_url,
-    )
-
     return {
         "subscriptionId": subscription.subscription_id,
         "repository": {
@@ -109,8 +99,4 @@ def delete_subscription_payload(
     if not deleted:
         return False
 
-    delete_repository_checkpoints_for_subscription(
-        subscription_id,
-        database_url=database_url,
-    )
     return True

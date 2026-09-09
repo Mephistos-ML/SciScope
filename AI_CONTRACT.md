@@ -243,19 +243,25 @@ Before completing a change, review the diff and ask:
 
 If any answer is uncertain, simplify the design before proceeding.
 
-## Public Surface Rule
+## Package Public Surface Rule
 
-If one package needs functionality from another package, prefer importing from that package's public surface, not from random inner modules.
+A package `__init__.py` may re-export symbols only when it is an intentional,
+documented public boundary. Its `__all__` defines the stable contract used by
+other packages; it must not become a convenience barrel for every child module.
 
-Good:
+Private implementation packages must keep `__init__.py` marker-only. Their
+consumers import the owning concrete module directly.
 
-- `from app.storage.repositories import upsert_repositories`
+Examples:
 
-Bad:
+- `app.storage.repositories` may be a public persistence façade with an
+  explicit `__all__`.
+- `app.database.records`, provider search lanes, and internal observability
+  helpers are private; callers import their concrete module.
 
-- `from app.storage.repositories.repositories import upsert_repositories`
-
-Use inner-module imports only when the package intentionally has no facade yet.
+Before adding or keeping a package re-export, verify that the package has a
+clear owner, a stable cross-package contract, and more than convenience as its
+reason to exist.
 
 ## Current Boundary Risks
 

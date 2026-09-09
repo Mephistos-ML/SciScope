@@ -7,8 +7,6 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = PROJECT_ROOT / "backend"
-MONITORING_INTERVAL_SECONDS = 7200  # 2 hours
-POLLING_FREQUENCY_SECONDS = 30  # scheduler polling frequency: 30 seconds
 DEFAULT_EXPLORE_QUOTA_WINDOW_SECONDS = 86400  # 24 hours
 
 

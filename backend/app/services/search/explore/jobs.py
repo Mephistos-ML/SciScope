@@ -18,7 +18,7 @@ from app.services.search.explore.service import (
     run_explore_search,
 )
 from app.services.search.explore.response import ExploreResponseMode
-from app.services.search.observability import SearchLogContext, build_request_id
+from app.services.search.observability.context import SearchLogContext, build_request_id
 
 logger = logging.getLogger(__name__)
 

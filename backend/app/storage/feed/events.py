@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import and_, func, or_, select, update
 
-from app.database.records import FeedEventRecordModel
+from app.database.records.feed import FeedEventRecordModel
 from app.database.session import session_scope
 from app.models.feed import FeedCursor, FeedEvent
 
