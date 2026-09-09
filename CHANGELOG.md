@@ -1,3 +1,22 @@
+# [1.15.0](https://github.com/Mephistos-ML/SciScope/compare/v1.14.3...v1.15.0) (2026-09-09)
+
+
+### Bug Fixes
+
+* **monitoring:** refresh renamed repository profiles ([0ca466b](https://github.com/Mephistos-ML/SciScope/commit/0ca466b68923e71f4c2812fd9c817a4c9ea2f198))
+
+
+### Features
+
+* **feed:** add unread event state ([9aee4ad](https://github.com/Mephistos-ML/SciScope/commit/9aee4ada5e60ed07d5be434f051cc1b400c68fd6))
+* **feed:** bound provider event text ([1e56967](https://github.com/Mephistos-ML/SciScope/commit/1e56967fce90b3ebbf231767bddcccdf34769ee3))
+* **feed:** load older events with cursor pagination ([51d91fd](https://github.com/Mephistos-ML/SciScope/commit/51d91fdaa0caa4905e92810b5c7532ac34f60836))
+* **feed:** surface event type badges ([ede6899](https://github.com/Mephistos-ML/SciScope/commit/ede689973e396b78ccba7be002e89294a312a5b8))
+* **subscriptions:** scope recent updates to repository ([a44e5a2](https://github.com/Mephistos-ML/SciScope/commit/a44e5a2394241ac08f0e3cadd9c4d4abfa006418))
+* **subscriptions:** show repository feed updates ([45c2a22](https://github.com/Mephistos-ML/SciScope/commit/45c2a22ba67fc3156c4842ca533797b701a1705f))
+* **subscriptions:** surface unread repository activity ([0dec791](https://github.com/Mephistos-ML/SciScope/commit/0dec7919fab837382e5679d648e4d5852ca3653c))
+* **ui:** show repository source logos ([e23e8fa](https://github.com/Mephistos-ML/SciScope/commit/e23e8fa84b2cebcd2f437c7c8682c766621d3d13))
+
 ## [1.14.3](https://github.com/Mephistos-ML/SciScope/compare/v1.14.2...v1.14.3) (2026-09-04)
 
 
