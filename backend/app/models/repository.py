@@ -94,15 +94,3 @@ class CatalogRepositoryMatch:
     repository: Repository
     matched_queries: tuple[str, ...]
     evidence: tuple[RepositorySearchEvidence, ...]
-
-
-@dataclass(frozen=True)
-class RepositoryCheckpoint:
-    """Monitoring checkpoint for one watched repository."""
-
-    subscription_id: str
-    repository_id: str
-    source: str
-    checkpoint_key: str
-    checkpoint_value: str
-    updated_at: datetime

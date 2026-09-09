@@ -12,7 +12,27 @@ branch_labels = None
 depends_on = None
 
 
+def _has_table(inspector: sa.Inspector, table_name: str) -> bool:
+    return table_name in inspector.get_table_names()
+
+
+def _has_index(inspector: sa.Inspector, table_name: str, index_name: str) -> bool:
+    return index_name in {index["name"] for index in inspector.get_indexes(table_name)}
+
+
 def upgrade() -> None:
+    inspector = sa.inspect(op.get_bind())
+    if _has_table(inspector, "subscription_scan_cursors"):
+        if _has_index(
+            inspector,
+            "subscription_scan_cursors",
+            "ix_subscription_scan_cursors_subscription",
+        ):
+            op.drop_index(
+                "ix_subscription_scan_cursors_subscription",
+                table_name="subscription_scan_cursors",
+            )
+        op.drop_table("subscription_scan_cursors")
     op.create_table(
         "repository_monitoring_cursors",
         sa.Column("repository_id", sa.String(), primary_key=True),
@@ -56,3 +76,17 @@ def downgrade() -> None:
     op.drop_table("monitoring_runs")
     op.drop_table("monitoring_job_leases")
     op.drop_table("repository_monitoring_cursors")
+    op.create_table(
+        "subscription_scan_cursors",
+        sa.Column("subscription_id", sa.String(), primary_key=True),
+        sa.Column("repository_id", sa.String(), primary_key=True),
+        sa.Column("checkpoint_key", sa.String(), primary_key=True),
+        sa.Column("source", sa.String(), nullable=False),
+        sa.Column("checkpoint_value", sa.Text(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    )
+    op.create_index(
+        "ix_subscription_scan_cursors_subscription",
+        "subscription_scan_cursors",
+        ["subscription_id"],
+    )

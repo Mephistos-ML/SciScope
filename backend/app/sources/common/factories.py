@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import UTC, datetime
 
 from app.models.repository import (
     Repository,
-    RepositoryCheckpoint,
     build_repository_id,
     parse_provider_updated_at,
 )
@@ -149,52 +147,6 @@ def _limit_provider_event_body(value: str) -> tuple[str, bool]:
     suffix = "…"
     truncated = encoded[: MAX_PROVIDER_EVENT_BODY_BYTES - len(suffix.encode("utf-8"))]
     return f"{truncated.decode('utf-8', errors='ignore').rstrip()}{suffix}", True
-
-
-def build_repository_release_checkpoint(
-    subscription_id: str,
-    repository: Repository,
-    *,
-    latest_published_at: datetime | None,
-    fallback_started_after: datetime,
-) -> RepositoryCheckpoint | None:
-    """Build the next release cursor for one watched repository."""
-
-    checkpoint_value = latest_published_at or fallback_started_after
-    if checkpoint_value is None:
-        return None
-
-    return RepositoryCheckpoint(
-        subscription_id=subscription_id,
-        repository_id=repository.repository_id,
-        source=repository.source,
-        checkpoint_key=REPOSITORY_RELEASE_CHECKPOINT_KEY,
-        checkpoint_value=checkpoint_value.astimezone(UTC).isoformat(),
-        updated_at=datetime.now(UTC),
-    )
-
-
-def build_repository_main_commit_checkpoint(
-    subscription_id: str,
-    repository: Repository,
-    *,
-    latest_published_at: datetime | None,
-    fallback_started_after: datetime,
-) -> RepositoryCheckpoint | None:
-    """Build the next default-branch commit cursor for one watched repository."""
-
-    checkpoint_value = latest_published_at or fallback_started_after
-    if checkpoint_value is None:
-        return None
-
-    return RepositoryCheckpoint(
-        subscription_id=subscription_id,
-        repository_id=repository.repository_id,
-        source=repository.source,
-        checkpoint_key=REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
-        checkpoint_value=checkpoint_value.astimezone(UTC).isoformat(),
-        updated_at=datetime.now(UTC),
-    )
 
 
 def read_repository_name(repository: Repository) -> str | None:

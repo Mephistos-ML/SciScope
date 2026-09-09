@@ -12,7 +12,6 @@ from app.models.feed import FeedEvent
 from app.models.repository import (
     CatalogRepositoryMatch,
     Repository,
-    RepositoryCheckpoint,
     RepositorySearchEvidence,
     build_repository_id,
     parse_provider_updated_at,
@@ -31,7 +30,6 @@ __all__ = [
     "ExploreTier",
     "FeedEvent",
     "Repository",
-    "RepositoryCheckpoint",
     "RepositorySearchEvidence",
     "build_repository_id",
     "parse_provider_updated_at",

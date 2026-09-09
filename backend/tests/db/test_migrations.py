@@ -90,11 +90,6 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
         column["name"]
         for column in inspector.get_columns("repositories")
     }
-    checkpoint_columns = {
-        column["name"]
-        for column in inspector.get_columns("subscription_scan_cursors")
-    }
-
     assert "topic_description" not in subscription_columns
     assert "query_terms_json" not in subscription_columns
     assert "repository_id" in subscription_columns
@@ -106,8 +101,7 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
     assert "provider_repository_id" in repository_columns
     assert "search_text" in repository_columns
     assert inspector.has_table("repository_query_evidence")
-    assert inspector.has_table("subscription_scan_cursors")
-    assert "repository_id" in checkpoint_columns
+    assert not inspector.has_table("subscription_scan_cursors")
     assert inspector.has_table("users")
     assert inspector.has_table("user_identities")
     assert inspector.has_table("user_sessions")

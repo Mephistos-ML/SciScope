@@ -14,7 +14,6 @@ from app.database.records.monitoring import (
     RepositoryMonitoringCursorRecordModel,
 )
 from app.database.records.repositories import (
-    RepositoryCheckpointRecordModel,
     RepositoryRecordModel,
     RepositorySearchEvidenceRecordModel,
     SubscriptionRecordModel,
@@ -30,7 +29,6 @@ __all__ = [
     "MonitoringJobLeaseRecordModel",
     "MonitoringRunRecordModel",
     "OAuthAccountRecordModel",
-    "RepositoryCheckpointRecordModel",
     "RepositoryMonitoringCheckRecordModel",
     "RepositoryMonitoringCursorRecordModel",
     "RepositoryRecordModel",
