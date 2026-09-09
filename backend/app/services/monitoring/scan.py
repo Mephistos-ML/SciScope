@@ -3,16 +3,21 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import replace
 from datetime import UTC, datetime
+import logging
 from uuid import uuid4
 
 from app.config import DATABASE_URL
 from app.models.monitoring import MonitoringRun, RepositoryMonitoringCheck
+from app.models.repository import Repository
+from app.models.signal import Signal
 from app.services.feed import build_feed_event
 from app.sources import get_repository_monitor
 from app.sources.common import (
     REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
     REPOSITORY_RELEASE_CHECKPOINT_KEY,
+    RepositorySourceError,
 )
 from app.storage.feed import upsert_feed_events
 from app.storage.monitoring import (
@@ -24,10 +29,12 @@ from app.storage.monitoring import (
     release_monitoring_job_lease,
     upsert_repository_monitoring_cursors,
 )
-from app.storage.subscriptions import list_all_subscription_watches
+from app.storage.repositories import upsert_repositories
+from app.storage.subscriptions import SubscriptionWatchRecord, list_all_subscription_watches
 
 
 JOB_NAME = "repository-monitoring-scan"
+logger = logging.getLogger(__name__)
 
 
 def run_repository_monitoring_scan(*, database_url: str = DATABASE_URL) -> None:
@@ -54,22 +61,67 @@ def run_repository_monitoring_scan(*, database_url: str = DATABASE_URL) -> None:
             scanned_count += 1
             try:
                 _scan_repository(repository, subscriptions, database_url=database_url)
-                check = RepositoryMonitoringCheck(repository.repository_id, datetime.now(UTC), "succeeded", None, None)
-            except Exception as error:
+                check = RepositoryMonitoringCheck(
+                    repository.repository_id,
+                    datetime.now(UTC),
+                    "succeeded",
+                    None,
+                    None,
+                )
+            except RepositorySourceError as error:
                 failed_count += 1
-                check = RepositoryMonitoringCheck(repository.repository_id, datetime.now(UTC), "failed", "unexpected", "Monitoring will retry automatically.")
+                logger.warning(
+                    "Repository monitoring source %s failed for %s: %s",
+                    repository.source,
+                    repository.repository_id,
+                    error,
+                    exc_info=True,
+                )
+                check = RepositoryMonitoringCheck(
+                    repository.repository_id,
+                    datetime.now(UTC),
+                    "failed",
+                    error.status,
+                    error.public_message,
+                )
+            except Exception:
+                failed_count += 1
+                logger.exception(
+                    "Repository monitoring failed unexpectedly for %s.",
+                    repository.repository_id,
+                )
+                check = RepositoryMonitoringCheck(
+                    repository.repository_id,
+                    datetime.now(UTC),
+                    "failed",
+                    "unexpected",
+                    "Monitoring will retry automatically.",
+                )
             record_repository_monitoring_check(check, run_id=run_id, database_url=database_url)
 
         status = "partial" if failed_count else "succeeded"
         finish_monitoring_run(run_id, status=status, scanned_repository_count=scanned_count, failed_repository_count=failed_count, error_summary=None, database_url=database_url)
     except Exception:
-        finish_monitoring_run(run_id, status="failed", scanned_repository_count=scanned_count, failed_repository_count=failed_count, error_summary="Monitoring run failed unexpectedly.", database_url=database_url)
+        logger.exception("Repository monitoring run failed unexpectedly.")
+        finish_monitoring_run(
+            run_id,
+            status="failed",
+            scanned_repository_count=scanned_count,
+            failed_repository_count=failed_count,
+            error_summary="Monitoring run failed unexpectedly.",
+            database_url=database_url,
+        )
         raise
     finally:
         release_monitoring_job_lease(JOB_NAME, run_id, database_url=database_url)
 
 
-def _scan_repository(repository, subscriptions, *, database_url: str) -> None:
+def _scan_repository(
+    repository: Repository,
+    subscriptions: list[SubscriptionWatchRecord],
+    *,
+    database_url: str,
+) -> None:
     monitor = get_repository_monitor(repository.source)
     if monitor is None:
         return
@@ -78,18 +130,51 @@ def _scan_repository(repository, subscriptions, *, database_url: str) -> None:
     release_after = _read_cursor(cursors, REPOSITORY_RELEASE_CHECKPOINT_KEY, now)
     commit_after = _read_cursor(cursors, REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY, now)
     if not cursors:
-        upsert_repository_monitoring_cursors(repository.repository_id, {
-            REPOSITORY_RELEASE_CHECKPOINT_KEY: now.isoformat(),
-            REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY: now.isoformat(),
-        }, database_url=database_url)
+        upsert_repository_monitoring_cursors(
+            repository.repository_id,
+            {
+                REPOSITORY_RELEASE_CHECKPOINT_KEY: now.isoformat(),
+                REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY: now.isoformat(),
+            },
+            database_url=database_url,
+        )
         return
-    activity = monitor.load_repository_activity(repository, release_started_after=release_after, commit_started_after=commit_after)
-    events = [build_feed_event(signal, subscription) for subscription in subscriptions for signal in activity.signals if _is_after_subscription(signal.published_at, subscription.created_at)]
+    activity = monitor.load_repository_activity(
+        repository,
+        release_started_after=release_after,
+        commit_started_after=commit_after,
+    )
+    if activity.redirected:
+        refreshed_repository = monitor.refresh_repository_profile(repository)
+        if refreshed_repository != repository:
+            upsert_repositories((refreshed_repository,), database_url=database_url)
+            subscriptions = [
+                replace(subscription, repository=refreshed_repository)
+                for subscription in subscriptions
+            ]
+    events = [
+        build_feed_event(signal, subscription)
+        for subscription in subscriptions
+        for signal in activity.signals
+        if _is_after_subscription(signal.published_at, subscription.created_at)
+    ]
     upsert_feed_events(events, database_url=database_url)
-    upsert_repository_monitoring_cursors(repository.repository_id, {
-        REPOSITORY_RELEASE_CHECKPOINT_KEY: _latest(activity.signals, "release", release_after).isoformat(),
-        REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY: _latest(activity.signals, "commit", commit_after).isoformat(),
-    }, database_url=database_url)
+    upsert_repository_monitoring_cursors(
+        repository.repository_id,
+        {
+            REPOSITORY_RELEASE_CHECKPOINT_KEY: _latest(
+                activity.signals,
+                "release",
+                release_after,
+            ).isoformat(),
+            REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY: _latest(
+                activity.signals,
+                "commit",
+                commit_after,
+            ).isoformat(),
+        },
+        database_url=database_url,
+    )
 
 
 def _read_cursor(cursors: dict[str, str], key: str, fallback: datetime) -> datetime:
@@ -97,8 +182,15 @@ def _read_cursor(cursors: dict[str, str], key: str, fallback: datetime) -> datet
     return datetime.fromisoformat(value).astimezone(UTC) if value else fallback
 
 
-def _latest(signals, kind: str, fallback: datetime) -> datetime:
-    return max((signal.published_at for signal in signals if signal.kind == kind and signal.published_at), default=fallback)
+def _latest(signals: tuple[Signal, ...], kind: str, fallback: datetime) -> datetime:
+    return max(
+        (
+            signal.published_at
+            for signal in signals
+            if signal.kind == kind and signal.published_at
+        ),
+        default=fallback,
+    )
 
 
 def _is_after_subscription(published_at: datetime | None, created_at: str) -> bool:

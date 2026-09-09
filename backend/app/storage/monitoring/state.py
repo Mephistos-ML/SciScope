@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy import or_, update
+from sqlalchemy.exc import IntegrityError
+
 from app.database.records import (
     MonitoringJobLeaseRecordModel,
     MonitoringRunRecordModel,
@@ -25,21 +28,34 @@ def acquire_monitoring_job_lease(
     """Acquire one expired-or-free job lease atomically."""
 
     now = datetime.now(UTC)
+    lease_expires_at = now + timedelta(seconds=lease_seconds)
     with session_scope(database_url) as session:
-        lease = session.get(MonitoringJobLeaseRecordModel, job_name)
-        if lease is not None and lease.lease_expires_at > now and lease.holder_id != holder_id:
-            return False
-        if lease is None:
-            session.add(
-                MonitoringJobLeaseRecordModel(
-                    job_name=job_name,
-                    holder_id=holder_id,
-                    lease_expires_at=now + timedelta(seconds=lease_seconds),
+        updated = session.execute(
+            update(MonitoringJobLeaseRecordModel)
+            .where(MonitoringJobLeaseRecordModel.job_name == job_name)
+            .where(
+                or_(
+                    MonitoringJobLeaseRecordModel.lease_expires_at <= now,
+                    MonitoringJobLeaseRecordModel.holder_id == holder_id,
                 )
             )
-        else:
-            lease.holder_id = holder_id
-            lease.lease_expires_at = now + timedelta(seconds=lease_seconds)
+            .values(holder_id=holder_id, lease_expires_at=lease_expires_at)
+        )
+        if updated.rowcount:
+            return True
+
+        try:
+            with session.begin_nested():
+                session.add(
+                    MonitoringJobLeaseRecordModel(
+                        job_name=job_name,
+                        holder_id=holder_id,
+                        lease_expires_at=lease_expires_at,
+                    )
+                )
+                session.flush()
+        except IntegrityError:
+            return False
     return True
 
 

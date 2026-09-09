@@ -14,9 +14,14 @@ from app.models.repository import Repository
 from app.models.signal import Signal
 from app.services.monitoring import scan
 from app.sources.common import RepositoryActivity
+from app.sources.common import RepositorySourceError
 from app.storage import auth as auth_storage
 from app.storage.feed import list_feed_events_for_user
-from app.storage.monitoring import get_repository_monitoring_cursors
+from app.storage.monitoring import (
+    acquire_monitoring_job_lease,
+    get_repository_monitoring_cursors,
+    release_monitoring_job_lease,
+)
 from app.storage.repositories import upsert_repositories
 from app.storage.subscriptions import create_subscription
 from app.storage.subscriptions import SubscriptionWatchRecord
@@ -127,6 +132,74 @@ def test_scan_skips_when_another_run_holds_the_lease(monkeypatch) -> None:
     scan.run_repository_monitoring_scan(database_url="sqlite://")
 
     assert calls == []
+
+
+def test_scan_records_classified_provider_failure(monkeypatch) -> None:
+    repository = _repository()
+    checks = []
+    _configure_scan(
+        monkeypatch,
+        subscriptions=(_watch("sub_one", repository),),
+        cursors={repository.repository_id: _cursors()},
+        checks=checks,
+    )
+    monkeypatch.setattr(
+        scan,
+        "get_repository_monitor",
+        lambda _source: _Monitor(
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                RepositorySourceError(
+                    source="github",
+                    status="rate_limited",
+                    public_message="GitHub is temporarily rate limited.",
+                )
+            )
+        ),
+    )
+
+    scan.run_repository_monitoring_scan(database_url="sqlite://")
+
+    assert checks[0].status == "failed"
+    assert checks[0].error_code == "rate_limited"
+    assert checks[0].error_message == "GitHub is temporarily rate limited."
+
+
+def test_scan_refreshes_repository_profile_after_provider_redirect(monkeypatch) -> None:
+    repository = _repository()
+    refreshed_repositories = []
+    monitor = _Monitor(
+        lambda *_args, **_kwargs: RepositoryActivity(signals=(), redirected=True),
+        refreshed_name="example/renamed-repository",
+    )
+    _configure_scan(
+        monkeypatch,
+        subscriptions=(_watch("sub_one", repository),),
+        cursors={repository.repository_id: _cursors()},
+    )
+    monkeypatch.setattr(scan, "get_repository_monitor", lambda _source: monitor)
+    monkeypatch.setattr(
+        scan,
+        "upsert_repositories",
+        lambda repositories, **_kwargs: refreshed_repositories.extend(repositories),
+    )
+
+    scan.run_repository_monitoring_scan(database_url="sqlite://")
+
+    assert [repository.full_name for repository in refreshed_repositories] == [
+        "example/renamed-repository"
+    ]
+
+
+def test_monitoring_lease_allows_only_one_holder(tmp_path) -> None:
+    database_url = build_test_database_url(tmp_path / "monitoring-lease.sqlite3")
+    migrate_test_database(database_url)
+
+    assert acquire_monitoring_job_lease("scan", "run_one", database_url=database_url)
+    assert not acquire_monitoring_job_lease("scan", "run_two", database_url=database_url)
+
+    release_monitoring_job_lease("scan", "run_one", database_url=database_url)
+
+    assert acquire_monitoring_job_lease("scan", "run_two", database_url=database_url)
 
 
 def test_scan_persists_baseline_events_cursors_and_health_facts(tmp_path, monkeypatch) -> None:
@@ -262,8 +335,13 @@ def _cursors() -> dict[str, str]:
 
 
 class _Monitor:
-    def __init__(self, load_activity: Callable[..., RepositoryActivity]) -> None:
+    def __init__(
+        self,
+        load_activity: Callable[..., RepositoryActivity],
+        refreshed_name: str | None = None,
+    ) -> None:
         self._load_activity = load_activity
+        self._refreshed_name = refreshed_name
         self.calls: list[Repository] = []
 
     def load_repository_activity(self, repository: Repository, **kwargs) -> RepositoryActivity:
@@ -272,3 +350,15 @@ class _Monitor:
         if isinstance(result, Exception):
             raise result
         return result
+
+    def refresh_repository_profile(self, repository: Repository) -> Repository:
+        if self._refreshed_name is None:
+            return repository
+        return Repository(
+            repository_id=repository.repository_id,
+            source=repository.source,
+            full_name=self._refreshed_name,
+            url=f"https://github.com/{self._refreshed_name}",
+            metadata=repository.metadata,
+            provider_repository_id=repository.provider_repository_id,
+        )
