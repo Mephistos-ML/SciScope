@@ -30,11 +30,17 @@ from app.storage.subscriptions import create_subscription
 from app.storage.subscriptions import SubscriptionWatchRecord
 
 
-def test_scan_baselines_new_repository_without_loading_history(monkeypatch) -> None:
+def test_scan_backfills_new_repository_since_earliest_subscription(monkeypatch) -> None:
     repository = _repository()
     cursor_updates: list[tuple[str, dict[str, str]]] = []
-    monitor = _Monitor(lambda *_args, **_kwargs: AssertionError("must not load history"))
-    _configure_scan(monkeypatch, subscriptions=(_watch("sub_one", repository),))
+    signal = _signal("release-1", datetime(2026, 8, 2, 12, tzinfo=UTC))
+    events = []
+    monitor = _Monitor(lambda *_args, **_kwargs: RepositoryActivity(signals=(signal,)))
+    _configure_scan(
+        monkeypatch,
+        subscriptions=(_watch("sub_one", repository),),
+        events=events,
+    )
     monkeypatch.setattr(scan, "get_repository_monitor", lambda _source: monitor)
     monkeypatch.setattr(
         scan,
@@ -44,13 +50,20 @@ def test_scan_baselines_new_repository_without_loading_history(monkeypatch) -> N
 
     scan.run_repository_monitoring_scan(database_url="sqlite://")
 
-    assert monitor.calls == []
+    assert len(monitor.calls) == 1
+    assert monitor.call_kwargs == [
+        {
+            "release_started_after": datetime(2026, 8, 1, 12, tzinfo=UTC),
+            "commit_started_after": datetime(2026, 8, 1, 12, tzinfo=UTC),
+        }
+    ]
+    assert [event.subscription_id for event in events] == ["sub_one"]
     assert len(cursor_updates) == 1
     repository_id, values = cursor_updates[0]
     assert repository_id == repository.repository_id
-    assert set(values) == {
-        scan.REPOSITORY_RELEASE_CHECKPOINT_KEY,
-        scan.REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
+    assert values == {
+        scan.REPOSITORY_RELEASE_CHECKPOINT_KEY: signal.published_at.isoformat(),
+        scan.REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY: "2026-08-01T12:00:00+00:00",
     }
 
 
@@ -234,7 +247,7 @@ def test_scan_persists_baseline_events_cursors_and_health_facts(tmp_path, monkey
         repository.repository_id,
         database_url=database_url,
     )
-    assert monitor.calls == []
+    assert len(monitor.calls) == 1
     assert set(baseline_cursors) == {
         scan.REPOSITORY_RELEASE_CHECKPOINT_KEY,
         scan.REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
@@ -346,9 +359,11 @@ class _Monitor:
         self._load_activity = load_activity
         self._refreshed_name = refreshed_name
         self.calls: list[Repository] = []
+        self.call_kwargs: list[dict] = []
 
     def load_repository_activity(self, repository: Repository, **kwargs) -> RepositoryActivity:
         self.calls.append(repository)
+        self.call_kwargs.append(kwargs)
         result = self._load_activity(repository, **kwargs)
         if isinstance(result, Exception):
             raise result

@@ -129,19 +129,20 @@ def _scan_repository(
     if monitor is None:
         return
     cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
-    now = datetime.now(UTC)
-    release_after = _read_cursor(cursors, REPOSITORY_RELEASE_CHECKPOINT_KEY, now)
-    commit_after = _read_cursor(cursors, REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY, now)
-    if not cursors:
-        upsert_repository_monitoring_cursors(
-            repository.repository_id,
-            {
-                REPOSITORY_RELEASE_CHECKPOINT_KEY: now.isoformat(),
-                REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY: now.isoformat(),
-            },
-            database_url=database_url,
-        )
-        return
+    subscription_started_at = min(
+        datetime.fromisoformat(subscription.created_at).astimezone(UTC)
+        for subscription in subscriptions
+    )
+    release_after = _read_cursor(
+        cursors,
+        REPOSITORY_RELEASE_CHECKPOINT_KEY,
+        subscription_started_at,
+    )
+    commit_after = _read_cursor(
+        cursors,
+        REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
+        subscription_started_at,
+    )
     activity = monitor.load_repository_activity(
         repository,
         release_started_after=release_after,
