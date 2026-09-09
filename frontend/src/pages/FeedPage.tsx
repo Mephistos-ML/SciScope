@@ -119,9 +119,10 @@ export function FeedPage({
                   <div
                     className={event.readAt === null ? "repository-row repository-row-unread" : "repository-row"}
                     key={event.eventId}
-                  >
+                    >
                     <div className="repository-main-cell">
                       <div className="feed-event-heading">
+                        <EventKindBadge kind={event.signalKind} />
                         <a
                           className="repository-title repository-inline-link"
                           href={event.url}
@@ -130,7 +131,6 @@ export function FeedPage({
                         >
                           {event.title}
                         </a>
-                        <EventKindBadge kind={event.signalKind} />
                       </div>
                       <p className="repository-description">
                         {event.summary || "No event summary available."}

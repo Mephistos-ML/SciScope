@@ -1035,6 +1035,10 @@ input::placeholder {
   min-width: 620px;
 }
 
+.feed-repository-table {
+  container-type: inline-size;
+}
+
 .repository-table-head {
   flex: 0 0 auto;
   padding: 14px 18px;
@@ -1552,6 +1556,7 @@ input::placeholder {
 .event-kind-badge {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
   padding: 2px 7px;
   border-radius: var(--radius-pill);
   background: var(--teal-100);
@@ -1559,6 +1564,7 @@ input::placeholder {
   font-size: 11px;
   font-weight: 700;
   line-height: 16px;
+  white-space: nowrap;
 }
 
 .event-kind-badge-commit {
@@ -1572,8 +1578,63 @@ input::placeholder {
 
 .feed-event-heading {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+@container (max-width: 760px) {
+  .feed-repository-table .repository-table-head {
+    display: none;
+  }
+
+  .feed-repository-table {
+    overflow: hidden;
+  }
+
+  .feed-repository-table .repository-table-body {
+    overflow: visible;
+  }
+
+  .feed-repository-table .repository-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    min-width: 0;
+    gap: 14px;
+    padding: 16px;
+    align-items: start;
+  }
+
+  .feed-repository-table .repository-main-cell {
+    grid-column: 1 / -1;
+  }
+
+  .feed-repository-table .repository-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .feed-repository-table .repository-cell::before {
+    content: attr(data-label);
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 16px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .feed-repository-table .repository-cell[data-label="State"] {
+    grid-column: 1 / -1;
+  }
+}
+
+@container (max-width: 460px) {
+  .feed-repository-table .repository-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .subscription-update-summary {
