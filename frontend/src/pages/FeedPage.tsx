@@ -1,7 +1,6 @@
 import { useState } from "react";
 
 import { EventKindBadge } from "../components/EventKindBadge";
-import { SourceBadge } from "../components/SourceBadge";
 import feedEmptyIllustration from "../assets/states/feed/feed-empty.svg";
 import type { FeedEventItem, ViewerPayload } from "../types/api";
 
@@ -111,7 +110,6 @@ export function FeedPage({
               <div className="repository-table-head">
                 <span>Event</span>
                 <span>Repository</span>
-                <span>Source</span>
                 <span>When</span>
                 <span>State</span>
               </div>
@@ -124,7 +122,14 @@ export function FeedPage({
                   >
                     <div className="repository-main-cell">
                       <div className="feed-event-heading">
-                        <p className="repository-title">{event.title}</p>
+                        <a
+                          className="repository-title repository-inline-link"
+                          href={event.url}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          {event.title}
+                        </a>
                         <EventKindBadge kind={event.signalKind} />
                       </div>
                       <p className="repository-description">
@@ -141,10 +146,6 @@ export function FeedPage({
                       >
                         {event.repositoryFullName}
                       </a>
-                    </div>
-
-                    <div className="repository-cell" data-label="Source">
-                      <SourceBadge href={event.url} source={event.source} />
                     </div>
 
                     <div className="repository-cell repository-metadata-cell" data-label="When">
