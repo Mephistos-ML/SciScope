@@ -112,7 +112,6 @@ export function FeedPage({
                 <span>Repository</span>
                 <span>Source</span>
                 <span>Type</span>
-                <span>Query</span>
                 <span>When</span>
                 <span>State</span>
               </div>
@@ -149,10 +148,6 @@ export function FeedPage({
                       <span className="repository-muted-value">
                         {formatSignalKind(event.signalKind)}
                       </span>
-                    </div>
-
-                    <div className="repository-cell repository-query-cell" data-label="Query">
-                      {event.selectedQuery || "No Query Snapshot"}
                     </div>
 
                     <div className="repository-cell repository-metadata-cell" data-label="When">

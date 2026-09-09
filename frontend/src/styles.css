@@ -1031,8 +1031,8 @@ input::placeholder {
 
 .feed-repository-table .repository-table-head,
 .feed-repository-table .repository-row {
-  grid-template-columns: minmax(0, 2.4fr) minmax(112px, 0.82fr) minmax(80px, 0.6fr) minmax(112px, 0.8fr) minmax(132px, 0.78fr) minmax(88px, 0.62fr) minmax(88px, 0.62fr);
-  min-width: 1000px;
+  grid-template-columns: minmax(0, 2.6fr) minmax(112px, 0.9fr) minmax(80px, 0.65fr) minmax(112px, 0.85fr) minmax(88px, 0.65fr) minmax(88px, 0.65fr);
+  min-width: 860px;
 }
 
 .repository-table-head {
