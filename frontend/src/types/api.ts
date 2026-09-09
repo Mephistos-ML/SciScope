@@ -1,15 +1,3 @@
-export type StatusPayload = {
-  subscriptionCount: number;
-  subscriptions: StatusSubscriptionPayload[];
-  autoScanStarted: boolean;
-  autoScanIntervalSeconds: number;
-  lastScanAt: string | null;
-  lastScanError: string | null;
-  watchedRepositories: WatchedRepositoryPayload[];
-  sourceCheckpoints: SourceCheckpointPayload[];
-  totalFeedEvents: number;
-};
-
 export type Viewer = {
   userId: string;
   email: string;
@@ -20,35 +8,6 @@ export type Viewer = {
 
 export type ViewerPayload = {
   user: Viewer | null;
-};
-
-export type StatusSubscriptionPayload = {
-  subscriptionId: string;
-  repositoryId: string;
-  source: string;
-  fullName: string;
-  selectedQuery: string | null;
-};
-
-export type WatchedRepositoryPayload = {
-  subscriptionId: string;
-  repositoryId: string;
-  source: string;
-  fullName: string;
-  url: string;
-  selectedQuery: string | null;
-  stars: number | null;
-  language: string | null;
-};
-
-export type SourceCheckpointPayload = {
-  subscriptionId: string;
-  repositoryId: string;
-  source: string;
-  fullName: string;
-  checkpointKey: string;
-  checkpointValue: string | null;
-  updatedAt: string | null;
 };
 
 export type FeedEventItem = {

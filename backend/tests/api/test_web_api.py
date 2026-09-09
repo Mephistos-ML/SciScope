@@ -20,7 +20,6 @@ from app.models.signal import Signal
 from app.runtime.state import STATE
 from app.services.auth import create_authenticated_session
 from app.services.auth import service as auth_service
-from app.services import runtime
 from app.services.security.turnstile import TurnstileVerificationResult
 from app.services.search.retrieval.models import (
     CandidateProvenance,
@@ -32,22 +31,6 @@ from app.services.search.retrieval.models import (
 from app.storage import auth as auth_storage
 from app.storage.feed import upsert_feed_events
 from app.storage.subscriptions import SubscriptionWatchRecord
-
-
-def _build_raw_signal(item_id: str) -> Signal:
-    return Signal(
-        source="github",
-        kind="release",
-        item_id=item_id,
-        title="Mephistos-ML/paranmr release v0.3.0",
-        url=f"https://github.com/Mephistos-ML/paranmr/releases/tag/{item_id}",
-        published_at=None,
-        raw_text="Adds PCS tensor fitting improvements.",
-        payload={
-            "repo": "Mephistos-ML/paranmr",
-            "files": ["paranmr/core/fitting/tensor.py"],
-        },
-    )
 
 
 def _build_explore_repository_signal(
@@ -225,7 +208,7 @@ def _run_explore_job_inline(
     )
 
 
-def test_status_and_feed_endpoints_return_json(monkeypatch) -> None:
+def test_feed_endpoints_return_json() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         database_url = build_test_database_url(Path(temp_dir) / "api-runtime-test.sqlite3")
         migrate_test_database(database_url)
@@ -236,35 +219,30 @@ def test_status_and_feed_endpoints_return_json(monkeypatch) -> None:
             database_url=database_url,
         )
 
-        STATE.monitoring_started_at = None
-        STATE.last_scan_at = None
-        STATE.last_scan_error = None
-        STATE.auto_scan_started = False
-        STATE.auto_scan_stop_event.clear()
-        STATE.auto_scan_thread = None
-
-        monkeypatch.setattr(
-            "app.services.runtime.cycle.list_all_subscription_watches",
-            lambda *, database_url: [_build_subscription_watch()],
+        upsert_feed_events(
+            (
+                FeedEvent(
+                    event_id="sub_pnmr:github:demo",
+                    user_id=user.user_id,
+                    subscription_id="sub_pnmr",
+                    repository_id="github:repo:Mephistos-ML/paranmr",
+                    repository_full_name="Mephistos-ML/paranmr",
+                    repository_source="github",
+                    repository_url="https://github.com/Mephistos-ML/paranmr",
+                    selected_query="paramagnetic nmr",
+                    source="github",
+                    kind="release",
+                    item_id="demo",
+                    title="Mephistos-ML/paranmr release v0.3.0",
+                    url="https://github.com/Mephistos-ML/paranmr/releases/tag/demo",
+                    published_at=datetime(2026, 9, 1, 12, tzinfo=UTC),
+                    raw_text="Adds PCS tensor fitting improvements.",
+                    normalized_text="Adds PCS tensor fitting improvements.",
+                    created_at=datetime(2026, 9, 1, 12, tzinfo=UTC),
+                ),
+            ),
+            database_url=database_url,
         )
-        monkeypatch.setattr(
-            "app.services.runtime.cycle.load_replay_signals",
-            lambda: [_build_raw_signal("demo")],
-        )
-        monkeypatch.setattr(
-            "app.services.runtime.cycle.load_repository_signals",
-            lambda subscription_id, repository, *, baseline_started_after, database_url: [],
-        )
-        monkeypatch.setattr(
-            "app.services.runtime.status.list_all_subscription_watches",
-            lambda *, database_url: [_build_subscription_watch()],
-        )
-        monkeypatch.setattr(
-            "app.services.runtime.status.list_repository_checkpoints",
-            lambda subscription_id, repository_id, *, database_url: [],
-        )
-
-        runtime.run_scan_cycle(database_url=database_url)
 
         with TestClient(app) as client:
             client.app.state.database_url = database_url
@@ -275,14 +253,6 @@ def test_status_and_feed_endpoints_return_json(monkeypatch) -> None:
                 database_url=database_url,
             )
             client.cookies.set(AUTH_SESSION_COOKIE_NAME, session_token)
-
-            response = client.get("/api/status")
-            assert response.status_code == 200
-            status_payload = response.json()
-            assert status_payload["subscriptionCount"] == 1
-            assert status_payload["watchedRepositories"][0]["fullName"] == "Mephistos-ML/paranmr"
-            assert status_payload["sourceCheckpoints"] == []
-            assert status_payload["totalFeedEvents"] == 1
 
             response = client.get("/api/feed")
             assert response.status_code == 200
@@ -326,41 +296,6 @@ def test_root_health_and_ready_endpoints() -> None:
         response = client.get("/ready")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
-
-
-def test_api_start_and_stop_endpoints_return_status_json(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "app.api.routes.control.start_monitoring",
-        lambda *, database_url: None,
-    )
-    monkeypatch.setattr(
-        "app.api.routes.control.stop_monitoring",
-        lambda *, database_url: None,
-    )
-    monkeypatch.setattr(
-        "app.api.routes.control.get_status_payload",
-        lambda *, database_url: {
-            "subscriptionCount": 1,
-            "subscriptions": [],
-            "autoScanStarted": True,
-            "autoScanIntervalSeconds": 300,
-            "monitoringIntervalSeconds": 300,
-            "lastScanAt": None,
-            "lastScanError": None,
-            "watchedRepositories": [],
-            "sourceCheckpoints": [],
-            "totalFeedEvents": 0,
-        },
-    )
-
-    with TestClient(app) as client:
-        start_response = client.post("/api/start")
-        stop_response = client.post("/api/stop")
-
-    assert start_response.status_code == 200
-    assert stop_response.status_code == 200
-    assert start_response.json()["subscriptionCount"] == 1
-    assert stop_response.json()["subscriptionCount"] == 1
 
 
 def test_feed_loads_older_events_with_an_opaque_cursor() -> None:
@@ -462,11 +397,6 @@ def test_session_auth_and_subscription_endpoints(monkeypatch) -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         database_url = build_test_database_url(Path(temp_dir) / "subscriptions.sqlite3")
         migrate_test_database(database_url)
-        monkeypatch.setattr(
-            "app.services.subscriptions.service.sync_repository_baseline",
-            lambda subscription_id, repository, *, database_url: None,
-        )
-
         with TestClient(app) as client:
             client.app.state.database_url = database_url
             response = client.get("/api/subscriptions")

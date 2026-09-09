@@ -4,7 +4,6 @@ import type {
   FeedEventListPayload,
   ExploreSearchJobPayload,
   ExploreSearchPayload,
-  StatusPayload,
   SubscriptionItem,
   SubscriptionListPayload,
   ViewerPayload,
@@ -122,10 +121,6 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
-export async function fetchStatus(): Promise<StatusPayload> {
-  return requestJson<StatusPayload>("/api/status");
-}
-
 export async function fetchMe(): Promise<ViewerPayload> {
   return requestJson<ViewerPayload>("/api/me");
 }
@@ -231,18 +226,6 @@ export async function markFeedEventRead(eventId: string): Promise<FeedEventDetai
 
 export async function markAllFeedEventsRead(): Promise<{ updatedCount: number }> {
   return requestJson<{ updatedCount: number }>("/api/feed/read-all", {
-    method: "POST",
-  });
-}
-
-export async function startScan(): Promise<StatusPayload> {
-  return requestJson<StatusPayload>("/api/start", {
-    method: "POST",
-  });
-}
-
-export async function stopScan(): Promise<StatusPayload> {
-  return requestJson<StatusPayload>("/api/stop", {
     method: "POST",
   });
 }

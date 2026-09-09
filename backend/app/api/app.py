@@ -12,7 +12,6 @@ from pydantic import BaseModel, Field
 
 from app.__version__ import __version__
 from app.api.routes import auth as auth_routes
-from app.api.routes import control as control_routes
 from app.api.routes import dashboard as dashboard_routes
 from app.api.routes import explore as explore_routes
 from app.api.routes import feed as feed_routes
@@ -176,20 +175,6 @@ def sign_out(request: Request, response: Response) -> dict[str, object]:
     return auth_routes.logout_response(request, response)
 
 
-@app.post("/api/start")
-def start_scan(request: Request) -> dict[str, object]:
-    """Start monitoring and return the refreshed status payload."""
-
-    return control_routes.start_scan_response(request)
-
-
-@app.post("/api/stop")
-def stop_scan(request: Request) -> dict[str, object]:
-    """Stop monitoring and return the refreshed status payload."""
-
-    return control_routes.stop_scan_response(request)
-
-
 @app.post("/api/explore/search")
 def run_explore_search(
     request: Request,
@@ -287,13 +272,6 @@ def delete_subscription(request: Request, subscription_id: str) -> dict[str, boo
             detail="Subscription not found",
         )
     return {"deleted": True}
-
-
-@app.get("/api/status")
-def get_status(request: Request) -> dict[str, object]:
-    """Return the current dashboard status payload."""
-
-    return control_routes.get_status_payload(database_url=request.app.state.database_url)
 
 
 @app.get("/api/feed")
