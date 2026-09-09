@@ -18,9 +18,9 @@ html {
   --coral-400: #f47a68;
   --teal-600: #17877f;
   --teal-100: #e7f5f2;
-  --canvas: #f7f8fa;
+  --canvas: #f6f8fc;
   --surface: #ffffff;
-  --surface-subtle: #f3f5f7;
+  --surface-subtle: #f1f5fa;
   --glass-surface-strong: rgba(255, 255, 255, 0.76);
   --glass-surface-soft: rgba(255, 255, 255, 0.64);
   --glass-border: rgba(255, 255, 255, 0.5);
@@ -103,9 +103,9 @@ input::placeholder {
     "sidebar main"
     "footer main";
   background:
-    radial-gradient(circle at top left, rgba(240, 100, 82, 0.12), transparent 30%),
-    radial-gradient(circle at top right, rgba(36, 81, 143, 0.1), transparent 26%),
-    radial-gradient(circle at center, rgba(255, 255, 255, 0.52), transparent 36%),
+    radial-gradient(circle at top left, rgba(216, 232, 247, 0.72), transparent 32%),
+    radial-gradient(circle at top right, rgba(234, 244, 255, 0.84), transparent 30%),
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.58), transparent 38%),
     var(--canvas);
 }
 
@@ -115,9 +115,9 @@ input::placeholder {
   background:
     linear-gradient(
       to bottom right,
-      rgba(236, 244, 251, 0.68) 0%,
-      rgba(247, 248, 250, 0.58) 55%,
-      rgba(255, 241, 236, 0.54) 100%
+      rgba(242, 248, 255, 0.76) 0%,
+      rgba(246, 248, 252, 0.62) 55%,
+      rgba(255, 255, 255, 0.56) 100%
     ),
     var(--glass-surface-strong);
   backdrop-filter: blur(18px) saturate(145%);
@@ -143,9 +143,9 @@ input::placeholder {
   background:
     linear-gradient(
       to bottom right,
-      rgba(232, 244, 252, 0.62) 0%,
-      rgba(246, 248, 251, 0.54) 52%,
-      rgba(255, 235, 227, 0.48) 100%
+      rgba(234, 244, 255, 0.68) 0%,
+      rgba(246, 248, 252, 0.58) 52%,
+      rgba(255, 255, 255, 0.5) 100%
     ),
     var(--glass-surface-soft);
   backdrop-filter: blur(18px) saturate(145%);
@@ -162,9 +162,9 @@ input::placeholder {
   background:
     linear-gradient(
       to bottom right,
-      rgba(232, 244, 252, 0.46) 0%,
-      rgba(246, 248, 251, 0.38) 52%,
-      rgba(255, 235, 227, 0.34) 100%
+      rgba(234, 244, 255, 0.5) 0%,
+      rgba(246, 248, 252, 0.42) 52%,
+      rgba(255, 255, 255, 0.36) 100%
     ),
     var(--glass-surface-soft);
   backdrop-filter: blur(18px) saturate(145%);
