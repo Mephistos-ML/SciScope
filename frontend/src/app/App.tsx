@@ -21,6 +21,7 @@ import { AboutPage } from "../pages/AboutPage";
 import { AccountPage } from "../pages/AccountPage";
 import { ExplorePage } from "../pages/ExplorePage";
 import { FeedPage } from "../pages/FeedPage";
+import { PrivacyPage, TermsPage } from "../pages/LegalPages";
 import { SubscriptionsPage } from "../pages/SubscriptionsPage";
 import type {
   AiSearchPlanPayload,
@@ -32,7 +33,7 @@ import type {
   Viewer,
 } from "../types/api";
 
-type AppView = "explore" | "feed" | "subscriptions" | "about" | "account";
+type AppView = "explore" | "feed" | "subscriptions" | "about" | "account" | "privacy" | "terms";
 
 type ExploreSearchFeedback = {
   message: string;
@@ -42,7 +43,7 @@ type ExploreSearchFeedback = {
 };
 
 export function App() {
-  const [activeView, setActiveView] = useState<AppView>("explore");
+  const [activeView, setActiveView] = useState<AppView>(() => window.location.pathname === "/privacy" ? "privacy" : window.location.pathname === "/terms" ? "terms" : "explore");
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [results, setResults] = useState<ExploreResultItem[]>([]);
   const [lastAiSearchPlan, setLastAiSearchPlan] = useState<AiSearchPlanPayload | null>(null);
@@ -531,6 +532,8 @@ export function App() {
       ) : null}
       {activeView === "about" ? <AboutPage /> : null}
       {activeView === "account" && viewer ? <AccountPage deleting={accountDeletePending} onDelete={() => void handleDeleteAccount()} onSignOut={() => void handleSignOut()} viewer={viewer} /> : null}
+      {activeView === "privacy" ? <PrivacyPage /> : null}
+      {activeView === "terms" ? <TermsPage /> : null}
     </AppShell>
   );
 }

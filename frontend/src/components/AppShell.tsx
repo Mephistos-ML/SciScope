@@ -4,7 +4,7 @@ import sciscopeLogo from "../assets/brand/sciscope-logo.svg";
 import type { ViewerPayload } from "../types/api";
 
 type AppShellProps = {
-  activeView: "explore" | "feed" | "subscriptions" | "about" | "account";
+  activeView: "explore" | "feed" | "subscriptions" | "about" | "account" | "privacy" | "terms";
   children: ReactNode;
   onNavigate: (view: "explore" | "feed" | "subscriptions" | "about") => void;
   onOpenAccount: () => void;
