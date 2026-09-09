@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import and_, func, select
 
-from app.database.records import RepositoryRecordModel, SubscriptionRecordModel
+from app.database.records import FeedEventRecordModel, RepositoryRecordModel, SubscriptionRecordModel
 from app.database.session import session_scope
 from app.models.repository import Repository
 
@@ -21,6 +21,7 @@ class SubscriptionWatchRecord:
     repository: Repository
     selected_query: str | None
     created_at: str
+    unread_event_count: int = 0
 
 
 def list_subscription_watches_for_user(
@@ -31,20 +32,33 @@ def list_subscription_watches_for_user(
     """List one user's subscriptions joined with repository data."""
 
     statement = (
-        select(SubscriptionRecordModel, RepositoryRecordModel)
+        select(
+            SubscriptionRecordModel,
+            RepositoryRecordModel,
+            func.count(FeedEventRecordModel.event_id),
+        )
         .join(
             RepositoryRecordModel,
             RepositoryRecordModel.repository_id == SubscriptionRecordModel.repository_id,
         )
+        .outerjoin(
+            FeedEventRecordModel,
+            and_(
+                FeedEventRecordModel.subscription_id == SubscriptionRecordModel.subscription_id,
+                FeedEventRecordModel.user_id == SubscriptionRecordModel.user_id,
+                FeedEventRecordModel.read_at.is_(None),
+            ),
+        )
         .where(SubscriptionRecordModel.user_id == user_id)
+        .group_by(SubscriptionRecordModel.subscription_id, RepositoryRecordModel.repository_id)
         .order_by(SubscriptionRecordModel.created_at.desc())
     )
 
     with session_scope(database_url) as session:
         rows = session.execute(statement).all()
     return [
-        _to_subscription_watch_record(subscription, repository)
-        for subscription, repository in rows
+        _to_subscription_watch_record(subscription, repository, unread_event_count=count)
+        for subscription, repository, count in rows
     ]
 
 
@@ -74,6 +88,7 @@ def list_all_subscription_watches(
 def _to_subscription_watch_record(
     subscription: SubscriptionRecordModel,
     repository: RepositoryRecordModel,
+    unread_event_count: int = 0,
 ) -> SubscriptionWatchRecord:
     return SubscriptionWatchRecord(
         subscription_id=subscription.subscription_id,
@@ -101,6 +116,7 @@ def _to_subscription_watch_record(
         ),
         selected_query=subscription.selected_query,
         created_at=_ensure_utc(subscription.created_at).isoformat(timespec="seconds"),
+        unread_event_count=unread_event_count,
     )
 
 

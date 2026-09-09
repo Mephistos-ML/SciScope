@@ -94,6 +94,7 @@ export type SubscriptionItem = {
   repository: RepositorySummary;
   selectedQuery: string | null;
   createdAt: string;
+  unreadEventCount: number;
 };
 
 export type SubscriptionListPayload = {

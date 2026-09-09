@@ -101,8 +101,8 @@ export function SubscriptionsPage({
                     </strong>
                     <p>{subscription.selectedQuery || "No Query Snapshot Saved."}</p>
                     <span className="subscription-card-meta">
-                      {subscription.repository.source} · Subscribed{" "}
-                      {formatSubscriptionDate(subscription.createdAt)}
+                      {subscription.repository.source}
+                      {subscription.unreadEventCount > 0 ? ` · ${subscription.unreadEventCount} unread` : ""}
                     </span>
                   </button>
                   <button
@@ -217,6 +217,8 @@ function formatSubscriptionDate(value: string): string {
 
   return new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
     month: "short",
     year: "numeric",
   }).format(parsedDate);
