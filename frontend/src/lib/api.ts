@@ -10,6 +10,16 @@ import type {
 } from "../types/api";
 import { frontendConfig } from "./config";
 
+const demoViewerPayload: ViewerPayload = {
+  user: {
+    userId: "demo_account",
+    email: "ernest@example.com",
+    displayName: "Ernest Borysenko",
+    avatarUrl: null,
+    features: [],
+  },
+};
+
 type ApiErrorPayload = {
   error?: string;
   detail?: string;
@@ -122,6 +132,9 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function fetchMe(): Promise<ViewerPayload> {
+  if (import.meta.env.DEV && import.meta.env.VITE_DEMO_MODE === "true") {
+    return demoViewerPayload;
+  }
   return requestJson<ViewerPayload>("/api/me");
 }
 
