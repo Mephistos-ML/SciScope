@@ -7,6 +7,12 @@ from app.database.records.auth import (
 )
 from app.database.records.explore import ExploreSearchEventRecordModel
 from app.database.records.feed import FeedEventRecordModel
+from app.database.records.monitoring import (
+    MonitoringJobLeaseRecordModel,
+    MonitoringRunRecordModel,
+    RepositoryMonitoringCheckRecordModel,
+    RepositoryMonitoringCursorRecordModel,
+)
 from app.database.records.repositories import (
     RepositoryCheckpointRecordModel,
     RepositoryRecordModel,
@@ -21,8 +27,12 @@ from app.database.records.ranking_dataset import (
 __all__ = [
     "ExploreSearchEventRecordModel",
     "FeedEventRecordModel",
+    "MonitoringJobLeaseRecordModel",
+    "MonitoringRunRecordModel",
     "OAuthAccountRecordModel",
     "RepositoryCheckpointRecordModel",
+    "RepositoryMonitoringCheckRecordModel",
+    "RepositoryMonitoringCursorRecordModel",
     "RepositoryRecordModel",
     "RepositorySearchEvidenceRecordModel",
     "RankingDatasetExampleRecordModel",
