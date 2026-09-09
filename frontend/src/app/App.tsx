@@ -447,6 +447,32 @@ export function App() {
     }
   }
 
+  async function restoreGlobalFeed() {
+    setFeedSubscriptionId(null);
+    setFeedEvents([]);
+    setFeedNextCursor(null);
+    setFeedHasMore(false);
+    setFeedLoadPending(true);
+    try {
+      const payload = await fetchFeed({ state: feedState });
+      setFeedEvents(payload.items);
+      setFeedNextCursor(payload.nextCursor);
+      setFeedHasMore(payload.hasMore);
+      setUnreadFeedCount(payload.unreadCount);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to restore the global Feed.");
+    } finally {
+      setFeedLoadPending(false);
+    }
+  }
+
+  function handleViewChange(nextView: AppView) {
+    if (activeView === "feed" && nextView !== "feed" && feedSubscriptionId) {
+      void restoreGlobalFeed();
+    }
+    setActiveView(nextView);
+  }
+
   async function handleViewSubscriptionFeed(subscriptionId: string) {
     setFeedLoadPending(true);
     try {
@@ -466,8 +492,8 @@ export function App() {
   return (
     <AppShell
       activeView={activeView}
-      onNavigate={setActiveView}
-      onOpenAccount={() => setActiveView("account")}
+      onNavigate={handleViewChange}
+      onOpenAccount={() => handleViewChange("account")}
       onSignIn={() => void handleSignIn()}
       onSignOut={() => void handleSignOut()}
       signingIn={signingIn}
