@@ -10,6 +10,8 @@ import {
   fetchExploreSearchJob,
   fetchMe,
   fetchSubscriptions,
+  markAllFeedEventsRead,
+  markFeedEventRead,
   signOut,
 } from "../lib/api";
 import { frontendConfig } from "../lib/config";
@@ -43,6 +45,7 @@ export function App() {
   const [results, setResults] = useState<ExploreResultItem[]>([]);
   const [lastAiSearchPlan, setLastAiSearchPlan] = useState<AiSearchPlanPayload | null>(null);
   const [feedEvents, setFeedEvents] = useState<FeedEventItem[]>([]);
+  const [unreadFeedCount, setUnreadFeedCount] = useState(0);
   const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>([]);
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
   const [topicInput, setTopicInput] = useState("");
@@ -53,6 +56,7 @@ export function App() {
     null,
   );
   const [deletePending, setDeletePending] = useState(false);
+  const [feedUpdatePending, setFeedUpdatePending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [exploreSearchFeedback, setExploreSearchFeedback] = useState<ExploreSearchFeedback | null>(
     null,
@@ -89,6 +93,7 @@ export function App() {
   useEffect(() => {
     if (!viewer) {
       setFeedEvents([]);
+      setUnreadFeedCount(0);
       setSubscriptions([]);
       setSelectedSubscriptionId(null);
       return;
@@ -102,6 +107,7 @@ export function App() {
         ]);
         setSubscriptions(subscriptionPayload.items);
         setFeedEvents(feedPayload.items);
+        setUnreadFeedCount(feedPayload.unreadCount);
         setSelectedSubscriptionId(
           (currentId) => currentId ?? subscriptionPayload.items[0]?.subscriptionId ?? null,
         );
@@ -343,6 +349,35 @@ export function App() {
     }
   }
 
+  async function handleMarkFeedEventRead(eventId: string) {
+    setFeedUpdatePending(true);
+    try {
+      const event = await markFeedEventRead(eventId);
+      setFeedEvents((current) =>
+        current.map((item) => (item.eventId === eventId ? event : item)),
+      );
+      setUnreadFeedCount((current) => Math.max(0, current - 1));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to mark Feed event as read.");
+    } finally {
+      setFeedUpdatePending(false);
+    }
+  }
+
+  async function handleMarkAllFeedEventsRead() {
+    setFeedUpdatePending(true);
+    try {
+      await markAllFeedEventsRead();
+      const readAt = new Date().toISOString();
+      setFeedEvents((current) => current.map((item) => ({ ...item, readAt })));
+      setUnreadFeedCount(0);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to mark Feed events as read.");
+    } finally {
+      setFeedUpdatePending(false);
+    }
+  }
+
   return (
     <AppShell
       activeView={activeView}
@@ -351,6 +386,7 @@ export function App() {
       onSignOut={() => void handleSignOut()}
       signingIn={signingIn}
       signingOut={signingOut}
+      unreadFeedCount={unreadFeedCount}
       viewer={viewer}
     >
       {errorMessage ? <section className="shell-alert shell-alert-error">{errorMessage}</section> : null}
@@ -383,7 +419,10 @@ export function App() {
       ) : null}
       {activeView === "feed" ? (
         <FeedPage
+          feedUpdatePending={feedUpdatePending}
           feedEvents={feedEvents}
+          onMarkAllRead={() => void handleMarkAllFeedEventsRead()}
+          onMarkRead={(eventId) => void handleMarkFeedEventRead(eventId)}
           viewer={viewer}
         />
       ) : null}

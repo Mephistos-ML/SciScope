@@ -6,7 +6,13 @@ from datetime import UTC, datetime
 
 from app.models.feed import FeedEvent
 from app.models.signal import Signal
-from app.storage.feed import get_feed_event_for_user, list_feed_events_for_user
+from app.storage.feed import (
+    count_unread_feed_events_for_user,
+    get_feed_event_for_user,
+    list_feed_events_for_user,
+    mark_all_feed_events_read_for_user,
+    mark_feed_event_read_for_user,
+)
 from app.storage.subscriptions import SubscriptionWatchRecord
 
 
@@ -49,7 +55,11 @@ def get_feed_list_payload(
         "items": [
             _to_feed_item_payload(event)
             for event in list_feed_events_for_user(user_id, database_url=database_url)
-        ]
+        ],
+        "unreadCount": count_unread_feed_events_for_user(
+            user_id,
+            database_url=database_url,
+        ),
     }
 
 
@@ -76,6 +86,44 @@ def get_feed_event_payload(
     return payload
 
 
+def mark_feed_event_read_payload(
+    user_id: str,
+    event_id: str,
+    *,
+    database_url: str,
+) -> dict[str, object] | None:
+    """Mark one Feed event as read and return its detail payload."""
+
+    event = mark_feed_event_read_for_user(
+        user_id,
+        event_id,
+        database_url=database_url,
+    )
+    if event is None:
+        return None
+
+    payload = _to_feed_item_payload(event)
+    payload["rawText"] = event.raw_text
+    payload["normalizedText"] = event.normalized_text
+    payload["metadata"] = dict(event.metadata)
+    return payload
+
+
+def mark_all_feed_events_read_payload(
+    user_id: str,
+    *,
+    database_url: str,
+) -> dict[str, int]:
+    """Mark every unread Feed event as read and return the changed count."""
+
+    return {
+        "updatedCount": mark_all_feed_events_read_for_user(
+            user_id,
+            database_url=database_url,
+        )
+    }
+
+
 def _to_feed_item_payload(event: FeedEvent) -> dict[str, object]:
     return {
         "eventId": event.event_id,
@@ -98,6 +146,11 @@ def _to_feed_item_payload(event: FeedEvent) -> dict[str, object]:
         "createdAt": (
             event.created_at.isoformat(timespec="seconds")
             if event.created_at is not None
+            else None
+        ),
+        "readAt": (
+            event.read_at.isoformat(timespec="seconds")
+            if event.read_at is not None
             else None
         ),
     }

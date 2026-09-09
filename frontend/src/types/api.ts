@@ -66,10 +66,12 @@ export type FeedEventItem = {
   url: string;
   publishedAt: string | null;
   createdAt: string | null;
+  readAt: string | null;
 };
 
 export type FeedEventListPayload = {
   items: FeedEventItem[];
+  unreadCount: number;
 };
 
 export type FeedEventDetailPayload = FeedEventItem & {

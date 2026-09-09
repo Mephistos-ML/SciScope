@@ -29,3 +29,4 @@ class FeedEvent:
     normalized_text: str
     metadata: dict[str, Any] = field(default_factory=dict)
     created_at: datetime | None = None
+    read_at: datetime | None = None

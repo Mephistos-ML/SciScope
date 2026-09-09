@@ -9,6 +9,7 @@ type AppShellProps = {
   onNavigate: (view: "explore" | "feed" | "subscriptions" | "about") => void;
   onSignIn: () => void;
   onSignOut: () => void;
+  unreadFeedCount: number;
   signingIn: boolean;
   signingOut: boolean;
   viewer: ViewerPayload["user"];
@@ -20,6 +21,7 @@ export function AppShell({
   onNavigate,
   onSignIn,
   onSignOut,
+  unreadFeedCount,
   signingIn,
   signingOut,
   viewer,
@@ -92,6 +94,11 @@ export function AppShell({
           >
             <FeedIcon />
             <span>Feed</span>
+            {unreadFeedCount > 0 ? (
+              <span aria-label={`${unreadFeedCount} unread feed events`} className="sidebar-nav-badge">
+                {unreadFeedCount > 99 ? "99+" : unreadFeedCount}
+              </span>
+            ) : null}
           </button>
           <button
             className={

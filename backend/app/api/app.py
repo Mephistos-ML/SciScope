@@ -65,7 +65,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=list(CORS_ORIGINS),
     allow_credentials=True,
-    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
 
@@ -305,6 +305,38 @@ def get_feed(request: Request) -> dict[str, object]:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required",
+        )
+    return payload
+
+
+@app.post("/api/feed/read-all")
+def mark_all_feed_events_read(request: Request) -> dict[str, int]:
+    """Mark every Feed event as read for the current user."""
+
+    payload = feed_routes.mark_all_feed_events_read_response(request)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+    return payload
+
+
+@app.patch("/api/feed/{event_id}")
+def mark_feed_event_read(request: Request, event_id: str) -> dict[str, object]:
+    """Mark one Feed event as read for the current user."""
+
+    payload = feed_routes.mark_feed_event_read_response(request, event_id)
+    if payload is None:
+        user = get_current_user(request, database_url=request.app.state.database_url)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Feed event not found",
         )
     return payload
 

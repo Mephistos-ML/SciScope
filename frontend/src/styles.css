@@ -232,6 +232,23 @@ input::placeholder {
   flex: 0 0 auto;
 }
 
+.sidebar-nav-badge {
+  min-width: 20px;
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--coral-500);
+  color: var(--surface);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.sidebar-nav-button-active .sidebar-nav-badge {
+  background: var(--coral-400);
+}
+
 .sidebar-footer-button {
   display: block;
   width: 100%;
@@ -1006,10 +1023,16 @@ input::placeholder {
 .repository-table-head,
 .repository-row {
   display: grid;
-  grid-template-columns: minmax(0, 2.4fr) minmax(112px, 0.82fr) minmax(80px, 0.6fr) minmax(112px, 0.8fr) minmax(132px, 0.78fr);
+  grid-template-columns: minmax(0, 2.5fr) minmax(88px, 0.65fr) minmax(80px, 0.55fr) minmax(120px, 0.8fr) minmax(112px, 0.65fr);
   gap: 16px;
   align-items: center;
-  min-width: 810px;
+  min-width: 760px;
+}
+
+.feed-repository-table .repository-table-head,
+.feed-repository-table .repository-row {
+  grid-template-columns: minmax(0, 2.4fr) minmax(112px, 0.82fr) minmax(80px, 0.6fr) minmax(112px, 0.8fr) minmax(132px, 0.78fr) minmax(88px, 0.62fr) minmax(88px, 0.62fr);
+  min-width: 1000px;
 }
 
 .repository-table-head {
@@ -1035,6 +1058,63 @@ input::placeholder {
   padding: 18px;
   border-top: var(--border-subtle);
   background: var(--surface);
+}
+
+.repository-row-unread {
+  box-shadow: inset 3px 0 0 var(--coral-500);
+}
+
+.feed-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.feed-filter {
+  display: inline-flex;
+  padding: 3px;
+  border: var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface-subtle);
+}
+
+.feed-filter-button {
+  padding: 5px 10px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.feed-filter-button-active {
+  background: var(--surface);
+  color: var(--navy-900);
+  box-shadow: var(--shadow-panel);
+}
+
+.feed-read-button {
+  padding: 0;
+  border: 0;
+  color: var(--teal-600);
+  cursor: pointer;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.feed-read-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.feed-filter-empty {
+  padding: 28px;
+  color: var(--text-secondary);
+  text-align: center;
 }
 
 .repository-row:first-child {

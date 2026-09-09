@@ -287,6 +287,7 @@ def test_status_and_feed_endpoints_return_json(monkeypatch) -> None:
             assert len(feed_list["items"]) == 1
             assert feed_list["items"][0]["subscriptionId"] == "sub_pnmr"
             assert feed_list["items"][0]["repositoryId"] == "github:repo:Mephistos-ML/paranmr"
+            assert feed_list["unreadCount"] == 1
 
             event_id = feed_list["items"][0]["eventId"]
             response = client.get(f"/api/feed/{event_id}")
@@ -294,6 +295,14 @@ def test_status_and_feed_endpoints_return_json(monkeypatch) -> None:
             detail_payload = response.json()
             assert detail_payload["title"] == "Mephistos-ML/paranmr release v0.3.0"
             assert detail_payload["repositoryId"] == "github:repo:Mephistos-ML/paranmr"
+
+            response = client.patch(f"/api/feed/{event_id}")
+            assert response.status_code == 200
+            assert response.json()["readAt"] is not None
+
+            response = client.get("/api/feed")
+            assert response.status_code == 200
+            assert response.json()["unreadCount"] == 0
 
 
 def test_root_health_and_ready_endpoints() -> None:

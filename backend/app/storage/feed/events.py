@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from app.database.records import FeedEventRecordModel
 from app.database.session import session_scope
@@ -123,6 +123,64 @@ def count_feed_events(*, database_url: str) -> int:
     return int(count or 0)
 
 
+def count_unread_feed_events_for_user(
+    user_id: str,
+    *,
+    database_url: str,
+) -> int:
+    """Return the unread Feed-event count for one user."""
+
+    statement = (
+        select(func.count())
+        .select_from(FeedEventRecordModel)
+        .where(FeedEventRecordModel.user_id == user_id)
+        .where(FeedEventRecordModel.read_at.is_(None))
+    )
+    with session_scope(database_url) as session:
+        count = session.scalar(statement)
+    return int(count or 0)
+
+
+def mark_feed_event_read_for_user(
+    user_id: str,
+    event_id: str,
+    *,
+    database_url: str,
+) -> FeedEvent | None:
+    """Mark one user-owned Feed event as read and return its current value."""
+
+    with session_scope(database_url) as session:
+        record = session.scalar(
+            select(FeedEventRecordModel)
+            .where(FeedEventRecordModel.user_id == user_id)
+            .where(FeedEventRecordModel.event_id == event_id)
+        )
+        if record is None:
+            return None
+        if record.read_at is None:
+            record.read_at = datetime.now(UTC)
+            session.flush()
+        return _to_feed_event(record)
+
+
+def mark_all_feed_events_read_for_user(
+    user_id: str,
+    *,
+    database_url: str,
+) -> int:
+    """Mark every unread Feed event for one user as read."""
+
+    statement = (
+        update(FeedEventRecordModel)
+        .where(FeedEventRecordModel.user_id == user_id)
+        .where(FeedEventRecordModel.read_at.is_(None))
+        .values(read_at=datetime.now(UTC))
+    )
+    with session_scope(database_url) as session:
+        result = session.execute(statement)
+    return int(result.rowcount or 0)
+
+
 def _to_feed_event(record: FeedEventRecordModel) -> FeedEvent:
     return FeedEvent(
         event_id=record.event_id,
@@ -145,6 +203,9 @@ def _to_feed_event(record: FeedEventRecordModel) -> FeedEvent:
         normalized_text=record.normalized_text,
         metadata=dict(record.metadata_json or {}),
         created_at=_ensure_utc(record.created_at),
+        read_at=(
+            _ensure_utc(record.read_at) if record.read_at is not None else None
+        ),
     )
 
 

@@ -218,6 +218,18 @@ export async function fetchFeedEvent(eventId: string): Promise<FeedEventDetailPa
   return requestJson<FeedEventDetailPayload>(`/api/feed/${eventId}`);
 }
 
+export async function markFeedEventRead(eventId: string): Promise<FeedEventDetailPayload> {
+  return requestJson<FeedEventDetailPayload>(`/api/feed/${eventId}`, {
+    method: "PATCH",
+  });
+}
+
+export async function markAllFeedEventsRead(): Promise<{ updatedCount: number }> {
+  return requestJson<{ updatedCount: number }>("/api/feed/read-all", {
+    method: "POST",
+  });
+}
+
 export async function startScan(): Promise<StatusPayload> {
   return requestJson<StatusPayload>("/api/start", {
     method: "POST",
