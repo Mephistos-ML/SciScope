@@ -53,10 +53,20 @@ def upgrade() -> None:
             ["user_id", "read_at", "published_at", "created_at", "event_id"],
         )
 
+    inspector = sa.inspect(bind)
+    if not _has_index(inspector, "user_feed_events", "ix_user_feed_events_user_subscription_chronological"):
+        op.create_index(
+            "ix_user_feed_events_user_subscription_chronological",
+            "user_feed_events",
+            ["user_id", "subscription_id", "published_at", "created_at", "event_id"],
+        )
+
 
 def downgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+    if _has_index(inspector, "user_feed_events", "ix_user_feed_events_user_subscription_chronological"):
+        op.drop_index("ix_user_feed_events_user_subscription_chronological", table_name="user_feed_events")
     if _has_index(inspector, "user_feed_events", "ix_user_feed_events_user_read_chronological"):
         op.drop_index("ix_user_feed_events_user_read_chronological", table_name="user_feed_events")
     if _has_index(inspector, "user_feed_events", "ix_user_feed_events_user_chronological"):

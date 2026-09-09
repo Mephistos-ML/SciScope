@@ -120,6 +120,7 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
     feed_indexes = {index["name"] for index in inspector.get_indexes("user_feed_events")}
     assert "ix_user_feed_events_user_chronological" in feed_indexes
     assert "ix_user_feed_events_user_read_chronological" in feed_indexes
+    assert "ix_user_feed_events_user_subscription_chronological" in feed_indexes
     assert inspector.has_table("ranking_dataset_runs")
     assert inspector.has_table("ranking_dataset_examples")
     assert inspector.has_table("repository_query_embeddings")

@@ -58,6 +58,7 @@ def get_feed_list_payload(
     limit: int = DEFAULT_FEED_PAGE_SIZE,
     cursor: str | None = None,
     state: str = "all",
+    subscription_id: str | None = None,
 ) -> dict[str, object]:
     """Return one user's feed list payload."""
 
@@ -72,6 +73,7 @@ def get_feed_list_payload(
         cursor=_decode_feed_cursor(cursor) if cursor else None,
         limit=limit + 1,
         unread_only=state == "unread",
+        subscription_id=subscription_id,
     )
     visible_events = events[:limit]
     next_cursor = _encode_feed_cursor(visible_events[-1]) if len(events) > limit else None

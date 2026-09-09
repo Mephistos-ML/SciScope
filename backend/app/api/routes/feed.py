@@ -19,6 +19,7 @@ def get_feed_list_response(
     limit: int,
     cursor: str | None,
     state: str,
+    subscription_id: str | None,
 ) -> dict[str, object] | None:
     """Return durable feed events for the signed-in user."""
 
@@ -32,6 +33,7 @@ def get_feed_list_response(
         limit=limit,
         cursor=cursor,
         state=state,
+        subscription_id=subscription_id,
     )
 
 

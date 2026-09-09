@@ -6,6 +6,7 @@ type FeedPageProps = {
   feedHasMore: boolean;
   feedLoadPending: boolean;
   feedState: "all" | "unread";
+  feedSubscriptionId: string | null;
   unreadFeedCount: number;
   feedUpdatePending: boolean;
   feedEvents: FeedEventItem[];
@@ -21,6 +22,7 @@ export function FeedPage({
   feedHasMore,
   feedLoadPending,
   feedState,
+  feedSubscriptionId,
   unreadFeedCount,
   feedEvents,
   onLoadOlder,
@@ -81,7 +83,7 @@ export function FeedPage({
               <div className="results-header-main">
                 <p className="section-kicker">Feed</p>
                 <div className="results-title-row">
-                  <h3 className="panel-title">Recent Repository Events</h3>
+                  <h3 className="panel-title">{feedSubscriptionId ? "Repository Events" : "Recent Repository Events"}</h3>
                   <span className="results-count-badge">{visibleEvents.length} events</span>
                 </div>
               </div>

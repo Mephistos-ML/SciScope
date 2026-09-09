@@ -47,6 +47,7 @@ export function App() {
   const [feedEvents, setFeedEvents] = useState<FeedEventItem[]>([]);
   const [unreadFeedCount, setUnreadFeedCount] = useState(0);
   const [feedState, setFeedState] = useState<"all" | "unread">("all");
+  const [feedSubscriptionId, setFeedSubscriptionId] = useState<string | null>(null);
   const [feedNextCursor, setFeedNextCursor] = useState<string | null>(null);
   const [feedHasMore, setFeedHasMore] = useState(false);
   const [feedLoadPending, setFeedLoadPending] = useState(false);
@@ -416,13 +417,29 @@ export function App() {
     if (!feedNextCursor) return;
     setFeedLoadPending(true);
     try {
-      const payload = await fetchFeed({ cursor: feedNextCursor, state: feedState });
+      const payload = await fetchFeed({ cursor: feedNextCursor, state: feedState, subscriptionId: feedSubscriptionId ?? undefined });
       setFeedEvents((current) => [...current, ...payload.items]);
       setFeedNextCursor(payload.nextCursor);
       setFeedHasMore(payload.hasMore);
       setUnreadFeedCount(payload.unreadCount);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to load older Feed events.");
+    } finally {
+      setFeedLoadPending(false);
+    }
+  }
+
+  async function handleViewSubscriptionFeed(subscriptionId: string) {
+    setFeedLoadPending(true);
+    try {
+      const payload = await fetchFeed({ subscriptionId });
+      setFeedSubscriptionId(subscriptionId);
+      setFeedState("all");
+      setFeedEvents(payload.items);
+      setFeedNextCursor(payload.nextCursor);
+      setFeedHasMore(payload.hasMore);
+      setUnreadFeedCount(payload.unreadCount);
+      setActiveView("feed");
     } finally {
       setFeedLoadPending(false);
     }
@@ -474,6 +491,7 @@ export function App() {
           feedEvents={feedEvents}
           feedHasMore={feedHasMore}
           feedState={feedState}
+          feedSubscriptionId={feedSubscriptionId}
           unreadFeedCount={unreadFeedCount}
           onLoadOlder={() => void handleLoadOlderFeedEvents()}
           onMarkAllRead={() => void handleMarkAllFeedEventsRead()}
@@ -485,11 +503,11 @@ export function App() {
       {activeView === "subscriptions" ? (
         <SubscriptionsPage
           deletePending={deletePending}
-          feedEvents={feedEvents}
           selectedSubscriptionId={selectedSubscriptionId}
           subscriptions={subscriptions}
           onDeleteSubscription={(subscriptionId) => void handleDeleteSubscription(subscriptionId)}
           onSelectSubscription={(subscriptionId) => void handleSelectSubscription(subscriptionId)}
+          onViewAllUpdates={(subscriptionId) => void handleViewSubscriptionFeed(subscriptionId)}
           viewer={viewer}
         />
       ) : null}

@@ -79,6 +79,7 @@ def list_feed_events_for_user(
     limit: int | None = None,
     cursor: FeedCursor | None = None,
     unread_only: bool = False,
+    subscription_id: str | None = None,
 ) -> list[FeedEvent]:
     """List one user's feed events ordered for presentation."""
 
@@ -93,6 +94,8 @@ def list_feed_events_for_user(
     )
     if unread_only:
         statement = statement.where(FeedEventRecordModel.read_at.is_(None))
+    if subscription_id is not None:
+        statement = statement.where(FeedEventRecordModel.subscription_id == subscription_id)
     if cursor is not None:
         statement = statement.where(_events_after_cursor(cursor))
     if limit is not None:

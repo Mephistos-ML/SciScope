@@ -1,35 +1,43 @@
+import { useEffect, useState } from "react";
+
 import { SourceBadge } from "../components/SourceBadge";
 import { EventKindBadge } from "../components/EventKindBadge";
+import { fetchFeed } from "../lib/api";
 import feedEmptyIllustration from "../assets/states/feed/feed-empty.svg";
 import feedNoUpdatesIllustration from "../assets/states/feed/feed-no-updates.svg";
 import type { FeedEventItem, SubscriptionItem, ViewerPayload } from "../types/api";
 
 type SubscriptionsPageProps = {
   deletePending: boolean;
-  feedEvents: FeedEventItem[];
   selectedSubscriptionId: string | null;
   subscriptions: SubscriptionItem[];
   viewer: ViewerPayload["user"];
   onDeleteSubscription: (subscriptionId: string) => void;
   onSelectSubscription: (subscriptionId: string) => void;
+  onViewAllUpdates: (subscriptionId: string) => void;
 };
 
 export function SubscriptionsPage({
   deletePending,
-  feedEvents,
   selectedSubscriptionId,
   subscriptions,
   viewer,
   onDeleteSubscription,
   onSelectSubscription,
+  onViewAllUpdates,
 }: SubscriptionsPageProps) {
+  const [recentUpdates, setRecentUpdates] = useState<FeedEventItem[]>([]);
   const selectedSubscription =
     subscriptions.find((item) => item.subscriptionId === selectedSubscriptionId) ?? null;
-  const selectedFeedEvents = selectedSubscription
-    ? feedEvents.filter(
-        (event) => event.subscriptionId === selectedSubscription.subscriptionId,
-      )
-    : [];
+  useEffect(() => {
+    if (!viewer || !selectedSubscriptionId) { setRecentUpdates([]); return; }
+    let cancelled = false;
+    void fetchFeed({ subscriptionId: selectedSubscriptionId, limit: 5 }).then((payload) => {
+      if (!cancelled) setRecentUpdates(payload.items);
+    });
+    return () => { cancelled = true; };
+  }, [selectedSubscriptionId, viewer]);
+  const selectedFeedEvents = recentUpdates;
   const hasSubscriptions = subscriptions.length > 0;
 
   return (
@@ -181,6 +189,9 @@ export function SubscriptionsPage({
                           </span>
                         </a>
                       ))}
+                      <button className="feed-read-button" onClick={() => onViewAllUpdates(selectedSubscription.subscriptionId)} type="button">
+                        View all updates
+                      </button>
                     </div>
                   )}
                 </div>

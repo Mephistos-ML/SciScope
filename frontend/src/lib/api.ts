@@ -210,11 +210,12 @@ export async function saveRankingDatasetRun(payload: {
   });
 }
 
-export async function fetchFeed(options: { cursor?: string; state?: "all" | "unread" } = {}): Promise<FeedEventListPayload> {
-  const parameters = new URLSearchParams({ limit: "20", state: options.state ?? "all" });
+export async function fetchFeed(options: { cursor?: string; state?: "all" | "unread"; subscriptionId?: string; limit?: number } = {}): Promise<FeedEventListPayload> {
+  const parameters = new URLSearchParams({ limit: String(options.limit ?? 20), state: options.state ?? "all" });
   if (options.cursor) {
     parameters.set("cursor", options.cursor);
   }
+  if (options.subscriptionId) parameters.set("subscription_id", options.subscriptionId);
   return requestJson<FeedEventListPayload>(`/api/feed?${parameters}`);
 }
 

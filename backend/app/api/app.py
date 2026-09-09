@@ -302,6 +302,7 @@ def get_feed(
     limit: int = Query(default=20, ge=1, le=50),
     cursor: str | None = None,
     state: str = "all",
+    subscription_id: str | None = None,
 ) -> dict[str, object]:
     """Return durable feed events for the current user."""
 
@@ -311,6 +312,7 @@ def get_feed(
             limit=limit,
             cursor=cursor,
             state=state,
+            subscription_id=subscription_id,
         )
     except ValueError as error:
         raise HTTPException(
