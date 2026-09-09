@@ -1583,6 +1583,13 @@ input::placeholder {
   gap: 6px;
 }
 
+.feed-repository-table .repository-description {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
 @container (max-width: 760px) {
   .feed-repository-table .repository-table-head {
     display: none;

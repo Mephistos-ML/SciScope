@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 from app.models.repository import Repository
 from app.sources.common import (
+    MAX_PROVIDER_EVENT_BODY_BYTES,
     REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
     REPOSITORY_RELEASE_CHECKPOINT_KEY,
     RepositoryCandidate,
@@ -131,6 +132,26 @@ def test_build_repository_main_commit_signal_and_checkpoint_use_shared_contract(
     assert checkpoint is not None
     assert checkpoint.subscription_id == "sub_pnmr"
     assert checkpoint.checkpoint_key == REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY
+
+
+def test_repository_event_body_is_limited_without_splitting_utf8_characters() -> None:
+    release = RepositoryRelease(
+        source="github",
+        repo_full_name="Mephistos-ML/paranmr",
+        release_id="13",
+        title="v0.4.0",
+        url="https://github.com/Mephistos-ML/paranmr/releases/tag/v0.4.0",
+        published_at=datetime(2026, 7, 19, 11, 0, tzinfo=UTC),
+        tag_name="v0.4.0",
+        body="🧬" * MAX_PROVIDER_EVENT_BODY_BYTES,
+    )
+
+    signal = build_repository_release_signal(release)
+
+    body = signal.raw_text.split("\n\n")[1]
+    assert len(body.encode("utf-8")) <= MAX_PROVIDER_EVENT_BODY_BYTES
+    assert body.endswith("…")
+    assert signal.payload["body_truncated"] is True
 
 
 def test_read_repository_name_uses_metadata_then_full_name() -> None:

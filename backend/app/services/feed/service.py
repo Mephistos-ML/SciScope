@@ -16,6 +16,9 @@ from app.storage.feed import (
 from app.storage.subscriptions import SubscriptionWatchRecord
 
 
+FEED_SUMMARY_MAX_LENGTH = 320
+
+
 def build_feed_event(
     signal: Signal,
     subscription: SubscriptionWatchRecord,
@@ -159,7 +162,21 @@ def _to_feed_item_payload(event: FeedEvent) -> dict[str, object]:
 def _read_feed_summary(raw_text: str) -> str:
     parts = [part.strip() for part in raw_text.splitlines() if part.strip()]
     if len(parts) >= 2:
-        return parts[1]
+        return _truncate_feed_summary(parts[1])
     if parts:
-        return parts[0]
+        return _truncate_feed_summary(parts[0])
     return ""
+
+
+def _truncate_feed_summary(value: str) -> str:
+    """Build a compact, single-paragraph Feed preview."""
+
+    summary = " ".join(value.split())
+    if len(summary) <= FEED_SUMMARY_MAX_LENGTH:
+        return summary
+
+    prefix = summary[: FEED_SUMMARY_MAX_LENGTH - 1]
+    word_boundary = prefix.rfind(" ")
+    if word_boundary > 0:
+        prefix = prefix[:word_boundary]
+    return f"{prefix}…"
