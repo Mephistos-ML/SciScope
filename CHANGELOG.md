@@ -1,3 +1,11 @@
+## [1.16.1](https://github.com/Mephistos-ML/SciScope/compare/v1.16.0...v1.16.1) (2026-09-09)
+
+
+### Bug Fixes
+
+* **monitoring:** backfill events since subscription ([d377d11](https://github.com/Mephistos-ML/SciScope/commit/d377d117c36961d1399374164d929a4d39e5a668))
+* **web:** add Safari favicon fallbacks ([c3c8bc8](https://github.com/Mephistos-ML/SciScope/commit/c3c8bc844146cb5d18514ca955c758e278e966c8))
+
 # [1.16.0](https://github.com/Mephistos-ML/SciScope/compare/v1.15.0...v1.16.0) (2026-09-09)
 
 
