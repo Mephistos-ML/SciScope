@@ -5,14 +5,15 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.sources.github import monitor as github_monitor
+from app.sources.common import JsonResponse
 
 
 def test_load_repo_activity_builds_release_signals(monkeypatch) -> None:
     started_after = datetime(2026, 7, 17, 10, 0, tzinfo=UTC)
 
-    def fake_fetch_json(url: str) -> object:
+    def fake_fetch_json(url: str) -> JsonResponse:
         if url.endswith("/releases?per_page=10"):
-            return [
+            return JsonResponse(payload=[
                 {
                     "id": 12,
                     "name": "v0.3.0",
@@ -21,22 +22,22 @@ def test_load_repo_activity_builds_release_signals(monkeypatch) -> None:
                     "published_at": "2026-07-17T12:15:00Z",
                     "body": "Adds PCS fitting improvements.",
                 }
-            ]
+            ], url=url)
         if url.endswith("/commits?per_page=10"):
-            return []
+            return JsonResponse(payload=[], url=url)
 
         raise AssertionError(f"Unexpected URL: {url}")
 
     monkeypatch.setattr(github_monitor, "fetch_json", fake_fetch_json)
 
-    signals = github_monitor.load_repo_activity(
+    activity = github_monitor.load_repo_activity(
         "Mephistos-ML/paranmr",
         release_started_after=started_after,
         commit_started_after=started_after,
     )
 
-    assert len(signals) == 1
-    release_signal = signals[0]
+    assert len(activity.signals) == 1
+    release_signal = activity.signals[0]
     assert release_signal.kind == "release"
     assert release_signal.item_id == "Mephistos-ML/paranmr:release:12"
     assert "PCS fitting improvements" in release_signal.raw_text
@@ -45,9 +46,9 @@ def test_load_repo_activity_builds_release_signals(monkeypatch) -> None:
 def test_load_repo_activity_ignores_events_before_start(monkeypatch) -> None:
     started_after = datetime(2026, 7, 17, 13, 0, tzinfo=UTC)
 
-    def fake_fetch_json(url: str) -> object:
+    def fake_fetch_json(url: str) -> JsonResponse:
         if url.endswith("/releases?per_page=10"):
-            return [
+            return JsonResponse(payload=[
                 {
                     "id": 5,
                     "name": "v0.2.0",
@@ -56,18 +57,41 @@ def test_load_repo_activity_ignores_events_before_start(monkeypatch) -> None:
                     "published_at": "2026-07-17T12:00:00Z",
                     "body": "Too old.",
                 }
-            ]
+            ], url=url)
         if url.endswith("/commits?per_page=10"):
-            return []
+            return JsonResponse(payload=[], url=url)
 
         raise AssertionError(f"Unexpected URL: {url}")
 
     monkeypatch.setattr(github_monitor, "fetch_json", fake_fetch_json)
 
-    signals = github_monitor.load_repo_activity(
+    activity = github_monitor.load_repo_activity(
         "Mephistos-ML/paranmr",
         release_started_after=started_after,
         commit_started_after=started_after,
     )
 
-    assert signals == []
+    assert activity.signals == ()
+
+
+def test_load_repo_activity_reports_provider_redirect(monkeypatch) -> None:
+    old_name = "Mephistos-ML/paranmr"
+    new_url = "https://api.github.com/repositories/123/commits?per_page=10"
+
+    def fake_fetch_json(url: str) -> JsonResponse:
+        if url.endswith("/releases?per_page=10"):
+            return JsonResponse(payload=[], url=url)
+        if url.endswith("/commits?per_page=10"):
+            return JsonResponse(payload=[], url=new_url)
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(github_monitor, "fetch_json", fake_fetch_json)
+
+    activity = github_monitor.load_repo_activity(
+        old_name,
+        release_started_after=datetime(2026, 7, 17, 10, 0, tzinfo=UTC),
+        commit_started_after=datetime(2026, 7, 17, 10, 0, tzinfo=UTC),
+    )
+
+    assert activity.signals == ()
+    assert activity.redirected is True

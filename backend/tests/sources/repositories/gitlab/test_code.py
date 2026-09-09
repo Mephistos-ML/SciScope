@@ -3,32 +3,33 @@
 from __future__ import annotations
 
 from app.sources.common import RepositorySourceError
+from app.sources.common import JsonResponse
 from app.sources.gitlab.search import code as gitlab_code_search
 
 
 def test_discover_repository_candidates_from_code_builds_repository_signal(
     monkeypatch,
 ) -> None:
-    def fake_fetch_json(url: str) -> object:
+    def fake_fetch_json(url: str) -> JsonResponse:
         if "scope=blobs" in url:
             assert "orca+python+package" in url
-            return [
+            return JsonResponse(payload=[
                 {
                     "project_id": 42,
                     "data": "A python package for working with ORCA outputs.",
                     "path": "src/orto/io/orca_output.py",
                 }
-            ]
+            ], url=url)
 
         assert url.endswith("/projects/42")
-        return {
+        return JsonResponse(payload={
             "path_with_namespace": "kragskow-group/orto",
             "web_url": "https://gitlab.com/kragskow-group/orto",
             "description": "",
             "topics": ["orca", "chemistry"],
             "star_count": 19,
             "last_activity_at": "2026-09-03T12:30:00Z",
-        }
+        }, url=url)
 
     monkeypatch.setattr(gitlab_code_search, "fetch_json", fake_fetch_json)
 
@@ -51,9 +52,9 @@ def test_discover_repository_candidates_from_code_builds_repository_signal(
 def test_discover_repository_candidates_from_code_skips_project_when_metadata_fails(
     monkeypatch,
 ) -> None:
-    def fake_fetch_json(url: str) -> object:
+    def fake_fetch_json(url: str) -> JsonResponse:
         if "scope=blobs" in url:
-            return [
+            return JsonResponse(payload=[
                 {
                     "project_id": 42,
                     "data": "Feynman-Hibbs corrected Mie pair potential.",
@@ -64,7 +65,7 @@ def test_discover_repository_candidates_from_code_skips_project_when_metadata_fa
                     "data": "LAMMPS package for Mie-FH simulations.",
                     "path": "src/pair_mie_fh.cpp",
                 },
-            ]
+            ], url=url)
 
         if url.endswith("/projects/42"):
             raise RepositorySourceError(
@@ -74,13 +75,13 @@ def test_discover_repository_candidates_from_code_skips_project_when_metadata_fa
             )
 
         assert url.endswith("/projects/43")
-        return {
+        return JsonResponse(payload={
             "path_with_namespace": "thermotools/lammps_mie_fh",
             "web_url": "https://gitlab.com/thermotools/lammps_mie_fh",
             "description": "",
             "topics": ["lammps", "molecular-simulation"],
             "star_count": 7,
-        }
+        }, url=url)
 
     monkeypatch.setattr(gitlab_code_search, "fetch_json", fake_fetch_json)
 

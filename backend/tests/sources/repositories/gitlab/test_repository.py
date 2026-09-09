@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from app.sources.gitlab.search import repository as gitlab_repository_search
+from app.sources.common import JsonResponse
 
 
 def test_discover_repository_candidates_builds_raw_signals(monkeypatch) -> None:
-    def fake_fetch_json(url: str) -> object:
+    def fake_fetch_json(url: str) -> JsonResponse:
         assert "/search" in url
         assert "scope=projects" in url
-        return [
+        return JsonResponse(payload=[
             {
                 "id": 456,
                 "path_with_namespace": "Mephistos-ML/paranmr",
@@ -19,7 +20,7 @@ def test_discover_repository_candidates_builds_raw_signals(monkeypatch) -> None:
                 "star_count": 14,
                 "last_activity_at": "2026-09-03T12:30:00.000Z",
             }
-        ]
+        ], url=url)
 
     monkeypatch.setattr(gitlab_repository_search, "fetch_json", fake_fetch_json)
 

@@ -17,6 +17,7 @@ from app.sources.common.deadlines import (
     read_remaining_timeout_seconds,
 )
 from app.sources.common.models import (
+    JsonResponse,
     RepositoryCandidate,
     RepositoryCommit,
     RepositoryRelease,
@@ -30,6 +31,7 @@ from app.sources.common.source_status import (
 __all__ = [
     "REPOSITORY_RELEASE_CHECKPOINT_KEY",
     "REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY",
+    "JsonResponse",
     "RepositoryCandidate",
     "RepositoryCommit",
     "RepositoryRelease",

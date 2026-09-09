@@ -42,9 +42,13 @@ def discover_repository_candidates_from_code(
             )
             try:
                 if deadline_monotonic is None:
-                    payload = fetch_json(search_url)
+                    response = fetch_json(search_url)
                 else:
-                    payload = fetch_json(search_url, deadline_monotonic=deadline_monotonic)
+                    response = fetch_json(
+                        search_url,
+                        deadline_monotonic=deadline_monotonic,
+                    )
+                payload = response.payload
             except RepositorySourceError:
                 logger.warning(
                     "GitHub code search request failed for query=%r url=%s",

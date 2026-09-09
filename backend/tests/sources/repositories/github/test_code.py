@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 from app.sources.github.search import code as github_code_search
+from app.sources.common import JsonResponse
 
 
 def test_discover_repository_candidates_from_code_builds_repository_signal(
     monkeypatch,
 ) -> None:
-    def fake_fetch_json(url: str) -> object:
+    def fake_fetch_json(url: str) -> JsonResponse:
         if "/search/code" in url:
             assert "orca+python+package" in url
             assert "page=1" in url
-            return {
+            return JsonResponse(payload={
                 "items": [
                     {
                         "repository": {
@@ -26,7 +27,7 @@ def test_discover_repository_candidates_from_code_builds_repository_signal(
                         "path": "src/orto/io/orca_output.py",
                     }
                 ]
-            }
+            }, url=url)
 
         raise AssertionError(f"Unexpected URL: {url}")
 
@@ -51,10 +52,10 @@ def test_discover_repository_candidates_from_code_reads_second_page(
 ) -> None:
     requested_urls: list[str] = []
 
-    def fake_fetch_json(url: str) -> object:
+    def fake_fetch_json(url: str) -> JsonResponse:
         requested_urls.append(url)
         if "page=1" in url:
-            return {
+            return JsonResponse(payload={
                 "items": [
                     {
                         "repository": {
@@ -67,9 +68,9 @@ def test_discover_repository_candidates_from_code_reads_second_page(
                         "path": "src/orto/io/orca_output.py",
                     }
                 ]
-            }
+            }, url=url)
         if "page=2" in url:
-            return {
+            return JsonResponse(payload={
                 "items": [
                     {
                         "repository": {
@@ -82,7 +83,7 @@ def test_discover_repository_candidates_from_code_reads_second_page(
                         "path": "src/pair_mie_fh.cpp",
                     }
                 ]
-            }
+            }, url=url)
         raise AssertionError(f"Unexpected URL: {url}")
 
     monkeypatch.setattr(github_code_search, "fetch_json", fake_fetch_json)

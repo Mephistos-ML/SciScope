@@ -32,9 +32,13 @@ def discover_repository_candidates(
             query, per_query_limit=per_query_limit
         )
         if deadline_monotonic is None:
-            payload = fetch_json(search_url)
+            response = fetch_json(search_url)
         else:
-            payload = fetch_json(search_url, deadline_monotonic=deadline_monotonic)
+            response = fetch_json(
+                search_url,
+                deadline_monotonic=deadline_monotonic,
+            )
+        payload = response.payload
         if not isinstance(payload, dict):
             continue
 

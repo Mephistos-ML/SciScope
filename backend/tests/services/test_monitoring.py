@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from tests.conftest import build_test_database_url, migrate_test_database
-from app.models.repository import Repository, RepositoryCheckpoint
+from app.models.repository import Repository, RepositoryActivity, RepositoryCheckpoint
 from app.models.signal import Signal
 from app.services.monitoring import repositories as monitoring_service
 from app.sources.common import REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY
 from app.storage.repositories import (
+    get_repository,
     get_repository_checkpoint,
+    upsert_repositories,
     upsert_repository_checkpoints,
 )
 
@@ -74,12 +77,13 @@ def test_load_repository_signals_advances_checkpoint_from_latest_release(
         *,
         release_started_after: datetime | None,
         commit_started_after: datetime | None,
-    ) -> list[Signal]:
+    ) -> RepositoryActivity:
         assert repo_full_name == "Mephistos-ML/paranmr"
         assert release_started_after == datetime(2026, 8, 20, 9, 30, tzinfo=UTC)
         assert commit_started_after == started_after
-        return [
-            Signal(
+        return RepositoryActivity(
+            signals=(
+                Signal(
                 source="github",
                 kind="release",
                 item_id="Mephistos-ML/paranmr:release:v0.3.0",
@@ -88,8 +92,9 @@ def test_load_repository_signals_advances_checkpoint_from_latest_release(
                 published_at=published_at,
                 raw_text="Adds PCS fitting improvements.",
                 payload={"repo": "Mephistos-ML/paranmr"},
+                ),
             )
-        ]
+        )
 
     monkeypatch.setattr(
         monitoring_service.github_source,
@@ -124,6 +129,49 @@ def test_load_repository_signals_advances_checkpoint_from_latest_release(
     assert commit_checkpoint.checkpoint_value == started_after.isoformat()
 
 
+def test_load_repository_signals_refreshes_profile_after_provider_redirect(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    database_url = build_test_database_url(tmp_path / "monitoring-redirect.sqlite3")
+    migrate_test_database(database_url)
+    repository = _build_repository()
+    upsert_repositories((repository,), database_url=database_url)
+    sync_started_at = datetime(2026, 8, 20, 9, 30, tzinfo=UTC)
+    monitoring_service.sync_repository_baseline(
+        "sub_monitoring",
+        repository,
+        baseline_started_at=sync_started_at,
+        database_url=database_url,
+    )
+
+    monkeypatch.setattr(
+        monitoring_service.github_source,
+        "load_repo_activity",
+        lambda *_args, **_kwargs: RepositoryActivity(signals=(), redirected=True),
+    )
+    monkeypatch.setattr(
+        monitoring_service.github_source,
+        "refresh_repository_profile",
+        lambda value: replace(
+            value,
+            full_name="Mephistos-ML/paranmr-renamed",
+            url="https://github.com/Mephistos-ML/paranmr-renamed",
+        ),
+    )
+
+    monitoring_service.load_repository_signals(
+        "sub_monitoring",
+        repository,
+        database_url=database_url,
+    )
+
+    refreshed = get_repository(repository.repository_id, database_url=database_url)
+    assert refreshed is not None
+    assert refreshed.full_name == "Mephistos-ML/paranmr-renamed"
+    assert refreshed.url == "https://github.com/Mephistos-ML/paranmr-renamed"
+
+
 def _build_repository() -> Repository:
     return Repository(
         repository_id="github:repo:Mephistos-ML/paranmr",
@@ -131,4 +179,5 @@ def _build_repository() -> Repository:
         full_name="Mephistos-ML/paranmr",
         url="https://github.com/Mephistos-ML/paranmr",
         metadata={"repo": "Mephistos-ML/paranmr"},
+        provider_repository_id="123",
     )

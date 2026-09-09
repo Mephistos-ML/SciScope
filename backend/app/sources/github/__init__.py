@@ -5,11 +5,15 @@ from app.sources.github.search import (
     discover_repository_candidates,
     discover_repository_candidates_from_code,
 )
-from app.sources.github.monitor import load_repo_activity
+from app.sources.github.monitor import (
+    load_repo_activity,
+    refresh_repository_profile,
+)
 
 __all__ = [
     "build_auth_headers",
     "discover_repository_candidates",
     "discover_repository_candidates_from_code",
     "load_repo_activity",
+    "refresh_repository_profile",
 ]

@@ -7,6 +7,14 @@ from datetime import datetime
 
 
 @dataclass(frozen=True)
+class JsonResponse:
+    """JSON payload returned by a provider request and its final URL."""
+
+    payload: object
+    url: str
+
+
+@dataclass(frozen=True)
 class RepositoryCandidate:
     """One discovered repository candidate before topic admission."""
 

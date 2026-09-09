@@ -11,7 +11,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from app.__version__ import __version__
-from app.sources.common import RepositorySourceError, read_remaining_timeout_seconds
+from app.sources.common import JsonResponse, RepositorySourceError, read_remaining_timeout_seconds
 from app.sources.github.auth import build_auth_headers
 
 logger = logging.getLogger(__name__)
@@ -28,8 +28,12 @@ def build_user_agent() -> str:
     return f"SciScope/{__version__}"
 
 
-def fetch_json(url: str, *, deadline_monotonic: float | None = None) -> object:
-    """Fetch one JSON payload from the GitHub API with simple retries."""
+def fetch_json(
+    url: str,
+    *,
+    deadline_monotonic: float | None = None,
+) -> JsonResponse:
+    """Fetch JSON and the provider URL after any HTTP redirect."""
 
     headers = {
         "Accept": "application/vnd.github+json",
@@ -51,7 +55,8 @@ def fetch_json(url: str, *, deadline_monotonic: float | None = None) -> object:
                 fallback_seconds=GITHUB_REQUEST_TIMEOUT_SECONDS,
             )
             with urlopen(request, timeout=request_timeout_seconds) as response:
-                return json.load(response)
+                final_url = getattr(response, "geturl", lambda: url)()
+                return JsonResponse(payload=json.load(response), url=str(final_url))
         except HTTPError as exc:
             message = _read_error_message(exc)
             if attempt < GITHUB_REQUEST_RETRIES and 500 <= exc.code < 600:

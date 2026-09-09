@@ -84,6 +84,20 @@ def _to_subscription_watch_record(
             full_name=repository.full_name,
             url=repository.url,
             metadata=dict(repository.metadata_json or {}),
+            provider_repository_id=repository.provider_repository_id,
+            owner_login=repository.owner_login,
+            description=repository.description,
+            language=repository.language,
+            stars=repository.stars,
+            topics=tuple(repository.topics_json or []),
+            first_seen_at=_ensure_utc(repository.first_seen_at),
+            last_seen_at=_ensure_utc(repository.last_seen_at),
+            last_retrieved_at=_ensure_utc(repository.last_retrieved_at),
+            provider_updated_at=(
+                _ensure_utc(repository.provider_updated_at)
+                if repository.provider_updated_at is not None
+                else None
+            ),
         ),
         selected_query=subscription.selected_query,
         created_at=_ensure_utc(subscription.created_at).isoformat(timespec="seconds"),

@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from app.sources.github.search import repository as github_repository_search
+from app.sources.common import JsonResponse
 
 
 def test_discover_repository_candidates_builds_raw_signals(monkeypatch) -> None:
-    def fake_fetch_json(url: str) -> object:
+    def fake_fetch_json(url: str) -> JsonResponse:
         assert "/search/repositories" in url
-        return {
+        return JsonResponse(payload={
             "items": [
                 {
                     "id": 123,
@@ -22,7 +23,7 @@ def test_discover_repository_candidates_builds_raw_signals(monkeypatch) -> None:
                     "owner": {"login": "Mephistos-ML"},
                 }
             ]
-        }
+        }, url=url)
 
     monkeypatch.setattr(github_repository_search, "fetch_json", fake_fetch_json)
 

@@ -80,9 +80,10 @@ def test_fetch_json_includes_auth_headers(monkeypatch) -> None:
         lambda: {"Authorization": "Bearer installation-token"},
     )
 
-    payload = github_client.fetch_json("https://api.github.com/test")
+    response = github_client.fetch_json("https://api.github.com/test")
 
-    assert payload == {"ok": True}
+    assert response.payload == {"ok": True}
+    assert response.url == "https://api.github.com/test"
     assert captured_headers["Authorization"] == "Bearer installation-token"
     assert captured_headers["Accept"] == "application/vnd.github+json"
     assert captured_headers["X-github-api-version"] == "2022-11-28"

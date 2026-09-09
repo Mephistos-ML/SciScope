@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
-from typing import Callable
 
 from app.models.repository import Repository, RepositoryCheckpoint
 from app.models.signal import Signal
@@ -20,12 +19,11 @@ from app.sources.common import (
 )
 from app.storage.repositories import (
     get_repository_checkpoint,
+    upsert_repositories,
     upsert_repository_checkpoints,
 )
 
 logger = logging.getLogger(__name__)
-
-RepositoryActivityLoader = Callable[..., list[Signal]]
 
 MONITORED_CHECKPOINT_KEYS = (
     REPOSITORY_RELEASE_CHECKPOINT_KEY,
@@ -107,16 +105,35 @@ def load_repository_signals(
     if release_started_after is None and commit_started_after is None:
         return []
 
-    source_loader = _resolve_activity_loader(repository)
-    if source_loader is None:
-        return []
-
     try:
-        signals = source_loader(
-            repo_name,
-            release_started_after=release_started_after,
-            commit_started_after=commit_started_after,
-        )
+        if repository.source == "github":
+            activity = github_source.load_repo_activity(
+                repo_name,
+                release_started_after=release_started_after,
+                commit_started_after=commit_started_after,
+            )
+            refreshed_repository = (
+                github_source.refresh_repository_profile(repository)
+                if activity.redirected
+                else repository
+            )
+        elif repository.source == "gitlab":
+            activity = gitlab_source.load_repo_activity(
+                repo_name,
+                release_started_after=release_started_after,
+                commit_started_after=commit_started_after,
+            )
+            refreshed_repository = (
+                gitlab_source.refresh_repository_profile(repository)
+                if activity.redirected
+                else repository
+            )
+        else:
+            return []
+
+        signals = list(activity.signals)
+        if refreshed_repository != repository:
+            upsert_repositories((refreshed_repository,), database_url=database_url)
     except RepositorySourceError as exc:
         logger.warning(
             "Repository monitoring source %s skipped: %s",
@@ -194,16 +211,6 @@ def _resolve_checkpoint(
     if baseline_started_after is None:
         return None
     return _ensure_utc(baseline_started_after)
-
-
-def _resolve_activity_loader(
-    repository: Repository,
-) -> RepositoryActivityLoader | None:
-    if repository.source == "github":
-        return github_source.load_repo_activity
-    if repository.source == "gitlab":
-        return gitlab_source.load_repo_activity
-    return None
 
 
 def _supports_repository_monitoring(repository: Repository) -> bool:

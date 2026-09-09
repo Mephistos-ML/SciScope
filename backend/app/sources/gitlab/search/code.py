@@ -37,9 +37,13 @@ def discover_repository_candidates_from_code(
         search_url = _build_blob_search_url(query, per_query_limit=per_query_limit)
         try:
             if deadline_monotonic is None:
-                payload = fetch_json(search_url)
+                response = fetch_json(search_url)
             else:
-                payload = fetch_json(search_url, deadline_monotonic=deadline_monotonic)
+                response = fetch_json(
+                    search_url,
+                    deadline_monotonic=deadline_monotonic,
+                )
+            payload = response.payload
         except RepositorySourceError:
             logger.warning(
                 "GitLab code search request failed for query=%r url=%s",
@@ -136,12 +140,13 @@ def _load_project_metadata(
     deadline_monotonic: float | None = None,
 ) -> dict[str, object] | None:
     if deadline_monotonic is None:
-        payload = fetch_json(f"{GITLAB_API_BASE}/projects/{project_id}")
+        response = fetch_json(f"{GITLAB_API_BASE}/projects/{project_id}")
     else:
-        payload = fetch_json(
+        response = fetch_json(
             f"{GITLAB_API_BASE}/projects/{project_id}",
             deadline_monotonic=deadline_monotonic,
         )
+    payload = response.payload
     if isinstance(payload, dict):
         return payload
     return None
