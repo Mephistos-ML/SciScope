@@ -5,11 +5,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, func, or_, select, update
 
 from app.database.records import FeedEventRecordModel
 from app.database.session import session_scope
-from app.models.feed import FeedEvent
+from app.models.feed import FeedCursor, FeedEvent
 
 
 def upsert_feed_events(
@@ -76,6 +76,9 @@ def list_feed_events_for_user(
     user_id: str,
     *,
     database_url: str,
+    limit: int | None = None,
+    cursor: FeedCursor | None = None,
+    unread_only: bool = False,
 ) -> list[FeedEvent]:
     """List one user's feed events ordered for presentation."""
 
@@ -88,10 +91,49 @@ def list_feed_events_for_user(
             FeedEventRecordModel.event_id.desc(),
         )
     )
+    if unread_only:
+        statement = statement.where(FeedEventRecordModel.read_at.is_(None))
+    if cursor is not None:
+        statement = statement.where(_events_after_cursor(cursor))
+    if limit is not None:
+        statement = statement.limit(limit)
 
     with session_scope(database_url) as session:
         rows = session.scalars(statement).all()
     return [_to_feed_event(row) for row in rows]
+
+
+def _events_after_cursor(cursor: FeedCursor):
+    if cursor.published_at is None:
+        return and_(
+            FeedEventRecordModel.published_at.is_(None),
+            or_(
+                FeedEventRecordModel.created_at < cursor.created_at,
+                and_(
+                    FeedEventRecordModel.created_at == cursor.created_at,
+                    FeedEventRecordModel.event_id < cursor.event_id,
+                ),
+            ),
+        )
+    return or_(
+        FeedEventRecordModel.published_at.is_(None),
+        and_(
+            FeedEventRecordModel.published_at.is_not(None),
+            or_(
+                FeedEventRecordModel.published_at < cursor.published_at,
+                and_(
+                    FeedEventRecordModel.published_at == cursor.published_at,
+                    or_(
+                        FeedEventRecordModel.created_at < cursor.created_at,
+                        and_(
+                            FeedEventRecordModel.created_at == cursor.created_at,
+                            FeedEventRecordModel.event_id < cursor.event_id,
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
 
 
 def get_feed_event_for_user(

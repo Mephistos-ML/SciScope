@@ -1,30 +1,37 @@
-import { useState } from "react";
-
 import { EventKindBadge } from "../components/EventKindBadge";
 import feedEmptyIllustration from "../assets/states/feed/feed-empty.svg";
 import type { FeedEventItem, ViewerPayload } from "../types/api";
 
 type FeedPageProps = {
+  feedHasMore: boolean;
+  feedLoadPending: boolean;
+  feedState: "all" | "unread";
+  unreadFeedCount: number;
   feedUpdatePending: boolean;
   feedEvents: FeedEventItem[];
+  onLoadOlder: () => void;
   onMarkAllRead: () => void;
   onMarkRead: (eventId: string) => void;
+  onStateChange: (state: "all" | "unread") => void;
   viewer: ViewerPayload["user"];
 };
 
 export function FeedPage({
   feedUpdatePending,
+  feedHasMore,
+  feedLoadPending,
+  feedState,
+  unreadFeedCount,
   feedEvents,
+  onLoadOlder,
   onMarkAllRead,
   onMarkRead,
+  onStateChange,
   viewer,
 }: FeedPageProps) {
-  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const hasEvents = feedEvents.length > 0;
-  const unreadCount = feedEvents.filter((event) => event.readAt === null).length;
-  const visibleEvents = showUnreadOnly
-    ? feedEvents.filter((event) => event.readAt === null)
-    : feedEvents;
+  const unreadCount = unreadFeedCount;
+  const visibleEvents = feedEvents;
 
   return (
     <main className="app-shell feed-shell">
@@ -52,7 +59,7 @@ export function FeedPage({
             </p>
           </article>
         </section>
-      ) : !hasEvents ? (
+      ) : !hasEvents && feedState === "all" ? (
         <section className="results-panel">
           <article className="empty-state-panel feed-empty-state">
             <img
@@ -81,15 +88,17 @@ export function FeedPage({
               <div className="feed-actions">
                 <div aria-label="Feed visibility" className="feed-filter" role="group">
                   <button
-                    className={showUnreadOnly ? "feed-filter-button" : "feed-filter-button feed-filter-button-active"}
-                    onClick={() => setShowUnreadOnly(false)}
+                    className={feedState === "all" ? "feed-filter-button feed-filter-button-active" : "feed-filter-button"}
+                    disabled={feedLoadPending}
+                    onClick={() => onStateChange("all")}
                     type="button"
                   >
                     All
                   </button>
                   <button
-                    className={showUnreadOnly ? "feed-filter-button feed-filter-button-active" : "feed-filter-button"}
-                    onClick={() => setShowUnreadOnly(true)}
+                    className={feedState === "unread" ? "feed-filter-button feed-filter-button-active" : "feed-filter-button"}
+                    disabled={feedLoadPending}
+                    onClick={() => onStateChange("unread")}
                     type="button"
                   >
                     Unread {unreadCount > 0 ? `(${unreadCount})` : ""}
@@ -172,6 +181,18 @@ export function FeedPage({
                 ))}
                 {visibleEvents.length === 0 ? (
                   <div className="feed-filter-empty">No unread Feed events.</div>
+                ) : null}
+                {feedHasMore ? (
+                  <div className="feed-load-more">
+                    <button
+                      className="outline-button"
+                      disabled={feedLoadPending}
+                      onClick={onLoadOlder}
+                      type="button"
+                    >
+                      {feedLoadPending ? "Loading…" : "Load older events"}
+                    </button>
+                  </div>
                 ) : null}
               </div>
             </div>

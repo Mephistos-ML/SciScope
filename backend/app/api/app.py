@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request, Response, status
+from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
@@ -297,10 +297,26 @@ def get_status(request: Request) -> dict[str, object]:
 
 
 @app.get("/api/feed")
-def get_feed(request: Request) -> dict[str, object]:
+def get_feed(
+    request: Request,
+    limit: int = Query(default=20, ge=1, le=50),
+    cursor: str | None = None,
+    state: str = "all",
+) -> dict[str, object]:
     """Return durable feed events for the current user."""
 
-    payload = feed_routes.get_feed_list_response(request)
+    try:
+        payload = feed_routes.get_feed_list_response(
+            request,
+            limit=limit,
+            cursor=cursor,
+            state=state,
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

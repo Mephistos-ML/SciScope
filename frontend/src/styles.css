@@ -1121,6 +1121,13 @@ input::placeholder {
   text-align: center;
 }
 
+.feed-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 18px;
+  border-top: var(--border-subtle);
+}
+
 .repository-row:first-child {
   border-top: 0;
 }

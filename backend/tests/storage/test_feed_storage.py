@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, datetime
 
-from app.models.feed import FeedEvent
+from app.models.feed import FeedCursor, FeedEvent
 from app.storage.feed import (
     count_feed_events,
     count_unread_feed_events_for_user,
@@ -139,3 +139,63 @@ def test_get_feed_event_for_user_scopes_lookup(tmp_path) -> None:
         get_feed_event_for_user("user_2", event.event_id, database_url=database_url)
         is None
     )
+
+
+def test_feed_cursor_loads_only_older_events(tmp_path) -> None:
+    database_url = build_test_database_url(tmp_path / "feed-cursor.sqlite3")
+    migrate_test_database(database_url)
+    base_event = FeedEvent(
+        event_id="event-3",
+        user_id="user_1",
+        subscription_id="sub_1",
+        repository_id="github:repo:repo-a",
+        repository_full_name="org/repo-a",
+        repository_source="github",
+        repository_url="https://github.com/org/repo-a",
+        selected_query=None,
+        source="github",
+        kind="release",
+        item_id="org/repo-a:release:3",
+        title="Release 3",
+        url="https://github.com/org/repo-a/releases/tag/v3",
+        published_at=datetime(2026, 8, 3, 12, 0, tzinfo=UTC),
+        raw_text="Release 3",
+        normalized_text="Release 3",
+        created_at=datetime(2026, 8, 3, 12, 0, tzinfo=UTC),
+    )
+    events = (
+        base_event,
+        replace(
+            base_event,
+            event_id="event-2",
+            item_id="org/repo-a:release:2",
+            title="Release 2",
+            published_at=datetime(2026, 8, 2, 12, 0, tzinfo=UTC),
+            created_at=datetime(2026, 8, 2, 12, 0, tzinfo=UTC),
+        ),
+        replace(
+            base_event,
+            event_id="event-1",
+            item_id="org/repo-a:release:1",
+            title="Release 1",
+            published_at=datetime(2026, 8, 1, 12, 0, tzinfo=UTC),
+            created_at=datetime(2026, 8, 1, 12, 0, tzinfo=UTC),
+        ),
+    )
+    upsert_feed_events(events, database_url=database_url)
+
+    first_page = list_feed_events_for_user("user_1", database_url=database_url, limit=2)
+    cursor = FeedCursor(
+        published_at=first_page[-1].published_at,
+        created_at=first_page[-1].created_at,
+        event_id=first_page[-1].event_id,
+    )
+    second_page = list_feed_events_for_user(
+        "user_1",
+        database_url=database_url,
+        limit=2,
+        cursor=cursor,
+    )
+
+    assert [event.event_id for event in first_page] == ["event-3", "event-2"]
+    assert [event.event_id for event in second_page] == ["event-1"]

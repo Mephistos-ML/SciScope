@@ -13,14 +13,26 @@ from app.services.feed import (
 )
 
 
-def get_feed_list_response(request: Request) -> dict[str, object] | None:
+def get_feed_list_response(
+    request: Request,
+    *,
+    limit: int,
+    cursor: str | None,
+    state: str,
+) -> dict[str, object] | None:
     """Return durable feed events for the signed-in user."""
 
     database_url = request.app.state.database_url
     user = get_current_user(request, database_url=database_url)
     if user is None:
         return None
-    return get_feed_list_payload(user.user_id, database_url=database_url)
+    return get_feed_list_payload(
+        user.user_id,
+        database_url=database_url,
+        limit=limit,
+        cursor=cursor,
+        state=state,
+    )
 
 
 def get_feed_event_response(

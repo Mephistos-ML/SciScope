@@ -161,6 +161,8 @@ function resolveDemoResponse(method: string, path: string | undefined): object |
   if (method === "GET" && path === "/api/feed") {
     return {
       items: feedItems,
+      nextCursor: null,
+      hasMore: false,
       unreadCount: feedItems.filter((item) => item.readAt === null).length,
     };
   }

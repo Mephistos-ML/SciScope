@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 import tempfile
 
@@ -13,6 +14,7 @@ from app.api.app import app
 from app.config import AUTH_SESSION_COOKIE_NAME
 from app.models.ai import AiSearchPlan
 from app.models.explore_access import ExploreAccessDecision, ExploreActor, ExploreLimitCode, ExploreTier
+from app.models.feed import FeedEvent
 from app.models.repository import Repository
 from app.models.signal import Signal
 from app.runtime.state import STATE
@@ -28,6 +30,7 @@ from app.services.search.retrieval.models import (
     RetrievedCandidates,
 )
 from app.storage import auth as auth_storage
+from app.storage.feed import upsert_feed_events
 from app.storage.subscriptions import SubscriptionWatchRecord
 
 
@@ -288,6 +291,8 @@ def test_status_and_feed_endpoints_return_json(monkeypatch) -> None:
             assert feed_list["items"][0]["subscriptionId"] == "sub_pnmr"
             assert feed_list["items"][0]["repositoryId"] == "github:repo:Mephistos-ML/paranmr"
             assert feed_list["unreadCount"] == 1
+            assert feed_list["hasMore"] is False
+            assert feed_list["nextCursor"] is None
 
             event_id = feed_list["items"][0]["eventId"]
             response = client.get(f"/api/feed/{event_id}")
@@ -356,6 +361,75 @@ def test_api_start_and_stop_endpoints_return_status_json(monkeypatch) -> None:
     assert stop_response.status_code == 200
     assert start_response.json()["subscriptionCount"] == 1
     assert stop_response.json()["subscriptionCount"] == 1
+
+
+def test_feed_loads_older_events_with_an_opaque_cursor() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        database_url = build_test_database_url(Path(temp_dir) / "feed-pagination.sqlite3")
+        migrate_test_database(database_url)
+        user = auth_storage.create_user(
+            user_id="user_feed_pagination",
+            email="feed-pagination@example.com",
+            display_name="Feed Pagination User",
+            database_url=database_url,
+        )
+        newest = datetime(2026, 9, 1, 12, 0, tzinfo=UTC)
+        upsert_feed_events(
+            tuple(
+                FeedEvent(
+                    event_id=f"event-{index:02d}",
+                    user_id=user.user_id,
+                    subscription_id="sub_pnmr",
+                    repository_id="github:repo:Mephistos-ML/paranmr",
+                    repository_full_name="Mephistos-ML/paranmr",
+                    repository_source="github",
+                    repository_url="https://github.com/Mephistos-ML/paranmr",
+                    selected_query="paramagnetic nmr",
+                    source="github",
+                    kind="release",
+                    item_id=f"release-{index:02d}",
+                    title=f"Release {index}",
+                    url=f"https://github.com/Mephistos-ML/paranmr/releases/tag/{index}",
+                    published_at=newest - timedelta(minutes=index),
+                    raw_text=f"Release {index}",
+                    normalized_text=f"Release {index}",
+                    created_at=newest - timedelta(minutes=index),
+                )
+                for index in range(21)
+            ),
+            database_url=database_url,
+        )
+
+        with TestClient(app) as client:
+            client.app.state.database_url = database_url
+            session_response = Response()
+            session_token = create_authenticated_session(
+                user.user_id,
+                session_response,
+                database_url=database_url,
+            )
+            client.cookies.set(AUTH_SESSION_COOKIE_NAME, session_token)
+
+            first_response = client.get("/api/feed?limit=20")
+            assert first_response.status_code == 200
+            first_page = first_response.json()
+            assert len(first_page["items"]) == 20
+            assert first_page["hasMore"] is True
+            assert isinstance(first_page["nextCursor"], str)
+
+            second_response = client.get(
+                "/api/feed",
+                params={"limit": 20, "cursor": first_page["nextCursor"]},
+            )
+
+    assert second_response.status_code == 200
+    second_page = second_response.json()
+    assert len(second_page["items"]) == 1
+    assert second_page["hasMore"] is False
+    assert second_page["nextCursor"] is None
+    assert {
+        item["eventId"] for item in first_page["items"]
+    }.isdisjoint({item["eventId"] for item in second_page["items"]})
 
 
 def test_missing_feed_event_returns_404_json() -> None:

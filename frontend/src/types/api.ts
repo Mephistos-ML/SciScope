@@ -71,6 +71,8 @@ export type FeedEventItem = {
 
 export type FeedEventListPayload = {
   items: FeedEventItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
   unreadCount: number;
 };
 
