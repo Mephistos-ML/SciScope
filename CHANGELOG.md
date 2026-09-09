@@ -1,3 +1,21 @@
+# [1.16.0](https://github.com/Mephistos-ML/SciScope/compare/v1.15.0...v1.16.0) (2026-09-09)
+
+
+### Bug Fixes
+
+* **monitoring:** harden scan coordination and health ([cf66534](https://github.com/Mephistos-ML/SciScope/commit/cf665349310c50ec409b5e0987913890dd71f13b))
+* **subscriptions:** space recent updates header from content ([e73bde4](https://github.com/Mephistos-ML/SciScope/commit/e73bde4a191330ab7b1d5f84b7afa29e713d7356))
+
+
+### Features
+
+* **infra:** schedule repository monitoring on Fly ([162047d](https://github.com/Mephistos-ML/SciScope/commit/162047d19ebfa426a7fb0aeaf2cc54a90c5ac893))
+* **monitoring:** add durable job state models ([9136b09](https://github.com/Mephistos-ML/SciScope/commit/9136b0968d1019100add73b9c8b1c8841257dcf9))
+* **monitoring:** add durable scan state migration ([938a6d0](https://github.com/Mephistos-ML/SciScope/commit/938a6d08ea2fa30dd3455f39341f73226e10ea10))
+* **monitoring:** add scheduled scan job entrypoint ([2bd1094](https://github.com/Mephistos-ML/SciScope/commit/2bd10944351a83548c7472fbfd665d8dd73574ce))
+* **monitoring:** add stateless repository scan ([81df92b](https://github.com/Mephistos-ML/SciScope/commit/81df92b28c1b44ff52fd07ab8e8d84d4a8bb645c))
+* **monitoring:** persist repository scan state ([5f959cc](https://github.com/Mephistos-ML/SciScope/commit/5f959cc9e2a98fefa7bf1894d2aff8fad124ef4a))
+
 # [1.15.0](https://github.com/Mephistos-ML/SciScope/compare/v1.14.3...v1.15.0) (2026-09-09)
 
 
