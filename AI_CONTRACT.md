@@ -214,6 +214,17 @@ layers unless that detail is part of the receiving layer's explicit contract.
 Do not persist presentation-only values such as labels, colours, icons, or
 localized text. Persist canonical facts; derive presentation at the edge.
 
+## Schema Migration Discipline
+
+Treat an unmerged, undeployed migration as part of the current change, not as
+immutable history. Before creating a new migration, check whether the relevant
+schema change has already been merged and deployed to a shared environment.
+
+If it has not, amend the existing migration and its tests instead of creating a
+follow-on revision for the same feature. Delete any superseded local revision.
+Create a new revision only when the earlier migration is already part of shared
+or deployed history, where rewriting it would break an existing database path.
+
 ## Change Quality Gate
 
 Before completing a change, review the diff and ask:
@@ -227,6 +238,8 @@ Before completing a change, review the diff and ask:
 6. Is the new code easier to remove, replace, test, and explain than the code
    it replaces?
 7. Is the change the smallest cohesive solution to the requested behavior?
+8. Does this schema change belong in an existing unmerged migration rather than
+   a new revision?
 
 If any answer is uncertain, simplify the design before proceeding.
 
