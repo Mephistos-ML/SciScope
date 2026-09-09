@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
-import { SourceBadge } from "../components/SourceBadge";
 import { EventKindBadge } from "../components/EventKindBadge";
 import { fetchFeed } from "../lib/api";
+import { getSourceLogo } from "../lib/sourceLogos";
 import feedEmptyIllustration from "../assets/states/feed/feed-empty.svg";
 import feedNoUpdatesIllustration from "../assets/states/feed/feed-no-updates.svg";
 import type { FeedEventItem, SubscriptionItem, ViewerPayload } from "../types/api";
@@ -122,30 +122,27 @@ export function SubscriptionsPage({
             {selectedSubscription ? (
               <>
                 <p className="section-kicker">Selected Repository</p>
-                <h2 className="section-title">{selectedSubscription.repository.fullName}</h2>
+                <h2 className="section-title">
+                  <a
+                    className="subscription-repository-title"
+                    href={selectedSubscription.repository.url}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {getSourceLogo(selectedSubscription.repository.source) ? (
+                      <img alt="" aria-hidden="true" src={getSourceLogo(selectedSubscription.repository.source) ?? undefined} />
+                    ) : null}
+                    {selectedSubscription.repository.fullName}
+                  </a>
+                </h2>
                 <p className="section-copy">
                   This subscription keeps the repository under monitoring and its future events in your feed.
                 </p>
 
                 <div className="detail-panel-block">
-                  <h4>Repository</h4>
-                  <SourceBadge
-                    href={selectedSubscription.repository.url}
-                    source={selectedSubscription.repository.source}
-                  />
-                </div>
-
-                <div className="detail-panel-block">
                   <h4>Subscribed</h4>
                   <p className="detail-copy">
                     {formatSubscriptionDate(selectedSubscription.createdAt)}
-                  </p>
-                </div>
-
-                <div className="detail-panel-block">
-                  <h4>Selected Query</h4>
-                  <p className="detail-copy">
-                    {selectedSubscription.selectedQuery || "No Query Snapshot Saved."}
                   </p>
                 </div>
 

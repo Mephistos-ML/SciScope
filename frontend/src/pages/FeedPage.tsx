@@ -1,5 +1,6 @@
 import { EventKindBadge } from "../components/EventKindBadge";
 import feedEmptyIllustration from "../assets/states/feed/feed-empty.svg";
+import { getSourceLogo } from "../lib/sourceLogos";
 import type { FeedEventItem, ViewerPayload } from "../types/api";
 
 type FeedPageProps = {
@@ -149,14 +150,19 @@ export function FeedPage({
                     </div>
 
                     <div className="repository-cell" data-label="Repository">
-                      <a
-                        className="repository-inline-link"
-                        href={event.repositoryUrl}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        {event.repositoryFullName}
-                      </a>
+                      <span className="repository-provider-link">
+                        {getSourceLogo(event.repositorySource) ? (
+                          <img alt="" aria-hidden="true" src={getSourceLogo(event.repositorySource) ?? undefined} />
+                        ) : null}
+                        <a
+                          className="repository-inline-link"
+                          href={event.repositoryUrl}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          {event.repositoryFullName}
+                        </a>
+                      </span>
                     </div>
 
                     <div className="repository-cell repository-metadata-cell" data-label="When">
