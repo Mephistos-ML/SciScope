@@ -1427,6 +1427,74 @@ input::placeholder {
   line-height: 20px;
 }
 
+.subscription-updates-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.subscription-updates-heading h4 {
+  margin-bottom: 8px;
+}
+
+.subscription-update-list {
+  display: grid;
+  gap: 10px;
+}
+
+.subscription-update {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px 12px;
+  padding: 14px;
+  border: var(--border-subtle);
+  border-radius: var(--radius-input);
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.subscription-update:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-panel);
+  transform: translateY(-1px);
+}
+
+.subscription-update strong {
+  min-width: 0;
+  color: var(--navy-900);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.subscription-update-kind {
+  align-self: start;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--teal-100);
+  color: var(--teal-600);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+.subscription-update-summary {
+  grid-column: 1 / -1;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.subscription-update-date {
+  align-self: start;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
 .detail-copy {
   margin: 0;
   color: var(--text-secondary);

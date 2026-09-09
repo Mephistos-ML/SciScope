@@ -390,6 +390,7 @@ export function App() {
       {activeView === "subscriptions" ? (
         <SubscriptionsPage
           deletePending={deletePending}
+          feedEvents={feedEvents}
           selectedSubscriptionId={selectedSubscriptionId}
           subscriptions={subscriptions}
           onDeleteSubscription={(subscriptionId) => void handleDeleteSubscription(subscriptionId)}

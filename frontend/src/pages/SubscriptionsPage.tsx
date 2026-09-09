@@ -1,10 +1,11 @@
 import { SourceBadge } from "../components/SourceBadge";
 import feedEmptyIllustration from "../assets/states/feed/feed-empty.svg";
 import feedNoUpdatesIllustration from "../assets/states/feed/feed-no-updates.svg";
-import type { SubscriptionItem, ViewerPayload } from "../types/api";
+import type { FeedEventItem, SubscriptionItem, ViewerPayload } from "../types/api";
 
 type SubscriptionsPageProps = {
   deletePending: boolean;
+  feedEvents: FeedEventItem[];
   selectedSubscriptionId: string | null;
   subscriptions: SubscriptionItem[];
   viewer: ViewerPayload["user"];
@@ -14,6 +15,7 @@ type SubscriptionsPageProps = {
 
 export function SubscriptionsPage({
   deletePending,
+  feedEvents,
   selectedSubscriptionId,
   subscriptions,
   viewer,
@@ -22,6 +24,11 @@ export function SubscriptionsPage({
 }: SubscriptionsPageProps) {
   const selectedSubscription =
     subscriptions.find((item) => item.subscriptionId === selectedSubscriptionId) ?? null;
+  const selectedFeedEvents = selectedSubscription
+    ? feedEvents.filter(
+        (event) => event.subscriptionId === selectedSubscription.subscriptionId,
+      )
+    : [];
   const hasSubscriptions = subscriptions.length > 0;
 
   return (
@@ -134,21 +141,49 @@ export function SubscriptionsPage({
                 </div>
 
                 <div className="detail-panel-block">
-                  <h4>Feed Behavior</h4>
-                  <div className="feed-updates-placeholder">
-                    <img
-                      alt=""
-                      aria-hidden="true"
-                      className="empty-state-illustration feed-updates-illustration"
-                      src={feedNoUpdatesIllustration}
-                    />
-                    <div className="feed-updates-copy">
-                      <p className="empty-state-title">Feed Events Persist</p>
-                      <p className="detail-copy">
-                        Releases and default-branch commits found after subscription are added to Feed and stay there.
-                      </p>
-                    </div>
+                  <div className="subscription-updates-heading">
+                    <h4>Recent updates</h4>
+                    <span className="results-count-badge">
+                      {selectedFeedEvents.length} events
+                    </span>
                   </div>
+                  {selectedFeedEvents.length === 0 ? (
+                    <div className="feed-updates-placeholder">
+                      <img
+                        alt=""
+                        aria-hidden="true"
+                        className="empty-state-illustration feed-updates-illustration"
+                        src={feedNoUpdatesIllustration}
+                      />
+                      <div className="feed-updates-copy">
+                        <p className="empty-state-title">No updates yet</p>
+                        <p className="detail-copy">
+                          New releases and default-branch commits will appear here and in your Feed.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="subscription-update-list">
+                      {selectedFeedEvents.map((event) => (
+                        <a
+                          className="subscription-update"
+                          href={event.url}
+                          key={event.eventId}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          <span className="subscription-update-kind">
+                            {formatSignalKind(event.signalKind)}
+                          </span>
+                          <strong>{event.title}</strong>
+                          <span className="subscription-update-summary">{event.summary}</span>
+                          <span className="subscription-update-date">
+                            {formatEventDate(event.publishedAt || event.createdAt)}
+                          </span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </>
             ) : (
@@ -168,6 +203,33 @@ export function SubscriptionsPage({
 }
 
 function formatSubscriptionDate(value: string): string {
+  const parsedDate = new Date(value);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(parsedDate);
+}
+
+function formatSignalKind(value: string): string {
+  if (value === "release") {
+    return "Release";
+  }
+  if (value === "commit") {
+    return "Commit";
+  }
+  return value;
+}
+
+function formatEventDate(value: string | null): string {
+  if (!value) {
+    return "Unknown date";
+  }
+
   const parsedDate = new Date(value);
   if (Number.isNaN(parsedDate.getTime())) {
     return value;
