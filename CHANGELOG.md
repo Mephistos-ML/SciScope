@@ -1,3 +1,18 @@
+# [1.17.0](https://github.com/Mephistos-ML/SciScope/compare/v1.16.1...v1.17.0) (2026-09-09)
+
+
+### Bug Fixes
+
+* **copy:** show supported repository sources ([0bd415d](https://github.com/Mephistos-ML/SciScope/commit/0bd415d67aa8f7f140c7914207e40e080381d206))
+* **feed:** restore global scope after repository view ([9a290cf](https://github.com/Mephistos-ML/SciScope/commit/9a290cff3e7351302c44f09cfc4cb911b109465f))
+
+
+### Features
+
+* **account:** add settings and account deletion ([9f7efa9](https://github.com/Mephistos-ML/SciScope/commit/9f7efa96a639fe3c97fdbbd311f78d23fda84b24))
+* **legal:** add privacy and terms pages ([db69066](https://github.com/Mephistos-ML/SciScope/commit/db690668e77cca53557a07a241ee289fce4ee9c4))
+* **web:** refine account controls and navigation ([bd712ee](https://github.com/Mephistos-ML/SciScope/commit/bd712eed8ca7a681386767ffb4e6f833b61c055b))
+
 ## [1.16.1](https://github.com/Mephistos-ML/SciScope/compare/v1.16.0...v1.16.1) (2026-09-09)
 
 
