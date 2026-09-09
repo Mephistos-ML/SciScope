@@ -5,6 +5,7 @@ import {
   beginGoogleSignIn,
   createExploreSearchJob,
   createSubscription,
+  deleteAccount,
   deleteSubscription,
   fetchFeed,
   fetchExploreSearchJob,
@@ -17,8 +18,10 @@ import {
 import { frontendConfig } from "../lib/config";
 import { AppShell } from "../components/AppShell";
 import { AboutPage } from "../pages/AboutPage";
+import { AccountPage } from "../pages/AccountPage";
 import { ExplorePage } from "../pages/ExplorePage";
 import { FeedPage } from "../pages/FeedPage";
+import { PrivacyPage, TermsPage } from "../pages/LegalPages";
 import { SubscriptionsPage } from "../pages/SubscriptionsPage";
 import type {
   AiSearchPlanPayload,
@@ -30,7 +33,7 @@ import type {
   Viewer,
 } from "../types/api";
 
-type AppView = "explore" | "feed" | "subscriptions" | "about";
+type AppView = "explore" | "feed" | "subscriptions" | "about" | "account" | "privacy" | "terms";
 
 type ExploreSearchFeedback = {
   message: string;
@@ -40,7 +43,7 @@ type ExploreSearchFeedback = {
 };
 
 export function App() {
-  const [activeView, setActiveView] = useState<AppView>("explore");
+  const [activeView, setActiveView] = useState<AppView>(() => window.location.pathname === "/privacy" ? "privacy" : window.location.pathname === "/terms" ? "terms" : "explore");
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [results, setResults] = useState<ExploreResultItem[]>([]);
   const [lastAiSearchPlan, setLastAiSearchPlan] = useState<AiSearchPlanPayload | null>(null);
@@ -61,6 +64,7 @@ export function App() {
     null,
   );
   const [deletePending, setDeletePending] = useState(false);
+  const [accountDeletePending, setAccountDeletePending] = useState(false);
   const [feedUpdatePending, setFeedUpdatePending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [exploreSearchFeedback, setExploreSearchFeedback] = useState<ExploreSearchFeedback | null>(
@@ -360,6 +364,20 @@ export function App() {
     }
   }
 
+  async function handleDeleteAccount() {
+    setAccountDeletePending(true);
+    setErrorMessage(null);
+    try {
+      await deleteAccount();
+      setViewer(null);
+      setActiveView("explore");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to delete account.");
+    } finally {
+      setAccountDeletePending(false);
+    }
+  }
+
   async function handleMarkFeedEventRead(eventId: string) {
     setFeedUpdatePending(true);
     try {
@@ -429,6 +447,32 @@ export function App() {
     }
   }
 
+  async function restoreGlobalFeed() {
+    setFeedSubscriptionId(null);
+    setFeedEvents([]);
+    setFeedNextCursor(null);
+    setFeedHasMore(false);
+    setFeedLoadPending(true);
+    try {
+      const payload = await fetchFeed({ state: feedState });
+      setFeedEvents(payload.items);
+      setFeedNextCursor(payload.nextCursor);
+      setFeedHasMore(payload.hasMore);
+      setUnreadFeedCount(payload.unreadCount);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to restore the global Feed.");
+    } finally {
+      setFeedLoadPending(false);
+    }
+  }
+
+  function handleViewChange(nextView: AppView) {
+    if (activeView === "feed" && nextView !== "feed" && feedSubscriptionId) {
+      void restoreGlobalFeed();
+    }
+    setActiveView(nextView);
+  }
+
   async function handleViewSubscriptionFeed(subscriptionId: string) {
     setFeedLoadPending(true);
     try {
@@ -448,7 +492,8 @@ export function App() {
   return (
     <AppShell
       activeView={activeView}
-      onNavigate={setActiveView}
+      onNavigate={handleViewChange}
+      onOpenAccount={() => handleViewChange("account")}
       onSignIn={() => void handleSignIn()}
       onSignOut={() => void handleSignOut()}
       signingIn={signingIn}
@@ -512,6 +557,9 @@ export function App() {
         />
       ) : null}
       {activeView === "about" ? <AboutPage /> : null}
+      {activeView === "account" && viewer ? <AccountPage deleting={accountDeletePending} onDelete={() => void handleDeleteAccount()} onSignOut={() => void handleSignOut()} viewer={viewer} /> : null}
+      {activeView === "privacy" ? <PrivacyPage /> : null}
+      {activeView === "terms" ? <TermsPage /> : null}
     </AppShell>
   );
 }

@@ -89,7 +89,7 @@ export function AboutPage() {
         <article className="about-panel">
           <h2 className="section-title">Coverage</h2>
           <ul className="about-list">
-            <li>Repository discovery across GitHub, GitLab, Gitee, GitCode and GitVerse.</li>
+            <li>Repository discovery across GitHub and GitLab.</li>
             <li>Repository links preserved through source badges and subscription records.</li>
             <li>Feed entries built from repositories explicitly selected in Explore.</li>
             <li>Search and monitoring centered on repositories as the primary unit.</li>

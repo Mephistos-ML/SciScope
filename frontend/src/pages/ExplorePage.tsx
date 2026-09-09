@@ -137,7 +137,7 @@ export function ExplorePage({
         <div className="page-intro-main">
           <h1 className="page-title">Explore Scientific Software</h1>
           <p className="section-copy">
-            Discover repositories across GitHub, GitLab, Gitee, GitCode and GitVerse.
+            Discover repositories across GitHub and GitLab.
           </p>
         </div>
       </section>

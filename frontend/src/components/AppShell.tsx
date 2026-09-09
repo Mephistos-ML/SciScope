@@ -1,12 +1,20 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import sciscopeLogo from "../assets/brand/sciscope-logo.svg";
+import accountSettingsIcon from "../assets/buttons/sciscope-account-settings.svg";
+import dropdownIcon from "../assets/buttons/sciscope-dropdown.svg";
+import exploreIcon from "../assets/buttons/sciscope-explore.svg";
+import feedIcon from "../assets/buttons/sciscope-feed.svg";
+import loginIcon from "../assets/buttons/sciscope-login.svg";
+import logoutIcon from "../assets/buttons/sciscope-logout.svg";
+import subscriptionsIcon from "../assets/buttons/sciscope-subscriptions.svg";
 import type { ViewerPayload } from "../types/api";
 
 type AppShellProps = {
-  activeView: "explore" | "feed" | "subscriptions" | "about";
+  activeView: "explore" | "feed" | "subscriptions" | "about" | "account" | "privacy" | "terms";
   children: ReactNode;
   onNavigate: (view: "explore" | "feed" | "subscriptions" | "about") => void;
+  onOpenAccount: () => void;
   onSignIn: () => void;
   onSignOut: () => void;
   unreadFeedCount: number;
@@ -19,6 +27,7 @@ export function AppShell({
   activeView,
   children,
   onNavigate,
+  onOpenAccount,
   onSignIn,
   onSignOut,
   unreadFeedCount,
@@ -26,6 +35,8 @@ export function AppShell({
   signingOut,
   viewer,
 }: AppShellProps) {
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+
   return (
     <div className="app-frame">
       <header className="app-header">
@@ -42,16 +53,69 @@ export function AppShell({
 
           <div className="header-actions">
             {viewer ? (
-              <div className="viewer-strip">
-                <span>{viewer.displayName}</span>
-                <button
-                  className="outline-button"
-                  disabled={signingOut}
-                  onClick={onSignOut}
+              <div
+                className="viewer-menu"
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) {
+                    setAccountMenuOpen(false);
+                  }
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setAccountMenuOpen(false);
+                    event.currentTarget.querySelector<HTMLButtonElement>(".viewer-menu-trigger")?.focus();
+                  }
+                }}
+              >
+                <div className="viewer-strip">
+                  {viewer.avatarUrl ? (
+                    <img alt="" className="viewer-avatar" src={viewer.avatarUrl} />
+                  ) : (
+                    <span aria-hidden="true" className="viewer-avatar viewer-avatar-fallback">
+                      {viewer.displayName.slice(0, 1)}
+                    </span>
+                  )}
+                  <span className="viewer-name">{viewer.displayName}</span>
+                  <button
+                    aria-expanded={accountMenuOpen}
+                    aria-haspopup="menu"
+                    aria-label="Open account menu"
+                  className="viewer-menu-trigger"
+                    onClick={() => setAccountMenuOpen((open) => !open)}
                   type="button"
                 >
-                  {signingOut ? "Signing Out..." : "Sign Out"}
-                </button>
+                    <img alt="" className="viewer-dropdown-icon" src={dropdownIcon} />
+                  </button>
+                </div>
+                {accountMenuOpen ? (
+                  <div aria-label="Account menu" className="viewer-menu-popover" role="menu">
+                    <button
+                      className="viewer-menu-item"
+                      onClick={() => {
+                        setAccountMenuOpen(false);
+                        onOpenAccount();
+                      }}
+                      role="menuitem"
+                      type="button"
+                    >
+                      <img alt="" className="viewer-menu-item-icon" src={accountSettingsIcon} />
+                      Account settings
+                    </button>
+                    <button
+                      className="viewer-menu-item viewer-menu-sign-out"
+                      disabled={signingOut}
+                      onClick={() => {
+                        setAccountMenuOpen(false);
+                        onSignOut();
+                      }}
+                      role="menuitem"
+                      type="button"
+                    >
+                      <img alt="" className="viewer-menu-item-icon" src={logoutIcon} />
+                      {signingOut ? "Logging out..." : "Log out"}
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <button
@@ -60,6 +124,7 @@ export function AppShell({
                 onClick={onSignIn}
                 type="button"
               >
+                <img alt="" className="sign-in-icon" src={loginIcon} />
                 {signingIn ? "Connecting..." : "Continue with Google"}
               </button>
             )}
@@ -79,7 +144,7 @@ export function AppShell({
             onClick={() => onNavigate("explore")}
             type="button"
           >
-            <SearchIcon />
+            <img alt="" className="sidebar-nav-icon" src={exploreIcon} />
             <span>Explore</span>
           </button>
           <button
@@ -92,7 +157,7 @@ export function AppShell({
             onClick={() => onNavigate("feed")}
             type="button"
           >
-            <FeedIcon />
+            <img alt="" className="sidebar-nav-icon" src={feedIcon} />
             <span>Feed</span>
             {unreadFeedCount > 0 ? (
               <span aria-label={`${unreadFeedCount} unread feed events`} className="sidebar-nav-badge">
@@ -110,81 +175,32 @@ export function AppShell({
             onClick={() => onNavigate("subscriptions")}
             type="button"
           >
-            <LibraryIcon />
+            <img alt="" className="sidebar-nav-icon" src={subscriptionsIcon} />
             <span>Subscriptions</span>
           </button>
         </nav>
       </aside>
 
-      <footer className="app-side-footer">
-        <button
-          className={
-            activeView === "about"
-              ? "sidebar-footer-button sidebar-footer-button-active"
-              : "sidebar-footer-button"
-          }
-          aria-current={activeView === "about" ? "page" : undefined}
-          onClick={() => onNavigate("about")}
-          type="button"
-        >
-          <span className="sidebar-footer-title">About SciScope</span>
-          <span className="sidebar-footer-copy">
-            Scientific repository intelligence for researchers.
-          </span>
-        </button>
-      </footer>
-
       <div className="app-main-column">
-        <div className="app-content">{children}</div>
+        <div className="app-content">
+          <div className="app-content-frame">
+            {children}
+            <footer className="legal-footer">
+              <span>© 2026 SciScope</span>
+              <button
+                aria-current={activeView === "about" ? "page" : undefined}
+                className="legal-footer-link"
+                onClick={() => onNavigate("about")}
+                type="button"
+              >
+                About
+              </button>
+              <a href="/privacy">Privacy Policy</a>
+              <a href="/terms">Terms of Use</a>
+            </footer>
+          </div>
+        </div>
       </div>
     </div>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="sidebar-nav-icon"
-      viewBox="0 0 20 20"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M12.5 12.5L17 17" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-function FeedIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="sidebar-nav-icon"
-      viewBox="0 0 20 20"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <rect x="3" y="3" width="14" height="14" rx="3" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M6 10H14" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-      <path d="M10 6L10 14" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-function LibraryIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="sidebar-nav-icon"
-      viewBox="0 0 20 20"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path d="M4.5 4.5H15.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-      <path d="M4.5 10H15.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-      <path d="M4.5 15.5H15.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-      <path d="M6 3.5V16.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-    </svg>
   );
 }

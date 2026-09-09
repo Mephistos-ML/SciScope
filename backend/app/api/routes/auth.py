@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from fastapi import Request, Response
+from fastapi import HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 
 from app.services.auth.service import (
     build_google_auth_redirect_response,
     complete_google_auth_callback,
+    delete_current_user_account,
     get_current_user,
     sign_out_current_user,
 )
@@ -29,6 +30,19 @@ def logout_response(request: Request, response: Response) -> dict[str, object]:
         database_url=request.app.state.database_url,
     )
     return {"user": None}
+
+
+def delete_account_response(request: Request, response: Response) -> dict[str, bool]:
+    """Permanently remove the authenticated user's account data."""
+
+    deleted = delete_current_user_account(
+        request,
+        response,
+        database_url=request.app.state.database_url,
+    )
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sign in required")
+    return {"deleted": True}
 
 
 def start_google_auth_response() -> RedirectResponse:
