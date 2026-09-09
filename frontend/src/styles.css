@@ -1562,8 +1562,8 @@ input::placeholder {
 }
 
 .event-kind-badge-commit {
-  background: var(--coral-100);
-  color: var(--coral-600);
+  background: color-mix(in srgb, var(--navy-700) 8%, var(--surface));
+  color: var(--navy-700);
 }
 
 .subscription-update .event-kind-badge {
