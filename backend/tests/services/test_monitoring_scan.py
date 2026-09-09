@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
+from sqlalchemy import select
+
+from tests.conftest import build_test_database_url, migrate_test_database
+from app.database.records import MonitoringRunRecordModel, RepositoryMonitoringCheckRecordModel
+from app.database.session import session_scope
 from app.models.repository import Repository
 from app.models.signal import Signal
 from app.services.monitoring import scan
 from app.sources.common import RepositoryActivity
+from app.storage import auth as auth_storage
+from app.storage.feed import list_feed_events_for_user
+from app.storage.monitoring import get_repository_monitoring_cursors
+from app.storage.repositories import upsert_repositories
+from app.storage.subscriptions import create_subscription
 from app.storage.subscriptions import SubscriptionWatchRecord
 
 
@@ -117,6 +127,63 @@ def test_scan_skips_when_another_run_holds_the_lease(monkeypatch) -> None:
     scan.run_repository_monitoring_scan(database_url="sqlite://")
 
     assert calls == []
+
+
+def test_scan_persists_baseline_events_cursors_and_health_facts(tmp_path, monkeypatch) -> None:
+    database_url = build_test_database_url(tmp_path / "monitoring-scan.sqlite3")
+    migrate_test_database(database_url)
+    repository = _repository()
+    user = auth_storage.create_user(
+        user_id="user_monitoring",
+        email="monitoring@example.com",
+        display_name="Monitoring User",
+        database_url=database_url,
+    )
+    upsert_repositories((repository,), database_url=database_url)
+    subscription = create_subscription(
+        user_id=user.user_id,
+        repository_id=repository.repository_id,
+        selected_query="repository monitoring",
+        database_url=database_url,
+    )
+    signals: list[Signal] = []
+    monitor = _Monitor(
+        lambda *_args, **_kwargs: RepositoryActivity(signals=tuple(signals))
+    )
+    monkeypatch.setattr(scan, "get_repository_monitor", lambda _source: monitor)
+
+    scan.run_repository_monitoring_scan(database_url=database_url)
+
+    baseline_cursors = get_repository_monitoring_cursors(
+        repository.repository_id,
+        database_url=database_url,
+    )
+    assert monitor.calls == []
+    assert set(baseline_cursors) == {
+        scan.REPOSITORY_RELEASE_CHECKPOINT_KEY,
+        scan.REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
+    }
+
+    published_at = datetime.now(UTC) + timedelta(minutes=1)
+    signals.append(_signal("release-1", published_at))
+
+    scan.run_repository_monitoring_scan(database_url=database_url)
+
+    events = list_feed_events_for_user(user.user_id, database_url=database_url)
+    cursors = get_repository_monitoring_cursors(
+        repository.repository_id,
+        database_url=database_url,
+    )
+    with session_scope(database_url) as session:
+        runs = session.scalars(select(MonitoringRunRecordModel)).all()
+        checks = session.scalars(select(RepositoryMonitoringCheckRecordModel)).all()
+
+    assert [event.subscription_id for event in events] == [subscription.subscription_id]
+    assert cursors[scan.REPOSITORY_RELEASE_CHECKPOINT_KEY] == published_at.isoformat()
+    assert len(runs) == 2
+    assert {run.status for run in runs} == {"succeeded"}
+    assert len(checks) == 2
+    assert {check.status for check in checks} == {"succeeded"}
 
 
 def _configure_scan(
