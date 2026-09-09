@@ -7,10 +7,12 @@ from collections.abc import Callable
 from time import monotonic
 
 from app import config
-from app.services.ai import (
+from app.services.ai.openai.client import (
     OpenAIClientConfigurationError,
     OpenAIResponseError,
-    build_ai_search_plan,
+)
+from app.services.ai.planner import build_ai_search_plan
+from app.services.ai.search_plans import (
     serialize_ai_search_plan,
 )
 from app.services.search.explore.canonical import select_canonical_candidates

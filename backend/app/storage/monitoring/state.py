@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import or_, update
 from sqlalchemy.exc import IntegrityError
 
-from app.database.records import (
+from app.database.records.monitoring import (
     MonitoringJobLeaseRecordModel,
     MonitoringRunRecordModel,
     RepositoryMonitoringCheckRecordModel,

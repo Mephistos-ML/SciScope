@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.models.ranking_dataset import RankingDatasetExample, RankingDatasetRun
-from app.services.search.explore import get_explore_search_job
+from app.services.search.explore.jobs import get_explore_search_job
 from app.storage.ranking_dataset import create_ranking_dataset_run
 
 RANKING_POLICY_VERSION = "heuristic-v1"

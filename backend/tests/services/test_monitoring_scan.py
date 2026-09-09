@@ -8,7 +8,10 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 
 from tests.conftest import build_test_database_url, migrate_test_database
-from app.database.records import MonitoringRunRecordModel, RepositoryMonitoringCheckRecordModel
+from app.database.records.monitoring import (
+    MonitoringRunRecordModel,
+    RepositoryMonitoringCheckRecordModel,
+)
 from app.database.session import session_scope
 from app.models.repository import Repository
 from app.models.signal import Signal
@@ -17,7 +20,7 @@ from app.sources.common import RepositoryActivity
 from app.sources.common import RepositorySourceError
 from app.storage import auth as auth_storage
 from app.storage.feed import list_feed_events_for_user
-from app.storage.monitoring import (
+from app.storage.monitoring.state import (
     acquire_monitoring_job_lease,
     get_repository_monitoring_cursors,
     release_monitoring_job_lease,

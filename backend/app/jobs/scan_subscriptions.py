@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.config import DATABASE_URL
-from app.services.monitoring import run_repository_monitoring_scan
+from app.services.monitoring.scan import run_repository_monitoring_scan
 
 
 def main() -> None:

@@ -18,8 +18,8 @@ from app.models.feed import FeedEvent
 from app.models.repository import Repository
 from app.models.signal import Signal
 from app.runtime.state import STATE
-from app.services.auth import create_authenticated_session
 from app.services.auth import service as auth_service
+from app.services.auth.service import create_authenticated_session
 from app.services.security.turnstile import TurnstileVerificationResult
 from app.services.search.retrieval.models import (
     CandidateProvenance,

@@ -12,15 +12,15 @@ from app.config import DATABASE_URL
 from app.models.monitoring import MonitoringRun, RepositoryMonitoringCheck
 from app.models.repository import Repository
 from app.models.signal import Signal
-from app.services.feed import build_feed_event
-from app.sources import get_repository_monitor
-from app.sources.common import (
+from app.services.feed.service import build_feed_event
+from app.sources.common.factories import (
     REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
     REPOSITORY_RELEASE_CHECKPOINT_KEY,
-    RepositorySourceError,
 )
-from app.storage.feed import upsert_feed_events
-from app.storage.monitoring import (
+from app.sources.common.source_status import RepositorySourceError
+from app.sources.registry import get_repository_monitor
+from app.storage.feed.events import upsert_feed_events
+from app.storage.monitoring.state import (
     acquire_monitoring_job_lease,
     create_monitoring_run,
     finish_monitoring_run,
@@ -29,8 +29,11 @@ from app.storage.monitoring import (
     release_monitoring_job_lease,
     upsert_repository_monitoring_cursors,
 )
-from app.storage.repositories import upsert_repositories
-from app.storage.subscriptions import SubscriptionWatchRecord, list_all_subscription_watches
+from app.storage.repositories.repositories import upsert_repositories
+from app.storage.subscriptions.watches import (
+    SubscriptionWatchRecord,
+    list_all_subscription_watches,
+)
 
 
 JOB_NAME = "repository-monitoring-scan"

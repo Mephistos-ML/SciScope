@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 
-from app.database.records import UserRecordModel
+from app.database.records.auth import UserRecordModel
 from app.database.session import session_scope
 
 

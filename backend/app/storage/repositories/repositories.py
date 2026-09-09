@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import exists, func, or_, select
 
-from app.database.records import (
+from app.database.records.repositories import (
     RepositoryRecordModel,
     RepositorySearchEvidenceRecordModel,
 )

@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import Select, select, update
 
-from app.database.records import UserRecordModel, UserSessionRecordModel
+from app.database.records.auth import UserRecordModel, UserSessionRecordModel
 from app.database.session import session_scope
 from app.storage.auth.users import UserRecord, _to_user_record
 

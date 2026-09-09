@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import Request
 
-from app.models import ExploreAccessOutcome, ExploreActor, ExploreTier
+from app.models.explore_access import ExploreAccessOutcome, ExploreActor, ExploreTier
 from app.services.search.access import service as access_service
 from app.services.search.access import policy as access_policy
 from app.services.search.access.policy import should_require_turnstile

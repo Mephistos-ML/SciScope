@@ -6,7 +6,7 @@ from datetime import datetime
 
 from sqlalchemy import delete
 
-from app.database.records import FeedEventRecordModel
+from app.database.records.feed import FeedEventRecordModel
 from app.database.session import session_scope
 
 

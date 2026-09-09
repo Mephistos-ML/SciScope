@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import Select, func, select
 
-from app.database.records import ExploreSearchEventRecordModel
+from app.database.records.explore import ExploreSearchEventRecordModel
 from app.database.session import session_scope
 
 

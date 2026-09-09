@@ -5,8 +5,8 @@ from __future__ import annotations
 from fastapi import HTTPException, Request, status
 from sqlalchemy.exc import IntegrityError
 
-from app.services.auth import get_current_user
-from app.services.features import has_feature
+from app.services.auth.service import get_current_user
+from app.services.features.access import has_feature
 from app.services.ranking_dataset import save_ranking_dataset_run
 
 

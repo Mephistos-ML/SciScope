@@ -9,14 +9,16 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from app.database.base import Base
-from app.database.records import (
-    ExploreSearchEventRecordModel,
-    FeedEventRecordModel,
+from app.database.records.auth import (
     OAuthAccountRecordModel,
-    RepositoryRecordModel,
-    SubscriptionRecordModel,
     UserRecordModel,
     UserSessionRecordModel,
+)
+from app.database.records.explore import ExploreSearchEventRecordModel
+from app.database.records.feed import FeedEventRecordModel
+from app.database.records.repositories import (
+    RepositoryRecordModel,
+    SubscriptionRecordModel,
 )
 
 REGISTERED_MODELS = (

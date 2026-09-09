@@ -20,7 +20,7 @@ from app.models.explore_access import (
     ExploreLimitCode,
     ExploreTier,
 )
-from app.services.auth import User
+from app.services.auth.service import User
 from app.services.search.access.policy import (
     build_cooldown_decision,
     build_global_capacity_decision,

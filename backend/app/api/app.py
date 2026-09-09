@@ -20,9 +20,9 @@ from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS, DATABASE_URL
 from app.database.session import check_database_connection
 from app.logging import configure_logging
-from app.services.auth import get_current_user
+from app.services.auth.service import get_current_user
 from app.services.search.access.errors import ExploreAccessDeniedError
-from app.services.search.explore import (
+from app.services.search.explore.service import (
     AiSearchPlanningError,
     ExploreSearchUnavailableError,
 )

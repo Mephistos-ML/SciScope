@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from app.config import DATABASE_URL
 from app.models.repository import Repository
-from app.services.auth import User
+from app.services.auth.service import User
 from app.services.subscriptions.repositories import build_subscribed_repository
-from app.storage.repositories import upsert_repositories
-from app.storage.subscriptions import (
+from app.storage.repositories.repositories import upsert_repositories
+from app.storage.subscriptions.subscriptions import (
     create_subscription,
     delete_subscription_for_user,
-    list_subscription_watches_for_user,
 )
+from app.storage.subscriptions.watches import list_subscription_watches_for_user
 
 
 def list_subscription_payloads(
