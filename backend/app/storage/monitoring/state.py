@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from app.database.records import MonitoringJobLeaseRecordModel, MonitoringRunRecordModel
+from app.database.records import (
+    MonitoringJobLeaseRecordModel,
+    MonitoringRunRecordModel,
+    RepositoryMonitoringCheckRecordModel,
+    RepositoryMonitoringCursorRecordModel,
+)
+from app.models.monitoring import RepositoryMonitoringCheck
 from app.database.session import session_scope
 from app.models.monitoring import MonitoringRun
 
@@ -83,3 +89,67 @@ def finish_monitoring_run(
         run.scanned_repository_count = scanned_repository_count
         run.failed_repository_count = failed_repository_count
         run.error_summary = error_summary
+
+
+def get_repository_monitoring_cursors(
+    repository_id: str,
+    *,
+    database_url: str,
+) -> dict[str, str]:
+    """Return all durable monitoring cursors for one repository."""
+
+    with session_scope(database_url) as session:
+        rows = session.query(RepositoryMonitoringCursorRecordModel).filter_by(
+            repository_id=repository_id
+        ).all()
+    return {row.checkpoint_key: row.checkpoint_value for row in rows}
+
+
+def upsert_repository_monitoring_cursors(
+    repository_id: str,
+    values: dict[str, str],
+    *,
+    database_url: str,
+) -> None:
+    """Advance named repository-level cursors after a successful scan."""
+
+    now = datetime.now(UTC)
+    with session_scope(database_url) as session:
+        for checkpoint_key, checkpoint_value in values.items():
+            row = session.get(
+                RepositoryMonitoringCursorRecordModel,
+                (repository_id, checkpoint_key),
+            )
+            if row is None:
+                session.add(
+                    RepositoryMonitoringCursorRecordModel(
+                        repository_id=repository_id,
+                        checkpoint_key=checkpoint_key,
+                        checkpoint_value=checkpoint_value,
+                        updated_at=now,
+                    )
+                )
+            else:
+                row.checkpoint_value = checkpoint_value
+                row.updated_at = now
+
+
+def record_repository_monitoring_check(
+    check: RepositoryMonitoringCheck,
+    *,
+    run_id: str,
+    database_url: str,
+) -> None:
+    """Persist one repository's sanitized monitoring outcome."""
+
+    with session_scope(database_url) as session:
+        session.add(
+            RepositoryMonitoringCheckRecordModel(
+                repository_id=check.repository_id,
+                run_id=run_id,
+                checked_at=check.checked_at,
+                status=check.status,
+                error_code=check.error_code,
+                error_message=check.error_message,
+            )
+        )
