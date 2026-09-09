@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { EventKindBadge } from "../components/EventKindBadge";
 import { SourceBadge } from "../components/SourceBadge";
 import feedEmptyIllustration from "../assets/states/feed/feed-empty.svg";
 import type { FeedEventItem, ViewerPayload } from "../types/api";
@@ -111,7 +112,6 @@ export function FeedPage({
                 <span>Event</span>
                 <span>Repository</span>
                 <span>Source</span>
-                <span>Type</span>
                 <span>When</span>
                 <span>State</span>
               </div>
@@ -123,7 +123,10 @@ export function FeedPage({
                     key={event.eventId}
                   >
                     <div className="repository-main-cell">
-                      <p className="repository-title">{event.title}</p>
+                      <div className="feed-event-heading">
+                        <p className="repository-title">{event.title}</p>
+                        <EventKindBadge kind={event.signalKind} />
+                      </div>
                       <p className="repository-description">
                         {event.summary || "No event summary available."}
                       </p>
@@ -142,12 +145,6 @@ export function FeedPage({
 
                     <div className="repository-cell" data-label="Source">
                       <SourceBadge href={event.url} source={event.source} />
-                    </div>
-
-                    <div className="repository-cell repository-metadata-cell" data-label="Type">
-                      <span className="repository-muted-value">
-                        {formatSignalKind(event.signalKind)}
-                      </span>
                     </div>
 
                     <div className="repository-cell repository-metadata-cell" data-label="When">
@@ -182,16 +179,6 @@ export function FeedPage({
       )}
     </main>
   );
-}
-
-function formatSignalKind(value: string): string {
-  if (value === "release") {
-    return "Release";
-  }
-  if (value === "commit") {
-    return "Commit";
-  }
-  return value;
 }
 
 function formatEventDate(value: string | null): string {

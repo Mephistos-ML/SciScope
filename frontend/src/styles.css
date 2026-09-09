@@ -1031,8 +1031,8 @@ input::placeholder {
 
 .feed-repository-table .repository-table-head,
 .feed-repository-table .repository-row {
-  grid-template-columns: minmax(0, 2.6fr) minmax(112px, 0.9fr) minmax(80px, 0.65fr) minmax(112px, 0.85fr) minmax(88px, 0.65fr) minmax(88px, 0.65fr);
-  min-width: 860px;
+  grid-template-columns: minmax(0, 2.6fr) minmax(112px, 0.9fr) minmax(80px, 0.65fr) minmax(112px, 0.85fr) minmax(88px, 0.65fr);
+  min-width: 760px;
 }
 
 .repository-table-head {
@@ -1549,8 +1549,9 @@ input::placeholder {
   line-height: 20px;
 }
 
-.subscription-update-kind {
-  align-self: start;
+.event-kind-badge {
+  display: inline-flex;
+  align-items: center;
   padding: 2px 7px;
   border-radius: var(--radius-pill);
   background: var(--teal-100);
@@ -1558,6 +1559,21 @@ input::placeholder {
   font-size: 11px;
   font-weight: 700;
   line-height: 16px;
+}
+
+.event-kind-badge-commit {
+  background: var(--coral-100);
+  color: var(--coral-600);
+}
+
+.subscription-update .event-kind-badge {
+  align-self: start;
+}
+
+.feed-event-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .subscription-update-summary {

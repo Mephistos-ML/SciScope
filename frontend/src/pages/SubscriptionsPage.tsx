@@ -1,4 +1,5 @@
 import { SourceBadge } from "../components/SourceBadge";
+import { EventKindBadge } from "../components/EventKindBadge";
 import feedEmptyIllustration from "../assets/states/feed/feed-empty.svg";
 import feedNoUpdatesIllustration from "../assets/states/feed/feed-no-updates.svg";
 import type { FeedEventItem, SubscriptionItem, ViewerPayload } from "../types/api";
@@ -172,9 +173,7 @@ export function SubscriptionsPage({
                           rel="noreferrer"
                           target="_blank"
                         >
-                          <span className="subscription-update-kind">
-                            {formatSignalKind(event.signalKind)}
-                          </span>
+                          <EventKindBadge kind={event.signalKind} />
                           <strong>{event.title}</strong>
                           <span className="subscription-update-summary">{event.summary}</span>
                           <span className="subscription-update-date">
@@ -213,16 +212,6 @@ function formatSubscriptionDate(value: string): string {
     month: "short",
     year: "numeric",
   }).format(parsedDate);
-}
-
-function formatSignalKind(value: string): string {
-  if (value === "release") {
-    return "Release";
-  }
-  if (value === "commit") {
-    return "Commit";
-  }
-  return value;
 }
 
 function formatEventDate(value: string | null): string {
