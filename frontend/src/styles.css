@@ -216,7 +216,7 @@ input::placeholder {
 }
 
 .sidebar-nav-button:hover {
-  background: rgba(255, 255, 255, 0.7);
+  background: color-mix(in srgb, var(--navy-700) 7%, var(--surface));
 }
 
 .sidebar-nav-button-active {
@@ -224,6 +224,10 @@ input::placeholder {
   background: var(--navy-900);
   color: var(--surface);
   box-shadow: var(--shadow-panel);
+}
+
+.sidebar-nav-button-active:hover {
+  background: var(--navy-800);
 }
 
 .sidebar-nav-icon {
