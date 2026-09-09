@@ -135,6 +135,10 @@ export async function signOut(): Promise<ViewerPayload> {
   });
 }
 
+export async function deleteAccount(): Promise<{ deleted: true }> {
+  return requestJson<{ deleted: true }>("/api/account", { method: "DELETE" });
+}
+
 export async function fetchSubscriptions(): Promise<SubscriptionListPayload> {
   return requestJson<SubscriptionListPayload>("/api/subscriptions");
 }

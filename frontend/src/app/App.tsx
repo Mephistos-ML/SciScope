@@ -5,6 +5,7 @@ import {
   beginGoogleSignIn,
   createExploreSearchJob,
   createSubscription,
+  deleteAccount,
   deleteSubscription,
   fetchFeed,
   fetchExploreSearchJob,
@@ -17,6 +18,7 @@ import {
 import { frontendConfig } from "../lib/config";
 import { AppShell } from "../components/AppShell";
 import { AboutPage } from "../pages/AboutPage";
+import { AccountPage } from "../pages/AccountPage";
 import { ExplorePage } from "../pages/ExplorePage";
 import { FeedPage } from "../pages/FeedPage";
 import { SubscriptionsPage } from "../pages/SubscriptionsPage";
@@ -30,7 +32,7 @@ import type {
   Viewer,
 } from "../types/api";
 
-type AppView = "explore" | "feed" | "subscriptions" | "about";
+type AppView = "explore" | "feed" | "subscriptions" | "about" | "account";
 
 type ExploreSearchFeedback = {
   message: string;
@@ -61,6 +63,7 @@ export function App() {
     null,
   );
   const [deletePending, setDeletePending] = useState(false);
+  const [accountDeletePending, setAccountDeletePending] = useState(false);
   const [feedUpdatePending, setFeedUpdatePending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [exploreSearchFeedback, setExploreSearchFeedback] = useState<ExploreSearchFeedback | null>(
@@ -360,6 +363,20 @@ export function App() {
     }
   }
 
+  async function handleDeleteAccount() {
+    setAccountDeletePending(true);
+    setErrorMessage(null);
+    try {
+      await deleteAccount();
+      setViewer(null);
+      setActiveView("explore");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to delete account.");
+    } finally {
+      setAccountDeletePending(false);
+    }
+  }
+
   async function handleMarkFeedEventRead(eventId: string) {
     setFeedUpdatePending(true);
     try {
@@ -449,6 +466,7 @@ export function App() {
     <AppShell
       activeView={activeView}
       onNavigate={setActiveView}
+      onOpenAccount={() => setActiveView("account")}
       onSignIn={() => void handleSignIn()}
       onSignOut={() => void handleSignOut()}
       signingIn={signingIn}
@@ -512,6 +530,7 @@ export function App() {
         />
       ) : null}
       {activeView === "about" ? <AboutPage /> : null}
+      {activeView === "account" && viewer ? <AccountPage deleting={accountDeletePending} onDelete={() => void handleDeleteAccount()} onSignOut={() => void handleSignOut()} viewer={viewer} /> : null}
     </AppShell>
   );
 }

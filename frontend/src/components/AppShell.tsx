@@ -4,9 +4,10 @@ import sciscopeLogo from "../assets/brand/sciscope-logo.svg";
 import type { ViewerPayload } from "../types/api";
 
 type AppShellProps = {
-  activeView: "explore" | "feed" | "subscriptions" | "about";
+  activeView: "explore" | "feed" | "subscriptions" | "about" | "account";
   children: ReactNode;
   onNavigate: (view: "explore" | "feed" | "subscriptions" | "about") => void;
+  onOpenAccount: () => void;
   onSignIn: () => void;
   onSignOut: () => void;
   unreadFeedCount: number;
@@ -19,6 +20,7 @@ export function AppShell({
   activeView,
   children,
   onNavigate,
+  onOpenAccount,
   onSignIn,
   onSignOut,
   unreadFeedCount,
@@ -43,7 +45,7 @@ export function AppShell({
           <div className="header-actions">
             {viewer ? (
               <div className="viewer-strip">
-                <span>{viewer.displayName}</span>
+                <button className="viewer-account-button" onClick={onOpenAccount} type="button">{viewer.displayName}</button>
                 <button
                   className="outline-button"
                   disabled={signingOut}

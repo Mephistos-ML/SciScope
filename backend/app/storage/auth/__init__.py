@@ -17,6 +17,7 @@ from app.storage.auth.user_sessions import (
 from app.storage.auth.users import (
     UserRecord,
     create_user,
+    delete_user_account,
     get_user_by_email,
     get_user_by_id,
     update_user,
@@ -30,6 +31,7 @@ __all__ = [
     "create_oauth_account",
     "create_user",
     "create_user_session",
+    "delete_user_account",
     "get_authenticated_session_by_token_hash",
     "get_oauth_account_by_provider_subject",
     "get_user_by_email",

@@ -14,6 +14,7 @@ from app.storage.repositories import (
     upsert_repositories,
     upsert_repository_search_evidence,
 )
+from app.storage.auth.users import create_user, delete_user_account, get_user_by_id
 from app.storage.subscriptions import create_subscription, list_subscription_watches_for_user
 
 
@@ -79,6 +80,36 @@ def test_create_subscription_returns_direct_repository_watch(tmp_path) -> None:
     assert len(watches) == 1
     assert watches[0].repository.full_name == "Mephistos-ML/paranmr"
     assert watches[0].selected_query == "paramagnetic nmr"
+
+
+def test_delete_user_account_preserves_global_repository_data(tmp_path) -> None:
+    database_url = build_test_database_url(tmp_path / "account-deletion.sqlite3")
+    migrate_test_database(database_url)
+    repository = Repository(
+        repository_id="github:repo:123",
+        source="github",
+        provider_repository_id="123",
+        full_name="Mephistos-ML/paranmr",
+        url="https://github.com/Mephistos-ML/paranmr",
+    )
+    upsert_repositories((repository,), database_url=database_url)
+    user = create_user(
+        user_id="user_delete",
+        email="delete@example.com",
+        display_name="Delete User",
+        database_url=database_url,
+    )
+    create_subscription(
+        user_id=user.user_id,
+        repository_id=repository.repository_id,
+        selected_query="paramagnetic nmr",
+        database_url=database_url,
+    )
+
+    assert delete_user_account(user.user_id, database_url=database_url)
+    assert get_user_by_id(user.user_id, database_url=database_url) is None
+    assert list_subscription_watches_for_user(user.user_id, database_url=database_url) == []
+    assert get_repository(repository.repository_id, database_url=database_url) is not None
 
 
 def test_catalog_search_uses_profile_and_durable_query_evidence(tmp_path) -> None:

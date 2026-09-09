@@ -41,6 +41,7 @@ from app.storage.auth.user_sessions import (
 )
 from app.storage.auth.users import (
     create_user,
+    delete_user_account,
     get_user_by_email,
     update_user,
 )
@@ -255,6 +256,23 @@ def sign_out_current_user(
             database_url=database_url,
         )
     _clear_session_cookie(response)
+
+
+def delete_current_user_account(
+    request: Request,
+    response: Response,
+    *,
+    database_url: str = DATABASE_URL,
+) -> bool:
+    """Delete the authenticated user's account and clear its browser session."""
+
+    user = get_current_user(request, database_url=database_url)
+    if user is None:
+        return False
+
+    deleted = delete_user_account(user.user_id, database_url=database_url)
+    _clear_session_cookie(response)
+    return deleted
 
 
 def _get_authenticated_session(

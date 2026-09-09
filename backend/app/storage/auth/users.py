@@ -6,9 +6,12 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.database.records.auth import UserRecordModel
+from app.database.records.explore import ExploreSearchEventRecordModel
+from app.database.records.feed import FeedEventRecordModel
+from app.database.records.repositories import SubscriptionRecordModel
 from app.database.session import session_scope
 
 
@@ -100,6 +103,29 @@ def update_user(
         session.flush()
 
     return _to_user_record(row)
+
+
+def delete_user_account(user_id: str, *, database_url: str) -> bool:
+    """Delete one user's personal data while preserving global repository data."""
+
+    with session_scope(database_url) as session:
+        user = session.get(UserRecordModel, user_id)
+        if user is None:
+            return False
+
+        session.execute(
+            delete(FeedEventRecordModel).where(FeedEventRecordModel.user_id == user_id)
+        )
+        session.execute(
+            delete(SubscriptionRecordModel).where(SubscriptionRecordModel.user_id == user_id)
+        )
+        session.execute(
+            delete(ExploreSearchEventRecordModel).where(
+                ExploreSearchEventRecordModel.user_id == user_id
+            )
+        )
+        session.delete(user)
+    return True
 
 
 def _to_user_record(record: UserRecordModel) -> UserRecord:

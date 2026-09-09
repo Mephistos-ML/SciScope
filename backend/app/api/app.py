@@ -175,6 +175,13 @@ def sign_out(request: Request, response: Response) -> dict[str, object]:
     return auth_routes.logout_response(request, response)
 
 
+@app.delete("/api/account")
+def delete_account(request: Request, response: Response) -> dict[str, bool]:
+    """Permanently delete the authenticated user's account."""
+
+    return auth_routes.delete_account_response(request, response)
+
+
 @app.post("/api/explore/search")
 def run_explore_search(
     request: Request,
