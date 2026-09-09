@@ -216,6 +216,10 @@ input::placeholder {
   flex: 0 0 auto;
 }
 
+.sidebar-nav-button-active .sidebar-nav-icon {
+  filter: brightness(0) invert(1);
+}
+
 .sidebar-nav-badge {
   min-width: 20px;
   margin-left: auto;
@@ -282,6 +286,9 @@ input::placeholder {
 .account-panel { margin-top: 20px; padding: 24px; border: var(--border-subtle); border-radius: var(--radius-panel); background: var(--surface); box-shadow: var(--shadow-panel); }
 .account-panel h2 { margin: 0; color: var(--navy-900); font-size: 17px; }
 .account-panel > p:not(.section-kicker) { margin: 8px 0 18px; color: var(--text-secondary); }
+.account-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.account-panel-heading .section-kicker { margin-bottom: 8px; }
+.account-coming-soon { flex: 0 0 auto; padding: 4px 8px; border-radius: 999px; background: color-mix(in srgb, var(--navy-700) 8%, var(--surface)); color: var(--navy-700); font-size: 12px; font-weight: 700; line-height: 18px; }
 .account-identity { display: flex; align-items: center; gap: 16px; }
 .account-avatar { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; background: var(--surface-subtle); }
 .account-avatar-fallback { display: grid; place-items: center; color: var(--navy-800); font-weight: 700; }
@@ -294,7 +301,20 @@ input::placeholder {
 .account-delete-confirmation input { padding: 10px 12px; border: var(--border-subtle-strong); border-radius: var(--radius-input); }
 .danger-button { padding: 10px 14px; border: 0; border-radius: var(--radius-button); background: var(--coral-500); color: var(--surface); font-weight: 700; cursor: pointer; }
 .danger-button:disabled { cursor: not-allowed; opacity: .55; }
-.viewer-account-button { padding: 0; border: 0; color: inherit; font: inherit; font-weight: 650; cursor: pointer; }
+.viewer-menu { position: relative; }
+.viewer-name { min-width: 0; font-weight: 650; }
+.viewer-avatar { width: 28px; height: 28px; border-radius: 50%; flex: 0 0 auto; object-fit: cover; background: var(--surface-subtle); }
+.viewer-avatar-fallback { display: grid; place-items: center; color: var(--navy-800); font-size: 12px; font-weight: 700; }
+.viewer-menu-trigger { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid transparent; border-radius: var(--radius-button); background: transparent; color: var(--text-secondary); cursor: pointer; }
+.viewer-menu-trigger:hover, .viewer-menu-trigger[aria-expanded="true"] { border-color: var(--border); background: var(--surface-subtle); color: var(--navy-800); }
+.viewer-menu-trigger:focus-visible, .viewer-menu-item:focus-visible { outline: 2px solid color-mix(in srgb, var(--navy-700) 72%, white); outline-offset: 2px; }
+.viewer-menu-popover { position: absolute; z-index: 20; top: calc(100% + 8px); right: 0; min-width: max(190px, 100%); padding: 6px; border: var(--border-subtle); border-radius: var(--radius-button); background: var(--surface); box-shadow: var(--shadow-panel); }
+.viewer-menu-item { display: flex; align-items: center; width: 100%; gap: 10px; padding: 10px; border: 0; border-radius: calc(var(--radius-button) - 2px); background: transparent; color: var(--navy-900); cursor: pointer; font: inherit; font-size: 14px; font-weight: 600; text-align: left; }
+.viewer-menu-item:hover { background: var(--surface-subtle); }
+.viewer-menu-item:disabled { cursor: default; opacity: .55; }
+.viewer-menu-sign-out { margin-top: 4px; border-top: var(--border-subtle); border-radius: 0; padding-top: 14px; color: var(--text-secondary); }
+.viewer-menu-item-icon { width: 18px; height: 18px; }
+.viewer-dropdown-icon { width: 16px; height: 16px; }
 
 .section-kicker {
   margin: 0 0 8px;
@@ -360,6 +380,8 @@ input::placeholder {
   color: var(--surface);
 }
 
+.sign-in-icon { width: 18px; height: 18px; margin-right: 8px; vertical-align: -4px; filter: brightness(0) invert(1); }
+
 .solid-button {
   border: 1px solid var(--navy-900);
   box-shadow: var(--shadow-panel);
@@ -412,10 +434,6 @@ input::placeholder {
   cursor: default;
 }
 
-.viewer-strip span {
-  padding-left: 6px;
-  font-weight: 600;
-}
 
 .app-shell {
   padding: 0 0 40px;
@@ -1789,7 +1807,7 @@ input::placeholder {
     padding: 6px;
   }
 
-  .viewer-strip span {
+  .viewer-name {
     max-width: 14ch;
     overflow: hidden;
     text-overflow: ellipsis;

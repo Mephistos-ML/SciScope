@@ -31,8 +31,18 @@ export function AccountPage({ deleting, onDelete, onSignOut, viewer }: AccountPa
         <p>Google is used only to identify your SciScope account.</p>
         <button className="outline-button" onClick={onSignOut} type="button">Sign out</button>
       </section>
+      <section className="account-panel">
+        <div className="account-panel-heading">
+          <div>
+            <p className="section-kicker">Notifications</p>
+            <h2>Email updates</h2>
+          </div>
+          <span className="account-coming-soon">In development</span>
+        </div>
+        <p>Choose how SciScope keeps you informed about activity in your saved repositories. Notification controls will be available soon.</p>
+      </section>
       <section className="account-panel account-danger-zone">
-        <p className="section-kicker">Danger zone</p>
+        <p className="section-kicker">Account deletion</p>
         <h2>Delete account</h2>
         <p>This permanently deletes your profile, Google identity, sessions, subscriptions, Feed events, and user search history.</p>
         {!confirmingDeletion ? <button className="danger-button" onClick={() => setConfirmingDeletion(true)} type="button">Delete account</button> : <div className="account-delete-confirmation"><label htmlFor="delete-account-confirmation">Type DELETE to confirm</label><input id="delete-account-confirmation" onChange={(event) => setConfirmation(event.target.value)} value={confirmation} /><button className="danger-button" disabled={confirmation !== "DELETE" || deleting} onClick={onDelete} type="button">{deleting ? "Deleting..." : "Permanently delete account"}</button></div>}
