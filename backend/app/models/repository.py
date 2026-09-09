@@ -6,9 +6,6 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from app.models.signal import Signal
-
-
 _REPOSITORY_ID_MARKER = ":repo:"
 
 
@@ -109,11 +106,3 @@ class RepositoryCheckpoint:
     checkpoint_key: str
     checkpoint_value: str
     updated_at: datetime
-
-
-@dataclass(frozen=True)
-class RepositoryActivity:
-    """Provider activity plus whether the repository endpoint redirected."""
-
-    signals: tuple[Signal, ...]
-    redirected: bool = False

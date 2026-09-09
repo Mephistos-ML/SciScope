@@ -18,8 +18,10 @@ from app.sources.common.deadlines import (
 )
 from app.sources.common.models import (
     JsonResponse,
+    RepositoryActivity,
     RepositoryCandidate,
     RepositoryCommit,
+    RepositoryMonitor,
     RepositoryRelease,
 )
 from app.sources.common.source_status import (
@@ -32,8 +34,10 @@ __all__ = [
     "REPOSITORY_RELEASE_CHECKPOINT_KEY",
     "REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY",
     "JsonResponse",
+    "RepositoryActivity",
     "RepositoryCandidate",
     "RepositoryCommit",
+    "RepositoryMonitor",
     "RepositoryRelease",
     "RepositorySourceError",
     "RepositorySourceStatusCode",

@@ -5,13 +5,15 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, datetime
 
-from app.models.repository import Repository, RepositoryActivity
+from app.models.repository import Repository
 from app.models.signal import Signal
 from app.sources.common import (
+    RepositoryActivity,
     RepositoryCommit,
     RepositoryRelease,
     build_repository_main_commit_signal,
     build_repository_release_signal,
+    read_repository_name,
 )
 from app.sources.github.client import (
     GITHUB_API_BASE,
@@ -19,13 +21,17 @@ from app.sources.github.client import (
 )
 
 
-def load_repo_activity(
-    repo_full_name: str,
+def load_repository_activity(
+    repository: Repository,
     *,
     release_started_after: datetime | None,
     commit_started_after: datetime | None,
 ) -> RepositoryActivity:
     """Load repository activity and report whether its provider URL redirected."""
+
+    repo_full_name = read_repository_name(repository)
+    if repo_full_name is None:
+        return RepositoryActivity(signals=())
 
     signals: list[Signal] = []
     redirected = False

@@ -6,10 +6,13 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 from tests.conftest import build_test_database_url, migrate_test_database
-from app.models.repository import Repository, RepositoryActivity, RepositoryCheckpoint
+from app.models.repository import Repository, RepositoryCheckpoint
 from app.models.signal import Signal
 from app.services.monitoring import repositories as monitoring_service
-from app.sources.common import REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY
+from app.sources.common import (
+    REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
+    RepositoryActivity,
+)
 from app.storage.repositories import (
     get_repository,
     get_repository_checkpoint,
@@ -97,9 +100,9 @@ def test_load_repository_signals_advances_checkpoint_from_latest_release(
         )
 
     monkeypatch.setattr(
-        monitoring_service.github_source,
-        "load_repo_activity",
-        fake_load_repo_activity,
+        monitoring_service,
+        "get_repository_monitor",
+        lambda _source: _FakeMonitor(fake_load_repo_activity),
     )
 
     signals = monitoring_service.load_repository_signals(
@@ -146,17 +149,11 @@ def test_load_repository_signals_refreshes_profile_after_provider_redirect(
     )
 
     monkeypatch.setattr(
-        monitoring_service.github_source,
-        "load_repo_activity",
-        lambda *_args, **_kwargs: RepositoryActivity(signals=(), redirected=True),
-    )
-    monkeypatch.setattr(
-        monitoring_service.github_source,
-        "refresh_repository_profile",
-        lambda value: replace(
-            value,
-            full_name="Mephistos-ML/paranmr-renamed",
-            url="https://github.com/Mephistos-ML/paranmr-renamed",
+        monitoring_service,
+        "get_repository_monitor",
+        lambda _source: _FakeMonitor(
+            lambda *_args, **_kwargs: RepositoryActivity(signals=(), redirected=True),
+            refreshed_name="Mephistos-ML/paranmr-renamed",
         ),
     )
 
@@ -181,3 +178,21 @@ def _build_repository() -> Repository:
         metadata={"repo": "Mephistos-ML/paranmr"},
         provider_repository_id="123",
     )
+
+
+class _FakeMonitor:
+    def __init__(self, load_activity, refreshed_name: str | None = None):
+        self._load_activity = load_activity
+        self._refreshed_name = refreshed_name
+
+    def load_repository_activity(self, repository: Repository, **kwargs) -> RepositoryActivity:
+        return self._load_activity(repository.full_name, **kwargs)
+
+    def refresh_repository_profile(self, repository: Repository) -> Repository:
+        if self._refreshed_name is None:
+            return repository
+        return replace(
+            repository,
+            full_name=self._refreshed_name,
+            url=f"https://github.com/{self._refreshed_name}",
+        )

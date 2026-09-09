@@ -7,15 +7,13 @@ from datetime import UTC, datetime
 
 from app.models.repository import Repository, RepositoryCheckpoint
 from app.models.signal import Signal
-from app.sources import github as github_source
-from app.sources import gitlab as gitlab_source
+from app.sources import get_repository_monitor
 from app.sources.common import (
     REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
     REPOSITORY_RELEASE_CHECKPOINT_KEY,
     RepositorySourceError,
     build_repository_main_commit_checkpoint,
     build_repository_release_checkpoint,
-    read_repository_name,
 )
 from app.storage.repositories import (
     get_repository_checkpoint,
@@ -40,11 +38,7 @@ def sync_repository_baseline(
 ) -> None:
     """Initialize monitoring checkpoints for one explicit repository watch."""
 
-    if not _supports_repository_monitoring(repository):
-        return
-
-    repo_name = read_repository_name(repository)
-    if repo_name is None:
+    if get_repository_monitor(repository.source) is None:
         return
 
     now = _ensure_utc(baseline_started_at or datetime.now(UTC))
@@ -84,10 +78,6 @@ def load_repository_signals(
 ) -> list[Signal]:
     """Load live repository events and advance their checkpoints."""
 
-    repo_name = read_repository_name(repository)
-    if repo_name is None:
-        return []
-
     release_started_after = _resolve_checkpoint(
         subscription_id,
         repository,
@@ -106,31 +96,19 @@ def load_repository_signals(
         return []
 
     try:
-        if repository.source == "github":
-            activity = github_source.load_repo_activity(
-                repo_name,
-                release_started_after=release_started_after,
-                commit_started_after=commit_started_after,
-            )
-            refreshed_repository = (
-                github_source.refresh_repository_profile(repository)
-                if activity.redirected
-                else repository
-            )
-        elif repository.source == "gitlab":
-            activity = gitlab_source.load_repo_activity(
-                repo_name,
-                release_started_after=release_started_after,
-                commit_started_after=commit_started_after,
-            )
-            refreshed_repository = (
-                gitlab_source.refresh_repository_profile(repository)
-                if activity.redirected
-                else repository
-            )
-        else:
+        monitor = get_repository_monitor(repository.source)
+        if monitor is None:
             return []
-
+        activity = monitor.load_repository_activity(
+            repository,
+            release_started_after=release_started_after,
+            commit_started_after=commit_started_after,
+        )
+        refreshed_repository = (
+            monitor.refresh_repository_profile(repository)
+            if activity.redirected
+            else repository
+        )
         signals = list(activity.signals)
         if refreshed_repository != repository:
             upsert_repositories((refreshed_repository,), database_url=database_url)
@@ -211,10 +189,6 @@ def _resolve_checkpoint(
     if baseline_started_after is None:
         return None
     return _ensure_utc(baseline_started_after)
-
-
-def _supports_repository_monitoring(repository: Repository) -> bool:
-    return repository.source in {"github", "gitlab"}
 
 
 def _ensure_utc(value: datetime) -> datetime:

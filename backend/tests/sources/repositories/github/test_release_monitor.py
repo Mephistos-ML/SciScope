@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 from app.sources.github import monitor as github_monitor
 from app.sources.common import JsonResponse
+from app.models.repository import Repository
 
 
 def test_load_repo_activity_builds_release_signals(monkeypatch) -> None:
@@ -30,8 +31,8 @@ def test_load_repo_activity_builds_release_signals(monkeypatch) -> None:
 
     monkeypatch.setattr(github_monitor, "fetch_json", fake_fetch_json)
 
-    activity = github_monitor.load_repo_activity(
-        "Mephistos-ML/paranmr",
+    activity = github_monitor.load_repository_activity(
+        _repository(),
         release_started_after=started_after,
         commit_started_after=started_after,
     )
@@ -65,8 +66,8 @@ def test_load_repo_activity_ignores_events_before_start(monkeypatch) -> None:
 
     monkeypatch.setattr(github_monitor, "fetch_json", fake_fetch_json)
 
-    activity = github_monitor.load_repo_activity(
-        "Mephistos-ML/paranmr",
+    activity = github_monitor.load_repository_activity(
+        _repository(),
         release_started_after=started_after,
         commit_started_after=started_after,
     )
@@ -87,11 +88,21 @@ def test_load_repo_activity_reports_provider_redirect(monkeypatch) -> None:
 
     monkeypatch.setattr(github_monitor, "fetch_json", fake_fetch_json)
 
-    activity = github_monitor.load_repo_activity(
-        old_name,
+    activity = github_monitor.load_repository_activity(
+        _repository(),
         release_started_after=datetime(2026, 7, 17, 10, 0, tzinfo=UTC),
         commit_started_after=datetime(2026, 7, 17, 10, 0, tzinfo=UTC),
     )
 
     assert activity.signals == ()
     assert activity.redirected is True
+
+
+def _repository() -> Repository:
+    return Repository(
+        repository_id="github:repo:123",
+        source="github",
+        full_name="Mephistos-ML/paranmr",
+        url="https://github.com/Mephistos-ML/paranmr",
+        provider_repository_id="123",
+    )
