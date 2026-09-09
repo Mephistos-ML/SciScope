@@ -118,26 +118,25 @@ export function AppShell({
         </nav>
       </aside>
 
-      <footer className="app-side-footer">
-        <button
-          className={
-            activeView === "about"
-              ? "sidebar-footer-button sidebar-footer-button-active"
-              : "sidebar-footer-button"
-          }
-          aria-current={activeView === "about" ? "page" : undefined}
-          onClick={() => onNavigate("about")}
-          type="button"
-        >
-          <span className="sidebar-footer-title">About SciScope</span>
-          <span className="sidebar-footer-copy">
-            Scientific repository intelligence for researchers.
-          </span>
-        </button>
-      </footer>
-
       <div className="app-main-column">
-        <div className="app-content">{children}</div>
+        <div className="app-content">
+          <div className="app-content-frame">
+            {children}
+            <footer className="legal-footer">
+              <span>© 2026 SciScope</span>
+              <button
+                aria-current={activeView === "about" ? "page" : undefined}
+                className="legal-footer-link"
+                onClick={() => onNavigate("about")}
+                type="button"
+              >
+                About
+              </button>
+              <a href="/privacy">Privacy Policy</a>
+              <a href="/terms">Terms of Use</a>
+            </footer>
+          </div>
+        </div>
       </div>
     </div>
   );
