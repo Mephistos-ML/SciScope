@@ -6,7 +6,8 @@ import logging
 from collections.abc import Sequence
 from time import monotonic
 
-from app.services.search.observability import (
+from app.services.search.observability.context import SearchLogContext
+from app.services.search.observability.service import (
     SearchLogContext,
     build_duration_ms,
     log_search_event,

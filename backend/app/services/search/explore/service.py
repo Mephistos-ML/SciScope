@@ -26,7 +26,8 @@ from app.services.search.explore.response import (
     build_empty_explore_search_payload,
     build_explore_search_payload,
 )
-from app.services.search.observability import (
+from app.services.search.observability.context import SearchLogContext
+from app.services.search.observability.service import (
     SearchLogContext,
     build_duration_ms,
     log_search_event,
