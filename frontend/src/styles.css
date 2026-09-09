@@ -1527,10 +1527,11 @@ input::placeholder {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-bottom: 12px;
 }
 
 .subscription-updates-heading h4 {
-  margin-bottom: 8px;
+  margin: 0;
 }
 
 .subscription-update-list {
