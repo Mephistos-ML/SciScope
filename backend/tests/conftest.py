@@ -34,8 +34,8 @@ def build_test_database_url(path: Path) -> str:
     return f"sqlite+pysqlite:///{path}"
 
 
-def migrate_test_database(database_url: str) -> None:
-    """Apply Alembic migrations to one test database."""
+def migrate_test_database(database_url: str, revision: str = "head") -> None:
+    """Apply Alembic migrations to one test database revision."""
 
     alembic_config = Config(str(BACKEND_ROOT / "alembic.ini"))
     alembic_config.set_main_option(
@@ -50,7 +50,7 @@ def migrate_test_database(database_url: str) -> None:
     previous_database_url = os.environ.get("DATABASE_URL")
     os.environ["DATABASE_URL"] = database_url
     try:
-        command.upgrade(alembic_config, "head")
+        command.upgrade(alembic_config, revision)
     finally:
         if previous_database_url is None:
             os.environ.pop("DATABASE_URL", None)

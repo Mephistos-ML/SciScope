@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, datetime
 
-from app.models.feed import FeedCursor, FeedEvent
+from app.models.feed import FeedCursor, FeedEvent, build_feed_event_id
 from app.storage.feed import (
     count_feed_events,
     count_unread_feed_events_for_user,
@@ -27,7 +27,7 @@ def test_upsert_feed_events_persists_feed_rows(tmp_path) -> None:
     upsert_feed_events(
         (
             FeedEvent(
-                event_id="sub_1:github:repo-a:release:1",
+                event_id=build_feed_event_id("sub_1", "github", "org/repo-a:release:1"),
                 user_id="user_1",
                 subscription_id="sub_1",
                 repository_id="github:repo:repo-a",
@@ -73,7 +73,7 @@ def test_mark_all_feed_events_read_scopes_to_one_user(tmp_path) -> None:
     database_url = build_test_database_url(tmp_path / "feed-read-all.sqlite3")
     migrate_test_database(database_url)
     event = FeedEvent(
-        event_id="sub_1:github:repo-a:release:1",
+        event_id=build_feed_event_id("sub_1", "github", "org/repo-a:release:1"),
         user_id="user_1",
         subscription_id="sub_1",
         repository_id="github:repo:repo-a",
@@ -93,7 +93,7 @@ def test_mark_all_feed_events_read_scopes_to_one_user(tmp_path) -> None:
     )
     second_event = replace(
         event,
-        event_id="sub_2:github:repo-a:release:2",
+        event_id=build_feed_event_id("sub_2", "github", "org/repo-a:release:2"),
         user_id="user_2",
     )
     upsert_feed_events((event, second_event), database_url=database_url)
@@ -110,7 +110,7 @@ def test_get_feed_event_for_user_scopes_lookup(tmp_path) -> None:
     migrate_test_database(database_url)
 
     event = FeedEvent(
-        event_id="sub_1:github:repo-a:commit:abc",
+        event_id=build_feed_event_id("sub_1", "github", "org/repo-a:commit:abc"),
         user_id="user_1",
         subscription_id="sub_1",
         repository_id="github:repo:repo-a",

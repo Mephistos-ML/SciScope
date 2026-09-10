@@ -232,11 +232,11 @@ export async function fetchFeed(options: { cursor?: string; state?: "all" | "unr
 }
 
 export async function fetchFeedEvent(eventId: string): Promise<FeedEventDetailPayload> {
-  return requestJson<FeedEventDetailPayload>(`/api/feed/${eventId}`);
+  return requestJson<FeedEventDetailPayload>(`/api/feed/${encodeURIComponent(eventId)}`);
 }
 
 export async function markFeedEventRead(eventId: string): Promise<FeedEventDetailPayload> {
-  return requestJson<FeedEventDetailPayload>(`/api/feed/${eventId}`, {
+  return requestJson<FeedEventDetailPayload>(`/api/feed/${encodeURIComponent(eventId)}`, {
     method: "PATCH",
   });
 }

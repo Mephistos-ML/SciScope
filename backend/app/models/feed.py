@@ -5,6 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+from uuid import UUID, uuid5
+
+
+FEED_EVENT_ID_NAMESPACE = UUID("e71b2aec-1284-582c-a932-f86ef904d44c")
+
+
+def build_feed_event_id(subscription_id: str, source: str, item_id: str) -> str:
+    """Build the stable opaque identity for one subscribed provider event."""
+
+    return str(uuid5(FEED_EVENT_ID_NAMESPACE, "\x1f".join((subscription_id, source, item_id))))
 
 
 @dataclass(frozen=True)

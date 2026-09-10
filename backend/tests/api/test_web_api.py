@@ -14,7 +14,7 @@ from app.api.app import app
 from app.config import AUTH_SESSION_COOKIE_NAME
 from app.models.ai import AiSearchPlan
 from app.models.explore_access import ExploreAccessDecision, ExploreActor, ExploreLimitCode, ExploreTier
-from app.models.feed import FeedEvent
+from app.models.feed import FeedEvent, build_feed_event_id
 from app.models.repository import Repository
 from app.models.signal import Signal
 from app.runtime.state import STATE
@@ -222,7 +222,11 @@ def test_feed_endpoints_return_json() -> None:
         upsert_feed_events(
             (
                 FeedEvent(
-                    event_id="sub_pnmr:github:demo",
+                    event_id=build_feed_event_id(
+                        "sub_pnmr",
+                        "github",
+                        "Mephistos-ML/paranmr:release:demo",
+                    ),
                     user_id=user.user_id,
                     subscription_id="sub_pnmr",
                     repository_id="github:repo:Mephistos-ML/paranmr",
@@ -232,7 +236,7 @@ def test_feed_endpoints_return_json() -> None:
                     selected_query="paramagnetic nmr",
                     source="github",
                     kind="release",
-                    item_id="demo",
+                    item_id="Mephistos-ML/paranmr:release:demo",
                     title="Mephistos-ML/paranmr release v0.3.0",
                     url="https://github.com/Mephistos-ML/paranmr/releases/tag/demo",
                     published_at=datetime(2026, 9, 1, 12, tzinfo=UTC),
