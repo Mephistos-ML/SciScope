@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from datetime import UTC, datetime
+from uuid import UUID
 
 import sqlalchemy as sa
 
@@ -130,4 +132,46 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
             sa.text("SELECT version_num FROM alembic_version")
         ).scalar_one()
 
-    assert version == "0012_stateless_monitoring"
+    assert version == "0013_feed_event_opaque_ids"
+
+
+def test_feed_event_migration_replaces_provider_derived_ids(tmp_path: Path) -> None:
+    database_url = build_test_database_url(tmp_path / "feed-event-ids.sqlite3")
+    migrate_test_database(database_url, "0012_stateless_monitoring")
+    engine = sa.create_engine(database_url)
+    feed_events = sa.Table("user_feed_events", sa.MetaData(), autoload_with=engine)
+    legacy_event_id = "sub_1:github:owner/repository:commit:abc123"
+
+    with engine.begin() as connection:
+        connection.execute(
+            feed_events.insert().values(
+                event_id=legacy_event_id,
+                user_id="user_1",
+                subscription_id="sub_1",
+                repository_id="github:repo:owner/repository",
+                repository_full_name="owner/repository",
+                repository_source="github",
+                repository_url="https://github.com/owner/repository",
+                selected_query=None,
+                source="github",
+                kind="commit",
+                item_id="owner/repository:commit:abc123",
+                title="One commit",
+                url="https://github.com/owner/repository/commit/abc123",
+                published_at=datetime(2026, 9, 10, tzinfo=UTC),
+                raw_text="One commit",
+                normalized_text="One commit",
+                metadata_json={},
+                created_at=datetime(2026, 9, 10, tzinfo=UTC),
+                read_at=None,
+            )
+        )
+
+    migrate_test_database(database_url)
+
+    with engine.connect() as connection:
+        event_id = connection.execute(sa.select(feed_events.c.event_id)).scalar_one()
+
+    assert event_id != legacy_event_id
+    assert "/" not in event_id
+    assert UUID(event_id).version == 5

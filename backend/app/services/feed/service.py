@@ -6,7 +6,7 @@ import base64
 from datetime import UTC, datetime
 import json
 
-from app.models.feed import FeedCursor, FeedEvent
+from app.models.feed import FeedCursor, FeedEvent, build_feed_event_id
 from app.models.signal import Signal
 from app.storage.feed import (
     count_unread_feed_events_for_user,
@@ -30,7 +30,11 @@ def build_feed_event(
     """Build one durable feed event from a monitored repository signal."""
 
     return FeedEvent(
-        event_id=f"{subscription.subscription_id}:{signal.source}:{signal.item_id}",
+        event_id=build_feed_event_id(
+            subscription.subscription_id,
+            signal.source,
+            signal.item_id,
+        ),
         user_id=subscription.user_id,
         subscription_id=subscription.subscription_id,
         repository_id=subscription.repository.repository_id,
