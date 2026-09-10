@@ -12,6 +12,7 @@ import type { ViewerPayload } from "../types/api";
 
 type AppShellProps = {
   activeView: "explore" | "feed" | "subscriptions" | "about" | "account" | "privacy" | "terms";
+  authLoading: boolean;
   children: ReactNode;
   onNavigate: (view: "explore" | "feed" | "subscriptions" | "about") => void;
   onOpenAccount: () => void;
@@ -25,6 +26,7 @@ type AppShellProps = {
 
 export function AppShell({
   activeView,
+  authLoading,
   children,
   onNavigate,
   onOpenAccount,
@@ -52,7 +54,9 @@ export function AppShell({
           </div>
 
           <div className="header-actions">
-            {viewer ? (
+            {authLoading ? (
+              <div aria-label="Loading account" className="header-account-loading" role="status" />
+            ) : viewer ? (
               <div
                 className="viewer-menu"
                 onBlur={(event) => {
