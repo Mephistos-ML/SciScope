@@ -1,3 +1,10 @@
+## [1.17.2](https://github.com/Mephistos-ML/SciScope/compare/v1.17.1...v1.17.2) (2026-09-10)
+
+
+### Bug Fixes
+
+* **web:** synchronize routes with app navigation ([9cd5827](https://github.com/Mephistos-ML/SciScope/commit/9cd5827085225edcaf130601183c9861a600f211))
+
 ## [1.17.1](https://github.com/Mephistos-ML/SciScope/compare/v1.17.0...v1.17.1) (2026-09-10)
 
 
