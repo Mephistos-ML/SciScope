@@ -35,6 +35,16 @@ import type {
 
 type AppView = "explore" | "feed" | "subscriptions" | "about" | "account" | "privacy" | "terms";
 
+const VIEW_PATHS: Record<AppView, string> = {
+  explore: "/",
+  feed: "/feed",
+  subscriptions: "/subscriptions",
+  about: "/about",
+  account: "/account",
+  privacy: "/privacy",
+  terms: "/terms",
+};
+
 type ExploreSearchFeedback = {
   message: string;
   retryUntilEpochMs: number | null;
@@ -43,7 +53,7 @@ type ExploreSearchFeedback = {
 };
 
 export function App() {
-  const [activeView, setActiveView] = useState<AppView>(() => window.location.pathname === "/privacy" ? "privacy" : window.location.pathname === "/terms" ? "terms" : "explore");
+  const [activeView, setActiveView] = useState<AppView>(() => viewFromPath(window.location.pathname));
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [results, setResults] = useState<ExploreResultItem[]>([]);
   const [lastAiSearchPlan, setLastAiSearchPlan] = useState<AiSearchPlanPayload | null>(null);
@@ -98,6 +108,18 @@ export function App() {
 
     void loadInitialState();
   }, []);
+
+  useEffect(() => {
+    const syncViewFromHistory = () => {
+      const nextView = viewFromPath(window.location.pathname);
+      if (activeView === "feed" && nextView !== "feed" && feedSubscriptionId) {
+        void restoreGlobalFeed();
+      }
+      setActiveView(nextView);
+    };
+    window.addEventListener("popstate", syncViewFromHistory);
+    return () => window.removeEventListener("popstate", syncViewFromHistory);
+  }, [activeView, feedSubscriptionId, feedState]);
 
   useEffect(() => {
     if (!viewer) {
@@ -235,7 +257,7 @@ export function App() {
       const payload = await signOut();
       setViewer(payload.user);
       setBetaMode(false);
-      setActiveView("explore");
+      navigateTo("explore");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to sign out.");
     } finally {
@@ -370,7 +392,7 @@ export function App() {
     try {
       await deleteAccount();
       setViewer(null);
-      setActiveView("explore");
+      navigateTo("explore");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to delete account.");
     } finally {
@@ -470,6 +492,14 @@ export function App() {
     if (activeView === "feed" && nextView !== "feed" && feedSubscriptionId) {
       void restoreGlobalFeed();
     }
+    navigateTo(nextView);
+  }
+
+  function navigateTo(nextView: AppView) {
+    const nextPath = VIEW_PATHS[nextView];
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({}, "", nextPath);
+    }
     setActiveView(nextView);
   }
 
@@ -483,7 +513,7 @@ export function App() {
       setFeedNextCursor(payload.nextCursor);
       setFeedHasMore(payload.hasMore);
       setUnreadFeedCount(payload.unreadCount);
-      setActiveView("feed");
+      handleViewChange("feed");
     } finally {
       setFeedLoadPending(false);
     }
@@ -562,6 +592,14 @@ export function App() {
       {activeView === "terms" ? <TermsPage /> : null}
     </AppShell>
   );
+}
+
+function viewFromPath(pathname: string): AppView {
+  const normalizedPath = pathname.replace(/\/+$/, "") || "/";
+  const view = (Object.keys(VIEW_PATHS) as AppView[]).find(
+    (candidate) => VIEW_PATHS[candidate] === normalizedPath,
+  );
+  return view ?? "explore";
 }
 
 function mapExploreJobStatusToStage(
