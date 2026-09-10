@@ -1,3 +1,10 @@
+## [1.17.3](https://github.com/Mephistos-ML/SciScope/compare/v1.17.2...v1.17.3) (2026-09-10)
+
+
+### Bug Fixes
+
+* **web:** wait for session hydration before rendering ([8b75f5b](https://github.com/Mephistos-ML/SciScope/commit/8b75f5b51a9021f3fd8c7334e4fceee1b86a2619))
+
 ## [1.17.2](https://github.com/Mephistos-ML/SciScope/compare/v1.17.1...v1.17.2) (2026-09-10)
 
 
