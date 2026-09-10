@@ -34,7 +34,7 @@ import type {
 } from "../types/api";
 
 type AppView = "explore" | "feed" | "subscriptions" | "about" | "account" | "privacy" | "terms";
-type AuthStatus = "loading" | "ready";
+type BootstrapStatus = "loading" | "ready";
 
 const VIEW_PATHS: Record<AppView, string> = {
   explore: "/",
@@ -55,7 +55,7 @@ type ExploreSearchFeedback = {
 
 export function App() {
   const [activeView, setActiveView] = useState<AppView>(() => viewFromPath(window.location.pathname));
-  const [authStatus, setAuthStatus] = useState<AuthStatus>("loading");
+  const [bootstrapStatus, setBootstrapStatus] = useState<BootstrapStatus>("loading");
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [results, setResults] = useState<ExploreResultItem[]>([]);
   const [lastAiSearchPlan, setLastAiSearchPlan] = useState<AiSearchPlanPayload | null>(null);
@@ -101,12 +101,25 @@ export function App() {
       try {
         const viewerPayload = await fetchMe();
         setViewer(viewerPayload.user);
+        if (viewerPayload.user) {
+          const [subscriptionPayload, feedPayload] = await Promise.all([
+            fetchSubscriptions(),
+            fetchFeed(),
+          ]);
+          setSubscriptions(subscriptionPayload.items);
+          setFeedEvents(feedPayload.items);
+          setUnreadFeedCount(feedPayload.unreadCount);
+          setFeedState("all");
+          setFeedNextCursor(feedPayload.nextCursor);
+          setFeedHasMore(feedPayload.hasMore);
+          setSelectedSubscriptionId(subscriptionPayload.items[0]?.subscriptionId ?? null);
+        }
       } catch (error) {
         if (!isApiUnavailableError(error)) {
-          setErrorMessage(error instanceof Error ? error.message : "Failed to load app state.");
+          setErrorMessage(error instanceof Error ? error.message : "Failed to initialize SciScope.");
         }
       } finally {
-        setAuthStatus("ready");
+        setBootstrapStatus("ready");
       }
     }
 
@@ -126,42 +139,17 @@ export function App() {
   }, [activeView, feedSubscriptionId, feedState]);
 
   useEffect(() => {
-    if (!viewer) {
-      setFeedEvents([]);
-      setUnreadFeedCount(0);
-      setFeedState("all");
-      setFeedNextCursor(null);
-      setFeedHasMore(false);
-      setSubscriptions([]);
-      setSelectedSubscriptionId(null);
+    if (viewer) {
       return;
     }
 
-    async function loadViewerData() {
-      try {
-        const [subscriptionPayload, feedPayload] = await Promise.all([
-          fetchSubscriptions(),
-          fetchFeed(),
-        ]);
-        setSubscriptions(subscriptionPayload.items);
-        setFeedEvents(feedPayload.items);
-        setUnreadFeedCount(feedPayload.unreadCount);
-        setFeedState("all");
-        setFeedNextCursor(feedPayload.nextCursor);
-        setFeedHasMore(feedPayload.hasMore);
-        setSelectedSubscriptionId(
-          (currentId) => currentId ?? subscriptionPayload.items[0]?.subscriptionId ?? null,
-        );
-      } catch (error) {
-        if (!isApiUnavailableError(error)) {
-          setErrorMessage(
-            error instanceof Error ? error.message : "Failed to load signed-in data.",
-          );
-        }
-      }
-    }
-
-    void loadViewerData();
+    setFeedEvents([]);
+    setUnreadFeedCount(0);
+    setFeedState("all");
+    setFeedNextCursor(null);
+    setFeedHasMore(false);
+    setSubscriptions([]);
+    setSelectedSubscriptionId(null);
   }, [viewer]);
 
   useEffect(() => {
@@ -526,7 +514,7 @@ export function App() {
   return (
     <AppShell
       activeView={activeView}
-      authLoading={authStatus === "loading"}
+      isBootstrapping={bootstrapStatus === "loading"}
       onNavigate={handleViewChange}
       onOpenAccount={() => handleViewChange("account")}
       onSignIn={() => void handleSignIn()}
@@ -536,7 +524,7 @@ export function App() {
       unreadFeedCount={unreadFeedCount}
       viewer={viewer}
     >
-      {authStatus === "loading" ? (
+      {bootstrapStatus === "loading" ? (
         <AppLoadingState />
       ) : (
         <>
