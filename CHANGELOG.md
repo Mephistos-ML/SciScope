@@ -1,3 +1,10 @@
+## [1.17.4](https://github.com/Mephistos-ML/SciScope/compare/v1.17.3...v1.17.4) (2026-09-10)
+
+
+### Bug Fixes
+
+* **web:** bootstrap signed-in data before rendering ([669ff71](https://github.com/Mephistos-ML/SciScope/commit/669ff718bb7543d0559c46d28eec923859762a24))
+
 ## [1.17.3](https://github.com/Mephistos-ML/SciScope/compare/v1.17.2...v1.17.3) (2026-09-10)
 
 
