@@ -1509,6 +1509,11 @@ input::placeholder {
   gap: 10px;
 }
 
+.subscription-updates-message { display: flex; align-items: center; gap: 10px; min-height: 92px; padding: 16px; border: var(--border-subtle); border-radius: var(--radius-input); color: var(--text-secondary); }
+.subscription-updates-message p { margin: 0; }
+.subscription-updates-message .detail-copy { margin-top: 4px; }
+.subscription-updates-spinner { width: 16px; height: 16px; flex: 0 0 auto; border: 2px solid color-mix(in srgb, var(--navy-700) 18%, transparent); border-top-color: var(--navy-700); border-radius: 50%; animation: app-loading-spin .75s linear infinite; }
+
 .subscription-update {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;

@@ -17,6 +17,14 @@ type SubscriptionsPageProps = {
   onViewAllUpdates: (subscriptionId: string) => void;
 };
 
+type RecentUpdatesStatus = "loading" | "ready" | "error";
+
+type RecentUpdatesState = {
+  items: FeedEventItem[];
+  status: RecentUpdatesStatus;
+  subscriptionId: string | null;
+};
+
 export function SubscriptionsPage({
   deletePending,
   selectedSubscriptionId,
@@ -26,18 +34,60 @@ export function SubscriptionsPage({
   onSelectSubscription,
   onViewAllUpdates,
 }: SubscriptionsPageProps) {
-  const [recentUpdates, setRecentUpdates] = useState<FeedEventItem[]>([]);
+  const [recentUpdates, setRecentUpdates] = useState<RecentUpdatesState>({
+    items: [],
+    status: "loading",
+    subscriptionId: null,
+  });
   const selectedSubscription =
     subscriptions.find((item) => item.subscriptionId === selectedSubscriptionId) ?? null;
+
   useEffect(() => {
-    if (!viewer || !selectedSubscriptionId) { setRecentUpdates([]); return; }
+    if (!viewer || !selectedSubscriptionId) {
+      setRecentUpdates({
+        items: [],
+        status: "ready",
+        subscriptionId: selectedSubscriptionId,
+      });
+      return;
+    }
+
     let cancelled = false;
-    void fetchFeed({ subscriptionId: selectedSubscriptionId, limit: 5 }).then((payload) => {
-      if (!cancelled) setRecentUpdates(payload.items);
-    });
-    return () => { cancelled = true; };
+    setRecentUpdates({ items: [], status: "loading", subscriptionId: selectedSubscriptionId });
+    void fetchFeed({ subscriptionId: selectedSubscriptionId, limit: 5 })
+      .then((payload) => {
+        if (!cancelled) {
+          setRecentUpdates({
+            items: payload.items,
+            status: "ready",
+            subscriptionId: selectedSubscriptionId,
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRecentUpdates({
+            items: [],
+            status: "error",
+            subscriptionId: selectedSubscriptionId,
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedSubscriptionId, viewer]);
-  const selectedFeedEvents = recentUpdates;
+
+  const recentUpdatesStatus =
+    recentUpdates.subscriptionId === selectedSubscriptionId ? recentUpdates.status : "loading";
+  const selectedFeedEvents = recentUpdatesStatus === "ready" ? recentUpdates.items : [];
+  const recentUpdatesBadgeLabel =
+    recentUpdatesStatus === "loading"
+      ? "Loading"
+      : recentUpdatesStatus === "error"
+        ? "Unavailable"
+        : `${selectedFeedEvents.length} events`;
   const hasSubscriptions = subscriptions.length > 0;
 
   return (
@@ -149,11 +199,21 @@ export function SubscriptionsPage({
                 <div className="detail-panel-block">
                   <div className="subscription-updates-heading">
                     <h4>Recent updates</h4>
-                    <span className="results-count-badge">
-                      {selectedFeedEvents.length} events
-                    </span>
+                    <span className="results-count-badge">{recentUpdatesBadgeLabel}</span>
                   </div>
-                  {selectedFeedEvents.length === 0 ? (
+                  {recentUpdatesStatus === "loading" ? (
+                    <div aria-live="polite" className="subscription-updates-message" role="status">
+                      <span className="subscription-updates-spinner" />
+                      <span>Loading updates…</span>
+                    </div>
+                  ) : recentUpdatesStatus === "error" ? (
+                    <div className="subscription-updates-message">
+                      <div>
+                        <p className="empty-state-title">Updates unavailable</p>
+                        <p className="detail-copy">Try again in a moment.</p>
+                      </div>
+                    </div>
+                  ) : selectedFeedEvents.length === 0 ? (
                     <div className="feed-updates-placeholder">
                       <img
                         alt=""

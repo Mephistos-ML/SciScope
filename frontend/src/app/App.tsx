@@ -34,7 +34,7 @@ import type {
 } from "../types/api";
 
 type AppView = "explore" | "feed" | "subscriptions" | "about" | "account" | "privacy" | "terms";
-type BootstrapStatus = "loading" | "ready";
+type BootstrapStatus = "loading" | "ready" | "error";
 
 const VIEW_PATHS: Record<AppView, string> = {
   explore: "/",
@@ -114,12 +114,9 @@ export function App() {
           setFeedHasMore(feedPayload.hasMore);
           setSelectedSubscriptionId(subscriptionPayload.items[0]?.subscriptionId ?? null);
         }
-      } catch (error) {
-        if (!isApiUnavailableError(error)) {
-          setErrorMessage(error instanceof Error ? error.message : "Failed to initialize SciScope.");
-        }
-      } finally {
         setBootstrapStatus("ready");
+      } catch {
+        setBootstrapStatus("error");
       }
     }
 
@@ -526,6 +523,8 @@ export function App() {
     >
       {bootstrapStatus === "loading" ? (
         <AppLoadingState />
+      ) : bootstrapStatus === "error" ? (
+        <AppUnavailableState />
       ) : (
         <>
           {errorMessage ? <section className="shell-alert shell-alert-error">{errorMessage}</section> : null}
@@ -605,6 +604,22 @@ function AppLoadingState() {
     <section aria-live="polite" className="app-loading-state">
       <span className="app-loading-indicator" />
       <span>Loading SciScope…</span>
+    </section>
+  );
+}
+
+function AppUnavailableState() {
+  return (
+    <section className="results-panel">
+      <article className="empty-state-panel feed-empty-state">
+        <h1 className="empty-state-title">SciScope is temporarily unavailable</h1>
+        <p className="empty-state-copy">
+          We could not load your session and repository data. Please try again in a moment.
+        </p>
+        <button className="outline-button" onClick={() => window.location.reload()} type="button">
+          Try again
+        </button>
+      </article>
     </section>
   );
 }
