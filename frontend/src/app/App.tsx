@@ -34,6 +34,7 @@ import type {
 } from "../types/api";
 
 type AppView = "explore" | "feed" | "subscriptions" | "about" | "account" | "privacy" | "terms";
+type AuthStatus = "loading" | "ready";
 
 const VIEW_PATHS: Record<AppView, string> = {
   explore: "/",
@@ -54,6 +55,7 @@ type ExploreSearchFeedback = {
 
 export function App() {
   const [activeView, setActiveView] = useState<AppView>(() => viewFromPath(window.location.pathname));
+  const [authStatus, setAuthStatus] = useState<AuthStatus>("loading");
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [results, setResults] = useState<ExploreResultItem[]>([]);
   const [lastAiSearchPlan, setLastAiSearchPlan] = useState<AiSearchPlanPayload | null>(null);
@@ -103,6 +105,8 @@ export function App() {
         if (!isApiUnavailableError(error)) {
           setErrorMessage(error instanceof Error ? error.message : "Failed to load app state.");
         }
+      } finally {
+        setAuthStatus("ready");
       }
     }
 
@@ -522,6 +526,7 @@ export function App() {
   return (
     <AppShell
       activeView={activeView}
+      authLoading={authStatus === "loading"}
       onNavigate={handleViewChange}
       onOpenAccount={() => handleViewChange("account")}
       onSignIn={() => void handleSignIn()}
@@ -531,66 +536,88 @@ export function App() {
       unreadFeedCount={unreadFeedCount}
       viewer={viewer}
     >
-      {errorMessage ? <section className="shell-alert shell-alert-error">{errorMessage}</section> : null}
+      {authStatus === "loading" ? (
+        <AppLoadingState />
+      ) : (
+        <>
+          {errorMessage ? <section className="shell-alert shell-alert-error">{errorMessage}</section> : null}
 
-      {activeView === "explore" ? (
-        <ExplorePage
-          canSubscribe={Boolean(viewer)}
-          exploreSearchFeedback={exploreSearchFeedback}
-          lastAiSearchPlan={lastAiSearchPlan}
-          betaMode={betaMode}
-          betaEnabled={viewer?.features.includes("explore_beta") ?? false}
-          onBetaModeChange={setBetaMode}
-          onRunSearch={() => void handleRunSearch()}
-          onSignIn={() => void handleSignIn()}
-          onSubscribe={(result) => void handleSubscribe(result)}
-          onTopicInputChange={setTopicInput}
-          onTurnstileTokenChange={setTurnstileToken}
-          results={results}
-          searchJobId={lastCompletedExploreJobId}
-          searchPending={searchPending}
-          subscribePendingRepositoryId={createPendingRepositoryId}
-          subscribedRepositoryIds={subscriptions.map((item) => item.repository.repositoryId)}
-          topicInput={topicInput}
-          searchStageLabel={mapExploreJobStatusToStage(activeExploreJobStatus)}
-          turnstileReady={Boolean(turnstileToken)}
-          turnstileResetKey={turnstileResetKey}
-          turnstileSiteKey={frontendConfig.turnstileSiteKey}
-          viewer={viewer}
-        />
-      ) : null}
-      {activeView === "feed" ? (
-        <FeedPage
-          feedUpdatePending={feedUpdatePending}
-          feedLoadPending={feedLoadPending}
-          feedEvents={feedEvents}
-          feedHasMore={feedHasMore}
-          feedState={feedState}
-          feedSubscriptionId={feedSubscriptionId}
-          unreadFeedCount={unreadFeedCount}
-          onLoadOlder={() => void handleLoadOlderFeedEvents()}
-          onMarkAllRead={() => void handleMarkAllFeedEventsRead()}
-          onMarkRead={(eventId) => void handleMarkFeedEventRead(eventId)}
-          onStateChange={(state) => void handleFeedStateChange(state)}
-          viewer={viewer}
-        />
-      ) : null}
-      {activeView === "subscriptions" ? (
-        <SubscriptionsPage
-          deletePending={deletePending}
-          selectedSubscriptionId={selectedSubscriptionId}
-          subscriptions={subscriptions}
-          onDeleteSubscription={(subscriptionId) => void handleDeleteSubscription(subscriptionId)}
-          onSelectSubscription={(subscriptionId) => void handleSelectSubscription(subscriptionId)}
-          onViewAllUpdates={(subscriptionId) => void handleViewSubscriptionFeed(subscriptionId)}
-          viewer={viewer}
-        />
-      ) : null}
-      {activeView === "about" ? <AboutPage /> : null}
-      {activeView === "account" && viewer ? <AccountPage deleting={accountDeletePending} onDelete={() => void handleDeleteAccount()} onSignOut={() => void handleSignOut()} viewer={viewer} /> : null}
-      {activeView === "privacy" ? <PrivacyPage /> : null}
-      {activeView === "terms" ? <TermsPage /> : null}
+          {activeView === "explore" ? (
+            <ExplorePage
+              canSubscribe={Boolean(viewer)}
+              exploreSearchFeedback={exploreSearchFeedback}
+              lastAiSearchPlan={lastAiSearchPlan}
+              betaMode={betaMode}
+              betaEnabled={viewer?.features.includes("explore_beta") ?? false}
+              onBetaModeChange={setBetaMode}
+              onRunSearch={() => void handleRunSearch()}
+              onSignIn={() => void handleSignIn()}
+              onSubscribe={(result) => void handleSubscribe(result)}
+              onTopicInputChange={setTopicInput}
+              onTurnstileTokenChange={setTurnstileToken}
+              results={results}
+              searchJobId={lastCompletedExploreJobId}
+              searchPending={searchPending}
+              subscribePendingRepositoryId={createPendingRepositoryId}
+              subscribedRepositoryIds={subscriptions.map((item) => item.repository.repositoryId)}
+              topicInput={topicInput}
+              searchStageLabel={mapExploreJobStatusToStage(activeExploreJobStatus)}
+              turnstileReady={Boolean(turnstileToken)}
+              turnstileResetKey={turnstileResetKey}
+              turnstileSiteKey={frontendConfig.turnstileSiteKey}
+              viewer={viewer}
+            />
+          ) : null}
+          {activeView === "feed" ? (
+            <FeedPage
+              feedUpdatePending={feedUpdatePending}
+              feedLoadPending={feedLoadPending}
+              feedEvents={feedEvents}
+              feedHasMore={feedHasMore}
+              feedState={feedState}
+              feedSubscriptionId={feedSubscriptionId}
+              unreadFeedCount={unreadFeedCount}
+              onLoadOlder={() => void handleLoadOlderFeedEvents()}
+              onMarkAllRead={() => void handleMarkAllFeedEventsRead()}
+              onMarkRead={(eventId) => void handleMarkFeedEventRead(eventId)}
+              onStateChange={(state) => void handleFeedStateChange(state)}
+              viewer={viewer}
+            />
+          ) : null}
+          {activeView === "subscriptions" ? (
+            <SubscriptionsPage
+              deletePending={deletePending}
+              selectedSubscriptionId={selectedSubscriptionId}
+              subscriptions={subscriptions}
+              onDeleteSubscription={(subscriptionId) => void handleDeleteSubscription(subscriptionId)}
+              onSelectSubscription={(subscriptionId) => void handleSelectSubscription(subscriptionId)}
+              onViewAllUpdates={(subscriptionId) => void handleViewSubscriptionFeed(subscriptionId)}
+              viewer={viewer}
+            />
+          ) : null}
+          {activeView === "about" ? <AboutPage /> : null}
+          {activeView === "account" && viewer ? (
+            <AccountPage
+              deleting={accountDeletePending}
+              onDelete={() => void handleDeleteAccount()}
+              onSignOut={() => void handleSignOut()}
+              viewer={viewer}
+            />
+          ) : null}
+          {activeView === "privacy" ? <PrivacyPage /> : null}
+          {activeView === "terms" ? <TermsPage /> : null}
+        </>
+      )}
     </AppShell>
+  );
+}
+
+function AppLoadingState() {
+  return (
+    <section aria-live="polite" className="app-loading-state">
+      <span className="app-loading-indicator" />
+      <span>Loading SciScope…</span>
+    </section>
   );
 }
 

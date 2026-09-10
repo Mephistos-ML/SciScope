@@ -258,6 +258,8 @@ input::placeholder {
   min-width: 0;
 }
 
+.header-account-loading { width: 164px; height: 42px; border-radius: var(--radius-button); background: linear-gradient(100deg, var(--surface-subtle) 25%, color-mix(in srgb, var(--surface-subtle) 74%, white) 50%, var(--surface-subtle) 75%); background-size: 200% 100%; animation: search-button-shimmer 1.4s linear infinite; }
+
 .app-content {
   flex: 1;
   min-height: 0;
@@ -271,6 +273,11 @@ input::placeholder {
   flex-direction: column;
   min-height: 100%;
 }
+
+.app-loading-state { display: flex; flex: 1; align-items: center; justify-content: center; gap: 10px; min-height: 240px; color: var(--text-secondary); font-size: 14px; font-weight: 600; }
+.app-loading-indicator { width: 16px; height: 16px; border: 2px solid color-mix(in srgb, var(--navy-700) 18%, transparent); border-top-color: var(--navy-700); border-radius: 50%; animation: app-loading-spin .75s linear infinite; }
+
+@keyframes app-loading-spin { to { transform: rotate(360deg); } }
 
 .account-page { max-width: 760px; }
 .legal-page { max-width: 760px; }
