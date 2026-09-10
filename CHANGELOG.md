@@ -1,3 +1,11 @@
+## [1.17.5](https://github.com/Mephistos-ML/SciScope/compare/v1.17.4...v1.17.5) (2026-09-10)
+
+
+### Bug Fixes
+
+* **subscriptions:** distinguish update loading states ([0f35f66](https://github.com/Mephistos-ML/SciScope/commit/0f35f6628775dfe67c71b23db2d0a2ff1672365a))
+* **web:** distinguish bootstrap failures from empty data ([c929eee](https://github.com/Mephistos-ML/SciScope/commit/c929eeeab28c6734559e22bf9792d524822b0efd))
+
 ## [1.17.4](https://github.com/Mephistos-ML/SciScope/compare/v1.17.3...v1.17.4) (2026-09-10)
 
 
