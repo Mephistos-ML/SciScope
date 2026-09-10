@@ -1,3 +1,10 @@
+## [1.17.1](https://github.com/Mephistos-ML/SciScope/compare/v1.17.0...v1.17.1) (2026-09-10)
+
+
+### Bug Fixes
+
+* **feed:** use opaque event identifiers ([1f687a3](https://github.com/Mephistos-ML/SciScope/commit/1f687a3c1a0be828eb17ee513fab817e6bc7130c))
+
 # [1.17.0](https://github.com/Mephistos-ML/SciScope/compare/v1.16.1...v1.17.0) (2026-09-09)
 
 
