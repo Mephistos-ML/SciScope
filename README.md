@@ -68,7 +68,7 @@ Main backend areas:
 - `backend/app/database/records/`: SQLAlchemy records used only by storage
 - `backend/alembic/`: database migrations
 
-The core dependency direction is `api -> services -> sources/storage -> database`. Details are recorded in [AI_CONTRACT.md](AI_CONTRACT.md) and [docs/architecture.md](docs/architecture.md).
+The core dependency direction is `api -> services -> sources/storage -> database`. Details are recorded in [AGENTS.md](AGENTS.md) and [docs/architecture.md](docs/architecture.md).
 
 ## API Surfaces
 

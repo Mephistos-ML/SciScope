@@ -104,4 +104,4 @@ Gitee, GitCode, and GitVerse remain unavailable source modules.
 
 `api -> services -> sources/storage -> database`
 
-`models` and `config` are shared layers. The complete change contract is maintained in [AI_CONTRACT.md](../AI_CONTRACT.md).
+`models` and `config` are shared layers. The complete change contract is maintained in [AGENTS.md](../AGENTS.md).
