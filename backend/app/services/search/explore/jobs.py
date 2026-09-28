@@ -37,6 +37,7 @@ from app.storage.search_runs import (
     count_search_run_stages,
     get_search_run,
     record_search_run_provider_outcomes,
+    record_search_run_ranking_candidates,
     record_search_run_stage,
     update_search_run,
     update_search_run_operation,
@@ -341,6 +342,12 @@ def _record_stage_report(
             )
             for outcome in report.provider_outcomes
         ),
+        database_url=database_url,
+    )
+    record_search_run_ranking_candidates(
+        job_id,
+        stage_number,
+        report.ranking_candidates,
         database_url=database_url,
     )
 def _fail(

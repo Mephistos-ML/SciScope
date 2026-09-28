@@ -121,3 +121,26 @@ class SearchRunProviderOutcomeRecordModel(Base):
     error_code: Mapped[str | None] = mapped_column(String, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     details_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+
+
+class SearchRunRankingCandidateRecordModel(Base):
+    __tablename__ = "search_run_ranking_candidates"
+    __table_args__ = (
+        Index("ix_search_run_ranking_candidates_run_stage_rank", "run_id", "stage_number", "rank_position"),
+        Index("ix_search_run_ranking_candidates_repository", "repository_id"),
+    )
+
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("search_runs.run_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    stage_number: Mapped[int] = mapped_column(Integer, primary_key=True)
+    repository_id: Mapped[str] = mapped_column(String, primary_key=True)
+    repository_source: Mapped[str] = mapped_column(String, nullable=False)
+    rank_position: Mapped[int] = mapped_column(Integer, nullable=False)
+    final_score: Mapped[float] = mapped_column(nullable=False)
+    candidate_facts_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    retrieval_facts_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    admission_facts_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    ranking_features_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    score_breakdown_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)

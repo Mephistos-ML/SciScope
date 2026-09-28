@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from app.database.records.search_runs import (
     SearchRunOperationRecordModel,
     SearchRunProviderOutcomeRecordModel,
+    SearchRunRankingCandidateRecordModel,
     SearchRunRecordModel,
     SearchRunStageRecordModel,
 )
@@ -19,6 +20,7 @@ from app.models.search_run import (
     SearchRun,
     SearchRunOperation,
     SearchRunProviderOutcome,
+    SearchRankingCandidateReport,
     SearchRunStage,
 )
 
@@ -130,6 +132,36 @@ def record_search_run_provider_outcomes(
         )
 
 
+def record_search_run_ranking_candidates(
+    run_id: str,
+    stage_number: int,
+    candidates: Sequence[SearchRankingCandidateReport],
+    *,
+    database_url: str,
+) -> None:
+    """Persist immutable candidate-level inputs for offline reranking."""
+
+    if not candidates:
+        return
+    with session_scope(database_url) as session:
+        session.add_all(
+            SearchRunRankingCandidateRecordModel(
+                run_id=run_id,
+                stage_number=stage_number,
+                repository_id=candidate.repository_id,
+                repository_source=candidate.repository_source,
+                rank_position=candidate.rank_position,
+                final_score=candidate.final_score,
+                candidate_facts_json=candidate.candidate_facts,
+                retrieval_facts_json=candidate.retrieval_facts,
+                admission_facts_json=candidate.admission_facts,
+                ranking_features_json=candidate.ranking_features,
+                score_breakdown_json=candidate.score_breakdown,
+            )
+            for candidate in candidates
+        )
+
+
 def count_search_run_stages(run_id: str, *, database_url: str) -> int:
     """Return the number of completed run stages persisted so far."""
 
@@ -153,6 +185,20 @@ def count_search_run_provider_outcomes(run_id: str, *, database_url: str) -> int
                 select(func.count())
                 .select_from(SearchRunProviderOutcomeRecordModel)
                 .where(SearchRunProviderOutcomeRecordModel.run_id == run_id)
+            )
+            or 0
+        )
+
+
+def count_search_run_ranking_candidates(run_id: str, *, database_url: str) -> int:
+    """Return the number of immutable ranking candidates for one run."""
+
+    with session_scope(database_url) as session:
+        return int(
+            session.scalar(
+                select(func.count())
+                .select_from(SearchRunRankingCandidateRecordModel)
+                .where(SearchRunRankingCandidateRecordModel.run_id == run_id)
             )
             or 0
         )

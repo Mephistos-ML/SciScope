@@ -31,7 +31,11 @@ from app.services.search.retrieval.models import (
 )
 from app.storage import auth as auth_storage
 from app.storage.feed import upsert_feed_events
-from app.storage.search_runs import count_search_run_stages, get_search_run_stage
+from app.storage.search_runs import (
+    count_search_run_ranking_candidates,
+    count_search_run_stages,
+    get_search_run_stage,
+)
 from app.storage.subscriptions import SubscriptionWatchRecord
 
 
@@ -1597,6 +1601,10 @@ def test_explore_search_job_returns_completed_snapshot(
     assert stored_execution.executed_queries == ("paramagnetic nmr",)
     assert stored_execution.pending_queries == ("pcs tensor fitting", "pseudocontact shift")
     assert count_search_run_stages(
+        created["jobId"],
+        database_url=explore_run_database,
+    ) == 1
+    assert count_search_run_ranking_candidates(
         created["jobId"],
         database_url=explore_run_database,
     ) == 1

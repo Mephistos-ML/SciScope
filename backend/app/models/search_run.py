@@ -130,3 +130,19 @@ class SearchStageReport:
     visible_candidate_count: int
     timings: dict[str, int]
     provider_outcomes: tuple[SearchProviderOutcomeReport, ...]
+    ranking_candidates: tuple["SearchRankingCandidateReport", ...]
+
+
+@dataclass(frozen=True)
+class SearchRankingCandidateReport:
+    """Immutable ranking inputs and decisions for one stage candidate."""
+
+    repository_id: str
+    repository_source: str
+    rank_position: int
+    final_score: float
+    candidate_facts: dict[str, Any]
+    retrieval_facts: dict[str, Any]
+    admission_facts: dict[str, Any]
+    ranking_features: dict[str, Any]
+    score_breakdown: dict[str, Any]

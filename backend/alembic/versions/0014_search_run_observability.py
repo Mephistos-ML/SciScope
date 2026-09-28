@@ -131,9 +131,47 @@ def upgrade() -> None:
         "search_run_provider_outcomes",
         ["source", "channel"],
     )
+    op.create_table(
+        "search_run_ranking_candidates",
+        sa.Column(
+            "run_id",
+            sa.String(),
+            sa.ForeignKey("search_runs.run_id", ondelete="CASCADE"),
+            primary_key=True,
+        ),
+        sa.Column("stage_number", sa.Integer(), primary_key=True),
+        sa.Column("repository_id", sa.String(), primary_key=True),
+        sa.Column("repository_source", sa.String(), nullable=False),
+        sa.Column("rank_position", sa.Integer(), nullable=False),
+        sa.Column("final_score", sa.Float(), nullable=False),
+        sa.Column("candidate_facts_json", sa.JSON(), nullable=False),
+        sa.Column("retrieval_facts_json", sa.JSON(), nullable=False),
+        sa.Column("admission_facts_json", sa.JSON(), nullable=False),
+        sa.Column("ranking_features_json", sa.JSON(), nullable=False),
+        sa.Column("score_breakdown_json", sa.JSON(), nullable=False),
+    )
+    op.create_index(
+        "ix_search_run_ranking_candidates_run_stage_rank",
+        "search_run_ranking_candidates",
+        ["run_id", "stage_number", "rank_position"],
+    )
+    op.create_index(
+        "ix_search_run_ranking_candidates_repository",
+        "search_run_ranking_candidates",
+        ["repository_id"],
+    )
 
 
 def downgrade() -> None:
+    op.drop_index(
+        "ix_search_run_ranking_candidates_repository",
+        table_name="search_run_ranking_candidates",
+    )
+    op.drop_index(
+        "ix_search_run_ranking_candidates_run_stage_rank",
+        table_name="search_run_ranking_candidates",
+    )
+    op.drop_table("search_run_ranking_candidates")
     op.drop_index(
         "ix_search_run_provider_outcomes_source_channel",
         table_name="search_run_provider_outcomes",

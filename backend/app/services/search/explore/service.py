@@ -9,6 +9,7 @@ from time import monotonic
 
 from app import config
 from app.models.search_run import (
+    SearchRankingCandidateReport,
     SearchProviderOutcomeReport,
     SearchStageReport,
 )
@@ -224,6 +225,7 @@ def run_explore_search(
             if stage_report_callback is not None:
                 stage_report_callback(
                     _build_stage_report(
+                        evaluation=evaluation,
                         executed_queries=execution.executed_queries,
                         retrieved=retrieved,
                         admitted_candidate_count=len(evaluation.admission.visible_candidates),
@@ -295,6 +297,7 @@ def run_explore_search(
         if stage_report_callback is not None:
             stage_report_callback(
                 _build_stage_report(
+                    evaluation=evaluation,
                     executed_queries=execution.executed_queries,
                     retrieved=retrieved,
                     admitted_candidate_count=len(evaluation.admission.visible_candidates),
@@ -460,6 +463,7 @@ def expand_explore_search(
     if stage_report_callback is not None:
         stage_report_callback(
             _build_stage_report(
+                evaluation=evaluation,
                 executed_queries=retrieval_sequence.executed_queries,
                 retrieved=retrieved,
                 admitted_candidate_count=len(evaluation.admission.visible_candidates),
@@ -485,6 +489,7 @@ def expand_explore_search(
 
 def _build_stage_report(
     *,
+    evaluation,
     executed_queries: tuple[str, ...],
     retrieved: RetrievedCandidates,
     admitted_candidate_count: int,
@@ -531,6 +536,71 @@ def _build_stage_report(
             )
             for outcome in retrieved.lane_outcomes
         ),
+        ranking_candidates=_build_ranking_candidate_reports(
+            evaluation,
+        ),
+    )
+
+
+def _build_ranking_candidate_reports(
+    evaluation,
+) -> tuple[SearchRankingCandidateReport, ...]:
+    admission_by_repository_id = {
+        item.candidate.repository_id: item.admission
+        for item in evaluation.admission.evaluated_candidates
+    }
+    return tuple(
+        SearchRankingCandidateReport(
+            repository_id=ranked.candidate.repository_id,
+            repository_source=ranked.candidate.signal.source,
+            rank_position=position,
+            final_score=ranked.score,
+            candidate_facts={
+                "full_name": ranked.candidate.signal.title,
+                "language": ranked.candidate.signal.payload.get("language"),
+                "stars": ranked.candidate.signal.payload.get("stars"),
+                "provider_updated_at": ranked.candidate.signal.payload.get(
+                    "provider_updated_at"
+                ),
+            },
+            retrieval_facts={
+                "origins": list(ranked.candidate.provenance.origins),
+                "matched_queries": list(ranked.candidate.provenance.matched_queries),
+                "matched_channels": list(ranked.candidate.provenance.matched_channels),
+                "best_rank_by_channel": dict(
+                    ranked.candidate.provenance.best_rank_by_channel
+                ),
+                "hit_count": ranked.candidate.provenance.hit_count,
+                "match_evidence": [
+                    {
+                        "query": evidence.query,
+                        "location": evidence.location,
+                        "path": evidence.path,
+                        "alignment": evidence.alignment,
+                    }
+                    for evidence in ranked.candidate.provenance.match_evidence
+                ],
+            },
+            admission_facts={
+                "decision": admission_by_repository_id[
+                    ranked.candidate.repository_id
+                ].decision,
+                "bucket": admission_by_repository_id[
+                    ranked.candidate.repository_id
+                ].bucket,
+                "evidence": {
+                    key: list(value) if isinstance(value, tuple) else value
+                    for key, value in vars(
+                        admission_by_repository_id[
+                            ranked.candidate.repository_id
+                        ].evidence
+                    ).items()
+                },
+            },
+            ranking_features=vars(ranked.features),
+            score_breakdown=vars(ranked.score_breakdown),
+        )
+        for position, ranked in enumerate(evaluation.ranking.ranked_candidates, start=1)
     )
 
 

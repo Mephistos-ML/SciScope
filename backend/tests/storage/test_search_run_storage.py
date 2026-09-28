@@ -8,15 +8,18 @@ from app.models.search_run import (
     SearchRun,
     SearchRunOperation,
     SearchRunProviderOutcome,
+    SearchRankingCandidateReport,
     SearchRunStage,
 )
 from app.storage.search_runs import (
     create_search_run,
     create_search_run_operation,
     count_search_run_provider_outcomes,
+    count_search_run_ranking_candidates,
     count_search_run_stages,
     get_search_run,
     record_search_run_provider_outcomes,
+    record_search_run_ranking_candidates,
     record_search_run_stage,
 )
 from tests.conftest import build_test_database_url, migrate_test_database
@@ -79,6 +82,24 @@ def test_search_run_storage_persists_execution_facts(tmp_path) -> None:
     create_search_run_operation(operation, database_url=database_url)
     record_search_run_stage(stage, database_url=database_url)
     record_search_run_provider_outcomes((outcome,), database_url=database_url)
+    record_search_run_ranking_candidates(
+        run.run_id,
+        stage.stage_number,
+        (
+            SearchRankingCandidateReport(
+                repository_id="github:repo:science/example",
+                repository_source="github",
+                rank_position=1,
+                final_score=87.5,
+                candidate_facts={"full_name": "science/example"},
+                retrieval_facts={"origins": ["provider"]},
+                admission_facts={"decision": "keep"},
+                ranking_features={"hit_count": 2},
+                score_breakdown={"corroboration_points": 10.0},
+            ),
+        ),
+        database_url=database_url,
+    )
 
     stored = get_search_run(run.run_id, database_url=database_url)
 
@@ -94,3 +115,4 @@ def test_search_run_storage_persists_execution_facts(tmp_path) -> None:
     assert stored.backend_revision == run.backend_revision
     assert count_search_run_stages(run.run_id, database_url=database_url) == 1
     assert count_search_run_provider_outcomes(run.run_id, database_url=database_url) == 1
+    assert count_search_run_ranking_candidates(run.run_id, database_url=database_url) == 1
