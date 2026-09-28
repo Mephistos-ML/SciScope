@@ -101,6 +101,10 @@ export type ExploreBetaPayload = {
   enabled: true;
   candidateCount: number;
   relevanceCutoff: number;
+  execution?: {
+    executedQueries: string[];
+    pendingQueryCount: number;
+  };
   timings?: ExploreSearchTimingPayload;
 };
 
@@ -118,6 +122,7 @@ export type ExploreSearchPayload = {
   items: ExploreResultItem[];
   sourceStatuses?: SourceStatusPayload[];
   partial?: boolean;
+  canExpand?: boolean;
   message?: string | null;
   beta?: ExploreBetaPayload | null;
 };

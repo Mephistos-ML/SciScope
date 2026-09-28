@@ -16,6 +16,7 @@ from app.services.ai.search_plans import (
     serialize_ai_search_plan,
 )
 from app.services.search.explore.canonical import select_canonical_candidates
+from app.services.search.explore.execution import ExploreSearchExecution
 from app.services.search.catalog import (
     persist_catalog_candidates,
     retrieve_catalog_candidates,
@@ -42,6 +43,7 @@ from app.services.search.retrieval import (
 logger = logging.getLogger(__name__)
 
 ExploreSearchProgressCallback = Callable[[dict[str, object]], None]
+ExploreSearchExecutionCallback = Callable[[ExploreSearchExecution], None]
 
 
 class ExploreSearchUnavailableError(RuntimeError):
@@ -63,6 +65,7 @@ def run_explore_search(
     topic_description: str,
     response_mode: ExploreResponseMode = "canonical",
     progress_callback: ExploreSearchProgressCallback | None = None,
+    execution_callback: ExploreSearchExecutionCallback | None = None,
     soft_deadline_monotonic: float | None = None,
     hard_deadline_monotonic: float | None = None,
     log_context: SearchLogContext | None = None,
@@ -72,7 +75,8 @@ def run_explore_search(
 
     search_started_at = monotonic()
     current_stage = "ai_planning"
-    repository_queries: tuple[str, ...] = ()
+    planned_queries: tuple[str, ...] = ()
+    executed_queries: tuple[str, ...] = ()
     retrieved = None
     planning_duration_ms = 0
     retrieval_duration_ms = 0
@@ -90,7 +94,8 @@ def run_explore_search(
         planning_started_at = monotonic()
         ai_search_plan = _plan_explore_search(topic_description=topic_description)
         ai_search_plan_payload = serialize_ai_search_plan(ai_search_plan)
-        repository_queries = tuple(ai_search_plan.queries)
+        planned_queries = tuple(ai_search_plan.queries)
+        executed_queries = planned_queries[:1]
         planning_duration_ms = build_duration_ms(planning_started_at)
         if log_context is not None:
             log_search_event(
@@ -98,11 +103,11 @@ def run_explore_search(
                 event="explore_ai_planning_completed",
                 context=log_context,
                 duration_ms=planning_duration_ms,
-                query_count=len(repository_queries),
+                query_count=len(planned_queries),
                 planner=config.AI_PLANNER_MODE,
             )
 
-        if not repository_queries:
+        if not executed_queries:
             response_build_started_at = monotonic()
             payload = build_empty_explore_search_payload(
                 topic_description=topic_description,
@@ -142,12 +147,12 @@ def run_explore_search(
         current_stage = "local_retrieval"
         retrieval_started_at = monotonic()
         local_candidates = retrieve_catalog_candidates(
-            repository_queries,
+            executed_queries,
             database_url=database_url,
         )
         current_stage = "external_retrieval"
         external_retrieved = _run_external_retrieval(
-            repository_queries,
+            executed_queries,
             local_candidates=local_candidates,
             topic_description=topic_description,
             ai_search_plan_payload=ai_search_plan_payload,
@@ -173,7 +178,7 @@ def run_explore_search(
         evaluation_started_at = monotonic()
         evaluation = build_explore_search_evaluation(
             retrieved,
-            queries=repository_queries,
+            queries=executed_queries,
             log_context=log_context,
         )
         admitted_repository_ids = {
@@ -190,6 +195,14 @@ def run_explore_search(
         )
         evaluation_duration_ms = build_duration_ms(evaluation_started_at)
 
+        execution = ExploreSearchExecution(
+            ai_search_plan=ai_search_plan,
+            executed_queries=executed_queries,
+            retrieved=retrieved,
+        )
+        if execution_callback is not None:
+            execution_callback(execution)
+
         if retrieved.successful_source_count == 0:
             if log_context is not None:
                 log_search_event(
@@ -202,7 +215,7 @@ def run_explore_search(
                     error_code="all_sources_unavailable",
                     error_message="Repository search is temporarily unavailable across all providers.",
                     partial=retrieved.partial,
-                    query_count=len(repository_queries),
+                    query_count=len(executed_queries),
                     source_statuses=_summarize_source_statuses(retrieved.source_statuses),
                 )
             raise ExploreSearchUnavailableError(list(retrieved.source_statuses))
@@ -232,6 +245,8 @@ def run_explore_search(
             ai_search_plan_payload=ai_search_plan_payload,
             evaluation=evaluation,
             response_mode=response_mode,
+            can_expand=bool(execution.pending_queries),
+            executed_queries=execution.executed_queries,
         )
         response_build_duration_ms = build_duration_ms(response_build_started_at)
         _attach_beta_timings(
@@ -251,7 +266,7 @@ def run_explore_search(
                 event="explore_search_completed",
                 context=log_context,
                 duration_ms=build_duration_ms(search_started_at),
-                query_count=len(repository_queries),
+                query_count=len(executed_queries),
                 candidate_count=len(retrieved.candidates),
                 admitted_candidate_count=len(evaluation.admission.visible_candidates),
                 visible_result_count=len(visible_candidates),
@@ -280,7 +295,7 @@ def run_explore_search(
                 error_code="unexpected_error",
                 error_message=str(exc),
                 partial=bool(getattr(retrieved, "partial", False)),
-                query_count=len(repository_queries),
+                query_count=len(executed_queries),
                 source_statuses=_summarize_source_statuses(
                     getattr(retrieved, "source_statuses", ())
                 ),

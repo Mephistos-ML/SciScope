@@ -943,21 +943,25 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
         raw_text="science/general-tools\nGeneral scientific utilities.",
         payload={"repo": "science/general-tools", "query": "query one", "topics": []},
     )
+    retrieval_queries: list[tuple[str, ...]] = []
     monkeypatch.setattr(
         "app.services.search.explore.service.run_external_repository_retrieval",
-        lambda queries, **kwargs: _build_retrieved_candidates(
-            _build_code_only_explore_repository_signal(
-                "github:repo:thermotools/lammps_mie_fh",
-                query=queries[0],
-            ),
-            gate_signal,
-            admission_signal,
-            below_cutoff_signal,
-            source_statuses=(
-                {"source": "github", "status": "ok", "candidateCount": 4, "error": None},
-            ),
-            successful_source_count=1,
-            match_locations=("name", "description", "description", "other"),
+        lambda queries, **kwargs: (
+            retrieval_queries.append(tuple(queries))
+            or _build_retrieved_candidates(
+                _build_code_only_explore_repository_signal(
+                    "github:repo:thermotools/lammps_mie_fh",
+                    query=queries[0],
+                ),
+                gate_signal,
+                admission_signal,
+                below_cutoff_signal,
+                source_statuses=(
+                    {"source": "github", "status": "ok", "candidateCount": 4, "error": None},
+                ),
+                successful_source_count=1,
+                match_locations=("name", "description", "description", "other"),
+            )
         ),
     )
 
@@ -973,6 +977,7 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
     assert response.status_code == 200
     payload = response.json()
     assert payload["beta"]["enabled"] is True
+    assert payload["canExpand"] is True
     assert payload["aiSearchPlan"]["queries"] == [
         "query one",
         "query two",
@@ -980,6 +985,11 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
     ]
     assert payload["beta"]["candidateCount"] == 4
     assert payload["beta"]["relevanceCutoff"] == 50.0
+    assert payload["beta"]["execution"] == {
+        "executedQueries": ["query one"],
+        "pendingQueryCount": 2,
+    }
+    assert retrieval_queries == [("query one",)]
     timings = payload["beta"]["timings"]
     assert set(timings) == {
         "aiPlanningDurationMs",
@@ -998,7 +1008,7 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
     assert diagnostics_by_id["github:repo:science/general-tools"]["decision"]["status"] == "below_cutoff"
     breakdown = diagnostics_by_id["github:repo:science/general-tools"]["scoreBreakdown"]
     assert breakdown["matchedQueryCount"] == 1
-    assert breakdown["totalQueryCount"] == 3
+    assert breakdown["totalQueryCount"] == 1
     assert breakdown["strongestMatchPoints"] == 21.25
     assert breakdown["corroborationPoints"] == 0.0
 
@@ -1231,7 +1241,11 @@ def test_explore_search_job_returns_completed_snapshot(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         "app.services.search.explore.service.build_ai_search_plan",
-        lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
+        lambda topic_description: _build_ready_repository_ai_plan(
+            "paramagnetic nmr",
+            "pcs tensor fitting",
+            "pseudocontact shift",
+        ),
     )
     monkeypatch.setattr(
         "app.services.search.explore.service.run_external_repository_retrieval",
@@ -1256,12 +1270,17 @@ def test_explore_search_job_returns_completed_snapshot(monkeypatch) -> None:
         assert response.status_code == 202
         created = response.json()
         assert created["status"] == "completed"
+        assert created["canExpand"] is True
         assert created["items"][0]["itemId"] == "github:repo:Mephistos-ML/paranmr"
 
         follow_up = client.get(f"/api/explore/search-jobs/{created['jobId']}")
 
     assert follow_up.status_code == 200
     assert follow_up.json()["status"] == "completed"
+    assert "_execution" not in follow_up.json()
+    stored_execution = STATE.explore_search_jobs[created["jobId"]]["_execution"]
+    assert stored_execution.executed_queries == ("paramagnetic nmr",)
+    assert stored_execution.pending_queries == ("pcs tensor fitting", "pseudocontact shift")
 
 
 def test_explore_search_beta_job_returns_diagnostics_snapshot(monkeypatch) -> None:

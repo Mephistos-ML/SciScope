@@ -17,6 +17,7 @@ from app.services.search.explore.service import (
     ExploreSearchUnavailableError,
     run_explore_search,
 )
+from app.services.search.explore.execution import ExploreSearchExecution
 from app.services.search.explore.response import ExploreResponseMode
 from app.services.search.observability.context import SearchLogContext, build_request_id
 
@@ -76,7 +77,11 @@ def get_explore_search_job(job_id: str) -> dict[str, object] | None:
         snapshot = STATE.explore_search_jobs.get(job_id)
         if snapshot is None:
             return None
-        return deepcopy(snapshot)
+        return {
+            key: deepcopy(value)
+            for key, value in snapshot.items()
+            if not key.startswith("_")
+        }
 
 
 def _start_explore_search_job_runner(
@@ -122,6 +127,10 @@ def _run_explore_search_job(
         payload = run_explore_search(
             topic_description=topic_description,
             response_mode=response_mode,
+            execution_callback=lambda execution: _store_explore_search_execution(
+                job_id,
+                execution=execution,
+            ),
             progress_callback=lambda search_payload: _update_explore_search_job(
                 job_id,
                 status="retrieving",
@@ -204,6 +213,19 @@ def _update_explore_search_job(
             snapshot.update(deepcopy(search_payload))
         snapshot["error"] = error
         snapshot["message"] = message
+
+
+def _store_explore_search_execution(
+    job_id: str,
+    *,
+    execution: ExploreSearchExecution,
+) -> None:
+    """Keep provider facts server-side for the next incremental retrieval step."""
+
+    with STATE.explore_search_jobs_lock:
+        snapshot = STATE.explore_search_jobs.get(job_id)
+        if snapshot is not None:
+            snapshot["_execution"] = execution
 
 
 def _prune_explore_search_jobs() -> None:
