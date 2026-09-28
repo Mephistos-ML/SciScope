@@ -31,7 +31,7 @@ from app.services.search.retrieval.models import (
 )
 from app.storage import auth as auth_storage
 from app.storage.feed import upsert_feed_events
-from app.storage.search_runs import count_search_run_stages
+from app.storage.search_runs import count_search_run_stages, get_search_run_stage
 from app.storage.subscriptions import SubscriptionWatchRecord
 
 
@@ -1600,6 +1600,22 @@ def test_explore_search_job_returns_completed_snapshot(
         created["jobId"],
         database_url=explore_run_database,
     ) == 1
+    stage = get_search_run_stage(
+        created["jobId"],
+        1,
+        database_url=explore_run_database,
+    )
+    assert stage is not None
+    assert set(stage.timings) >= {
+        "ai_planning",
+        "catalog_retrieval",
+        "candidate_merge",
+        "admission",
+        "ranking",
+        "repository_persistence",
+        "response_serialization",
+        "stage_wall_time",
+    }
 
 
 def test_explore_search_job_expands_one_pending_query_and_merges_candidates(

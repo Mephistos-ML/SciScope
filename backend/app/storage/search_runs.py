@@ -158,6 +158,33 @@ def count_search_run_provider_outcomes(run_id: str, *, database_url: str) -> int
         )
 
 
+def get_search_run_stage(
+    run_id: str,
+    stage_number: int,
+    *,
+    database_url: str,
+) -> SearchRunStage | None:
+    """Return one durable stage report for internal diagnostics."""
+
+    with session_scope(database_url) as session:
+        record = session.get(SearchRunStageRecordModel, (run_id, stage_number))
+        if record is None:
+            return None
+        return SearchRunStage(
+            run_id=record.run_id,
+            operation_id=record.operation_id,
+            stage_number=record.stage_number,
+            status=record.status,
+            executed_query_ids=tuple(record.executed_query_ids_json),
+            retrieved_candidate_count=record.retrieved_candidate_count,
+            admitted_candidate_count=record.admitted_candidate_count,
+            visible_candidate_count=record.visible_candidate_count,
+            timings=record.timings_json,
+            started_at=record.started_at,
+            completed_at=record.completed_at,
+        )
+
+
 def get_search_run(run_id: str, *, database_url: str) -> SearchRun | None:
     """Return the durable top-level record for one Explore search run."""
 

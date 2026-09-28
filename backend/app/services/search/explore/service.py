@@ -60,6 +60,8 @@ class _RetrievalSequence:
     executed_queries: tuple[str, ...]
     attempts: tuple[ExploreQueryAttempt, ...]
     external_candidates: tuple
+    catalog_retrieval_duration_ms: int
+    candidate_merge_duration_ms: int
 
 
 class ExploreSearchUnavailableError(RuntimeError):
@@ -183,6 +185,7 @@ def run_explore_search(
             item.candidate.repository_id
             for item in evaluation.admission.visible_candidates
         }
+        persistence_started_at = monotonic()
         persist_catalog_candidates(
             tuple(
                 candidate
@@ -191,6 +194,7 @@ def run_explore_search(
             ),
             database_url=database_url,
         )
+        repository_persistence_duration_ms = build_duration_ms(persistence_started_at)
         evaluation_duration_ms = build_duration_ms(evaluation_started_at)
 
         stage_snapshots = (
@@ -300,6 +304,15 @@ def run_explore_search(
                     evaluation_duration_ms=evaluation_duration_ms,
                     response_build_duration_ms=response_build_duration_ms,
                     total_duration_ms=build_duration_ms(search_started_at),
+                    catalog_retrieval_duration_ms=(
+                        retrieval_sequence.catalog_retrieval_duration_ms
+                    ),
+                    candidate_merge_duration_ms=(
+                        retrieval_sequence.candidate_merge_duration_ms
+                    ),
+                    admission_duration_ms=evaluation.admission_duration_ms,
+                    ranking_duration_ms=evaluation.ranking_duration_ms,
+                    repository_persistence_duration_ms=repository_persistence_duration_ms,
                 )
             )
         if log_context is not None:
@@ -387,6 +400,7 @@ def expand_explore_search(
         item.candidate.repository_id
         for item in evaluation.admission.visible_candidates
     }
+    persistence_started_at = monotonic()
     persist_catalog_candidates(
         tuple(
             candidate
@@ -395,6 +409,7 @@ def expand_explore_search(
         ),
         database_url=database_url,
     )
+    repository_persistence_duration_ms = build_duration_ms(persistence_started_at)
     evaluation_duration_ms = build_duration_ms(evaluation_started_at)
     stage_snapshots = (
         (
@@ -454,6 +469,15 @@ def expand_explore_search(
                 evaluation_duration_ms=evaluation_duration_ms,
                 response_build_duration_ms=response_build_duration_ms,
                 total_duration_ms=build_duration_ms(search_started_at),
+                catalog_retrieval_duration_ms=(
+                    retrieval_sequence.catalog_retrieval_duration_ms
+                ),
+                candidate_merge_duration_ms=(
+                    retrieval_sequence.candidate_merge_duration_ms
+                ),
+                admission_duration_ms=evaluation.admission_duration_ms,
+                ranking_duration_ms=evaluation.ranking_duration_ms,
+                repository_persistence_duration_ms=repository_persistence_duration_ms,
             )
         )
     return payload
@@ -470,6 +494,11 @@ def _build_stage_report(
     evaluation_duration_ms: int,
     response_build_duration_ms: int,
     total_duration_ms: int,
+    catalog_retrieval_duration_ms: int = 0,
+    candidate_merge_duration_ms: int = 0,
+    admission_duration_ms: int = 0,
+    ranking_duration_ms: int = 0,
+    repository_persistence_duration_ms: int = 0,
 ) -> SearchStageReport:
     return SearchStageReport(
         executed_queries=executed_queries,
@@ -479,7 +508,12 @@ def _build_stage_report(
         timings={
             "ai_planning": ai_planning_duration_ms,
             "retrieval": retrieval_duration_ms,
+            "catalog_retrieval": catalog_retrieval_duration_ms,
+            "candidate_merge": candidate_merge_duration_ms,
             "evaluation": evaluation_duration_ms,
+            "admission": admission_duration_ms,
+            "ranking": ranking_duration_ms,
+            "repository_persistence": repository_persistence_duration_ms,
             "response_serialization": response_build_duration_ms,
             "stage_wall_time": total_duration_ms,
         },
@@ -517,9 +551,18 @@ def _retrieve_planned_queries(
     executed_queries: list[str] = []
     attempts: list[ExploreQueryAttempt] = []
     external_candidates: list = []
+    catalog_retrieval_duration_ms = 0
+    candidate_merge_duration_ms = 0
 
     for query in queries:
-        step, step_attempts, step_external_candidates, exhausted_timeouts = (
+        (
+            step,
+            step_attempts,
+            step_external_candidates,
+            exhausted_timeouts,
+            step_catalog_retrieval_duration_ms,
+            step_candidate_merge_duration_ms,
+        ) = (
             _retrieve_query_with_timeout_retries(
                 query=query,
                 topic_description=topic_description,
@@ -533,6 +576,8 @@ def _retrieve_planned_queries(
         executed_queries.append(query)
         attempts.extend(step_attempts)
         external_candidates.extend(step_external_candidates)
+        catalog_retrieval_duration_ms += step_catalog_retrieval_duration_ms
+        candidate_merge_duration_ms += step_candidate_merge_duration_ms
         if exhausted_timeouts:
             last_timed_out_retrieval = step
             continue
@@ -549,6 +594,8 @@ def _retrieve_planned_queries(
         executed_queries=tuple(executed_queries),
         attempts=tuple(attempts),
         external_candidates=tuple(external_candidates),
+        catalog_retrieval_duration_ms=catalog_retrieval_duration_ms,
+        candidate_merge_duration_ms=candidate_merge_duration_ms,
     )
 
 
@@ -561,15 +608,19 @@ def _retrieve_query_with_timeout_retries(
     progress_callback: ExploreSearchProgressCallback | None,
     log_context: SearchLogContext | None,
     database_url: str,
-) -> tuple[RetrievedCandidates, tuple[ExploreQueryAttempt, ...], tuple, bool]:
+) -> tuple[RetrievedCandidates, tuple[ExploreQueryAttempt, ...], tuple, bool, int, int]:
     """Retry one timed-out query before the plan moves to another angle."""
 
     attempts: list[ExploreQueryAttempt] = []
     external_candidates: list = []
     accumulated_retrieved: RetrievedCandidates | None = None
+    catalog_retrieval_duration_ms = 0
+    candidate_merge_duration_ms = 0
     for attempt_number in range(1, MAX_TIMEOUT_ATTEMPTS_PER_QUERY + 1):
         attempt_started_at = monotonic()
+        catalog_retrieval_started_at = monotonic()
         local_candidates = retrieve_catalog_candidates((query,), database_url=database_url)
+        catalog_retrieval_duration_ms += build_duration_ms(catalog_retrieval_started_at)
         external_retrieved = _run_external_retrieval(
             (query,),
             local_candidates=local_candidates,
@@ -585,10 +636,13 @@ def _retrieve_query_with_timeout_retries(
             ),
             log_context=log_context,
         )
-        attempt_retrieved = RetrievedCandidates(
-            candidates=merge_repository_candidates(
+        candidate_merge_started_at = monotonic()
+        merged_candidates = merge_repository_candidates(
                 (*local_candidates, *external_retrieved.candidates)
-            ),
+        )
+        candidate_merge_duration_ms += build_duration_ms(candidate_merge_started_at)
+        attempt_retrieved = RetrievedCandidates(
+            candidates=merged_candidates,
             source_statuses=external_retrieved.source_statuses,
             successful_source_count=(
                 external_retrieved.successful_source_count + (1 if local_candidates else 0)
@@ -618,10 +672,24 @@ def _retrieve_query_with_timeout_retries(
         external_candidates.extend(external_retrieved.candidates)
         if not timed_out:
             assert accumulated_retrieved is not None
-            return accumulated_retrieved, tuple(attempts), tuple(external_candidates), False
+            return (
+                accumulated_retrieved,
+                tuple(attempts),
+                tuple(external_candidates),
+                False,
+                catalog_retrieval_duration_ms,
+                candidate_merge_duration_ms,
+            )
 
     assert accumulated_retrieved is not None
-    return accumulated_retrieved, tuple(attempts), tuple(external_candidates), True
+    return (
+        accumulated_retrieved,
+        tuple(attempts),
+        tuple(external_candidates),
+        True,
+        catalog_retrieval_duration_ms,
+        candidate_merge_duration_ms,
+    )
 
 
 def _query_attempt_timed_out(retrieved: RetrievedCandidates) -> bool:
