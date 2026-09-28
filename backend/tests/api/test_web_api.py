@@ -1028,6 +1028,11 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
     assert breakdown["totalQueryCount"] == 1
     assert breakdown["strongestMatchPoints"] == 21.25
     assert breakdown["corroborationPoints"] == 0.0
+    assert all(
+        diagnostic["scoreBreakdown"]["matchedQueryCount"]
+        <= diagnostic["scoreBreakdown"]["totalQueryCount"]
+        for diagnostic in diagnostics_by_id.values()
+    )
 
 
 def test_explore_search_retries_timeouts_before_advancing_to_next_query(monkeypatch) -> None:

@@ -5,6 +5,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from app.services.search.ranking.models import RankingFeatures
+from app.services.search.retrieval.evidence import (
+    count_current_query_matches,
+    normalize_query,
+)
 from app.services.search.retrieval import RepositoryCandidate, RetrievalMatchEvidence
 
 
@@ -27,7 +31,7 @@ def build_ranking_features(
     """Build ranking features without relying on source or retrieval channel."""
 
     normalized_queries = tuple(
-        _normalize_query(query) for query in queries if query.strip()
+        dict.fromkeys(normalize_query(query) for query in queries if query.strip())
     )
     evidence = candidate.provenance.match_evidence
     evidence_quality_by_query = _build_evidence_quality_by_query(
@@ -41,7 +45,7 @@ def build_ranking_features(
     strongest_match_quality = max(ordered_evidence_quality, default=0.0)
 
     return RankingFeatures(
-        matched_query_count=len(candidate.provenance.matched_queries),
+        matched_query_count=count_current_query_matches(candidate, normalized_queries),
         total_query_count=len(normalized_queries),
         hit_count=candidate.provenance.hit_count,
         evidence_count=len(evidence),
@@ -63,7 +67,7 @@ def _build_evidence_quality_by_query(
     }
     best_quality_by_query: dict[str, float] = {}
     for item in evidence:
-        normalized_query = _normalize_query(item.query)
+        normalized_query = normalize_query(item.query)
         priority = query_priority_by_value.get(normalized_query)
         if priority is None:
             continue
@@ -97,9 +101,3 @@ def _query_priority_weight(index: int) -> float:
     """Prefer the primary interpretation slightly without hiding stronger fallback evidence."""
 
     return max(0.8, 1.0 - index * 0.05)
-
-
-def _normalize_query(query: str) -> str:
-    """Make query identity stable across provider and catalog retrieval."""
-
-    return " ".join(query.casefold().split())

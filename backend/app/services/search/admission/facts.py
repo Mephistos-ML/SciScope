@@ -15,6 +15,7 @@ from app.services.search.admission.terms.metadata import (
 )
 from app.services.search.admission.models import AdmissionEvidence, AdmissionPathStrength
 from app.services.search.admission.terms.name import REPO_NAME_REJECT_TERMS
+from app.services.search.retrieval.evidence import count_current_query_matches
 from app.services.search.retrieval.models import RepositoryCandidate
 
 
@@ -37,7 +38,11 @@ class CandidateFacts:
     evidence: AdmissionEvidence
 
 
-def build_candidate_facts(candidate: RepositoryCandidate) -> CandidateFacts:
+def build_candidate_facts(
+    candidate: RepositoryCandidate,
+    *,
+    queries: tuple[str, ...] | list[str] | None = None,
+) -> CandidateFacts:
     """Extract normalized admission facts from one repository candidate."""
 
     signal = candidate.signal
@@ -59,9 +64,12 @@ def build_candidate_facts(candidate: RepositoryCandidate) -> CandidateFacts:
     paper_like_term_hits = find_term_hits(combined_text, PAPER_LIKE_TERMS)
     collection_term_hits = find_term_hits(combined_text, COLLECTION_TERMS)
     education_term_hits = find_term_hits(combined_text, EDUCATION_TERMS)
-    matched_query_count = len(
-        [query for query in candidate.provenance.matched_queries if query.strip()]
+    active_queries = (
+        queries
+        if queries is not None
+        else candidate.provenance.matched_queries
     )
+    matched_query_count = count_current_query_matches(candidate, active_queries)
     evidence = AdmissionEvidence(
         matched_channels=candidate.provenance.matched_channels,
         matched_query_count=matched_query_count,

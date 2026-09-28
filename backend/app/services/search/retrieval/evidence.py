@@ -6,6 +6,7 @@ import re
 
 from app.models.signal import Signal
 from app.services.search.retrieval.models import (
+    RepositoryCandidate,
     RetrievalHit,
     RetrievalMatchEvidence,
     RetrievalMatchLocation,
@@ -85,6 +86,32 @@ def build_retrieval_match_evidence(hit: RetrievalHit) -> RetrievalMatchEvidence:
         location=location,
         path=path,
     )
+
+
+def count_current_query_matches(
+    candidate: RepositoryCandidate,
+    queries: tuple[str, ...] | list[str],
+) -> int:
+    """Count only query evidence belonging to the current search run."""
+
+    current_queries = {
+        normalize_query(query)
+        for query in queries
+        if query.strip()
+    }
+    return len(
+        {
+            normalize_query(query)
+            for query in candidate.provenance.matched_queries
+            if query.strip() and normalize_query(query) in current_queries
+        }
+    )
+
+
+def normalize_query(query: str) -> str:
+    """Normalize query identity for coverage comparisons."""
+
+    return " ".join(query.casefold().split())
 
 
 def _classify_metadata_location(

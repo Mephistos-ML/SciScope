@@ -30,6 +30,7 @@ def build_explore_search_evaluation(
 
     admission = run_repository_admission(
         retrieved.candidates,
+        queries=queries,
         log_context=log_context,
     )
     ranking = rank_repository_candidates(retrieved.candidates, queries=queries)

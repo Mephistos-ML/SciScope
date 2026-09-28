@@ -376,6 +376,28 @@ def test_repository_admission_enforced_mode_hides_rejected_candidates() -> None:
     assert result.visible_candidates[0].candidate.repository_id == strong_candidate.repository_id
 
 
+def test_repository_admission_counts_only_current_run_query_matches() -> None:
+    candidate = _build_candidate(
+        item_id="github:repo:science/catalogued-tool",
+        title="science/catalogued-tool",
+        raw_text="science/catalogued-tool\nScientific software.",
+        language="Python",
+        matched_queries=(
+            "historical query one",
+            "historical query two",
+            "current query",
+        ),
+    )
+
+    result = run_repository_admission(
+        (candidate,),
+        mode="enforced",
+        queries=("current query",),
+    )
+
+    assert result.evaluated_candidates[0].admission.evidence.matched_query_count == 1
+
+
 def _build_candidate(
     *,
     item_id: str,
@@ -384,6 +406,7 @@ def _build_candidate(
     language: str,
     topics: tuple[str, ...] = (),
     matched_channels: tuple[str, ...] = ("repository_search",),
+    matched_queries: tuple[str, ...] = ("orca parser",),
 ) -> RepositoryCandidate:
     signal = Signal(
         source="github",
@@ -405,7 +428,7 @@ def _build_candidate(
         repository_id=item_id,
         signal=signal,
         provenance=CandidateProvenance(
-            matched_queries=("orca parser",),
+            matched_queries=matched_queries,
             matched_channels=matched_channels,
             best_rank_by_channel={channel_name: 1 for channel_name in matched_channels},
             hit_count=len(matched_channels),
