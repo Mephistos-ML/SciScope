@@ -1,5 +1,7 @@
 # SciScope
 
+[![CI](https://github.com/Mephistos-ML/SciScope/actions/workflows/test.yml/badge.svg)](https://github.com/Mephistos-ML/SciScope/actions/workflows/test.yml)
+
 SciScope is a live service for discovering and monitoring domain-specific scientific software.
 
 Public service: `https://sciscope.uk/`
