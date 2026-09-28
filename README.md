@@ -1,6 +1,9 @@
 # SciScope
 
 [![CI](https://github.com/Mephistos-ML/SciScope/actions/workflows/test.yml/badge.svg)](https://github.com/Mephistos-ML/SciScope/actions/workflows/test.yml)
+[![Release](https://github.com/Mephistos-ML/SciScope/actions/workflows/release.yml/badge.svg)](https://github.com/Mephistos-ML/SciScope/actions/workflows/release.yml)
+[![GitHub release](https://img.shields.io/github/v/release/Mephistos-ML/SciScope)](https://github.com/Mephistos-ML/SciScope/releases)
+[![Backend coverage](https://codecov.io/gh/Mephistos-ML/SciScope/branch/main/graph/badge.svg?flag=backend)](https://codecov.io/gh/Mephistos-ML/SciScope)
 
 SciScope is a live service for discovering and monitoring domain-specific scientific software.
 
