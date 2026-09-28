@@ -1635,6 +1635,89 @@ def test_explore_search_job_expands_one_pending_query_and_merges_candidates(monk
     assert stored_execution.pending_queries == ("pseudocontact shift",)
 
 
+def test_explore_search_expansion_preserves_all_previous_results(monkeypatch) -> None:
+    """Incremental expansion may add candidates but must not remove prior ones."""
+
+    _allow_explore_access(monkeypatch)
+    STATE.explore_search_jobs.clear()
+    monkeypatch.setattr(
+        "app.services.search.explore.jobs._start_explore_search_job_runner",
+        _run_explore_job_inline,
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.jobs._start_explore_search_expansion_runner",
+        _run_explore_expansion_inline,
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan(
+            "angle one",
+            "angle two",
+            "angle three",
+        ),
+    )
+
+    repository_ids = {
+        "angle one": "github:repo:science/angle-one",
+        "angle two": "github:repo:science/angle-two",
+        "angle three": "github:repo:science/angle-three",
+    }
+
+    def _retrieve(queries, **_kwargs):
+        query = queries[0]
+        return _build_retrieved_candidates(
+            _build_explore_repository_signal(
+                repository_ids[query],
+                query=query,
+            ),
+            source_statuses=(
+                {"source": "github", "status": "ok", "candidateCount": 1, "error": None},
+            ),
+            successful_source_count=1,
+        )
+
+    monkeypatch.setattr(
+        "app.services.search.explore.service.run_external_repository_retrieval",
+        _retrieve,
+    )
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/explore/search-jobs",
+            json={"topicDescription": "Incremental search preservation"},
+        ).json()
+        initial_ids = {item["itemId"] for item in created["items"]}
+
+        first_expansion = client.post(
+            f"/api/explore/search-jobs/{created['jobId']}/expand",
+        )
+        assert first_expansion.status_code == 202
+        first_expansion_ids = {
+            item["itemId"] for item in first_expansion.json()["items"]
+        }
+
+        second_expansion = client.post(
+            f"/api/explore/search-jobs/{created['jobId']}/expand",
+        )
+        assert second_expansion.status_code == 202
+        second_expansion_ids = {
+            item["itemId"] for item in second_expansion.json()["items"]
+        }
+
+    assert initial_ids == {"github:repo:science/angle-one"}
+    assert initial_ids <= first_expansion_ids
+    assert first_expansion_ids == {
+        "github:repo:science/angle-one",
+        "github:repo:science/angle-two",
+    }
+    assert first_expansion_ids <= second_expansion_ids
+    assert second_expansion_ids == {
+        "github:repo:science/angle-one",
+        "github:repo:science/angle-two",
+        "github:repo:science/angle-three",
+    }
+
+
 def test_explore_search_job_rejects_expansion_after_plan_is_exhausted(monkeypatch) -> None:
     _allow_explore_access(monkeypatch)
     STATE.explore_search_jobs.clear()
