@@ -303,6 +303,107 @@ def run_explore_search(
         raise
 
 
+def expand_explore_search(
+    *,
+    topic_description: str,
+    execution: ExploreSearchExecution,
+    response_mode: ExploreResponseMode = "canonical",
+    execution_callback: ExploreSearchExecutionCallback | None = None,
+    soft_deadline_monotonic: float | None = None,
+    hard_deadline_monotonic: float | None = None,
+    log_context: SearchLogContext | None = None,
+    database_url: str = config.DATABASE_URL,
+) -> dict[str, object]:
+    """Run exactly one pending query and rerank the accumulated candidate pool."""
+
+    next_queries = execution.pending_queries[:1]
+    if not next_queries:
+        raise ValueError("Explore search plan has no pending queries.")
+
+    search_started_at = monotonic()
+    ai_search_plan_payload = serialize_ai_search_plan(execution.ai_search_plan)
+    retrieval_started_at = monotonic()
+    local_candidates = retrieve_catalog_candidates(
+        next_queries,
+        database_url=database_url,
+    )
+    external_retrieved = _run_external_retrieval(
+        next_queries,
+        local_candidates=local_candidates,
+        topic_description=topic_description,
+        ai_search_plan_payload=ai_search_plan_payload,
+        response_mode=response_mode,
+        progress_callback=None,
+        soft_deadline_monotonic=soft_deadline_monotonic,
+        hard_deadline_monotonic=hard_deadline_monotonic,
+        log_context=log_context,
+    )
+    next_retrieved = RetrievedCandidates(
+        candidates=merge_repository_candidates(
+            (*local_candidates, *external_retrieved.candidates)
+        ),
+        source_statuses=external_retrieved.source_statuses,
+        successful_source_count=(
+            external_retrieved.successful_source_count + (1 if local_candidates else 0)
+        ),
+        partial=external_retrieved.partial,
+        warnings=external_retrieved.warnings,
+    )
+    retrieved = _merge_retrieved_candidates(execution.retrieved, next_retrieved)
+    retrieval_duration_ms = build_duration_ms(retrieval_started_at)
+
+    evaluation_started_at = monotonic()
+    executed_queries = (*execution.executed_queries, *next_queries)
+    evaluation = build_explore_search_evaluation(
+        retrieved,
+        queries=executed_queries,
+        log_context=log_context,
+    )
+    admitted_repository_ids = {
+        item.candidate.repository_id
+        for item in evaluation.admission.visible_candidates
+    }
+    persist_catalog_candidates(
+        tuple(
+            candidate
+            for candidate in external_retrieved.candidates
+            if candidate.repository_id in admitted_repository_ids
+        ),
+        database_url=database_url,
+    )
+    evaluation_duration_ms = build_duration_ms(evaluation_started_at)
+    expanded_execution = ExploreSearchExecution(
+        ai_search_plan=execution.ai_search_plan,
+        executed_queries=executed_queries,
+        retrieved=retrieved,
+    )
+    if execution_callback is not None:
+        execution_callback(expanded_execution)
+
+    response_build_started_at = monotonic()
+    payload = build_explore_search_payload(
+        topic_description=topic_description,
+        ai_search_plan_payload=ai_search_plan_payload,
+        evaluation=evaluation,
+        response_mode=response_mode,
+        can_expand=bool(expanded_execution.pending_queries),
+        executed_queries=expanded_execution.executed_queries,
+    )
+    response_build_duration_ms = build_duration_ms(response_build_started_at)
+    _attach_beta_timings(
+        payload,
+        response_mode=response_mode,
+        timings=ExploreSearchTimings(
+            ai_planning_duration_ms=0,
+            retrieval_duration_ms=retrieval_duration_ms,
+            evaluation_duration_ms=evaluation_duration_ms,
+            response_build_duration_ms=response_build_duration_ms,
+            total_duration_ms=build_duration_ms(search_started_at),
+        ),
+    )
+    return payload
+
+
 def _plan_explore_search(*, topic_description: str):
     try:
         return build_ai_search_plan(topic_description=topic_description)
@@ -374,6 +475,23 @@ def _build_explore_search_progress_payload(
         ai_search_plan_payload=ai_search_plan_payload,
         evaluation=evaluation,
         response_mode=response_mode,
+    )
+
+
+def _merge_retrieved_candidates(
+    existing: RetrievedCandidates,
+    incoming: RetrievedCandidates,
+) -> RetrievedCandidates:
+    """Preserve prior candidates and attempted-provider facts across search steps."""
+
+    return RetrievedCandidates(
+        candidates=merge_repository_candidates((*existing.candidates, *incoming.candidates)),
+        source_statuses=(*existing.source_statuses, *incoming.source_statuses),
+        successful_source_count=(
+            existing.successful_source_count + incoming.successful_source_count
+        ),
+        partial=existing.partial or incoming.partial,
+        warnings=tuple(dict.fromkeys((*existing.warnings, *incoming.warnings))),
     )
 
 

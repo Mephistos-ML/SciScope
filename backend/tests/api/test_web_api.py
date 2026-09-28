@@ -208,6 +208,21 @@ def _run_explore_job_inline(
     )
 
 
+def _run_explore_expansion_inline(
+    *,
+    job_id: str,
+    topic_description: str,
+    response_mode: str,
+) -> None:
+    from app.services.search.explore import jobs as search_jobs
+
+    search_jobs._run_explore_search_expansion_job(
+        job_id=job_id,
+        topic_description=topic_description,
+        response_mode=response_mode,
+    )
+
+
 def test_feed_endpoints_return_json() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         database_url = build_test_database_url(Path(temp_dir) / "api-runtime-test.sqlite3")
@@ -1281,6 +1296,71 @@ def test_explore_search_job_returns_completed_snapshot(monkeypatch) -> None:
     stored_execution = STATE.explore_search_jobs[created["jobId"]]["_execution"]
     assert stored_execution.executed_queries == ("paramagnetic nmr",)
     assert stored_execution.pending_queries == ("pcs tensor fitting", "pseudocontact shift")
+
+
+def test_explore_search_job_expands_one_pending_query_and_merges_candidates(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
+    STATE.explore_search_jobs.clear()
+    monkeypatch.setattr(
+        "app.services.search.explore.jobs._start_explore_search_job_runner",
+        _run_explore_job_inline,
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.jobs._start_explore_search_expansion_runner",
+        _run_explore_expansion_inline,
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan(
+            "paramagnetic nmr",
+            "pcs tensor fitting",
+            "pseudocontact shift",
+        ),
+    )
+    retrieval_queries: list[tuple[str, ...]] = []
+
+    def _retrieve(queries, **_kwargs):
+        retrieval_queries.append(tuple(queries))
+        return _build_retrieved_candidates(
+            _build_explore_repository_signal(
+                f"github:repo:science/{queries[0].replace(' ', '-')}",
+                query=queries[0],
+            ),
+            source_statuses=(
+                {"source": "github", "status": "ok", "candidateCount": 1, "error": None},
+            ),
+            successful_source_count=1,
+        )
+
+    monkeypatch.setattr(
+        "app.services.search.explore.service.run_external_repository_retrieval",
+        _retrieve,
+    )
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/explore/search-jobs",
+            json={"topicDescription": "Paramagnetic NMR analysis workflows"},
+        ).json()
+        expanded = client.post(
+            f"/api/explore/search-jobs/{created['jobId']}/expand",
+        )
+
+    assert expanded.status_code == 202
+    payload = expanded.json()
+    assert payload["status"] == "completed"
+    assert payload["canExpand"] is True
+    assert {item["itemId"] for item in payload["items"]} == {
+        "github:repo:science/paramagnetic-nmr",
+        "github:repo:science/pcs-tensor-fitting",
+    }
+    assert retrieval_queries == [("paramagnetic nmr",), ("pcs tensor fitting",)]
+    stored_execution = STATE.explore_search_jobs[created["jobId"]]["_execution"]
+    assert stored_execution.executed_queries == (
+        "paramagnetic nmr",
+        "pcs tensor fitting",
+    )
+    assert stored_execution.pending_queries == ("pseudocontact shift",)
 
 
 def test_explore_search_beta_job_returns_diagnostics_snapshot(monkeypatch) -> None:
