@@ -4,7 +4,7 @@ type FrontendConfig = {
   turnstileSiteKey: string | null;
 };
 
-const DEFAULT_REQUEST_TIMEOUT_MS = 45_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
 
 function readRequiredEnv(name: string, value: unknown): string {
   if (typeof value !== "string" || value.trim() === "") {
