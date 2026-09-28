@@ -1,3 +1,10 @@
+## [1.18.1](https://github.com/Mephistos-ML/SciScope/compare/v1.18.0...v1.18.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* **search:** scope query coverage to current run ([e0dc0a1](https://github.com/Mephistos-ML/SciScope/commit/e0dc0a1416af07af675b9b07ecbcda0a58729c4d))
+
 # [1.18.0](https://github.com/Mephistos-ML/SciScope/compare/v1.17.6...v1.18.0) (2026-09-28)
 
 
