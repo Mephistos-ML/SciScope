@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
+from typing import Any
 
 from app.database.records.search_runs import (
     SearchRunOperationRecordModel,
@@ -29,6 +31,7 @@ def create_search_run(run: SearchRun, *, database_url: str) -> None:
                 owner_user_id=run.owner_user_id,
                 topic_description=run.topic_description,
                 topic_hash=run.topic_hash,
+                response_mode=run.response_mode,
                 status=run.status,
                 planner_mode=run.planner_mode,
                 planner_model=run.planner_model,
@@ -40,6 +43,8 @@ def create_search_run(run: SearchRun, *, database_url: str) -> None:
                 partial=run.partial,
                 error_code=run.error_code,
                 error_message=run.error_message,
+                response_payload_json=run.response_payload,
+                execution_state_json=run.execution_state,
             )
         )
 
@@ -135,6 +140,7 @@ def get_search_run(run_id: str, *, database_url: str) -> SearchRun | None:
             owner_user_id=record.owner_user_id,
             topic_description=record.topic_description,
             topic_hash=record.topic_hash,
+            response_mode=record.response_mode,
             status=record.status,  # type: ignore[arg-type]
             planner_mode=record.planner_mode,
             planner_model=record.planner_model,
@@ -146,4 +152,64 @@ def get_search_run(run_id: str, *, database_url: str) -> SearchRun | None:
             partial=record.partial,
             error_code=record.error_code,
             error_message=record.error_message,
+            response_payload=record.response_payload_json,
+            execution_state=record.execution_state_json,
         )
+
+
+def update_search_run(
+    run_id: str,
+    *,
+    status: str,
+    partial: bool = False,
+    error_code: str | None = None,
+    error_message: str | None = None,
+    response_payload: dict[str, Any] | None = None,
+    execution_state: dict[str, Any] | None = None,
+    started_at: datetime | None = None,
+    completed_at: datetime | None = None,
+    database_url: str,
+) -> None:
+    """Update the durable state of one Explore search run."""
+
+    with session_scope(database_url) as session:
+        record = session.get(SearchRunRecordModel, run_id)
+        if record is None:
+            return
+        record.status = status
+        record.partial = partial
+        record.error_code = error_code
+        record.error_message = error_message
+        if response_payload is not None:
+            record.response_payload_json = response_payload
+        if execution_state is not None:
+            record.execution_state_json = execution_state
+        if started_at is not None:
+            record.started_at = started_at
+        if completed_at is not None:
+            record.completed_at = completed_at
+
+
+def update_search_run_operation(
+    operation_id: str,
+    *,
+    status: str,
+    error_code: str | None = None,
+    error_message: str | None = None,
+    started_at: datetime | None = None,
+    completed_at: datetime | None = None,
+    database_url: str,
+) -> None:
+    """Update the durable lifecycle state of one background operation."""
+
+    with session_scope(database_url) as session:
+        record = session.get(SearchRunOperationRecordModel, operation_id)
+        if record is None:
+            return
+        record.status = status
+        record.error_code = error_code
+        record.error_message = error_message
+        if started_at is not None:
+            record.started_at = started_at
+        if completed_at is not None:
+            record.completed_at = completed_at

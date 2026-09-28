@@ -70,6 +70,7 @@ def create_explore_search_job_response(
             request_id=build_request_id(),
             topic_hash=topic_hash,
         ),
+        database_url=request.app.state.database_url,
     )
 
 
@@ -79,7 +80,7 @@ def get_explore_search_job_response(
 ) -> dict[str, object] | None:
     """Return one background explore search job snapshot."""
 
-    payload = get_explore_search_job(job_id)
+    payload = get_explore_search_job(job_id, database_url=request.app.state.database_url)
     if payload is None:
         return None
     if payload.get("responseMode") == "beta":
@@ -105,7 +106,7 @@ def expand_explore_search_job_response(
     if existing is None:
         return None
     try:
-        return expand_explore_search_job(job_id)
+        return expand_explore_search_job(job_id, database_url=request.app.state.database_url)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

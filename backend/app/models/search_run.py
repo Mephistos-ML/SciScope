@@ -34,6 +34,7 @@ class SearchRun:
     owner_user_id: str | None
     topic_description: str
     topic_hash: str
+    response_mode: str
     status: SearchRunStatus
     planner_mode: str
     planner_model: str | None
@@ -45,6 +46,8 @@ class SearchRun:
     partial: bool = False
     error_code: str | None = None
     error_message: str | None = None
+    response_payload: dict[str, Any] | None = None
+    execution_state: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)

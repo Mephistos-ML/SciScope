@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 import tempfile
 
+import pytest
 from fastapi import Response
 from fastapi.testclient import TestClient
 
@@ -31,6 +32,20 @@ from app.services.search.retrieval.models import (
 from app.storage import auth as auth_storage
 from app.storage.feed import upsert_feed_events
 from app.storage.subscriptions import SubscriptionWatchRecord
+
+
+@pytest.fixture
+def explore_run_database(tmp_path):
+    """Give async-run API tests an isolated migrated database."""
+
+    database_url = build_test_database_url(tmp_path / "explore-runs.sqlite3")
+    migrate_test_database(database_url)
+    previous_database_url = app.state.database_url
+    app.state.database_url = database_url
+    try:
+        yield database_url
+    finally:
+        app.state.database_url = previous_database_url
 
 
 def _build_explore_repository_signal(
@@ -194,16 +209,20 @@ def _allow_explore_access(monkeypatch) -> None:
 def _run_explore_job_inline(
     *,
     job_id: str,
+    operation_id: str,
     topic_description: str,
     response_mode: str,
+    database_url: str,
     log_context=None,
 ) -> None:
     from app.services.search.explore import jobs as search_jobs
 
     search_jobs._run_explore_search_job(
         job_id=job_id,
+        operation_id=operation_id,
         topic_description=topic_description,
         response_mode=response_mode,
+        database_url=database_url,
         log_context=log_context,
     )
 
@@ -211,15 +230,19 @@ def _run_explore_job_inline(
 def _run_explore_expansion_inline(
     *,
     job_id: str,
+    operation_id: str,
     topic_description: str,
     response_mode: str,
+    database_url: str,
 ) -> None:
     from app.services.search.explore import jobs as search_jobs
 
     search_jobs._run_explore_search_expansion_job(
         job_id=job_id,
+        operation_id=operation_id,
         topic_description=topic_description,
         response_mode=response_mode,
+        database_url=database_url,
     )
 
 
@@ -1235,7 +1258,9 @@ def test_explore_search_retries_partial_timeouts_and_merges_attempt_results(monk
     ]
 
 
-def test_explore_search_job_fails_after_all_timeout_retries_are_exhausted(monkeypatch) -> None:
+def test_explore_search_job_fails_after_all_timeout_retries_are_exhausted(
+    monkeypatch, explore_run_database
+) -> None:
     _allow_explore_access(monkeypatch)
     STATE.explore_search_jobs.clear()
     monkeypatch.setattr(
@@ -1519,7 +1544,9 @@ def test_explore_search_accepts_verified_turnstile_token_for_suspicious_guest(
     assert response.json()["items"][0]["itemId"] == "github:repo:Mephistos-ML/paranmr"
 
 
-def test_explore_search_job_returns_completed_snapshot(monkeypatch) -> None:
+def test_explore_search_job_returns_completed_snapshot(
+    monkeypatch, explore_run_database
+) -> None:
     _allow_explore_access(monkeypatch)
     STATE.explore_search_jobs.clear()
     monkeypatch.setattr(
@@ -1570,7 +1597,9 @@ def test_explore_search_job_returns_completed_snapshot(monkeypatch) -> None:
     assert stored_execution.pending_queries == ("pcs tensor fitting", "pseudocontact shift")
 
 
-def test_explore_search_job_expands_one_pending_query_and_merges_candidates(monkeypatch) -> None:
+def test_explore_search_job_expands_one_pending_query_and_merges_candidates(
+    monkeypatch, explore_run_database
+) -> None:
     _allow_explore_access(monkeypatch)
     STATE.explore_search_jobs.clear()
     monkeypatch.setattr(
@@ -1614,6 +1643,7 @@ def test_explore_search_job_expands_one_pending_query_and_merges_candidates(monk
             "/api/explore/search-jobs",
             json={"topicDescription": "Paramagnetic NMR analysis workflows"},
         ).json()
+        STATE.explore_search_jobs.clear()
         expanded = client.post(
             f"/api/explore/search-jobs/{created['jobId']}/expand",
         )
@@ -1635,7 +1665,9 @@ def test_explore_search_job_expands_one_pending_query_and_merges_candidates(monk
     assert stored_execution.pending_queries == ("pseudocontact shift",)
 
 
-def test_explore_search_expansion_preserves_all_previous_results(monkeypatch) -> None:
+def test_explore_search_expansion_preserves_all_previous_results(
+    monkeypatch, explore_run_database
+) -> None:
     """Incremental expansion may add candidates but must not remove prior ones."""
 
     _allow_explore_access(monkeypatch)
@@ -1718,7 +1750,9 @@ def test_explore_search_expansion_preserves_all_previous_results(monkeypatch) ->
     }
 
 
-def test_explore_search_job_rejects_expansion_after_plan_is_exhausted(monkeypatch) -> None:
+def test_explore_search_job_rejects_expansion_after_plan_is_exhausted(
+    monkeypatch, explore_run_database
+) -> None:
     _allow_explore_access(monkeypatch)
     STATE.explore_search_jobs.clear()
     monkeypatch.setattr(
@@ -1754,7 +1788,9 @@ def test_explore_search_job_rejects_expansion_after_plan_is_exhausted(monkeypatc
     assert response.json()["error"] == "Explore search job has no more planned queries."
 
 
-def test_explore_search_beta_job_returns_diagnostics_snapshot(monkeypatch) -> None:
+def test_explore_search_beta_job_returns_diagnostics_snapshot(
+    monkeypatch, explore_run_database
+) -> None:
     _allow_explore_access(monkeypatch)
     STATE.explore_search_jobs.clear()
     beta_user = auth_service.User(
@@ -1811,7 +1847,7 @@ def test_explore_search_beta_job_returns_diagnostics_snapshot(monkeypatch) -> No
 
 
 def test_explore_search_beta_stage_snapshots_explain_incremental_results(
-    monkeypatch,
+    monkeypatch, explore_run_database
 ) -> None:
     _allow_explore_access(monkeypatch)
     STATE.explore_search_jobs.clear()
@@ -1900,7 +1936,7 @@ def test_explore_search_beta_stage_snapshots_explain_incremental_results(
 
 
 def test_explore_search_job_returns_failed_snapshot_when_all_sources_fail(
-    monkeypatch,
+    monkeypatch, explore_run_database
 ) -> None:
     _allow_explore_access(monkeypatch)
     STATE.explore_search_jobs.clear()
@@ -1946,7 +1982,9 @@ def test_explore_search_job_returns_failed_snapshot_when_all_sources_fail(
     assert payload["error"] == "Repository search is temporarily unavailable across all providers."
 
 
-def test_explore_search_job_returns_completed_partial_snapshot(monkeypatch) -> None:
+def test_explore_search_job_returns_completed_partial_snapshot(
+    monkeypatch, explore_run_database
+) -> None:
     _allow_explore_access(monkeypatch)
     STATE.explore_search_jobs.clear()
     monkeypatch.setattr(

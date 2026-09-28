@@ -26,6 +26,7 @@ class SearchRunRecordModel(Base):
     )
     topic_description: Mapped[str] = mapped_column(Text, nullable=False)
     topic_hash: Mapped[str] = mapped_column(String, nullable=False)
+    response_mode: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False)
     planner_mode: Mapped[str] = mapped_column(String, nullable=False)
     planner_model: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -37,6 +38,8 @@ class SearchRunRecordModel(Base):
     partial: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     error_code: Mapped[str | None] = mapped_column(String, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    response_payload_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    execution_state_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
 
 class SearchRunOperationRecordModel(Base):

@@ -53,7 +53,6 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Fail fast if the configured database is unavailable at startup."""
 
     configure_logging()
-    _app.state.database_url = DATABASE_URL
     check_database_connection(_app.state.database_url)
     yield
 

@@ -24,6 +24,7 @@ def upgrade() -> None:
         ),
         sa.Column("topic_description", sa.Text(), nullable=False),
         sa.Column("topic_hash", sa.String(), nullable=False),
+        sa.Column("response_mode", sa.String(), nullable=False),
         sa.Column("status", sa.String(), nullable=False),
         sa.Column("planner_mode", sa.String(), nullable=False),
         sa.Column("planner_model", sa.String(), nullable=True),
@@ -35,6 +36,8 @@ def upgrade() -> None:
         sa.Column("partial", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("error_code", sa.String(), nullable=True),
         sa.Column("error_message", sa.Text(), nullable=True),
+        sa.Column("response_payload_json", sa.JSON(), nullable=True),
+        sa.Column("execution_state_json", sa.JSON(), nullable=True),
     )
     op.create_index("ix_search_runs_owner_created", "search_runs", ["owner_user_id", "created_at"])
     op.create_index("ix_search_runs_status_created", "search_runs", ["status", "created_at"])

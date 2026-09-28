@@ -156,7 +156,7 @@ def persist_catalog_candidates(
             tuple(item.query_normalized for item in evidence),
             database_url=database_url,
         )
-    except DBAPIError:
+    except (DBAPIError, ValueError):
         logger.exception("Catalog ingestion failed after external retrieval.")
 
 

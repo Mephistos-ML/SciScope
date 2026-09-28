@@ -29,6 +29,7 @@ def test_search_run_storage_persists_execution_facts(tmp_path) -> None:
         owner_user_id=None,
         topic_description="Paramagnetic NMR fitting",
         topic_hash="topic_hash",
+        response_mode="canonical",
         status="running",
         planner_mode="openai",
         planner_model="gpt-5",
