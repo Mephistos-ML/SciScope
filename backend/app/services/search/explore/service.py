@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 from time import monotonic
 
 from app import config
@@ -16,7 +17,7 @@ from app.services.ai.search_plans import (
     serialize_ai_search_plan,
 )
 from app.services.search.explore.canonical import select_canonical_candidates
-from app.services.search.explore.execution import ExploreSearchExecution
+from app.services.search.explore.execution import ExploreQueryAttempt, ExploreSearchExecution
 from app.services.search.catalog import (
     persist_catalog_candidates,
     retrieve_catalog_candidates,
@@ -44,6 +45,15 @@ logger = logging.getLogger(__name__)
 
 ExploreSearchProgressCallback = Callable[[dict[str, object]], None]
 ExploreSearchExecutionCallback = Callable[[ExploreSearchExecution], None]
+MAX_TIMEOUT_ATTEMPTS_PER_QUERY = 3
+
+
+@dataclass(frozen=True)
+class _RetrievalSequence:
+    retrieved: RetrievedCandidates
+    executed_queries: tuple[str, ...]
+    attempts: tuple[ExploreQueryAttempt, ...]
+    external_candidates: tuple
 
 
 class ExploreSearchUnavailableError(RuntimeError):
@@ -66,8 +76,6 @@ def run_explore_search(
     response_mode: ExploreResponseMode = "canonical",
     progress_callback: ExploreSearchProgressCallback | None = None,
     execution_callback: ExploreSearchExecutionCallback | None = None,
-    soft_deadline_monotonic: float | None = None,
-    hard_deadline_monotonic: float | None = None,
     log_context: SearchLogContext | None = None,
     database_url: str = config.DATABASE_URL,
 ) -> dict[str, object]:
@@ -144,36 +152,19 @@ def run_explore_search(
                 )
             return payload
 
-        current_stage = "local_retrieval"
         retrieval_started_at = monotonic()
-        local_candidates = retrieve_catalog_candidates(
-            executed_queries,
-            database_url=database_url,
-        )
         current_stage = "external_retrieval"
-        external_retrieved = _run_external_retrieval(
-            executed_queries,
-            local_candidates=local_candidates,
+        retrieval_sequence = _retrieve_planned_queries(
+            queries=planned_queries,
             topic_description=topic_description,
             ai_search_plan_payload=ai_search_plan_payload,
             response_mode=response_mode,
             progress_callback=progress_callback,
-            soft_deadline_monotonic=soft_deadline_monotonic,
-            hard_deadline_monotonic=hard_deadline_monotonic,
             log_context=log_context,
+            database_url=database_url,
         )
-        retrieved = RetrievedCandidates(
-            candidates=merge_repository_candidates(
-                (*local_candidates, *external_retrieved.candidates)
-            ),
-            source_statuses=external_retrieved.source_statuses,
-            successful_source_count=(
-                external_retrieved.successful_source_count
-                + (1 if local_candidates else 0)
-            ),
-            partial=external_retrieved.partial,
-            warnings=external_retrieved.warnings,
-        )
+        executed_queries = retrieval_sequence.executed_queries
+        retrieved = retrieval_sequence.retrieved
         retrieval_duration_ms = build_duration_ms(retrieval_started_at)
         evaluation_started_at = monotonic()
         evaluation = build_explore_search_evaluation(
@@ -188,7 +179,7 @@ def run_explore_search(
         persist_catalog_candidates(
             tuple(
                 candidate
-                for candidate in external_retrieved.candidates
+                for candidate in retrieval_sequence.external_candidates
                 if candidate.repository_id in admitted_repository_ids
             ),
             database_url=database_url,
@@ -199,6 +190,7 @@ def run_explore_search(
             ai_search_plan=ai_search_plan,
             executed_queries=executed_queries,
             retrieved=retrieved,
+            attempts=retrieval_sequence.attempts,
         )
         if execution_callback is not None:
             execution_callback(execution)
@@ -247,6 +239,7 @@ def run_explore_search(
             response_mode=response_mode,
             can_expand=bool(execution.pending_queries),
             executed_queries=execution.executed_queries,
+            query_attempts=_serialize_query_attempts(execution.attempts),
         )
         response_build_duration_ms = build_duration_ms(response_build_started_at)
         _attach_beta_timings(
@@ -309,51 +302,32 @@ def expand_explore_search(
     execution: ExploreSearchExecution,
     response_mode: ExploreResponseMode = "canonical",
     execution_callback: ExploreSearchExecutionCallback | None = None,
-    soft_deadline_monotonic: float | None = None,
-    hard_deadline_monotonic: float | None = None,
     log_context: SearchLogContext | None = None,
     database_url: str = config.DATABASE_URL,
 ) -> dict[str, object]:
     """Run exactly one pending query and rerank the accumulated candidate pool."""
 
-    next_queries = execution.pending_queries[:1]
+    next_queries = execution.pending_queries
     if not next_queries:
         raise ValueError("Explore search plan has no pending queries.")
 
     search_started_at = monotonic()
     ai_search_plan_payload = serialize_ai_search_plan(execution.ai_search_plan)
     retrieval_started_at = monotonic()
-    local_candidates = retrieve_catalog_candidates(
-        next_queries,
-        database_url=database_url,
-    )
-    external_retrieved = _run_external_retrieval(
-        next_queries,
-        local_candidates=local_candidates,
+    retrieval_sequence = _retrieve_planned_queries(
+        queries=next_queries,
         topic_description=topic_description,
         ai_search_plan_payload=ai_search_plan_payload,
         response_mode=response_mode,
         progress_callback=None,
-        soft_deadline_monotonic=soft_deadline_monotonic,
-        hard_deadline_monotonic=hard_deadline_monotonic,
         log_context=log_context,
+        database_url=database_url,
     )
-    next_retrieved = RetrievedCandidates(
-        candidates=merge_repository_candidates(
-            (*local_candidates, *external_retrieved.candidates)
-        ),
-        source_statuses=external_retrieved.source_statuses,
-        successful_source_count=(
-            external_retrieved.successful_source_count + (1 if local_candidates else 0)
-        ),
-        partial=external_retrieved.partial,
-        warnings=external_retrieved.warnings,
-    )
-    retrieved = _merge_retrieved_candidates(execution.retrieved, next_retrieved)
+    retrieved = _merge_retrieved_candidates(execution.retrieved, retrieval_sequence.retrieved)
     retrieval_duration_ms = build_duration_ms(retrieval_started_at)
 
     evaluation_started_at = monotonic()
-    executed_queries = (*execution.executed_queries, *next_queries)
+    executed_queries = (*execution.executed_queries, *retrieval_sequence.executed_queries)
     evaluation = build_explore_search_evaluation(
         retrieved,
         queries=executed_queries,
@@ -366,7 +340,7 @@ def expand_explore_search(
     persist_catalog_candidates(
         tuple(
             candidate
-            for candidate in external_retrieved.candidates
+                for candidate in retrieval_sequence.external_candidates
             if candidate.repository_id in admitted_repository_ids
         ),
         database_url=database_url,
@@ -376,6 +350,7 @@ def expand_explore_search(
         ai_search_plan=execution.ai_search_plan,
         executed_queries=executed_queries,
         retrieved=retrieved,
+        attempts=(*execution.attempts, *retrieval_sequence.attempts),
     )
     if execution_callback is not None:
         execution_callback(expanded_execution)
@@ -388,6 +363,7 @@ def expand_explore_search(
         response_mode=response_mode,
         can_expand=bool(expanded_execution.pending_queries),
         executed_queries=expanded_execution.executed_queries,
+        query_attempts=_serialize_query_attempts(expanded_execution.attempts),
     )
     response_build_duration_ms = build_duration_ms(response_build_started_at)
     _attach_beta_timings(
@@ -402,6 +378,141 @@ def expand_explore_search(
         ),
     )
     return payload
+
+
+def _retrieve_planned_queries(
+    *,
+    queries: tuple[str, ...],
+    topic_description: str,
+    ai_search_plan_payload: dict[str, object],
+    response_mode: ExploreResponseMode,
+    progress_callback: ExploreSearchProgressCallback | None,
+    log_context: SearchLogContext | None,
+    database_url: str,
+) -> _RetrievalSequence:
+    """Retrieve planned queries until one completes or every timeout fallback is exhausted."""
+
+    accumulated: RetrievedCandidates | None = None
+    last_timed_out_retrieval: RetrievedCandidates | None = None
+    executed_queries: list[str] = []
+    attempts: list[ExploreQueryAttempt] = []
+    external_candidates: list = []
+
+    for query in queries:
+        step, step_attempts, step_external_candidates, exhausted_timeouts = (
+            _retrieve_query_with_timeout_retries(
+                query=query,
+                topic_description=topic_description,
+                ai_search_plan_payload=ai_search_plan_payload,
+                response_mode=response_mode,
+                progress_callback=progress_callback if not attempts else None,
+                log_context=log_context,
+                database_url=database_url,
+            )
+        )
+        executed_queries.append(query)
+        attempts.extend(step_attempts)
+        external_candidates.extend(step_external_candidates)
+        if exhausted_timeouts:
+            last_timed_out_retrieval = step
+            continue
+
+        accumulated = step if accumulated is None else _merge_retrieved_candidates(accumulated, step)
+        break
+
+    if accumulated is None:
+        accumulated = last_timed_out_retrieval or RetrievedCandidates(
+            candidates=(), source_statuses=(), successful_source_count=0
+        )
+    return _RetrievalSequence(
+        retrieved=accumulated,
+        executed_queries=tuple(executed_queries),
+        attempts=tuple(attempts),
+        external_candidates=tuple(external_candidates),
+    )
+
+
+def _retrieve_query_with_timeout_retries(
+    *,
+    query: str,
+    topic_description: str,
+    ai_search_plan_payload: dict[str, object],
+    response_mode: ExploreResponseMode,
+    progress_callback: ExploreSearchProgressCallback | None,
+    log_context: SearchLogContext | None,
+    database_url: str,
+) -> tuple[RetrievedCandidates, tuple[ExploreQueryAttempt, ...], tuple, bool]:
+    """Retry one fully timed-out query before the plan moves to another angle."""
+
+    attempts: list[ExploreQueryAttempt] = []
+    external_candidates: list = []
+    last_retrieved: RetrievedCandidates | None = None
+    for attempt_number in range(1, MAX_TIMEOUT_ATTEMPTS_PER_QUERY + 1):
+        attempt_started_at = monotonic()
+        local_candidates = retrieve_catalog_candidates((query,), database_url=database_url)
+        external_retrieved = _run_external_retrieval(
+            (query,),
+            local_candidates=local_candidates,
+            topic_description=topic_description,
+            ai_search_plan_payload=ai_search_plan_payload,
+            response_mode=response_mode,
+            progress_callback=progress_callback if attempt_number == 1 else None,
+            soft_deadline_monotonic=(
+                attempt_started_at + config.EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS
+            ),
+            hard_deadline_monotonic=(
+                attempt_started_at + config.EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS
+            ),
+            log_context=log_context,
+        )
+        last_retrieved = RetrievedCandidates(
+            candidates=merge_repository_candidates(
+                (*local_candidates, *external_retrieved.candidates)
+            ),
+            source_statuses=external_retrieved.source_statuses,
+            successful_source_count=(
+                external_retrieved.successful_source_count + (1 if local_candidates else 0)
+            ),
+            partial=external_retrieved.partial,
+            warnings=external_retrieved.warnings,
+        )
+        timed_out_without_results = _timed_out_without_usable_results(last_retrieved)
+        attempts.append(
+            ExploreQueryAttempt(
+                query=query,
+                attempt=attempt_number,
+                status="timed_out" if timed_out_without_results else "completed",
+                duration_ms=build_duration_ms(attempt_started_at),
+                candidate_count=len(last_retrieved.candidates),
+            )
+        )
+        external_candidates.extend(external_retrieved.candidates)
+        if not timed_out_without_results:
+            return last_retrieved, tuple(attempts), tuple(external_candidates), False
+
+    assert last_retrieved is not None
+    return last_retrieved, tuple(attempts), tuple(external_candidates), True
+
+
+def _timed_out_without_usable_results(retrieved: RetrievedCandidates) -> bool:
+    if retrieved.candidates or retrieved.successful_source_count > 0:
+        return False
+    return any(status.get("status") == "timed_out" for status in retrieved.source_statuses)
+
+
+def _serialize_query_attempts(
+    attempts: tuple[ExploreQueryAttempt, ...],
+) -> tuple[dict[str, object], ...]:
+    return tuple(
+        {
+            "query": attempt.query,
+            "attempt": attempt.attempt,
+            "status": attempt.status,
+            "durationMs": attempt.duration_ms,
+            "candidateCount": attempt.candidate_count,
+        }
+        for attempt in attempts
+    )
 
 
 def _plan_explore_search(*, topic_description: str):

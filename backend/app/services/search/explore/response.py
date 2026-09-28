@@ -20,6 +20,7 @@ def build_explore_search_payload(
     response_mode: ExploreResponseMode,
     can_expand: bool = False,
     executed_queries: tuple[str, ...] = (),
+    query_attempts: tuple[dict[str, object], ...] = (),
 ) -> dict[str, object]:
     """Project one shared evaluation into its requested response mode."""
 
@@ -47,6 +48,7 @@ def build_explore_search_payload(
                     len(ai_search_plan_payload.get("queries", [])) - len(executed_queries),
                     0,
                 ),
+                "attempts": list(query_attempts),
             },
         }
     return payload

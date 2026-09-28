@@ -1000,10 +1000,12 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
     ]
     assert payload["beta"]["candidateCount"] == 4
     assert payload["beta"]["relevanceCutoff"] == 50.0
-    assert payload["beta"]["execution"] == {
-        "executedQueries": ["query one"],
-        "pendingQueryCount": 2,
-    }
+    execution = payload["beta"]["execution"]
+    assert execution["executedQueries"] == ["query one"]
+    assert execution["pendingQueryCount"] == 2
+    assert execution["attempts"][0]["query"] == "query one"
+    assert execution["attempts"][0]["attempt"] == 1
+    assert execution["attempts"][0]["status"] == "completed"
     assert retrieval_queries == [("query one",)]
     timings = payload["beta"]["timings"]
     assert set(timings) == {
@@ -1026,6 +1028,95 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
     assert breakdown["totalQueryCount"] == 1
     assert breakdown["strongestMatchPoints"] == 21.25
     assert breakdown["corroborationPoints"] == 0.0
+
+
+def test_explore_search_retries_timeouts_before_advancing_to_next_query(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
+    beta_user = auth_service.User(
+        user_id="user_beta",
+        email="beta@example.com",
+        display_name="Beta User",
+    )
+    monkeypatch.setattr(
+        "app.api.routes.explore.get_current_user",
+        lambda request, *, database_url: beta_user,
+    )
+    monkeypatch.setattr(
+        "app.services.features.access.BETA_USER_EMAILS",
+        ("beta@example.com",),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan(
+            "primary query",
+            "fallback query",
+            "final query",
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.retrieve_catalog_candidates",
+        lambda *_, **__: (),
+    )
+    attempted_queries: list[str] = []
+
+    def _retrieve(queries, **_kwargs):
+        query = queries[0]
+        attempted_queries.append(query)
+        if query == "primary query":
+            return _build_retrieved_candidates(
+                source_statuses=(
+                    {
+                        "source": "github",
+                        "status": "timed_out",
+                        "candidateCount": 0,
+                        "error": "GitHub search timed out.",
+                    },
+                ),
+                successful_source_count=0,
+                partial=True,
+                warnings=("GitHub search timed out.",),
+            )
+        return _build_retrieved_candidates(
+            _build_explore_repository_signal(
+                "github:repo:science/fallback-tool",
+                query=query,
+            ),
+            source_statuses=(
+                {"source": "github", "status": "ok", "candidateCount": 1, "error": None},
+            ),
+            successful_source_count=1,
+        )
+
+    monkeypatch.setattr(
+        "app.services.search.explore.service.run_external_repository_retrieval",
+        _retrieve,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={"topicDescription": "Fallback workflow", "betaMode": True},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["items"][0]["itemId"] == "github:repo:science/fallback-tool"
+    assert payload["canExpand"] is True
+    assert attempted_queries == [
+        "primary query",
+        "primary query",
+        "primary query",
+        "fallback query",
+    ]
+    execution = payload["beta"]["execution"]
+    assert execution["executedQueries"] == ["primary query", "fallback query"]
+    assert execution["pendingQueryCount"] == 1
+    assert [attempt["status"] for attempt in execution["attempts"]] == [
+        "timed_out",
+        "timed_out",
+        "timed_out",
+        "completed",
+    ]
 
 
 def test_explore_search_beta_requires_feature_access(monkeypatch) -> None:

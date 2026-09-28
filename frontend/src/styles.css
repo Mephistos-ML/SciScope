@@ -1425,6 +1425,26 @@ input::placeholder {
   margin: 10px 0 0;
 }
 
+.beta-query-attempts {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--surface-raised);
+}
+
+.beta-query-attempt-list {
+  display: grid;
+  gap: 6px;
+}
+
+.beta-query-attempt-list p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .pagination-nav,
 .pagination-pages {
   display: flex;

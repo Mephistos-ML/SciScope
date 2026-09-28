@@ -6,10 +6,8 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 import logging
 import threading
-from time import monotonic
 from uuid import uuid4
 
-from app import config
 from app.runtime.state import STATE
 from app.services.search.access import hash_explore_topic
 from app.services.search.explore.service import (
@@ -138,17 +136,10 @@ def _run_explore_search_job(
     response_mode: ExploreResponseMode,
     log_context: SearchLogContext | None = None,
 ) -> None:
-    started_at = monotonic()
     active_log_context = _build_job_log_context(
         topic_description=topic_description,
         log_context=log_context,
     ).with_job_id(job_id)
-    soft_deadline_monotonic = (
-        started_at + config.EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS
-    )
-    hard_deadline_monotonic = (
-        started_at + config.EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS
-    )
     try:
         _update_explore_search_job(job_id, status="planning")
         payload = run_explore_search(
@@ -165,8 +156,6 @@ def _run_explore_search_job(
                 error=None,
                 message=search_payload.get("message"),
             ),
-            soft_deadline_monotonic=soft_deadline_monotonic,
-            hard_deadline_monotonic=hard_deadline_monotonic,
             log_context=active_log_context,
         )
     except ExploreSearchUnavailableError as exc:
@@ -251,7 +240,6 @@ def _run_explore_search_expansion_job(
     if not isinstance(execution, ExploreSearchExecution):
         return
 
-    started_at = monotonic()
     try:
         payload = expand_explore_search(
             topic_description=topic_description,
@@ -260,12 +248,6 @@ def _run_explore_search_expansion_job(
             execution_callback=lambda updated: _store_explore_search_execution(
                 job_id,
                 execution=updated,
-            ),
-            soft_deadline_monotonic=(
-                started_at + config.EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS
-            ),
-            hard_deadline_monotonic=(
-                started_at + config.EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS
             ),
             log_context=_build_job_log_context(
                 topic_description=topic_description,

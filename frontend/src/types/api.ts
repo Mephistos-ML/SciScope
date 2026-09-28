@@ -104,6 +104,13 @@ export type ExploreBetaPayload = {
   execution?: {
     executedQueries: string[];
     pendingQueryCount: number;
+    attempts: Array<{
+      query: string;
+      attempt: number;
+      status: "completed" | "timed_out";
+      durationMs: number;
+      candidateCount: number;
+    }>;
   };
   timings?: ExploreSearchTimingPayload;
 };

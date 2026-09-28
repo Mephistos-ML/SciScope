@@ -344,6 +344,10 @@ export function ExplorePage({
               <BetaRunTimings timings={lastExploreBeta.timings} />
             ) : null}
 
+            {betaMode && lastExploreBeta?.execution?.attempts.length ? (
+              <BetaQueryAttempts attempts={lastExploreBeta.execution.attempts} />
+            ) : null}
+
             {showLoadingResults ? (
               <>
                 <div className="repository-table">
@@ -709,6 +713,26 @@ function BetaRunTimings({ timings }: { timings: ExploreSearchTimingPayload }) {
         <TimingMetric label="Evaluation & storage" value={timings.evaluationDurationMs} />
         <TimingMetric label="Response" value={timings.responseBuildDurationMs} />
         <TimingMetric label="Total" value={timings.totalDurationMs} />
+      </div>
+    </section>
+  );
+}
+
+function BetaQueryAttempts({
+  attempts,
+}: {
+  attempts: NonNullable<ExploreBetaPayload["execution"]>["attempts"];
+}) {
+  return (
+    <section className="beta-query-attempts" aria-label="Beta query attempt report">
+      <p className="beta-run-timings-title">Query attempts</p>
+      <div className="beta-query-attempt-list">
+        {attempts.map((attempt) => (
+          <p key={`${attempt.query}-${attempt.attempt}`}>
+            <code>{attempt.query}</code> · attempt {attempt.attempt} · {attempt.status} ·{" "}
+            {formatDurationMs(attempt.durationMs)} · {attempt.candidateCount} candidates
+          </p>
+        ))}
       </div>
     </section>
   );
