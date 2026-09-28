@@ -1119,6 +1119,71 @@ def test_explore_search_retries_timeouts_before_advancing_to_next_query(monkeypa
     ]
 
 
+def test_explore_search_job_fails_after_all_timeout_retries_are_exhausted(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
+    STATE.explore_search_jobs.clear()
+    monkeypatch.setattr(
+        "app.services.search.explore.jobs._start_explore_search_job_runner",
+        _run_explore_job_inline,
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan(
+            "primary query",
+            "fallback query",
+            "final query",
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.retrieve_catalog_candidates",
+        lambda *_, **__: (),
+    )
+    attempted_queries: list[str] = []
+
+    def _retrieve(queries, **_kwargs):
+        attempted_queries.append(queries[0])
+        return _build_retrieved_candidates(
+            source_statuses=(
+                {
+                    "source": "github",
+                    "status": "timed_out",
+                    "candidateCount": 0,
+                    "error": "GitHub search timed out.",
+                },
+            ),
+            successful_source_count=0,
+            partial=True,
+            warnings=("GitHub search timed out.",),
+        )
+
+    monkeypatch.setattr(
+        "app.services.search.explore.service.run_external_repository_retrieval",
+        _retrieve,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search-jobs",
+            json={"topicDescription": "Exhausted timeout workflow"},
+        )
+
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["status"] == "failed"
+    assert payload["error"] == "Repository search is temporarily unavailable across all providers."
+    assert attempted_queries == [
+        "primary query",
+        "primary query",
+        "primary query",
+        "fallback query",
+        "fallback query",
+        "fallback query",
+        "final query",
+        "final query",
+        "final query",
+    ]
+
+
 def test_explore_search_beta_requires_feature_access(monkeypatch) -> None:
     _allow_explore_access(monkeypatch)
 
@@ -1452,6 +1517,42 @@ def test_explore_search_job_expands_one_pending_query_and_merges_candidates(monk
         "pcs tensor fitting",
     )
     assert stored_execution.pending_queries == ("pseudocontact shift",)
+
+
+def test_explore_search_job_rejects_expansion_after_plan_is_exhausted(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
+    STATE.explore_search_jobs.clear()
+    monkeypatch.setattr(
+        "app.services.search.explore.jobs._start_explore_search_job_runner",
+        _run_explore_job_inline,
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.run_external_repository_retrieval",
+        lambda queries, **kwargs: _build_retrieved_candidates(
+            _build_explore_repository_signal(
+                "github:repo:Mephistos-ML/paranmr",
+                query=queries[0],
+            ),
+            source_statuses=(
+                {"source": "github", "status": "ok", "candidateCount": 1, "error": None},
+            ),
+            successful_source_count=1,
+        ),
+    )
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/explore/search-jobs",
+            json={"topicDescription": "Paramagnetic NMR analysis workflows"},
+        ).json()
+        response = client.post(f"/api/explore/search-jobs/{created['jobId']}/expand")
+
+    assert response.status_code == 409
+    assert response.json()["error"] == "Explore search job has no more planned queries."
 
 
 def test_explore_search_beta_job_returns_diagnostics_snapshot(monkeypatch) -> None:
