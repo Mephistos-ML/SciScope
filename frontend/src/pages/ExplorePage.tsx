@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 
-import type { AiSearchPlanPayload, ExploreResultItem, ViewerPayload } from "../types/api";
+import type {
+  AiSearchPlanPayload,
+  ExploreBetaPayload,
+  ExploreResultItem,
+  ExploreSearchTimingPayload,
+  ViewerPayload,
+} from "../types/api";
 import { SourceBadge } from "../components/SourceBadge";
 import { TurnstileWidget } from "../components/TurnstileWidget";
 import { RankingDatasetLabeler, RankingDatasetLabelSelect } from "../features/ranking-dataset/RankingDatasetLabeler";
@@ -22,6 +28,7 @@ type ExplorePageProps = {
   betaMode: boolean;
   exploreSearchFeedback: ExploreSearchFeedback | null;
   lastAiSearchPlan: AiSearchPlanPayload | null;
+  lastExploreBeta: ExploreBetaPayload | null;
   onRunSearch: () => void;
   onBetaModeChange: (enabled: boolean) => void;
   onSignIn: () => void;
@@ -47,6 +54,7 @@ export function ExplorePage({
   betaMode,
   exploreSearchFeedback,
   lastAiSearchPlan,
+  lastExploreBeta,
   onRunSearch,
   onBetaModeChange,
   onSignIn,
@@ -266,37 +274,35 @@ export function ExplorePage({
                   ) : null}
                 </div>
               </div>
-              <div className="results-plan-summary">
-                {lastAiSearchPlan?.queries.length ? (
-                  <>
-                    <p className="field-hint">AI-Generated Search Queries</p>
-                    <div className="query-chip-row">
-                      {lastAiSearchPlan.queries.map((query) => (
-                        <span className="query-chip" key={query}>
-                          {query}
-                        </span>
-                      ))}
-                    </div>
-                  </>
-                ) : showLoadingResults ? (
-                  <>
-                    <p className="field-hint">AI-Generated Search Queries</p>
-                    <div className="query-chip-row query-chip-row-loading" aria-hidden="true">
-                      {LOADING_QUERY_CHIP_WIDTHS.map((width, index) => (
-                        <span
-                          className="query-chip query-chip-skeleton skeleton-shimmer"
-                          key={`loading-chip-${index}`}
-                          style={{ width }}
-                        />
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <p className="empty-copy">
-                    Run a search to see the queries produced for the current AI search plan.
-                  </p>
-                )}
-              </div>
+              {betaMode ? (
+                <div className="results-plan-summary">
+                  {lastAiSearchPlan?.queries.length ? (
+                    <>
+                      <p className="field-hint">AI-Generated Search Queries</p>
+                      <div className="query-chip-row">
+                        {lastAiSearchPlan.queries.map((query) => (
+                          <span className="query-chip" key={query}>
+                            {query}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  ) : showLoadingResults ? (
+                    <>
+                      <p className="field-hint">AI-Generated Search Queries</p>
+                      <div className="query-chip-row query-chip-row-loading" aria-hidden="true">
+                        {LOADING_QUERY_CHIP_WIDTHS.map((width, index) => (
+                          <span
+                            className="query-chip query-chip-skeleton skeleton-shimmer"
+                            key={`loading-chip-${index}`}
+                            style={{ width }}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
 
             {hasResults ? (
@@ -318,6 +324,10 @@ export function ExplorePage({
 
             {betaMode && results[0]?.beta && hasResults ? (
               <RankingDatasetLabeler key={searchJobId} searchJobId={searchJobId} results={results} labels={datasetLabels} />
+            ) : null}
+
+            {betaMode && lastExploreBeta?.timings ? (
+              <BetaRunTimings timings={lastExploreBeta.timings} />
             ) : null}
 
             {showLoadingResults ? (
@@ -617,6 +627,38 @@ function BetaDiagnostic({ result }: { result: ExploreResultItem }) {
       </p>
     </div>
   );
+}
+
+function BetaRunTimings({ timings }: { timings: ExploreSearchTimingPayload }) {
+  return (
+    <section className="beta-run-timings" aria-label="Beta search timing report">
+      <p className="beta-run-timings-title">Run timings</p>
+      <div className="beta-run-timings-grid">
+        <TimingMetric label="AI planning" value={timings.aiPlanningDurationMs} />
+        <TimingMetric label="Retrieval" value={timings.retrievalDurationMs} />
+        <TimingMetric label="Evaluation & storage" value={timings.evaluationDurationMs} />
+        <TimingMetric label="Response" value={timings.responseBuildDurationMs} />
+        <TimingMetric label="Total" value={timings.totalDurationMs} />
+      </div>
+    </section>
+  );
+}
+
+function TimingMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="beta-run-timing-metric">
+      <span>{label}</span>
+      <strong>{formatDurationMs(value)}</strong>
+    </div>
+  );
+}
+
+function formatDurationMs(value: number): string {
+  if (value < 1_000) {
+    return `${value} ms`;
+  }
+
+  return `${(value / 1_000).toFixed(value < 10_000 ? 1 : 0)} s`;
 }
 
 function formatRetryCountdown(value: number | null): string {

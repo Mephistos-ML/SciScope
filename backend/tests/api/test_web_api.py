@@ -658,6 +658,7 @@ def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatc
     assert response.status_code == 200
     payload = response.json()
     assert len(payload["items"]) == 1
+    assert payload["aiSearchPlan"] == {"status": "ready", "queries": []}
     assert payload["sourceStatuses"][0]["source"] == "github"
     assert payload["sourceStatuses"][1]["status"] == "unauthorized"
 
@@ -910,8 +911,6 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
             "query one",
             "query two",
             "query three",
-            "query four",
-            "query five",
         ),
     )
     gate_signal = Signal(
@@ -973,11 +972,25 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["beta"] == {
-        "enabled": True,
-        "candidateCount": 4,
-        "relevanceCutoff": 50.0,
+    assert payload["beta"]["enabled"] is True
+    assert payload["aiSearchPlan"]["queries"] == [
+        "query one",
+        "query two",
+        "query three",
+    ]
+    assert payload["beta"]["candidateCount"] == 4
+    assert payload["beta"]["relevanceCutoff"] == 50.0
+    timings = payload["beta"]["timings"]
+    assert set(timings) == {
+        "aiPlanningDurationMs",
+        "retrievalDurationMs",
+        "evaluationDurationMs",
+        "responseBuildDurationMs",
+        "totalDurationMs",
     }
+    assert all(isinstance(value, int) and value >= 0 for value in timings.values())
+    assert timings["totalDurationMs"] >= timings["aiPlanningDurationMs"]
+    assert timings["totalDurationMs"] >= timings["retrievalDurationMs"]
     diagnostics_by_id = {item["itemId"]: item["beta"] for item in payload["items"]}
     assert diagnostics_by_id["github:repo:thermotools/lammps_mie_fh"]["decision"]["status"] == "included"
     assert diagnostics_by_id["github:repo:science/arxiv-index"]["decision"]["status"] == "gate_rejected"
@@ -985,7 +998,7 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
     assert diagnostics_by_id["github:repo:science/general-tools"]["decision"]["status"] == "below_cutoff"
     breakdown = diagnostics_by_id["github:repo:science/general-tools"]["scoreBreakdown"]
     assert breakdown["matchedQueryCount"] == 1
-    assert breakdown["totalQueryCount"] == 5
+    assert breakdown["totalQueryCount"] == 3
     assert breakdown["matchLocationPoints"] == 11.25
 
 

@@ -31,6 +31,7 @@ def build_explore_search_payload(
         ai_search_plan_payload=ai_search_plan_payload,
         evaluation=evaluation,
         items=items,
+        response_mode=response_mode,
     )
     if response_mode == "beta":
         payload["beta"] = {
@@ -51,7 +52,10 @@ def build_empty_explore_search_payload(
 
     payload: dict[str, object] = {
         "topicDescription": topic_description,
-        "aiSearchPlan": dict(ai_search_plan_payload),
+        "aiSearchPlan": _build_public_ai_search_plan(
+            ai_search_plan_payload,
+            response_mode=response_mode,
+        ),
         "items": [],
         "sourceStatuses": [],
     }
@@ -70,15 +74,34 @@ def _build_response_envelope(
     ai_search_plan_payload: dict[str, object],
     evaluation: ExploreSearchEvaluation,
     items: list[dict[str, object]],
+    response_mode: ExploreResponseMode,
 ) -> dict[str, object]:
     retrieved = evaluation.retrieved
     return {
         "topicDescription": topic_description,
-        "aiSearchPlan": dict(ai_search_plan_payload),
+        "aiSearchPlan": _build_public_ai_search_plan(
+            ai_search_plan_payload,
+            response_mode=response_mode,
+        ),
         "items": items,
         "sourceStatuses": list(retrieved.source_statuses),
         "partial": retrieved.partial,
         "message": _build_partial_message(retrieved.warnings) if retrieved.partial else None,
+    }
+
+
+def _build_public_ai_search_plan(
+    ai_search_plan_payload: dict[str, object],
+    *,
+    response_mode: ExploreResponseMode,
+) -> dict[str, object]:
+    """Expose generated query text only through the restricted beta response."""
+
+    if response_mode == "beta":
+        return dict(ai_search_plan_payload)
+    return {
+        "status": ai_search_plan_payload.get("status", "pending"),
+        "queries": [],
     }
 
 

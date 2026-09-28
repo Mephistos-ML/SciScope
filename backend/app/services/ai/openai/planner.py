@@ -9,7 +9,7 @@ from app.models.ai import AiSearchPlan
 from app.services.ai.openai.client import build_openai_json_response
 from app.services.ai.search_plans import normalize_search_queries
 
-SEARCH_QUERY_COUNT = 5
+SEARCH_QUERY_COUNT = 3
 
 _SEARCH_PLAN_JSON_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -27,7 +27,7 @@ _SEARCH_PLAN_JSON_SCHEMA: dict[str, Any] = {
     },
 }
 
-_SYSTEM_PROMPT = """Generate exactly 5 search queries for scientific software repository discovery.
+_SYSTEM_PROMPT = """Generate exactly 3 ordered search queries for scientific software repository discovery.
 
 Goal: maximize recall of domain-specific scientific software repositories while avoiding generic software, papers, datasets, tutorials, and unrelated tools.
 
@@ -43,12 +43,10 @@ Rules:
 - Use only ASCII characters.
 - Return only JSON matching the provided schema.
 
-Use these retrieval angles when possible:
-  1. canonical topic phrase
-  2. exact method or algorithm name
-  3. domain-specific synonym or closely related scientific term
-  4. implementation-oriented phrase
-  5. alternate scientific phrasing that stays within the same topic
+Use these retrieval angles in this order:
+  1. canonical topic phrase: the strongest first search for the user
+  2. a substantially different method, synonym, or implementation-oriented angle
+  3. another substantially different scientific phrasing that stays within the topic
 """
 
 
@@ -90,7 +88,7 @@ def _parse_ai_search_plan(
         :SEARCH_QUERY_COUNT
     ]
     if len(queries) != SEARCH_QUERY_COUNT:
-        raise RuntimeError("OpenAI planner must return 5 unique queries")
+        raise RuntimeError("OpenAI planner must return 3 unique queries")
 
     return AiSearchPlan(
         status="ready" if queries else "pending",
