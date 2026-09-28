@@ -9,6 +9,7 @@ import {
   deleteSubscription,
   fetchFeed,
   fetchExploreSearchJob,
+  expandExploreSearchJob,
   fetchMe,
   fetchSubscriptions,
   markAllFeedEventsRead,
@@ -74,6 +75,8 @@ export function App() {
   const [signingIn, setSigningIn] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [searchPending, setSearchPending] = useState(false);
+  const [isExpandingSearch, setIsExpandingSearch] = useState(false);
+  const [canExpandSearch, setCanExpandSearch] = useState(false);
   const [createPendingRepositoryId, setCreatePendingRepositoryId] = useState<string | null>(
     null,
   );
@@ -171,9 +174,18 @@ export function App() {
           applyExploreSearchJobSnapshot(snapshot);
           setLastCompletedExploreJobId(snapshot.jobId);
           setSearchPending(false);
+          setCanExpandSearch(snapshot.canExpand === true);
           setActiveExploreJobId(null);
           setActiveExploreJobStatus(null);
-          if (snapshot.status === "completed_partial" && snapshot.message) {
+          if (isExpandingSearch) {
+            setExploreSearchFeedback({
+              message: snapshot.message ?? "Search expanded with another scientific angle.",
+              retryUntilEpochMs: null,
+              signInSuggested: false,
+              turnstileRequired: false,
+            });
+            setIsExpandingSearch(false);
+          } else if (snapshot.status === "completed_partial" && snapshot.message) {
             setExploreSearchFeedback({
               message: snapshot.message,
               retryUntilEpochMs: null,
@@ -206,6 +218,7 @@ export function App() {
         }
 
         setSearchPending(false);
+        setIsExpandingSearch(false);
         setActiveExploreJobId(null);
         setActiveExploreJobStatus(null);
         setExploreSearchFeedback({
@@ -225,7 +238,7 @@ export function App() {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [activeExploreJobId]);
+  }, [activeExploreJobId, isExpandingSearch]);
 
   async function handleSignIn() {
     setSigningIn(true);
@@ -262,6 +275,8 @@ export function App() {
     }
 
     setSearchPending(true);
+    setIsExpandingSearch(false);
+    setCanExpandSearch(false);
     setErrorMessage(null);
     setResults([]);
     setLastCompletedExploreJobId(null);
@@ -310,10 +325,35 @@ export function App() {
     }
   }
 
+  async function handleExpandSearch() {
+    if (!lastCompletedExploreJobId || searchPending || !canExpandSearch) {
+      return;
+    }
+
+    setSearchPending(true);
+    setIsExpandingSearch(true);
+    setExploreSearchFeedback(null);
+    try {
+      const job = await expandExploreSearchJob(lastCompletedExploreJobId);
+      setActiveExploreJobId(job.jobId);
+      setActiveExploreJobStatus(job.status);
+    } catch (error) {
+      setSearchPending(false);
+      setIsExpandingSearch(false);
+      setExploreSearchFeedback({
+        message: error instanceof Error ? error.message : "Could not expand search.",
+        retryUntilEpochMs: null,
+        signInSuggested: false,
+        turnstileRequired: false,
+      });
+    }
+  }
+
   function applyExploreSearchJobSnapshot(snapshot: ExploreSearchJobPayload) {
     setResults(snapshot.items);
     setLastAiSearchPlan(snapshot.aiSearchPlan);
     setLastExploreBeta(snapshot.beta ?? null);
+    setCanExpandSearch(snapshot.canExpand === true);
     if (snapshot.status !== "failed" && snapshot.status !== "completed_partial") {
       setExploreSearchFeedback(null);
     }
@@ -544,17 +584,24 @@ export function App() {
               betaEnabled={viewer?.features.includes("explore_beta") ?? false}
               onBetaModeChange={setBetaMode}
               onRunSearch={() => void handleRunSearch()}
+              onExpandSearch={() => void handleExpandSearch()}
               onSignIn={() => void handleSignIn()}
               onSubscribe={(result) => void handleSubscribe(result)}
               onTopicInputChange={setTopicInput}
               onTurnstileTokenChange={setTurnstileToken}
               results={results}
+              canExpandSearch={canExpandSearch}
+              isExpandingSearch={isExpandingSearch}
               searchJobId={lastCompletedExploreJobId}
               searchPending={searchPending}
               subscribePendingRepositoryId={createPendingRepositoryId}
               subscribedRepositoryIds={subscriptions.map((item) => item.repository.repositoryId)}
               topicInput={topicInput}
-              searchStageLabel={mapExploreJobStatusToStage(activeExploreJobStatus)}
+              searchStageLabel={
+                isExpandingSearch
+                  ? "Expanding search…"
+                  : mapExploreJobStatusToStage(activeExploreJobStatus)
+              }
               turnstileReady={Boolean(turnstileToken)}
               turnstileResetKey={turnstileResetKey}
               turnstileSiteKey={frontendConfig.turnstileSiteKey}

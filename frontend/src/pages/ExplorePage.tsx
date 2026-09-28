@@ -23,6 +23,7 @@ type ExploreSearchFeedback = {
 type ExploreSortOption = "relevance" | "recent_activity" | "stars";
 
 type ExplorePageProps = {
+  canExpandSearch: boolean;
   canSubscribe: boolean;
   betaEnabled: boolean;
   betaMode: boolean;
@@ -30,12 +31,14 @@ type ExplorePageProps = {
   lastAiSearchPlan: AiSearchPlanPayload | null;
   lastExploreBeta: ExploreBetaPayload | null;
   onRunSearch: () => void;
+  onExpandSearch: () => void;
   onBetaModeChange: (enabled: boolean) => void;
   onSignIn: () => void;
   onSubscribe: (result: ExploreResultItem) => void;
   onTopicInputChange: (value: string) => void;
   onTurnstileTokenChange: (token: string | null) => void;
   results: ExploreResultItem[];
+  isExpandingSearch: boolean;
   searchJobId: string | null;
   searchPending: boolean;
   subscribePendingRepositoryId: string | null;
@@ -49,6 +52,7 @@ type ExplorePageProps = {
 };
 
 export function ExplorePage({
+  canExpandSearch,
   canSubscribe,
   betaEnabled,
   betaMode,
@@ -56,12 +60,14 @@ export function ExplorePage({
   lastAiSearchPlan,
   lastExploreBeta,
   onRunSearch,
+  onExpandSearch,
   onBetaModeChange,
   onSignIn,
   onSubscribe,
   onTopicInputChange,
   onTurnstileTokenChange,
   results,
+  isExpandingSearch,
   searchJobId,
   searchPending,
   searchStageLabel,
@@ -262,12 +268,12 @@ export function ExplorePage({
                 <p className="section-kicker">Results</p>
                 <div className="results-title-row">
                   <h3 className="panel-title">Matched Repositories</h3>
-                  {hasResults ? (
-                    <span className="results-count-badge">{results.length} results</span>
-                  ) : searchPending ? (
+                  {searchPending ? (
                     <span className="results-count-badge">
                       {searchStageLabel ?? "Searching repositories"}
                     </span>
+                  ) : hasResults ? (
+                    <span className="results-count-badge">{results.length} results</span>
                   ) : null}
                   {lastAiSearchPlan && results[0]?.beta ? (
                     <span className="results-beta-badge">Beta diagnostics</span>
@@ -286,6 +292,13 @@ export function ExplorePage({
                           </span>
                         ))}
                       </div>
+                      {lastExploreBeta?.execution ? (
+                        <p className="field-hint beta-execution-summary">
+                          {lastExploreBeta.execution.executedQueries.length} of{" "}
+                          {lastExploreBeta.execution.executedQueries.length +
+                            lastExploreBeta.execution.pendingQueryCount} search angles used
+                        </p>
+                      ) : null}
                     </>
                   ) : showLoadingResults ? (
                     <>
@@ -472,6 +485,16 @@ export function ExplorePage({
                   <p className="results-footer-copy">
                     Showing {visibleRangeStart}-{visibleRangeEnd} of {results.length} results
                   </p>
+                  {canExpandSearch ? (
+                    <button
+                      className="outline-button expand-search-button"
+                      disabled={searchPending}
+                      onClick={onExpandSearch}
+                      type="button"
+                    >
+                      Expand search
+                    </button>
+                  ) : null}
                   {totalPages > 1 ? (
                     <nav aria-label="Results pages" className="pagination-nav">
                       <button
@@ -536,6 +559,11 @@ export function ExplorePage({
                 </p>
               </div>
             )}
+            {isExpandingSearch ? (
+              <p className="expand-search-loading-copy">
+                Searching another scientific angle and updating the ranking.
+              </p>
+            ) : null}
           </article>
         </section>
       )}

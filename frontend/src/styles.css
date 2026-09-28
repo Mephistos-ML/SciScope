@@ -1386,6 +1386,22 @@ input::placeholder {
   flex-wrap: wrap;
 }
 
+.expand-search-button {
+  margin-left: auto;
+}
+
+.expand-search-loading-copy {
+  margin: 16px 0 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 21px;
+  text-align: center;
+}
+
+.beta-execution-summary {
+  margin: 10px 0 0;
+}
+
 .pagination-nav,
 .pagination-pages {
   display: flex;
