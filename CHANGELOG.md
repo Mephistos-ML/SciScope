@@ -1,3 +1,19 @@
+# [1.18.0](https://github.com/Mephistos-ML/SciScope/compare/v1.17.6...v1.18.0) (2026-09-28)
+
+
+### Bug Fixes
+
+* **search:** retry partial timeout attempts ([d967875](https://github.com/Mephistos-ML/SciScope/commit/d967875c5f1600889987d71d853887118985f1e3))
+
+
+### Features
+
+* **explore:** add staged search expansion ([e5114b0](https://github.com/Mephistos-ML/SciScope/commit/e5114b04678cb9b182966df8c4bdbddd3de1d813))
+* **explore:** clarify exhausted search plans ([da8fec5](https://github.com/Mephistos-ML/SciScope/commit/da8fec5841896e35c2e924568c6543f13563c0df))
+* **search:** expand staged search jobs ([615f37e](https://github.com/Mephistos-ML/SciScope/commit/615f37ef2f47e77c61e16ed49ebbd4a5f193af92))
+* **search:** retry timed-out query attempts ([37727e8](https://github.com/Mephistos-ML/SciScope/commit/37727e86090ad494cbd26ce03d0f4731e53cb768))
+* **search:** stage initial query execution ([f2d24c2](https://github.com/Mephistos-ML/SciScope/commit/f2d24c232a4c92616f2d6f314266fb9110ead89a))
+
 ## [1.17.6](https://github.com/Mephistos-ML/SciScope/compare/v1.17.5...v1.17.6) (2026-09-28)
 
 
