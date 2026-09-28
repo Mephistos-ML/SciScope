@@ -1390,6 +1390,29 @@ input::placeholder {
   margin-left: auto;
 }
 
+.expand-search-exhausted {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.expand-search-exhausted p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.search-no-results-state .expand-search-button {
+  margin: 20px auto 0;
+}
+
+.search-no-results-state .expand-search-exhausted {
+  justify-items: center;
+  margin: 20px auto 0;
+}
+
 .expand-search-loading-copy {
   margin: 16px 0 0;
   color: var(--text-secondary);

@@ -144,6 +144,7 @@ export function ExplorePage({
     ? Math.min(currentPage * RESULTS_PER_PAGE, results.length)
     : 0;
   const pageNumbers = buildPageNumbers(totalPages, currentPage);
+  const hasCompletedSearchPlan = lastAiSearchPlan?.status === "ready";
 
   return (
     <main className="app-shell explore-shell">
@@ -486,14 +487,17 @@ export function ExplorePage({
                     Showing {visibleRangeStart}-{visibleRangeEnd} of {results.length} results
                   </p>
                   {canExpandSearch ? (
-                    <button
-                      className="outline-button expand-search-button"
+                    <ExpandSearchControl
+                      canExpand={canExpandSearch}
                       disabled={searchPending}
-                      onClick={onExpandSearch}
-                      type="button"
-                    >
-                      Expand search
-                    </button>
+                      onExpand={onExpandSearch}
+                    />
+                  ) : hasCompletedSearchPlan ? (
+                    <ExpandSearchControl
+                      canExpand={false}
+                      disabled
+                      onExpand={onExpandSearch}
+                    />
                   ) : null}
                   {totalPages > 1 ? (
                     <nav aria-label="Results pages" className="pagination-nav">
@@ -557,6 +561,13 @@ export function ExplorePage({
                   Try refining the topic description or broadening the query terms to
                   discover more repositories.
                 </p>
+                {hasCompletedSearchPlan ? (
+                  <ExpandSearchControl
+                    canExpand={canExpandSearch}
+                    disabled={searchPending || !canExpandSearch}
+                    onExpand={onExpandSearch}
+                  />
+                ) : null}
               </div>
             )}
             {isExpandingSearch ? (
@@ -629,6 +640,38 @@ function readTimestamp(value: string | null): number | null {
   if (!value) return null;
   const timestamp = new Date(value).getTime();
   return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function ExpandSearchControl({
+  canExpand,
+  disabled,
+  onExpand,
+}: {
+  canExpand: boolean;
+  disabled: boolean;
+  onExpand: () => void;
+}) {
+  if (canExpand) {
+    return (
+      <button
+        className="outline-button expand-search-button"
+        disabled={disabled}
+        onClick={onExpand}
+        type="button"
+      >
+        Expand search
+      </button>
+    );
+  }
+
+  return (
+    <div className="expand-search-exhausted">
+      <button className="outline-button expand-search-button" disabled type="button">
+        All search angles used
+      </button>
+      <p>All planned search angles have been explored.</p>
+    </div>
+  );
 }
 
 function BetaDiagnostic({ result }: { result: ExploreResultItem }) {
