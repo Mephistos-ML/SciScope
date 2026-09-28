@@ -218,6 +218,19 @@ def get_explore_search_job(request: Request, job_id: str) -> dict[str, object]:
     return payload
 
 
+@app.post("/api/explore/search-jobs/{job_id}/expand", status_code=status.HTTP_202_ACCEPTED)
+def expand_explore_search_job(request: Request, job_id: str) -> dict[str, object]:
+    """Run one next query from a completed Explore search job."""
+
+    payload = explore_routes.expand_explore_search_job_response(request, job_id)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Explore search job not found",
+        )
+    return payload
+
+
 @app.post("/api/internal/ranking-dataset/runs", status_code=status.HTTP_201_CREATED)
 def save_ranking_dataset_run(
     request: Request,

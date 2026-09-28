@@ -15,20 +15,18 @@ class RankingFeatures:
     total_query_count: int
     hit_count: int
     evidence_count: int
-    match_location_quality: float
-    query_coverage_alignment: float = 0.0
+    strongest_match_quality: float
+    corroboration_quality: float
 
 
 @dataclass(frozen=True)
 class RankingScoreBreakdown:
     """Normalized ranking inputs and their weighted score contributions."""
 
-    query_coverage: float
-    query_coverage_points: float
-    match_location_quality: float
-    match_location_points: float
-    evidence_density: float
-    evidence_density_points: float
+    strongest_match_quality: float
+    strongest_match_points: float
+    corroboration_quality: float
+    corroboration_points: float
 
 
 @dataclass(frozen=True)

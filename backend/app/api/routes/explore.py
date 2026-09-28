@@ -22,6 +22,7 @@ from app.services.search.access.service import (
 )
 from app.services.search.explore.jobs import (
     create_explore_search_job,
+    expand_explore_search_job,
     get_explore_search_job,
 )
 from app.services.search.explore.service import run_explore_search
@@ -92,6 +93,24 @@ def get_explore_search_job_response(
                 detail="Beta access is not enabled for this account.",
             )
     return payload
+
+
+def expand_explore_search_job_response(
+    request: Request,
+    job_id: str,
+) -> dict[str, object] | None:
+    """Start one pending query for an existing Explore search job."""
+
+    existing = get_explore_search_job_response(request, job_id)
+    if existing is None:
+        return None
+    try:
+        return expand_explore_search_job(job_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
 
 
 def _authorize_explore_search_request(

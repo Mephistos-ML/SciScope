@@ -6,17 +6,17 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 import logging
 import threading
-from time import monotonic
 from uuid import uuid4
 
-from app import config
 from app.runtime.state import STATE
 from app.services.search.access import hash_explore_topic
 from app.services.search.explore.service import (
     AiSearchPlanningError,
     ExploreSearchUnavailableError,
+    expand_explore_search,
     run_explore_search,
 )
+from app.services.search.explore.execution import ExploreSearchExecution
 from app.services.search.explore.response import ExploreResponseMode
 from app.services.search.observability.context import SearchLogContext, build_request_id
 
@@ -76,7 +76,37 @@ def get_explore_search_job(job_id: str) -> dict[str, object] | None:
         snapshot = STATE.explore_search_jobs.get(job_id)
         if snapshot is None:
             return None
-        return deepcopy(snapshot)
+        return {
+            key: deepcopy(value)
+            for key, value in snapshot.items()
+            if not key.startswith("_")
+        }
+
+
+def expand_explore_search_job(job_id: str) -> dict[str, object] | None:
+    """Schedule one next query from a completed incremental Explore search."""
+
+    with STATE.explore_search_jobs_lock:
+        snapshot = STATE.explore_search_jobs.get(job_id)
+        if snapshot is None:
+            return None
+        if snapshot.get("status") not in {"completed", "completed_partial"}:
+            raise ValueError("Explore search job is not ready to expand.")
+        execution = snapshot.get("_execution")
+        if not isinstance(execution, ExploreSearchExecution) or not execution.pending_queries:
+            raise ValueError("Explore search job has no more planned queries.")
+
+        snapshot["status"] = "retrieving"
+        snapshot["updatedAt"] = _now_isoformat()
+        topic_description = str(snapshot["topicDescription"])
+        response_mode = snapshot["responseMode"]
+
+    _start_explore_search_expansion_runner(
+        job_id=job_id,
+        topic_description=topic_description,
+        response_mode=response_mode,
+    )
+    return get_explore_search_job(job_id)
 
 
 def _start_explore_search_job_runner(
@@ -106,22 +136,19 @@ def _run_explore_search_job(
     response_mode: ExploreResponseMode,
     log_context: SearchLogContext | None = None,
 ) -> None:
-    started_at = monotonic()
     active_log_context = _build_job_log_context(
         topic_description=topic_description,
         log_context=log_context,
     ).with_job_id(job_id)
-    soft_deadline_monotonic = (
-        started_at + config.EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS
-    )
-    hard_deadline_monotonic = (
-        started_at + config.EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS
-    )
     try:
         _update_explore_search_job(job_id, status="planning")
         payload = run_explore_search(
             topic_description=topic_description,
             response_mode=response_mode,
+            execution_callback=lambda execution: _store_explore_search_execution(
+                job_id,
+                execution=execution,
+            ),
             progress_callback=lambda search_payload: _update_explore_search_job(
                 job_id,
                 status="retrieving",
@@ -129,8 +156,6 @@ def _run_explore_search_job(
                 error=None,
                 message=search_payload.get("message"),
             ),
-            soft_deadline_monotonic=soft_deadline_monotonic,
-            hard_deadline_monotonic=hard_deadline_monotonic,
             log_context=active_log_context,
         )
     except ExploreSearchUnavailableError as exc:
@@ -185,6 +210,70 @@ def _run_explore_search_job(
     )
 
 
+def _start_explore_search_expansion_runner(
+    *,
+    job_id: str,
+    topic_description: str,
+    response_mode: ExploreResponseMode,
+) -> None:
+    thread = threading.Thread(
+        target=lambda: _run_explore_search_expansion_job(
+            job_id=job_id,
+            topic_description=topic_description,
+            response_mode=response_mode,
+        ),
+        name=f"sciscope-explore-expand-{job_id[:8]}",
+        daemon=True,
+    )
+    thread.start()
+
+
+def _run_explore_search_expansion_job(
+    *,
+    job_id: str,
+    topic_description: str,
+    response_mode: ExploreResponseMode,
+) -> None:
+    with STATE.explore_search_jobs_lock:
+        snapshot = STATE.explore_search_jobs.get(job_id)
+        execution = snapshot.get("_execution") if snapshot else None
+    if not isinstance(execution, ExploreSearchExecution):
+        return
+
+    try:
+        payload = expand_explore_search(
+            topic_description=topic_description,
+            execution=execution,
+            response_mode=response_mode,
+            execution_callback=lambda updated: _store_explore_search_execution(
+                job_id,
+                execution=updated,
+            ),
+            log_context=_build_job_log_context(
+                topic_description=topic_description,
+                log_context=None,
+            ).with_job_id(job_id),
+        )
+    except Exception:
+        logger.exception("Explore search expansion failed unexpectedly.")
+        _update_explore_search_job(
+            job_id,
+            status="completed_partial",
+            error=None,
+            message="Could not load another search angle. Existing results are unchanged.",
+        )
+        return
+
+    completed_status = "completed_partial" if payload.get("partial") else "completed"
+    _update_explore_search_job(
+        job_id,
+        status=completed_status,
+        search_payload=payload,
+        error=None,
+        message=payload.get("message"),
+    )
+
+
 def _update_explore_search_job(
     job_id: str,
     *,
@@ -204,6 +293,19 @@ def _update_explore_search_job(
             snapshot.update(deepcopy(search_payload))
         snapshot["error"] = error
         snapshot["message"] = message
+
+
+def _store_explore_search_execution(
+    job_id: str,
+    *,
+    execution: ExploreSearchExecution,
+) -> None:
+    """Keep provider facts server-side for the next incremental retrieval step."""
+
+    with STATE.explore_search_jobs_lock:
+        snapshot = STATE.explore_search_jobs.get(job_id)
+        if snapshot is not None:
+            snapshot["_execution"] = execution
 
 
 def _prune_explore_search_jobs() -> None:

@@ -208,6 +208,21 @@ def _run_explore_job_inline(
     )
 
 
+def _run_explore_expansion_inline(
+    *,
+    job_id: str,
+    topic_description: str,
+    response_mode: str,
+) -> None:
+    from app.services.search.explore import jobs as search_jobs
+
+    search_jobs._run_explore_search_expansion_job(
+        job_id=job_id,
+        topic_description=topic_description,
+        response_mode=response_mode,
+    )
+
+
 def test_feed_endpoints_return_json() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         database_url = build_test_database_url(Path(temp_dir) / "api-runtime-test.sqlite3")
@@ -658,6 +673,7 @@ def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatc
     assert response.status_code == 200
     payload = response.json()
     assert len(payload["items"]) == 1
+    assert payload["aiSearchPlan"] == {"status": "ready", "queries": []}
     assert payload["sourceStatuses"][0]["source"] == "github"
     assert payload["sourceStatuses"][1]["status"] == "unauthorized"
 
@@ -910,8 +926,6 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
             "query one",
             "query two",
             "query three",
-            "query four",
-            "query five",
         ),
     )
     gate_signal = Signal(
@@ -944,21 +958,25 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
         raw_text="science/general-tools\nGeneral scientific utilities.",
         payload={"repo": "science/general-tools", "query": "query one", "topics": []},
     )
+    retrieval_queries: list[tuple[str, ...]] = []
     monkeypatch.setattr(
         "app.services.search.explore.service.run_external_repository_retrieval",
-        lambda queries, **kwargs: _build_retrieved_candidates(
-            _build_code_only_explore_repository_signal(
-                "github:repo:thermotools/lammps_mie_fh",
-                query=queries[0],
-            ),
-            gate_signal,
-            admission_signal,
-            below_cutoff_signal,
-            source_statuses=(
-                {"source": "github", "status": "ok", "candidateCount": 4, "error": None},
-            ),
-            successful_source_count=1,
-            match_locations=("name", "description", "description", "other"),
+        lambda queries, **kwargs: (
+            retrieval_queries.append(tuple(queries))
+            or _build_retrieved_candidates(
+                _build_code_only_explore_repository_signal(
+                    "github:repo:thermotools/lammps_mie_fh",
+                    query=queries[0],
+                ),
+                gate_signal,
+                admission_signal,
+                below_cutoff_signal,
+                source_statuses=(
+                    {"source": "github", "status": "ok", "candidateCount": 4, "error": None},
+                ),
+                successful_source_count=1,
+                match_locations=("name", "description", "description", "other"),
+            )
         ),
     )
 
@@ -973,11 +991,33 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["beta"] == {
-        "enabled": True,
-        "candidateCount": 4,
-        "relevanceCutoff": 50.0,
+    assert payload["beta"]["enabled"] is True
+    assert payload["canExpand"] is True
+    assert payload["aiSearchPlan"]["queries"] == [
+        "query one",
+        "query two",
+        "query three",
+    ]
+    assert payload["beta"]["candidateCount"] == 4
+    assert payload["beta"]["relevanceCutoff"] == 50.0
+    execution = payload["beta"]["execution"]
+    assert execution["executedQueries"] == ["query one"]
+    assert execution["pendingQueryCount"] == 2
+    assert execution["attempts"][0]["query"] == "query one"
+    assert execution["attempts"][0]["attempt"] == 1
+    assert execution["attempts"][0]["status"] == "completed"
+    assert retrieval_queries == [("query one",)]
+    timings = payload["beta"]["timings"]
+    assert set(timings) == {
+        "aiPlanningDurationMs",
+        "retrievalDurationMs",
+        "evaluationDurationMs",
+        "responseBuildDurationMs",
+        "totalDurationMs",
     }
+    assert all(isinstance(value, int) and value >= 0 for value in timings.values())
+    assert timings["totalDurationMs"] >= timings["aiPlanningDurationMs"]
+    assert timings["totalDurationMs"] >= timings["retrievalDurationMs"]
     diagnostics_by_id = {item["itemId"]: item["beta"] for item in payload["items"]}
     assert diagnostics_by_id["github:repo:thermotools/lammps_mie_fh"]["decision"]["status"] == "included"
     assert diagnostics_by_id["github:repo:science/arxiv-index"]["decision"]["status"] == "gate_rejected"
@@ -985,8 +1025,274 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
     assert diagnostics_by_id["github:repo:science/general-tools"]["decision"]["status"] == "below_cutoff"
     breakdown = diagnostics_by_id["github:repo:science/general-tools"]["scoreBreakdown"]
     assert breakdown["matchedQueryCount"] == 1
-    assert breakdown["totalQueryCount"] == 5
-    assert breakdown["matchLocationPoints"] == 11.25
+    assert breakdown["totalQueryCount"] == 1
+    assert breakdown["strongestMatchPoints"] == 21.25
+    assert breakdown["corroborationPoints"] == 0.0
+
+
+def test_explore_search_retries_timeouts_before_advancing_to_next_query(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
+    beta_user = auth_service.User(
+        user_id="user_beta",
+        email="beta@example.com",
+        display_name="Beta User",
+    )
+    monkeypatch.setattr(
+        "app.api.routes.explore.get_current_user",
+        lambda request, *, database_url: beta_user,
+    )
+    monkeypatch.setattr(
+        "app.services.features.access.BETA_USER_EMAILS",
+        ("beta@example.com",),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan(
+            "primary query",
+            "fallback query",
+            "final query",
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.retrieve_catalog_candidates",
+        lambda *_, **__: (),
+    )
+    attempted_queries: list[str] = []
+
+    def _retrieve(queries, **_kwargs):
+        query = queries[0]
+        attempted_queries.append(query)
+        if query == "primary query":
+            return _build_retrieved_candidates(
+                source_statuses=(
+                    {
+                        "source": "github",
+                        "status": "timed_out",
+                        "candidateCount": 0,
+                        "error": "GitHub search timed out.",
+                    },
+                ),
+                successful_source_count=0,
+                partial=True,
+                warnings=("GitHub search timed out.",),
+            )
+        return _build_retrieved_candidates(
+            _build_explore_repository_signal(
+                "github:repo:science/fallback-tool",
+                query=query,
+            ),
+            source_statuses=(
+                {"source": "github", "status": "ok", "candidateCount": 1, "error": None},
+            ),
+            successful_source_count=1,
+        )
+
+    monkeypatch.setattr(
+        "app.services.search.explore.service.run_external_repository_retrieval",
+        _retrieve,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={"topicDescription": "Fallback workflow", "betaMode": True},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["items"][0]["itemId"] == "github:repo:science/fallback-tool"
+    assert payload["canExpand"] is True
+    assert attempted_queries == [
+        "primary query",
+        "primary query",
+        "primary query",
+        "fallback query",
+    ]
+    execution = payload["beta"]["execution"]
+    assert execution["executedQueries"] == ["primary query", "fallback query"]
+    assert execution["pendingQueryCount"] == 1
+    assert [attempt["status"] for attempt in execution["attempts"]] == [
+        "timed_out",
+        "timed_out",
+        "timed_out",
+        "completed",
+    ]
+
+
+def test_explore_search_retries_partial_timeouts_and_merges_attempt_results(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
+    beta_user = auth_service.User(
+        user_id="user_beta",
+        email="beta@example.com",
+        display_name="Beta User",
+    )
+    monkeypatch.setattr(
+        "app.api.routes.explore.get_current_user",
+        lambda request, *, database_url: beta_user,
+    )
+    monkeypatch.setattr(
+        "app.services.features.access.BETA_USER_EMAILS",
+        ("beta@example.com",),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan(
+            "primary query",
+            "fallback query",
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.retrieve_catalog_candidates",
+        lambda *_, **__: (),
+    )
+    attempted_queries: list[str] = []
+    attempt_results = iter(
+        (
+            _build_retrieved_candidates(
+                _build_explore_repository_signal(
+                    "github:repo:science/partial-one",
+                    query="primary query",
+                ),
+                source_statuses=(
+                    {
+                        "source": "github",
+                        "status": "ok",
+                        "candidateCount": 1,
+                        "error": None,
+                    },
+                ),
+                successful_source_count=1,
+                partial=True,
+                warnings=("GitHub search timed out after partial results.",),
+            ),
+            _build_retrieved_candidates(
+                _build_explore_repository_signal(
+                    "github:repo:science/partial-two",
+                    query="primary query",
+                ),
+                source_statuses=(
+                    {
+                        "source": "github",
+                        "status": "ok",
+                        "candidateCount": 1,
+                        "error": None,
+                    },
+                ),
+                successful_source_count=1,
+                partial=True,
+                warnings=("GitHub search timed out after partial results.",),
+            ),
+            _build_retrieved_candidates(
+                _build_explore_repository_signal(
+                    "github:repo:science/complete",
+                    query="primary query",
+                ),
+                source_statuses=(
+                    {"source": "github", "status": "ok", "candidateCount": 1, "error": None},
+                ),
+                successful_source_count=1,
+            ),
+        )
+    )
+
+    def _retrieve(queries, **_kwargs):
+        attempted_queries.append(queries[0])
+        return next(attempt_results)
+
+    monkeypatch.setattr(
+        "app.services.search.explore.service.run_external_repository_retrieval",
+        _retrieve,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={"topicDescription": "Partial timeout workflow", "betaMode": True},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert attempted_queries == ["primary query", "primary query", "primary query"]
+    assert {
+        item["itemId"] for item in payload["items"]
+    } == {
+        "github:repo:science/partial-one",
+        "github:repo:science/partial-two",
+        "github:repo:science/complete",
+    }
+    execution = payload["beta"]["execution"]
+    assert execution["executedQueries"] == ["primary query"]
+    assert execution["pendingQueryCount"] == 1
+    assert [attempt["status"] for attempt in execution["attempts"]] == [
+        "timed_out",
+        "timed_out",
+        "completed",
+    ]
+
+
+def test_explore_search_job_fails_after_all_timeout_retries_are_exhausted(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
+    STATE.explore_search_jobs.clear()
+    monkeypatch.setattr(
+        "app.services.search.explore.jobs._start_explore_search_job_runner",
+        _run_explore_job_inline,
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan(
+            "primary query",
+            "fallback query",
+            "final query",
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.retrieve_catalog_candidates",
+        lambda *_, **__: (),
+    )
+    attempted_queries: list[str] = []
+
+    def _retrieve(queries, **_kwargs):
+        attempted_queries.append(queries[0])
+        return _build_retrieved_candidates(
+            source_statuses=(
+                {
+                    "source": "github",
+                    "status": "timed_out",
+                    "candidateCount": 0,
+                    "error": "GitHub search timed out.",
+                },
+            ),
+            successful_source_count=0,
+            partial=True,
+            warnings=("GitHub search timed out.",),
+        )
+
+    monkeypatch.setattr(
+        "app.services.search.explore.service.run_external_repository_retrieval",
+        _retrieve,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search-jobs",
+            json={"topicDescription": "Exhausted timeout workflow"},
+        )
+
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["status"] == "failed"
+    assert payload["error"] == "Repository search is temporarily unavailable across all providers."
+    assert attempted_queries == [
+        "primary query",
+        "primary query",
+        "primary query",
+        "fallback query",
+        "fallback query",
+        "fallback query",
+        "final query",
+        "final query",
+        "final query",
+    ]
 
 
 def test_explore_search_beta_requires_feature_access(monkeypatch) -> None:
@@ -1217,7 +1523,11 @@ def test_explore_search_job_returns_completed_snapshot(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         "app.services.search.explore.service.build_ai_search_plan",
-        lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
+        lambda topic_description: _build_ready_repository_ai_plan(
+            "paramagnetic nmr",
+            "pcs tensor fitting",
+            "pseudocontact shift",
+        ),
     )
     monkeypatch.setattr(
         "app.services.search.explore.service.run_external_repository_retrieval",
@@ -1242,12 +1552,118 @@ def test_explore_search_job_returns_completed_snapshot(monkeypatch) -> None:
         assert response.status_code == 202
         created = response.json()
         assert created["status"] == "completed"
+        assert created["canExpand"] is True
         assert created["items"][0]["itemId"] == "github:repo:Mephistos-ML/paranmr"
 
         follow_up = client.get(f"/api/explore/search-jobs/{created['jobId']}")
 
     assert follow_up.status_code == 200
     assert follow_up.json()["status"] == "completed"
+    assert "_execution" not in follow_up.json()
+    stored_execution = STATE.explore_search_jobs[created["jobId"]]["_execution"]
+    assert stored_execution.executed_queries == ("paramagnetic nmr",)
+    assert stored_execution.pending_queries == ("pcs tensor fitting", "pseudocontact shift")
+
+
+def test_explore_search_job_expands_one_pending_query_and_merges_candidates(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
+    STATE.explore_search_jobs.clear()
+    monkeypatch.setattr(
+        "app.services.search.explore.jobs._start_explore_search_job_runner",
+        _run_explore_job_inline,
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.jobs._start_explore_search_expansion_runner",
+        _run_explore_expansion_inline,
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan(
+            "paramagnetic nmr",
+            "pcs tensor fitting",
+            "pseudocontact shift",
+        ),
+    )
+    retrieval_queries: list[tuple[str, ...]] = []
+
+    def _retrieve(queries, **_kwargs):
+        retrieval_queries.append(tuple(queries))
+        return _build_retrieved_candidates(
+            _build_explore_repository_signal(
+                f"github:repo:science/{queries[0].replace(' ', '-')}",
+                query=queries[0],
+            ),
+            source_statuses=(
+                {"source": "github", "status": "ok", "candidateCount": 1, "error": None},
+            ),
+            successful_source_count=1,
+        )
+
+    monkeypatch.setattr(
+        "app.services.search.explore.service.run_external_repository_retrieval",
+        _retrieve,
+    )
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/explore/search-jobs",
+            json={"topicDescription": "Paramagnetic NMR analysis workflows"},
+        ).json()
+        expanded = client.post(
+            f"/api/explore/search-jobs/{created['jobId']}/expand",
+        )
+
+    assert expanded.status_code == 202
+    payload = expanded.json()
+    assert payload["status"] == "completed"
+    assert payload["canExpand"] is True
+    assert {item["itemId"] for item in payload["items"]} == {
+        "github:repo:science/paramagnetic-nmr",
+        "github:repo:science/pcs-tensor-fitting",
+    }
+    assert retrieval_queries == [("paramagnetic nmr",), ("pcs tensor fitting",)]
+    stored_execution = STATE.explore_search_jobs[created["jobId"]]["_execution"]
+    assert stored_execution.executed_queries == (
+        "paramagnetic nmr",
+        "pcs tensor fitting",
+    )
+    assert stored_execution.pending_queries == ("pseudocontact shift",)
+
+
+def test_explore_search_job_rejects_expansion_after_plan_is_exhausted(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
+    STATE.explore_search_jobs.clear()
+    monkeypatch.setattr(
+        "app.services.search.explore.jobs._start_explore_search_job_runner",
+        _run_explore_job_inline,
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.run_external_repository_retrieval",
+        lambda queries, **kwargs: _build_retrieved_candidates(
+            _build_explore_repository_signal(
+                "github:repo:Mephistos-ML/paranmr",
+                query=queries[0],
+            ),
+            source_statuses=(
+                {"source": "github", "status": "ok", "candidateCount": 1, "error": None},
+            ),
+            successful_source_count=1,
+        ),
+    )
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/explore/search-jobs",
+            json={"topicDescription": "Paramagnetic NMR analysis workflows"},
+        ).json()
+        response = client.post(f"/api/explore/search-jobs/{created['jobId']}/expand")
+
+    assert response.status_code == 409
+    assert response.json()["error"] == "Explore search job has no more planned queries."
 
 
 def test_explore_search_beta_job_returns_diagnostics_snapshot(monkeypatch) -> None:

@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 
-import type { AiSearchPlanPayload, ExploreResultItem, ViewerPayload } from "../types/api";
+import type {
+  AiSearchPlanPayload,
+  ExploreBetaPayload,
+  ExploreResultItem,
+  ExploreSearchTimingPayload,
+  ViewerPayload,
+} from "../types/api";
 import { SourceBadge } from "../components/SourceBadge";
 import { TurnstileWidget } from "../components/TurnstileWidget";
 import { RankingDatasetLabeler, RankingDatasetLabelSelect } from "../features/ranking-dataset/RankingDatasetLabeler";
@@ -17,18 +23,22 @@ type ExploreSearchFeedback = {
 type ExploreSortOption = "relevance" | "recent_activity" | "stars";
 
 type ExplorePageProps = {
+  canExpandSearch: boolean;
   canSubscribe: boolean;
   betaEnabled: boolean;
   betaMode: boolean;
   exploreSearchFeedback: ExploreSearchFeedback | null;
   lastAiSearchPlan: AiSearchPlanPayload | null;
+  lastExploreBeta: ExploreBetaPayload | null;
   onRunSearch: () => void;
+  onExpandSearch: () => void;
   onBetaModeChange: (enabled: boolean) => void;
   onSignIn: () => void;
   onSubscribe: (result: ExploreResultItem) => void;
   onTopicInputChange: (value: string) => void;
   onTurnstileTokenChange: (token: string | null) => void;
   results: ExploreResultItem[];
+  isExpandingSearch: boolean;
   searchJobId: string | null;
   searchPending: boolean;
   subscribePendingRepositoryId: string | null;
@@ -42,18 +52,22 @@ type ExplorePageProps = {
 };
 
 export function ExplorePage({
+  canExpandSearch,
   canSubscribe,
   betaEnabled,
   betaMode,
   exploreSearchFeedback,
   lastAiSearchPlan,
+  lastExploreBeta,
   onRunSearch,
+  onExpandSearch,
   onBetaModeChange,
   onSignIn,
   onSubscribe,
   onTopicInputChange,
   onTurnstileTokenChange,
   results,
+  isExpandingSearch,
   searchJobId,
   searchPending,
   searchStageLabel,
@@ -130,6 +144,7 @@ export function ExplorePage({
     ? Math.min(currentPage * RESULTS_PER_PAGE, results.length)
     : 0;
   const pageNumbers = buildPageNumbers(totalPages, currentPage);
+  const hasCompletedSearchPlan = lastAiSearchPlan?.status === "ready";
 
   return (
     <main className="app-shell explore-shell">
@@ -254,49 +269,54 @@ export function ExplorePage({
                 <p className="section-kicker">Results</p>
                 <div className="results-title-row">
                   <h3 className="panel-title">Matched Repositories</h3>
-                  {hasResults ? (
-                    <span className="results-count-badge">{results.length} results</span>
-                  ) : searchPending ? (
+                  {searchPending ? (
                     <span className="results-count-badge">
                       {searchStageLabel ?? "Searching repositories"}
                     </span>
+                  ) : hasResults ? (
+                    <span className="results-count-badge">{results.length} results</span>
                   ) : null}
                   {lastAiSearchPlan && results[0]?.beta ? (
                     <span className="results-beta-badge">Beta diagnostics</span>
                   ) : null}
                 </div>
               </div>
-              <div className="results-plan-summary">
-                {lastAiSearchPlan?.queries.length ? (
-                  <>
-                    <p className="field-hint">AI-Generated Search Queries</p>
-                    <div className="query-chip-row">
-                      {lastAiSearchPlan.queries.map((query) => (
-                        <span className="query-chip" key={query}>
-                          {query}
-                        </span>
-                      ))}
-                    </div>
-                  </>
-                ) : showLoadingResults ? (
-                  <>
-                    <p className="field-hint">AI-Generated Search Queries</p>
-                    <div className="query-chip-row query-chip-row-loading" aria-hidden="true">
-                      {LOADING_QUERY_CHIP_WIDTHS.map((width, index) => (
-                        <span
-                          className="query-chip query-chip-skeleton skeleton-shimmer"
-                          key={`loading-chip-${index}`}
-                          style={{ width }}
-                        />
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <p className="empty-copy">
-                    Run a search to see the queries produced for the current AI search plan.
-                  </p>
-                )}
-              </div>
+              {betaMode ? (
+                <div className="results-plan-summary">
+                  {lastAiSearchPlan?.queries.length ? (
+                    <>
+                      <p className="field-hint">AI-Generated Search Queries</p>
+                      <div className="query-chip-row">
+                        {lastAiSearchPlan.queries.map((query) => (
+                          <span className="query-chip" key={query}>
+                            {query}
+                          </span>
+                        ))}
+                      </div>
+                      {lastExploreBeta?.execution ? (
+                        <p className="field-hint beta-execution-summary">
+                          {lastExploreBeta.execution.executedQueries.length} of{" "}
+                          {lastExploreBeta.execution.executedQueries.length +
+                            lastExploreBeta.execution.pendingQueryCount} search angles used
+                        </p>
+                      ) : null}
+                    </>
+                  ) : showLoadingResults ? (
+                    <>
+                      <p className="field-hint">AI-Generated Search Queries</p>
+                      <div className="query-chip-row query-chip-row-loading" aria-hidden="true">
+                        {LOADING_QUERY_CHIP_WIDTHS.map((width, index) => (
+                          <span
+                            className="query-chip query-chip-skeleton skeleton-shimmer"
+                            key={`loading-chip-${index}`}
+                            style={{ width }}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
 
             {hasResults ? (
@@ -318,6 +338,14 @@ export function ExplorePage({
 
             {betaMode && results[0]?.beta && hasResults ? (
               <RankingDatasetLabeler key={searchJobId} searchJobId={searchJobId} results={results} labels={datasetLabels} />
+            ) : null}
+
+            {betaMode && lastExploreBeta?.timings ? (
+              <BetaRunTimings timings={lastExploreBeta.timings} />
+            ) : null}
+
+            {betaMode && lastExploreBeta?.execution?.attempts.length ? (
+              <BetaQueryAttempts attempts={lastExploreBeta.execution.attempts} />
             ) : null}
 
             {showLoadingResults ? (
@@ -462,6 +490,19 @@ export function ExplorePage({
                   <p className="results-footer-copy">
                     Showing {visibleRangeStart}-{visibleRangeEnd} of {results.length} results
                   </p>
+                  {canExpandSearch ? (
+                    <ExpandSearchControl
+                      canExpand={canExpandSearch}
+                      disabled={searchPending}
+                      onExpand={onExpandSearch}
+                    />
+                  ) : hasCompletedSearchPlan ? (
+                    <ExpandSearchControl
+                      canExpand={false}
+                      disabled
+                      onExpand={onExpandSearch}
+                    />
+                  ) : null}
                   {totalPages > 1 ? (
                     <nav aria-label="Results pages" className="pagination-nav">
                       <button
@@ -524,8 +565,20 @@ export function ExplorePage({
                   Try refining the topic description or broadening the query terms to
                   discover more repositories.
                 </p>
+                {hasCompletedSearchPlan ? (
+                  <ExpandSearchControl
+                    canExpand={canExpandSearch}
+                    disabled={searchPending || !canExpandSearch}
+                    onExpand={onExpandSearch}
+                  />
+                ) : null}
               </div>
             )}
+            {isExpandingSearch ? (
+              <p className="expand-search-loading-copy">
+                Searching another scientific angle and updating the ranking.
+              </p>
+            ) : null}
           </article>
         </section>
       )}
@@ -593,6 +646,38 @@ function readTimestamp(value: string | null): number | null {
   return Number.isNaN(timestamp) ? null : timestamp;
 }
 
+function ExpandSearchControl({
+  canExpand,
+  disabled,
+  onExpand,
+}: {
+  canExpand: boolean;
+  disabled: boolean;
+  onExpand: () => void;
+}) {
+  if (canExpand) {
+    return (
+      <button
+        className="outline-button expand-search-button"
+        disabled={disabled}
+        onClick={onExpand}
+        type="button"
+      >
+        Expand search
+      </button>
+    );
+  }
+
+  return (
+    <div className="expand-search-exhausted">
+      <button className="outline-button expand-search-button" disabled type="button">
+        All search angles used
+      </button>
+      <p>All planned search angles have been explored.</p>
+    </div>
+  );
+}
+
 function BetaDiagnostic({ result }: { result: ExploreResultItem }) {
   const diagnostic = result.beta;
   if (!diagnostic) {
@@ -607,16 +692,67 @@ function BetaDiagnostic({ result }: { result: ExploreResultItem }) {
       </span>
       <p className="repository-beta-meta">{retrievalOrigin.label}</p>
       <p className="repository-beta-score">
-        Score {result.score.toFixed(2)} = query coverage {scoreBreakdown.queryCoveragePoints.toFixed(2)}
-        /40 + match location {scoreBreakdown.matchLocationPoints.toFixed(2)}/45 + evidence density{" "}
-        {scoreBreakdown.evidenceDensityPoints.toFixed(2)}/15
+        Score {result.score.toFixed(2)} = strongest match {scoreBreakdown.strongestMatchPoints.toFixed(2)}
+        /85 + corroboration {scoreBreakdown.corroborationPoints.toFixed(2)}/15
       </p>
       <p className="repository-beta-meta">
         {scoreBreakdown.matchedQueryCount}/{scoreBreakdown.totalQueryCount} queries, {scoreBreakdown.evidenceCount} unique evidences, {scoreBreakdown.hitCount} raw hits, location quality{" "}
-        {scoreBreakdown.matchLocationQuality.toFixed(2)}
+        {scoreBreakdown.strongestMatchQuality.toFixed(2)}
       </p>
     </div>
   );
+}
+
+function BetaRunTimings({ timings }: { timings: ExploreSearchTimingPayload }) {
+  return (
+    <section className="beta-run-timings" aria-label="Beta search timing report">
+      <p className="beta-run-timings-title">Run timings</p>
+      <div className="beta-run-timings-grid">
+        <TimingMetric label="AI planning" value={timings.aiPlanningDurationMs} />
+        <TimingMetric label="Retrieval" value={timings.retrievalDurationMs} />
+        <TimingMetric label="Evaluation & storage" value={timings.evaluationDurationMs} />
+        <TimingMetric label="Response" value={timings.responseBuildDurationMs} />
+        <TimingMetric label="Total" value={timings.totalDurationMs} />
+      </div>
+    </section>
+  );
+}
+
+function BetaQueryAttempts({
+  attempts,
+}: {
+  attempts: NonNullable<ExploreBetaPayload["execution"]>["attempts"];
+}) {
+  return (
+    <section className="beta-query-attempts" aria-label="Beta query attempt report">
+      <p className="beta-run-timings-title">Query attempts</p>
+      <div className="beta-query-attempt-list">
+        {attempts.map((attempt) => (
+          <p key={`${attempt.query}-${attempt.attempt}`}>
+            <code>{attempt.query}</code> · attempt {attempt.attempt} · {attempt.status} ·{" "}
+            {formatDurationMs(attempt.durationMs)} · {attempt.candidateCount} candidates
+          </p>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TimingMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="beta-run-timing-metric">
+      <span>{label}</span>
+      <strong>{formatDurationMs(value)}</strong>
+    </div>
+  );
+}
+
+function formatDurationMs(value: number): string {
+  if (value < 1_000) {
+    return `${value} ms`;
+  }
+
+  return `${(value / 1_000).toFixed(value < 10_000 ? 1 : 0)} s`;
 }
 
 function formatRetryCountdown(value: number | null): string {

@@ -19,8 +19,6 @@ def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
                 "paramagnetic nmr",
                 "pcs tensor fitting",
                 "lanthanide pcs",
-                "magnetic susceptibility tensor",
-                "pseudocontact shift",
             ],
         }
 
@@ -36,17 +34,15 @@ def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
         "paramagnetic nmr",
         "pcs tensor fitting",
         "lanthanide pcs",
-        "magnetic susceptibility tensor",
-        "pseudocontact shift",
     )
     assert "scientific software repository discovery" in captured_prompts["system"]
-    assert "Generate exactly 5 search queries" in captured_prompts["system"]
+    assert "Generate exactly 3 ordered search queries" in captured_prompts["system"]
     assert "canonical short form of the topic" in captured_prompts["system"]
     assert "Do not invent software names" in captured_prompts["system"]
     assert captured_prompts["user"].startswith("Topic description:\n")
 
 
-def test_openai_planner_limits_normalized_query_count_to_five(monkeypatch) -> None:
+def test_openai_planner_limits_normalized_query_count_to_three(monkeypatch) -> None:
     planner = OpenAiSearchPlanner()
 
     monkeypatch.setattr(
@@ -57,9 +53,6 @@ def test_openai_planner_limits_normalized_query_count_to_five(monkeypatch) -> No
                 "query 2",
                 "query 3",
                 "query 4",
-                "query 5",
-                "query 6",
-                "query 7",
             ],
         },
     )
@@ -70,8 +63,6 @@ def test_openai_planner_limits_normalized_query_count_to_five(monkeypatch) -> No
         "query 1",
         "query 2",
         "query 3",
-        "query 4",
-        "query 5",
     )
 
 
@@ -91,7 +82,7 @@ def test_openai_planner_raises_when_normalized_queries_are_below_minimum(
         },
     )
 
-    with pytest.raises(RuntimeError, match="5 unique queries"):
+    with pytest.raises(RuntimeError, match="3 unique queries"):
         planner.build_search_plan(topic_description="Paramagnetic NMR analysis workflows")
 
 

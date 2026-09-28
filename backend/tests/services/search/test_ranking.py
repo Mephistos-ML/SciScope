@@ -12,56 +12,61 @@ from app.services.search.retrieval import (
 )
 
 
-def test_ranking_rewards_multiple_independent_query_matches_with_diminishing_returns() -> None:
+def test_ranking_rewards_independent_query_matches_with_a_capped_bonus() -> None:
     one_match = calculate_relevance_score(
         RankingFeatures(
             matched_query_count=1,
-            total_query_count=5,
+            total_query_count=3,
             hit_count=1,
             evidence_count=1,
-            match_location_quality=0.4,
+            strongest_match_quality=0.4,
+            corroboration_quality=0.0,
         )
     )
     two_matches = calculate_relevance_score(
         RankingFeatures(
             matched_query_count=2,
-            total_query_count=5,
+            total_query_count=3,
             hit_count=2,
             evidence_count=2,
-            match_location_quality=0.4,
+            strongest_match_quality=0.4,
+            corroboration_quality=0.5,
         )
     )
-    five_matches = calculate_relevance_score(
+    three_matches = calculate_relevance_score(
         RankingFeatures(
-            matched_query_count=5,
-            total_query_count=5,
-            hit_count=5,
-            evidence_count=5,
-            match_location_quality=0.4,
+            matched_query_count=3,
+            total_query_count=3,
+            hit_count=3,
+            evidence_count=3,
+            strongest_match_quality=0.4,
+            corroboration_quality=1.0,
         )
     )
 
-    assert one_match < two_matches < five_matches
-    assert (two_matches - one_match) > (five_matches - two_matches) / 3
+    assert one_match < two_matches < three_matches
+    assert three_matches - one_match <= 20.0
 
 
 def test_ranking_weights_name_match_more_than_description_match() -> None:
     name_match = calculate_relevance_score(
         RankingFeatures(
             matched_query_count=1,
-            total_query_count=5,
+            total_query_count=3,
             hit_count=1,
             evidence_count=1,
-            match_location_quality=1.0,
+            strongest_match_quality=1.0,
+            corroboration_quality=0.0,
         )
     )
     description_match = calculate_relevance_score(
         RankingFeatures(
             matched_query_count=1,
-            total_query_count=5,
+            total_query_count=3,
             hit_count=1,
             evidence_count=1,
-            match_location_quality=0.85,
+            strongest_match_quality=0.85,
+            corroboration_quality=0.0,
         )
     )
 
@@ -72,19 +77,21 @@ def test_ranking_weights_readme_match_more_than_code_match() -> None:
     readme_match = calculate_relevance_score(
         RankingFeatures(
             matched_query_count=1,
-            total_query_count=5,
+            total_query_count=3,
             hit_count=1,
             evidence_count=1,
-            match_location_quality=0.65,
+            strongest_match_quality=0.65,
+            corroboration_quality=0.0,
         )
     )
     code_match = calculate_relevance_score(
         RankingFeatures(
             matched_query_count=1,
-            total_query_count=5,
+            total_query_count=3,
             hit_count=1,
             evidence_count=1,
-            match_location_quality=0.40,
+            strongest_match_quality=0.40,
+            corroboration_quality=0.0,
         )
     )
 
@@ -123,48 +130,87 @@ def test_ranking_discounts_semantic_evidence_without_using_its_origin() -> None:
     )
 
     assert result.ranked_candidates[0].candidate.repository_id == direct.repository_id
-    assert result.ranked_candidates[0].features.query_coverage_alignment == 1.0
-    assert result.ranked_candidates[1].features.query_coverage_alignment == 0.8
+    assert result.ranked_candidates[0].features.strongest_match_quality == 0.85
+    assert result.ranked_candidates[1].features.strongest_match_quality == 0.68
 
 
 def test_ranking_does_not_reward_duplicate_raw_hits() -> None:
     one_raw_hit = calculate_relevance_score(
         RankingFeatures(
             matched_query_count=1,
-            total_query_count=5,
+            total_query_count=3,
             hit_count=1,
             evidence_count=1,
-            match_location_quality=0.4,
+            strongest_match_quality=0.4,
+            corroboration_quality=0.0,
         )
     )
     repeated_raw_hits = calculate_relevance_score(
         RankingFeatures(
             matched_query_count=1,
-            total_query_count=5,
+            total_query_count=3,
             hit_count=20,
             evidence_count=1,
-            match_location_quality=0.4,
+            strongest_match_quality=0.4,
+            corroboration_quality=0.0,
         )
     )
 
     assert repeated_raw_hits == one_raw_hit
 
 
+def test_ranking_keeps_one_strong_primary_match_above_repeated_weak_matches() -> None:
+    strong_primary = _build_candidate(
+        item_id="github:repo:science/strong-primary",
+        source="github",
+        raw_text="science/strong-primary\nFocused scientific implementation.",
+        matched_queries=("canonical method",),
+        match_evidence=(
+            RetrievalMatchEvidence(
+                query="canonical method",
+                location="description",
+            ),
+        ),
+    )
+    repeated_weak = _build_candidate(
+        item_id="github:repo:science/repeated-weak",
+        source="github",
+        raw_text="science/repeated-weak\nGeneral utilities.",
+        matched_queries=("canonical method", "alternate method", "implementation phrase"),
+        hit_count=3,
+        match_evidence=(
+            RetrievalMatchEvidence(query="canonical method", location="other"),
+            RetrievalMatchEvidence(query="alternate method", location="other"),
+            RetrievalMatchEvidence(query="implementation phrase", location="other"),
+        ),
+    )
+
+    result = rank_repository_candidates(
+        (repeated_weak, strong_primary),
+        queries=("canonical method", "alternate method", "implementation phrase"),
+        relevance_cutoff=0.0,
+    )
+
+    assert [item.candidate.repository_id for item in result.ranked_candidates] == [
+        strong_primary.repository_id,
+        repeated_weak.repository_id,
+    ]
+
+
 def test_ranking_score_breakdown_sums_to_the_relevance_score() -> None:
     features = RankingFeatures(
         matched_query_count=2,
-        total_query_count=5,
+        total_query_count=3,
         hit_count=3,
         evidence_count=2,
-        match_location_quality=0.85,
+        strongest_match_quality=0.85,
+        corroboration_quality=0.7,
     )
 
     breakdown = build_relevance_score_breakdown(features)
 
     assert calculate_relevance_score(features) == round(
-        breakdown.query_coverage_points
-        + breakdown.match_location_points
-        + breakdown.evidence_density_points,
+        breakdown.strongest_match_points + breakdown.corroboration_points,
         2,
     )
 

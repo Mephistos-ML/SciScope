@@ -119,4 +119,4 @@ def test_catalog_evidence_keeps_its_location_for_a_case_variant_current_query(tm
         queries=("Paramagnetic NMR",),
     )
 
-    assert ranked.ranked_candidates[0].features.match_location_quality == 0.85
+    assert ranked.ranked_candidates[0].features.strongest_match_quality == 0.85

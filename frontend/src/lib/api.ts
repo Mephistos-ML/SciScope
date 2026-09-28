@@ -211,6 +211,12 @@ export async function fetchExploreSearchJob(jobId: string): Promise<ExploreSearc
   return requestJson<ExploreSearchJobPayload>(`/api/explore/search-jobs/${jobId}`);
 }
 
+export async function expandExploreSearchJob(jobId: string): Promise<ExploreSearchJobPayload> {
+  return requestJson<ExploreSearchJobPayload>(`/api/explore/search-jobs/${jobId}/expand`, {
+    method: "POST",
+  });
+}
+
 export async function saveRankingDatasetRun(payload: {
   searchJobId: string;
   labels: Record<string, 0 | 1 | 2>;
