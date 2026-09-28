@@ -1,3 +1,10 @@
+## [1.17.6](https://github.com/Mephistos-ML/SciScope/compare/v1.17.5...v1.17.6) (2026-09-28)
+
+
+### Bug Fixes
+
+* **search:** extend search and API timeouts to 60 seconds ([dc32806](https://github.com/Mephistos-ML/SciScope/commit/dc3280672abe2821d80bf2034841957e8f078a0c))
+
 ## [1.17.5](https://github.com/Mephistos-ML/SciScope/compare/v1.17.4...v1.17.5) (2026-09-10)
 
 
