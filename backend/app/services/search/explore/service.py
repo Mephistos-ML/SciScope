@@ -442,11 +442,11 @@ def _retrieve_query_with_timeout_retries(
     log_context: SearchLogContext | None,
     database_url: str,
 ) -> tuple[RetrievedCandidates, tuple[ExploreQueryAttempt, ...], tuple, bool]:
-    """Retry one fully timed-out query before the plan moves to another angle."""
+    """Retry one timed-out query before the plan moves to another angle."""
 
     attempts: list[ExploreQueryAttempt] = []
     external_candidates: list = []
-    last_retrieved: RetrievedCandidates | None = None
+    accumulated_retrieved: RetrievedCandidates | None = None
     for attempt_number in range(1, MAX_TIMEOUT_ATTEMPTS_PER_QUERY + 1):
         attempt_started_at = monotonic()
         local_candidates = retrieve_catalog_candidates((query,), database_url=database_url)
@@ -465,7 +465,7 @@ def _retrieve_query_with_timeout_retries(
             ),
             log_context=log_context,
         )
-        last_retrieved = RetrievedCandidates(
+        attempt_retrieved = RetrievedCandidates(
             candidates=merge_repository_candidates(
                 (*local_candidates, *external_retrieved.candidates)
             ),
@@ -476,28 +476,39 @@ def _retrieve_query_with_timeout_retries(
             partial=external_retrieved.partial,
             warnings=external_retrieved.warnings,
         )
-        timed_out_without_results = _timed_out_without_usable_results(last_retrieved)
+        timed_out = _query_attempt_timed_out(attempt_retrieved)
+        accumulated_retrieved = (
+            attempt_retrieved
+            if accumulated_retrieved is None
+            else _merge_retrieved_candidates(accumulated_retrieved, attempt_retrieved)
+        )
         attempts.append(
             ExploreQueryAttempt(
                 query=query,
                 attempt=attempt_number,
-                status="timed_out" if timed_out_without_results else "completed",
+                status="timed_out" if timed_out else "completed",
                 duration_ms=build_duration_ms(attempt_started_at),
-                candidate_count=len(last_retrieved.candidates),
+                candidate_count=len(attempt_retrieved.candidates),
             )
         )
         external_candidates.extend(external_retrieved.candidates)
-        if not timed_out_without_results:
-            return last_retrieved, tuple(attempts), tuple(external_candidates), False
+        if not timed_out:
+            assert accumulated_retrieved is not None
+            return accumulated_retrieved, tuple(attempts), tuple(external_candidates), False
 
-    assert last_retrieved is not None
-    return last_retrieved, tuple(attempts), tuple(external_candidates), True
+    assert accumulated_retrieved is not None
+    return accumulated_retrieved, tuple(attempts), tuple(external_candidates), True
 
 
-def _timed_out_without_usable_results(retrieved: RetrievedCandidates) -> bool:
-    if retrieved.candidates or retrieved.successful_source_count > 0:
-        return False
-    return any(status.get("status") == "timed_out" for status in retrieved.source_statuses)
+def _query_attempt_timed_out(retrieved: RetrievedCandidates) -> bool:
+    """Treat partial provider timeouts as retryable query attempts."""
+
+    if any(status.get("status") == "timed_out" for status in retrieved.source_statuses):
+        return True
+    return any(
+        "timed_out" in warning or "timed out" in warning.casefold()
+        for warning in retrieved.warnings
+    )
 
 
 def _serialize_query_attempts(
@@ -593,7 +604,7 @@ def _merge_retrieved_candidates(
     existing: RetrievedCandidates,
     incoming: RetrievedCandidates,
 ) -> RetrievedCandidates:
-    """Preserve prior candidates and attempted-provider facts across search steps."""
+    """Preserve candidates and attempted-provider facts across search steps."""
 
     return RetrievedCandidates(
         candidates=merge_repository_candidates((*existing.candidates, *incoming.candidates)),

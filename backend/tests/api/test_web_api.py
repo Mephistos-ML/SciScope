@@ -1119,6 +1119,117 @@ def test_explore_search_retries_timeouts_before_advancing_to_next_query(monkeypa
     ]
 
 
+def test_explore_search_retries_partial_timeouts_and_merges_attempt_results(monkeypatch) -> None:
+    _allow_explore_access(monkeypatch)
+    beta_user = auth_service.User(
+        user_id="user_beta",
+        email="beta@example.com",
+        display_name="Beta User",
+    )
+    monkeypatch.setattr(
+        "app.api.routes.explore.get_current_user",
+        lambda request, *, database_url: beta_user,
+    )
+    monkeypatch.setattr(
+        "app.services.features.access.BETA_USER_EMAILS",
+        ("beta@example.com",),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan(
+            "primary query",
+            "fallback query",
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.retrieve_catalog_candidates",
+        lambda *_, **__: (),
+    )
+    attempted_queries: list[str] = []
+    attempt_results = iter(
+        (
+            _build_retrieved_candidates(
+                _build_explore_repository_signal(
+                    "github:repo:science/partial-one",
+                    query="primary query",
+                ),
+                source_statuses=(
+                    {
+                        "source": "github",
+                        "status": "ok",
+                        "candidateCount": 1,
+                        "error": None,
+                    },
+                ),
+                successful_source_count=1,
+                partial=True,
+                warnings=("GitHub search timed out after partial results.",),
+            ),
+            _build_retrieved_candidates(
+                _build_explore_repository_signal(
+                    "github:repo:science/partial-two",
+                    query="primary query",
+                ),
+                source_statuses=(
+                    {
+                        "source": "github",
+                        "status": "ok",
+                        "candidateCount": 1,
+                        "error": None,
+                    },
+                ),
+                successful_source_count=1,
+                partial=True,
+                warnings=("GitHub search timed out after partial results.",),
+            ),
+            _build_retrieved_candidates(
+                _build_explore_repository_signal(
+                    "github:repo:science/complete",
+                    query="primary query",
+                ),
+                source_statuses=(
+                    {"source": "github", "status": "ok", "candidateCount": 1, "error": None},
+                ),
+                successful_source_count=1,
+            ),
+        )
+    )
+
+    def _retrieve(queries, **_kwargs):
+        attempted_queries.append(queries[0])
+        return next(attempt_results)
+
+    monkeypatch.setattr(
+        "app.services.search.explore.service.run_external_repository_retrieval",
+        _retrieve,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search",
+            json={"topicDescription": "Partial timeout workflow", "betaMode": True},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert attempted_queries == ["primary query", "primary query", "primary query"]
+    assert {
+        item["itemId"] for item in payload["items"]
+    } == {
+        "github:repo:science/partial-one",
+        "github:repo:science/partial-two",
+        "github:repo:science/complete",
+    }
+    execution = payload["beta"]["execution"]
+    assert execution["executedQueries"] == ["primary query"]
+    assert execution["pendingQueryCount"] == 1
+    assert [attempt["status"] for attempt in execution["attempts"]] == [
+        "timed_out",
+        "timed_out",
+        "completed",
+    ]
+
+
 def test_explore_search_job_fails_after_all_timeout_retries_are_exhausted(monkeypatch) -> None:
     _allow_explore_access(monkeypatch)
     STATE.explore_search_jobs.clear()
