@@ -124,7 +124,7 @@ Provider authentication, rate limits, and unavailable search capabilities are ha
 
 ## Architecture Contract
 
-[AI_CONTRACT.md](../AI_CONTRACT.md) defines the backend boundaries.
+[AGENTS.md](../AGENTS.md) defines the backend boundaries.
 
 Core direction:
 

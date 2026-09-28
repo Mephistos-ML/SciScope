@@ -1,4 +1,4 @@
-# AI Contract
+# SciScope Agent Instructions
 
 This file is the architecture contract for future AI-assisted changes in SciScope.
 
