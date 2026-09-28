@@ -1810,6 +1810,95 @@ def test_explore_search_beta_job_returns_diagnostics_snapshot(monkeypatch) -> No
     assert follow_up.json()["beta"]["candidateCount"] == 1
 
 
+def test_explore_search_beta_stage_snapshots_explain_incremental_results(
+    monkeypatch,
+) -> None:
+    _allow_explore_access(monkeypatch)
+    STATE.explore_search_jobs.clear()
+    beta_user = auth_service.User(
+        user_id="user_beta",
+        email="beta@example.com",
+        display_name="Beta User",
+    )
+    monkeypatch.setattr(
+        "app.api.routes.explore.get_current_user",
+        lambda request, *, database_url: beta_user,
+    )
+    monkeypatch.setattr(
+        "app.services.features.access.BETA_USER_EMAILS",
+        ("beta@example.com",),
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.jobs._start_explore_search_job_runner",
+        _run_explore_job_inline,
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.jobs._start_explore_search_expansion_runner",
+        _run_explore_expansion_inline,
+    )
+    monkeypatch.setattr(
+        "app.services.search.explore.service.build_ai_search_plan",
+        lambda topic_description: _build_ready_repository_ai_plan(
+            "angle one",
+            "angle two",
+            "angle three",
+        ),
+    )
+
+    def _retrieve(queries, **_kwargs):
+        query = queries[0]
+        return _build_retrieved_candidates(
+            _build_explore_repository_signal(
+                f"github:repo:science/{query.replace(' ', '-')}",
+                query=query,
+            ),
+            source_statuses=(
+                {"source": "github", "status": "ok", "candidateCount": 1, "error": None},
+            ),
+            successful_source_count=1,
+        )
+
+    monkeypatch.setattr(
+        "app.services.search.explore.service.run_external_repository_retrieval",
+        _retrieve,
+    )
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/explore/search-jobs",
+            json={"topicDescription": "Incremental beta diagnostics", "betaMode": True},
+        ).json()
+        initial_snapshots = created["beta"]["execution"]["stageSnapshots"]
+
+        first_expansion = client.post(
+            f"/api/explore/search-jobs/{created['jobId']}/expand",
+        ).json()
+        second_expansion = client.post(
+            f"/api/explore/search-jobs/{created['jobId']}/expand",
+        ).json()
+
+    assert len(initial_snapshots) == 1
+    assert initial_snapshots[0]["stage"] == 1
+    assert initial_snapshots[0]["candidatePoolCount"] == 1
+    assert initial_snapshots[0]["rankedCandidates"][0]["fullName"] == (
+        "Mephistos-ML/paranmr"
+    )
+
+    first_snapshots = first_expansion["beta"]["execution"]["stageSnapshots"]
+    assert len(first_snapshots) == 2
+    assert first_snapshots[-1]["stage"] == 2
+    assert first_snapshots[-1]["candidatePoolCount"] == 2
+    assert len(first_snapshots[-1]["rankedCandidates"]) == 2
+
+    second_snapshots = second_expansion["beta"]["execution"]["stageSnapshots"]
+    assert len(second_snapshots) == 3
+    assert second_snapshots[-1]["stage"] == 3
+    assert second_snapshots[-1]["candidatePoolCount"] == 3
+    assert second_snapshots[-1]["canonicalItemIds"] == [
+        item["itemId"] for item in second_expansion["items"]
+    ]
+
+
 def test_explore_search_job_returns_failed_snapshot_when_all_sources_fail(
     monkeypatch,
 ) -> None:

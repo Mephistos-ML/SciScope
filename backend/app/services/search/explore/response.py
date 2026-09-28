@@ -7,7 +7,9 @@ from typing import Literal
 from app import config
 from app.services.search.explore.beta import build_beta_items
 from app.services.search.explore.canonical import build_canonical_items
+from app.services.search.explore.diagnostics import serialize_explore_stage_snapshots
 from app.services.search.explore.evaluation import ExploreSearchEvaluation
+from app.services.search.explore.execution import ExploreStageSnapshot
 
 ExploreResponseMode = Literal["canonical", "beta"]
 
@@ -21,6 +23,7 @@ def build_explore_search_payload(
     can_expand: bool = False,
     executed_queries: tuple[str, ...] = (),
     query_attempts: tuple[dict[str, object], ...] = (),
+    stage_snapshots: tuple[ExploreStageSnapshot, ...] = (),
 ) -> dict[str, object]:
     """Project one shared evaluation into its requested response mode."""
 
@@ -49,6 +52,7 @@ def build_explore_search_payload(
                     0,
                 ),
                 "attempts": list(query_attempts),
+                "stageSnapshots": serialize_explore_stage_snapshots(stage_snapshots),
             },
         }
     return payload

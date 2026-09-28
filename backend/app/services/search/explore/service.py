@@ -17,6 +17,7 @@ from app.services.ai.search_plans import (
     serialize_ai_search_plan,
 )
 from app.services.search.explore.canonical import select_canonical_candidates
+from app.services.search.explore.diagnostics import build_explore_stage_snapshot
 from app.services.search.explore.execution import ExploreQueryAttempt, ExploreSearchExecution
 from app.services.search.catalog import (
     persist_catalog_candidates,
@@ -186,11 +187,24 @@ def run_explore_search(
         )
         evaluation_duration_ms = build_duration_ms(evaluation_started_at)
 
+        stage_snapshots = (
+            (
+                build_explore_stage_snapshot(
+                    evaluation,
+                    stage=1,
+                    queries=retrieval_sequence.executed_queries,
+                    executed_queries=executed_queries,
+                ),
+            )
+            if response_mode == "beta"
+            else ()
+        )
         execution = ExploreSearchExecution(
             ai_search_plan=ai_search_plan,
             executed_queries=executed_queries,
             retrieved=retrieved,
             attempts=retrieval_sequence.attempts,
+            stage_snapshots=stage_snapshots,
         )
         if execution_callback is not None:
             execution_callback(execution)
@@ -240,6 +254,7 @@ def run_explore_search(
             can_expand=bool(execution.pending_queries),
             executed_queries=execution.executed_queries,
             query_attempts=_serialize_query_attempts(execution.attempts),
+            stage_snapshots=execution.stage_snapshots,
         )
         response_build_duration_ms = build_duration_ms(response_build_started_at)
         _attach_beta_timings(
@@ -346,11 +361,25 @@ def expand_explore_search(
         database_url=database_url,
     )
     evaluation_duration_ms = build_duration_ms(evaluation_started_at)
+    stage_snapshots = (
+        (
+            *execution.stage_snapshots,
+            build_explore_stage_snapshot(
+                evaluation,
+                stage=len(execution.stage_snapshots) + 1,
+                queries=retrieval_sequence.executed_queries,
+                executed_queries=executed_queries,
+            ),
+        )
+        if response_mode == "beta"
+        else ()
+    )
     expanded_execution = ExploreSearchExecution(
         ai_search_plan=execution.ai_search_plan,
         executed_queries=executed_queries,
         retrieved=retrieved,
         attempts=(*execution.attempts, *retrieval_sequence.attempts),
+        stage_snapshots=stage_snapshots,
     )
     if execution_callback is not None:
         execution_callback(expanded_execution)
@@ -364,6 +393,7 @@ def expand_explore_search(
         can_expand=bool(expanded_execution.pending_queries),
         executed_queries=expanded_execution.executed_queries,
         query_attempts=_serialize_query_attempts(expanded_execution.attempts),
+        stage_snapshots=expanded_execution.stage_snapshots,
     )
     response_build_duration_ms = build_duration_ms(response_build_started_at)
     _attach_beta_timings(

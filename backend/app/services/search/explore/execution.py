@@ -21,6 +21,18 @@ class ExploreQueryAttempt:
 
 
 @dataclass(frozen=True)
+class ExploreStageSnapshot:
+    """Beta-only state needed to explain one incremental search stage."""
+
+    stage: int
+    queries: tuple[str, ...]
+    executed_queries: tuple[str, ...]
+    candidate_pool: tuple[dict[str, object], ...]
+    ranked_candidates: tuple[dict[str, object], ...]
+    canonical_item_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class ExploreSearchExecution:
     """A completed portion of one AI-generated Explore search plan."""
 
@@ -28,6 +40,7 @@ class ExploreSearchExecution:
     executed_queries: tuple[str, ...]
     retrieved: RetrievedCandidates
     attempts: tuple[ExploreQueryAttempt, ...] = ()
+    stage_snapshots: tuple[ExploreStageSnapshot, ...] = ()
 
     @property
     def pending_queries(self) -> tuple[str, ...]:
