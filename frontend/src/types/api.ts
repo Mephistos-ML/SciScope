@@ -86,12 +86,10 @@ export type ExploreBetaDiagnostic = {
     label: string;
   };
   scoreBreakdown: {
-    queryCoverage: number;
-    queryCoveragePoints: number;
-    matchLocationQuality: number;
-    matchLocationPoints: number;
-    evidenceDensity: number;
-    evidenceDensityPoints: number;
+    strongestMatchQuality: number;
+    strongestMatchPoints: number;
+    corroborationQuality: number;
+    corroborationPoints: number;
     matchedQueryCount: number;
     totalQueryCount: number;
     evidenceCount: number;
@@ -103,6 +101,15 @@ export type ExploreBetaPayload = {
   enabled: true;
   candidateCount: number;
   relevanceCutoff: number;
+  timings?: ExploreSearchTimingPayload;
+};
+
+export type ExploreSearchTimingPayload = {
+  aiPlanningDurationMs: number;
+  retrievalDurationMs: number;
+  evaluationDurationMs: number;
+  responseBuildDurationMs: number;
+  totalDurationMs: number;
 };
 
 export type ExploreSearchPayload = {

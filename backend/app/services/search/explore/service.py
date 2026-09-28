@@ -26,6 +26,7 @@ from app.services.search.explore.response import (
     build_empty_explore_search_payload,
     build_explore_search_payload,
 )
+from app.services.search.explore.timings import ExploreSearchTimings
 from app.services.search.observability.context import SearchLogContext
 from app.services.search.observability.service import (
     SearchLogContext,
@@ -73,6 +74,9 @@ def run_explore_search(
     current_stage = "ai_planning"
     repository_queries: tuple[str, ...] = ()
     retrieved = None
+    planning_duration_ms = 0
+    retrieval_duration_ms = 0
+    evaluation_duration_ms = 0
     if log_context is not None:
         log_search_event(
             logger=logger,
@@ -87,21 +91,35 @@ def run_explore_search(
         ai_search_plan = _plan_explore_search(topic_description=topic_description)
         ai_search_plan_payload = serialize_ai_search_plan(ai_search_plan)
         repository_queries = tuple(ai_search_plan.queries)
+        planning_duration_ms = build_duration_ms(planning_started_at)
         if log_context is not None:
             log_search_event(
                 logger=logger,
                 event="explore_ai_planning_completed",
                 context=log_context,
-                duration_ms=build_duration_ms(planning_started_at),
+                duration_ms=planning_duration_ms,
                 query_count=len(repository_queries),
                 planner=config.AI_PLANNER_MODE,
             )
 
         if not repository_queries:
+            response_build_started_at = monotonic()
             payload = build_empty_explore_search_payload(
                 topic_description=topic_description,
                 ai_search_plan_payload=ai_search_plan_payload,
                 response_mode=response_mode,
+            )
+            response_build_duration_ms = build_duration_ms(response_build_started_at)
+            _attach_beta_timings(
+                payload,
+                response_mode=response_mode,
+                timings=ExploreSearchTimings(
+                    ai_planning_duration_ms=planning_duration_ms,
+                    retrieval_duration_ms=0,
+                    evaluation_duration_ms=0,
+                    response_build_duration_ms=response_build_duration_ms,
+                    total_duration_ms=build_duration_ms(search_started_at),
+                ),
             )
             if log_context is not None:
                 log_search_event(
@@ -112,13 +130,17 @@ def run_explore_search(
                     query_count=0,
                     candidate_count=0,
                     visible_result_count=0,
-                    response_build_duration_ms=0,
+                    ai_planning_duration_ms=planning_duration_ms,
+                    retrieval_duration_ms=0,
+                    evaluation_duration_ms=0,
+                    response_build_duration_ms=response_build_duration_ms,
                     partial=False,
                     source_statuses=[],
                 )
             return payload
 
         current_stage = "local_retrieval"
+        retrieval_started_at = monotonic()
         local_candidates = retrieve_catalog_candidates(
             repository_queries,
             database_url=database_url,
@@ -147,6 +169,8 @@ def run_explore_search(
             partial=external_retrieved.partial,
             warnings=external_retrieved.warnings,
         )
+        retrieval_duration_ms = build_duration_ms(retrieval_started_at)
+        evaluation_started_at = monotonic()
         evaluation = build_explore_search_evaluation(
             retrieved,
             queries=repository_queries,
@@ -164,6 +188,7 @@ def run_explore_search(
             ),
             database_url=database_url,
         )
+        evaluation_duration_ms = build_duration_ms(evaluation_started_at)
 
         if retrieved.successful_source_count == 0:
             if log_context is not None:
@@ -209,6 +234,17 @@ def run_explore_search(
             response_mode=response_mode,
         )
         response_build_duration_ms = build_duration_ms(response_build_started_at)
+        _attach_beta_timings(
+            payload,
+            response_mode=response_mode,
+            timings=ExploreSearchTimings(
+                ai_planning_duration_ms=planning_duration_ms,
+                retrieval_duration_ms=retrieval_duration_ms,
+                evaluation_duration_ms=evaluation_duration_ms,
+                response_build_duration_ms=response_build_duration_ms,
+                total_duration_ms=build_duration_ms(search_started_at),
+            ),
+        )
         if log_context is not None:
             log_search_event(
                 logger=logger,
@@ -221,6 +257,9 @@ def run_explore_search(
                 visible_result_count=len(visible_candidates),
                 relevance_cutoff=evaluation.ranking.relevance_cutoff,
                 response_mode=response_mode,
+                ai_planning_duration_ms=planning_duration_ms,
+                retrieval_duration_ms=retrieval_duration_ms,
+                evaluation_duration_ms=evaluation_duration_ms,
                 response_build_duration_ms=response_build_duration_ms,
                 partial=retrieved.partial,
                 warning_count=len(retrieved.warnings),
@@ -335,3 +374,19 @@ def _summarize_source_statuses(
         }
         for status in source_statuses
     ]
+
+
+def _attach_beta_timings(
+    payload: dict[str, object],
+    *,
+    response_mode: ExploreResponseMode,
+    timings: ExploreSearchTimings,
+) -> None:
+    """Attach completed run timings to the restricted beta payload only."""
+
+    if response_mode != "beta":
+        return
+
+    beta = payload.get("beta")
+    if isinstance(beta, dict):
+        beta["timings"] = timings.to_beta_payload()

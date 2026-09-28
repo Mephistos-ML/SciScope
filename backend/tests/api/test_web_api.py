@@ -999,7 +999,8 @@ def test_explore_search_beta_returns_full_pool_with_pipeline_diagnostics(monkeyp
     breakdown = diagnostics_by_id["github:repo:science/general-tools"]["scoreBreakdown"]
     assert breakdown["matchedQueryCount"] == 1
     assert breakdown["totalQueryCount"] == 3
-    assert breakdown["matchLocationPoints"] == 11.25
+    assert breakdown["strongestMatchPoints"] == 21.25
+    assert breakdown["corroborationPoints"] == 0.0
 
 
 def test_explore_search_beta_requires_feature_access(monkeypatch) -> None:

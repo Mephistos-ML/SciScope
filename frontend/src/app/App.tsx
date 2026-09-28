@@ -26,6 +26,7 @@ import { SubscriptionsPage } from "../pages/SubscriptionsPage";
 import type {
   AiSearchPlanPayload,
   FeedEventItem,
+  ExploreBetaPayload,
   ExploreSearchJobPayload,
   ExploreSearchJobStatus,
   ExploreResultItem,
@@ -59,6 +60,7 @@ export function App() {
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [results, setResults] = useState<ExploreResultItem[]>([]);
   const [lastAiSearchPlan, setLastAiSearchPlan] = useState<AiSearchPlanPayload | null>(null);
+  const [lastExploreBeta, setLastExploreBeta] = useState<ExploreBetaPayload | null>(null);
   const [feedEvents, setFeedEvents] = useState<FeedEventItem[]>([]);
   const [unreadFeedCount, setUnreadFeedCount] = useState(0);
   const [feedState, setFeedState] = useState<"all" | "unread">("all");
@@ -264,6 +266,7 @@ export function App() {
     setResults([]);
     setLastCompletedExploreJobId(null);
     setLastAiSearchPlan(null);
+    setLastExploreBeta(null);
     setExploreSearchFeedback(null);
     try {
       const job = await createExploreSearchJob({
@@ -299,6 +302,7 @@ export function App() {
         });
         setResults([]);
         setLastAiSearchPlan(null);
+        setLastExploreBeta(null);
       }
       setActiveExploreJobId(null);
       setActiveExploreJobStatus(null);
@@ -309,6 +313,7 @@ export function App() {
   function applyExploreSearchJobSnapshot(snapshot: ExploreSearchJobPayload) {
     setResults(snapshot.items);
     setLastAiSearchPlan(snapshot.aiSearchPlan);
+    setLastExploreBeta(snapshot.beta ?? null);
     if (snapshot.status !== "failed" && snapshot.status !== "completed_partial") {
       setExploreSearchFeedback(null);
     }
@@ -534,6 +539,7 @@ export function App() {
               canSubscribe={Boolean(viewer)}
               exploreSearchFeedback={exploreSearchFeedback}
               lastAiSearchPlan={lastAiSearchPlan}
+              lastExploreBeta={lastExploreBeta}
               betaMode={betaMode}
               betaEnabled={viewer?.features.includes("explore_beta") ?? false}
               onBetaModeChange={setBetaMode}

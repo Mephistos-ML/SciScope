@@ -1176,6 +1176,43 @@ input::placeholder {
   line-height: 16px;
 }
 
+.beta-run-timings {
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid #e8c77b;
+  border-radius: var(--radius-card);
+  background: #fffbeb;
+}
+
+.beta-run-timings-title {
+  margin: 0 0 10px;
+  color: #7a4b05;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.beta-run-timings-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.beta-run-timing-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.beta-run-timing-metric strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
 .repository-beta-status {
   align-self: flex-start;
   font-size: 11px;
@@ -1914,6 +1951,10 @@ input::placeholder {
 
   .results-header {
     flex-direction: column;
+  }
+
+  .beta-run-timings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .results-toolbar {

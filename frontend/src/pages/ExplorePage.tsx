@@ -617,13 +617,12 @@ function BetaDiagnostic({ result }: { result: ExploreResultItem }) {
       </span>
       <p className="repository-beta-meta">{retrievalOrigin.label}</p>
       <p className="repository-beta-score">
-        Score {result.score.toFixed(2)} = query coverage {scoreBreakdown.queryCoveragePoints.toFixed(2)}
-        /40 + match location {scoreBreakdown.matchLocationPoints.toFixed(2)}/45 + evidence density{" "}
-        {scoreBreakdown.evidenceDensityPoints.toFixed(2)}/15
+        Score {result.score.toFixed(2)} = strongest match {scoreBreakdown.strongestMatchPoints.toFixed(2)}
+        /85 + corroboration {scoreBreakdown.corroborationPoints.toFixed(2)}/15
       </p>
       <p className="repository-beta-meta">
         {scoreBreakdown.matchedQueryCount}/{scoreBreakdown.totalQueryCount} queries, {scoreBreakdown.evidenceCount} unique evidences, {scoreBreakdown.hitCount} raw hits, location quality{" "}
-        {scoreBreakdown.matchLocationQuality.toFixed(2)}
+        {scoreBreakdown.strongestMatchQuality.toFixed(2)}
       </p>
     </div>
   );
