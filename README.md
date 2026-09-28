@@ -1,5 +1,9 @@
 # SciScope
 
+<p align="center">
+  <img src="frontend/src/assets/brand/sciscope-logo.svg" alt="SciScope logo" width="188">
+</p>
+
 [![CI](https://github.com/Mephistos-ML/SciScope/actions/workflows/test.yml/badge.svg)](https://github.com/Mephistos-ML/SciScope/actions/workflows/test.yml)
 [![Release](https://github.com/Mephistos-ML/SciScope/actions/workflows/release.yml/badge.svg)](https://github.com/Mephistos-ML/SciScope/actions/workflows/release.yml)
 [![GitHub release](https://img.shields.io/github/v/release/Mephistos-ML/SciScope)](https://github.com/Mephistos-ML/SciScope/releases)
@@ -103,6 +107,13 @@ The core dependency direction is `api -> services -> sources/storage -> database
 - Database: Postgres with SQLAlchemy and Alembic
 
 Backend setup and operations are documented in [backend/README.md](backend/README.md).
+
+## Quality
+
+- Backend tests: `pytest -q`
+- Backend coverage: `pytest --cov=app --cov-report=term-missing`
+- Frontend checks: `npm run build`
+- Pull requests are validated through GitHub Actions.
 
 ## Author
 
