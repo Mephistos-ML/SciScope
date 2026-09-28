@@ -9,10 +9,14 @@ from app.services.search.admission.models import AdmissionDecision
 from app.services.search.retrieval.models import RepositoryCandidate
 
 
-def build_admission_decision(candidate: RepositoryCandidate) -> AdmissionDecision:
+def build_admission_decision(
+    candidate: RepositoryCandidate,
+    *,
+    queries: tuple[str, ...] | list[str] | None = None,
+) -> AdmissionDecision:
     """Return one conservative keep or reject decision."""
 
-    facts = build_candidate_facts(candidate)
+    facts = build_candidate_facts(candidate, queries=queries)
     gate_decision = apply_repo_name_gate(facts)
     if gate_decision is not None:
         return gate_decision

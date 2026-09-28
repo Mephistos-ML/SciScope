@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Sequence
 import logging
 from time import monotonic
 
@@ -21,6 +22,7 @@ from app.services.search.observability.service import (
     build_duration_ms,
     log_search_event,
 )
+from app.services.search.retrieval.evidence import count_current_query_matches
 from app.services.search.retrieval.models import RepositoryCandidate
 
 logger = logging.getLogger(__name__)
@@ -30,6 +32,7 @@ def run_repository_admission(
     candidates: tuple[RepositoryCandidate, ...],
     *,
     mode: AdmissionMode | None = None,
+    queries: Sequence[str] | None = None,
     log_context: SearchLogContext | None = None,
 ) -> AdmissionResult:
     """Evaluate one candidate pool under the configured admission mode."""
@@ -45,7 +48,12 @@ def run_repository_admission(
                     bucket="admission_disabled",
                     evidence=AdmissionEvidence(
                         matched_channels=candidate.provenance.matched_channels,
-                        matched_query_count=len(candidate.provenance.matched_queries),
+                        matched_query_count=count_current_query_matches(
+                            candidate,
+                            tuple(queries)
+                            if queries is not None
+                            else candidate.provenance.matched_queries,
+                        ),
                         hit_count=candidate.provenance.hit_count,
                         path_strength="none",
                         has_language=bool(str(candidate.signal.payload.get("language") or "").strip()),
@@ -83,7 +91,12 @@ def run_repository_admission(
     evaluated_candidates = tuple(
         EvaluatedRepositoryCandidate(
             candidate=candidate,
-            admission=build_admission_decision(candidate),
+            admission=build_admission_decision(
+                candidate,
+                queries=tuple(queries)
+                if queries is not None
+                else None,
+            ),
         )
         for candidate in candidates
     )

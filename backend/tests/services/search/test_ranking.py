@@ -134,6 +134,34 @@ def test_ranking_discounts_semantic_evidence_without_using_its_origin() -> None:
     assert result.ranked_candidates[1].features.strongest_match_quality == 0.68
 
 
+def test_ranking_counts_only_current_run_query_matches() -> None:
+    candidate = _build_candidate(
+        item_id="github:repo:science/catalogued-tool",
+        source="github",
+        raw_text="science/catalogued-tool\nScientific software.",
+        matched_queries=(
+            "historical query one",
+            "historical query two",
+            "current query one",
+            "current query two",
+        ),
+        match_evidence=(
+            RetrievalMatchEvidence(query="current query one", location="description"),
+            RetrievalMatchEvidence(query="current query two", location="description"),
+        ),
+    )
+
+    result = rank_repository_candidates(
+        (candidate,),
+        queries=("current query one", "current query two", "current query three"),
+        relevance_cutoff=0.0,
+    )
+
+    features = result.ranked_candidates[0].features
+    assert features.matched_query_count == 2
+    assert features.total_query_count == 3
+
+
 def test_ranking_does_not_reward_duplicate_raw_hits() -> None:
     one_raw_hit = calculate_relevance_score(
         RankingFeatures(
