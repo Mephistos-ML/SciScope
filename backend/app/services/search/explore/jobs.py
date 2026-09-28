@@ -9,7 +9,13 @@ import threading
 from uuid import uuid4
 
 from app import config
-from app.models.search_run import SearchRun, SearchRunOperation
+from app.models.search_run import (
+    SearchRun,
+    SearchRunOperation,
+    SearchRunProviderOutcome,
+    SearchRunStage,
+    SearchStageReport,
+)
 from app.runtime.state import STATE
 from app.services.search.access import hash_explore_topic
 from app.services.search.explore.execution import (
@@ -28,7 +34,10 @@ from app.services.search.observability.context import SearchLogContext, build_re
 from app.storage.search_runs import (
     create_search_run,
     create_search_run_operation,
+    count_search_run_stages,
     get_search_run,
+    record_search_run_provider_outcomes,
+    record_search_run_stage,
     update_search_run,
     update_search_run_operation,
 )
@@ -187,6 +196,14 @@ def _run_explore_search_job(
                 topic_description,
                 log_context,
             ).with_job_id(job_id),
+            stage_report_callback=lambda report: _record_stage_report(
+                job_id=job_id,
+                operation_id=operation_id,
+                stage_number=1,
+                report=report,
+                started_at=now,
+                database_url=database_url,
+            ),
         )
     except ExploreSearchUnavailableError as exc:
         _fail(job_id, operation_id, str(exc), database_url, exc.source_statuses)
@@ -227,6 +244,8 @@ def _run_explore_search_expansion_job(
         started_at=datetime.now(UTC),
         database_url=database_url,
     )
+    stage_number = count_search_run_stages(job_id, database_url=database_url) + 1
+    stage_started_at = datetime.now(UTC)
     try:
         payload = expand_explore_search(
             topic_description=topic_description,
@@ -235,6 +254,14 @@ def _run_explore_search_expansion_job(
             database_url=database_url,
             execution_callback=lambda value: _store_execution(job_id, value, database_url),
             log_context=_build_log_context(topic_description, None).with_job_id(job_id),
+            stage_report_callback=lambda report: _record_stage_report(
+                job_id=job_id,
+                operation_id=operation_id,
+                stage_number=stage_number,
+                report=report,
+                started_at=stage_started_at,
+                database_url=database_url,
+            ),
         )
     except Exception:
         logger.exception("Explore search expansion crashed unexpectedly.")
@@ -267,6 +294,55 @@ def _complete(
     )
 
 
+def _record_stage_report(
+    *,
+    job_id: str,
+    operation_id: str,
+    stage_number: int,
+    report: SearchStageReport,
+    started_at: datetime,
+    database_url: str,
+) -> None:
+    """Persist a completed stage and its provider lane outcomes."""
+
+    completed_at = datetime.now(UTC)
+    record_search_run_stage(
+        SearchRunStage(
+            run_id=job_id,
+            operation_id=operation_id,
+            stage_number=stage_number,
+            status="completed",
+            executed_query_ids=report.executed_queries,
+            retrieved_candidate_count=report.retrieved_candidate_count,
+            admitted_candidate_count=report.admitted_candidate_count,
+            visible_candidate_count=report.visible_candidate_count,
+            timings=report.timings,
+            started_at=started_at,
+            completed_at=completed_at,
+        ),
+        database_url=database_url,
+    )
+    record_search_run_provider_outcomes(
+        tuple(
+            SearchRunProviderOutcome(
+                outcome_id=uuid4().hex,
+                run_id=job_id,
+                operation_id=operation_id,
+                stage_number=stage_number,
+                source=outcome.source,
+                channel=outcome.channel,
+                query_id=outcome.query,
+                attempt=outcome.attempt,
+                status=outcome.status,
+                candidate_count=outcome.candidate_count,
+                duration_ms=outcome.duration_ms,
+                error_code=outcome.error_code,
+                error_message=outcome.error_message,
+            )
+            for outcome in report.provider_outcomes
+        ),
+        database_url=database_url,
+    )
 def _fail(
     job_id: str,
     operation_id: str,

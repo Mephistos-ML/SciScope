@@ -6,6 +6,8 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy import func, select
+
 from app.database.records.search_runs import (
     SearchRunOperationRecordModel,
     SearchRunProviderOutcomeRecordModel,
@@ -125,6 +127,34 @@ def record_search_run_provider_outcomes(
                 details_json=outcome.details,
             )
             for outcome in outcomes
+        )
+
+
+def count_search_run_stages(run_id: str, *, database_url: str) -> int:
+    """Return the number of completed run stages persisted so far."""
+
+    with session_scope(database_url) as session:
+        return int(
+            session.scalar(
+                select(func.count())
+                .select_from(SearchRunStageRecordModel)
+                .where(SearchRunStageRecordModel.run_id == run_id)
+            )
+            or 0
+        )
+
+
+def count_search_run_provider_outcomes(run_id: str, *, database_url: str) -> int:
+    """Return the number of durable provider outcomes for one run."""
+
+    with session_scope(database_url) as session:
+        return int(
+            session.scalar(
+                select(func.count())
+                .select_from(SearchRunProviderOutcomeRecordModel)
+                .where(SearchRunProviderOutcomeRecordModel.run_id == run_id)
+            )
+            or 0
         )
 
 

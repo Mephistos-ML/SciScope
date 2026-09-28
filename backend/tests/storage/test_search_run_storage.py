@@ -13,6 +13,8 @@ from app.models.search_run import (
 from app.storage.search_runs import (
     create_search_run,
     create_search_run_operation,
+    count_search_run_provider_outcomes,
+    count_search_run_stages,
     get_search_run,
     record_search_run_provider_outcomes,
     record_search_run_stage,
@@ -90,3 +92,5 @@ def test_search_run_storage_persists_execution_facts(tmp_path) -> None:
     assert stored.planner_model == run.planner_model
     assert stored.ranking_policy_version == run.ranking_policy_version
     assert stored.backend_revision == run.backend_revision
+    assert count_search_run_stages(run.run_id, database_url=database_url) == 1
+    assert count_search_run_provider_outcomes(run.run_id, database_url=database_url) == 1

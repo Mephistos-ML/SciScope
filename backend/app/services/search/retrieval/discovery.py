@@ -14,6 +14,7 @@ from app.services.search.retrieval.lanes import (
     LaneResult,
     RepositoryDiscoverer,
     RetrievalProgressCallback,
+    build_lane_outcome,
     consume_lane_result,
     emit_retrieval_progress,
     start_lane_worker,
@@ -58,6 +59,7 @@ def discover_candidates_across_sources(
     successful_sources: set[str] = set()
     warnings: list[str] = []
     partial = False
+    lane_outcomes = []
 
     active_discoverers = build_active_discoverers(discoverers)
     if (
@@ -126,6 +128,7 @@ def discover_candidates_across_sources(
             break
 
         remaining_lane_count -= 1
+        lane_outcomes.append(build_lane_outcome(lane_result))
         lane_partial, lane_warning = consume_lane_result(
             lane_result,
             queries=queries,
@@ -164,6 +167,7 @@ def discover_candidates_across_sources(
         "successful_source_count": len(successful_sources),
         "partial": partial,
         "warnings": warnings,
+        "lane_outcomes": lane_outcomes,
     }
 
 

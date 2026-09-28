@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from time import monotonic
 
 from app import config
+from app.models.search_run import (
+    SearchProviderOutcomeReport,
+    SearchStageReport,
+)
 from app.services.ai.openai.client import (
     OpenAIClientConfigurationError,
     OpenAIResponseError,
@@ -46,6 +50,7 @@ logger = logging.getLogger(__name__)
 
 ExploreSearchProgressCallback = Callable[[dict[str, object]], None]
 ExploreSearchExecutionCallback = Callable[[ExploreSearchExecution], None]
+ExploreSearchStageReportCallback = Callable[[SearchStageReport], None]
 MAX_TIMEOUT_ATTEMPTS_PER_QUERY = 3
 
 
@@ -77,6 +82,7 @@ def run_explore_search(
     response_mode: ExploreResponseMode = "canonical",
     progress_callback: ExploreSearchProgressCallback | None = None,
     execution_callback: ExploreSearchExecutionCallback | None = None,
+    stage_report_callback: ExploreSearchStageReportCallback | None = None,
     log_context: SearchLogContext | None = None,
     database_url: str = config.DATABASE_URL,
 ) -> dict[str, object]:
@@ -209,7 +215,22 @@ def run_explore_search(
         if execution_callback is not None:
             execution_callback(execution)
 
+        visible_candidates = select_canonical_candidates(evaluation)
         if retrieved.successful_source_count == 0:
+            if stage_report_callback is not None:
+                stage_report_callback(
+                    _build_stage_report(
+                        executed_queries=execution.executed_queries,
+                        retrieved=retrieved,
+                        admitted_candidate_count=len(evaluation.admission.visible_candidates),
+                        visible_candidate_count=len(visible_candidates),
+                        ai_planning_duration_ms=planning_duration_ms,
+                        retrieval_duration_ms=retrieval_duration_ms,
+                        evaluation_duration_ms=evaluation_duration_ms,
+                        response_build_duration_ms=0,
+                        total_duration_ms=build_duration_ms(search_started_at),
+                    )
+                )
             if log_context is not None:
                 log_search_event(
                     logger=logger,
@@ -228,7 +249,6 @@ def run_explore_search(
 
         current_stage = "evaluation"
         if log_context is not None:
-            visible_candidates = select_canonical_candidates(evaluation)
             log_search_event(
                 logger=logger,
                 event="explore_ranking_completed",
@@ -268,6 +288,20 @@ def run_explore_search(
                 total_duration_ms=build_duration_ms(search_started_at),
             ),
         )
+        if stage_report_callback is not None:
+            stage_report_callback(
+                _build_stage_report(
+                    executed_queries=execution.executed_queries,
+                    retrieved=retrieved,
+                    admitted_candidate_count=len(evaluation.admission.visible_candidates),
+                    visible_candidate_count=len(visible_candidates),
+                    ai_planning_duration_ms=planning_duration_ms,
+                    retrieval_duration_ms=retrieval_duration_ms,
+                    evaluation_duration_ms=evaluation_duration_ms,
+                    response_build_duration_ms=response_build_duration_ms,
+                    total_duration_ms=build_duration_ms(search_started_at),
+                )
+            )
         if log_context is not None:
             log_search_event(
                 logger=logger,
@@ -317,6 +351,7 @@ def expand_explore_search(
     execution: ExploreSearchExecution,
     response_mode: ExploreResponseMode = "canonical",
     execution_callback: ExploreSearchExecutionCallback | None = None,
+    stage_report_callback: ExploreSearchStageReportCallback | None = None,
     log_context: SearchLogContext | None = None,
     database_url: str = config.DATABASE_URL,
 ) -> dict[str, object]:
@@ -407,7 +442,62 @@ def expand_explore_search(
             total_duration_ms=build_duration_ms(search_started_at),
         ),
     )
+    if stage_report_callback is not None:
+        stage_report_callback(
+            _build_stage_report(
+                executed_queries=retrieval_sequence.executed_queries,
+                retrieved=retrieved,
+                admitted_candidate_count=len(evaluation.admission.visible_candidates),
+                visible_candidate_count=len(select_canonical_candidates(evaluation)),
+                ai_planning_duration_ms=0,
+                retrieval_duration_ms=retrieval_duration_ms,
+                evaluation_duration_ms=evaluation_duration_ms,
+                response_build_duration_ms=response_build_duration_ms,
+                total_duration_ms=build_duration_ms(search_started_at),
+            )
+        )
     return payload
+
+
+def _build_stage_report(
+    *,
+    executed_queries: tuple[str, ...],
+    retrieved: RetrievedCandidates,
+    admitted_candidate_count: int,
+    visible_candidate_count: int,
+    ai_planning_duration_ms: int,
+    retrieval_duration_ms: int,
+    evaluation_duration_ms: int,
+    response_build_duration_ms: int,
+    total_duration_ms: int,
+) -> SearchStageReport:
+    return SearchStageReport(
+        executed_queries=executed_queries,
+        retrieved_candidate_count=len(retrieved.candidates),
+        admitted_candidate_count=admitted_candidate_count,
+        visible_candidate_count=visible_candidate_count,
+        timings={
+            "ai_planning": ai_planning_duration_ms,
+            "retrieval": retrieval_duration_ms,
+            "evaluation": evaluation_duration_ms,
+            "response_serialization": response_build_duration_ms,
+            "stage_wall_time": total_duration_ms,
+        },
+        provider_outcomes=tuple(
+            SearchProviderOutcomeReport(
+                source=outcome.source,
+                channel=outcome.channel,
+                query=outcome.query,
+                attempt=outcome.attempt,
+                status=outcome.status,
+                candidate_count=outcome.candidate_count,
+                duration_ms=outcome.duration_ms,
+                error_code=outcome.error_code,
+                error_message=outcome.error_message,
+            )
+            for outcome in retrieved.lane_outcomes
+        ),
+    )
 
 
 def _retrieve_planned_queries(
@@ -505,6 +595,10 @@ def _retrieve_query_with_timeout_retries(
             ),
             partial=external_retrieved.partial,
             warnings=external_retrieved.warnings,
+            lane_outcomes=tuple(
+                replace(outcome, query=query, attempt=attempt_number)
+                for outcome in external_retrieved.lane_outcomes
+            ),
         )
         timed_out = _query_attempt_timed_out(attempt_retrieved)
         accumulated_retrieved = (
@@ -644,6 +738,7 @@ def _merge_retrieved_candidates(
         ),
         partial=existing.partial or incoming.partial,
         warnings=tuple(dict.fromkeys((*existing.warnings, *incoming.warnings))),
+        lane_outcomes=(*existing.lane_outcomes, *incoming.lane_outcomes),
     )
 
 

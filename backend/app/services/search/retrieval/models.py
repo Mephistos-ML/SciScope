@@ -63,6 +63,21 @@ class RepositoryCandidate:
 
 
 @dataclass(frozen=True)
+class RetrievalLaneOutcome:
+    """One provider-channel outcome before source-level aggregation."""
+
+    source: str
+    channel: str
+    status: str
+    candidate_count: int
+    duration_ms: int
+    query: str = ""
+    attempt: int = 1
+    error_code: str | None = None
+    error_message: str | None = None
+
+
+@dataclass(frozen=True)
 class RetrievedCandidates:
     """One batch of deduplicated repository candidates and source diagnostics."""
 
@@ -71,3 +86,4 @@ class RetrievedCandidates:
     successful_source_count: int
     partial: bool = False
     warnings: tuple[str, ...] = ()
+    lane_outcomes: tuple[RetrievalLaneOutcome, ...] = ()

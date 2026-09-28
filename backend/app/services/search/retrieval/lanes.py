@@ -18,7 +18,11 @@ from app.services.search.observability.service import (
     log_search_event,
 )
 from app.services.search.retrieval.merge import merge_retrieval_hits
-from app.services.search.retrieval.models import RetrievedCandidates, RetrievalHit
+from app.services.search.retrieval.models import (
+    RetrievedCandidates,
+    RetrievalHit,
+    RetrievalLaneOutcome,
+)
 from app.services.search.retrieval.timeouts import is_deadline_reached
 from app.sources.common import RepositorySourceError, build_source_status
 
@@ -266,6 +270,44 @@ def consume_lane_result(
     return (
         True,
         warning,
+    )
+
+
+def build_lane_outcome(lane_result: LaneResult) -> RetrievalLaneOutcome:
+    """Project one finished provider lane into a durable-safe outcome."""
+
+    duration_ms = build_duration_ms(lane_result.started_at_monotonic)
+    if lane_result.source_error is not None:
+        return RetrievalLaneOutcome(
+            source=lane_result.source_name,
+            channel=lane_result.channel_name,
+            status=lane_result.source_error.status,
+            candidate_count=0,
+            duration_ms=duration_ms,
+            error_code=lane_result.source_error.status,
+            error_message=lane_result.source_error.public_message,
+        )
+    if lane_result.crashed:
+        return RetrievalLaneOutcome(
+            source=lane_result.source_name,
+            channel=lane_result.channel_name,
+            status="error",
+            candidate_count=0,
+            duration_ms=duration_ms,
+            error_code="unexpected_error",
+            error_message="Provider lane crashed unexpectedly.",
+        )
+    first_failure = (
+        lane_result.query_failures[0].error if lane_result.query_failures else None
+    )
+    return RetrievalLaneOutcome(
+        source=lane_result.source_name,
+        channel=lane_result.channel_name,
+        status="partial" if lane_result.query_failures else "ok",
+        candidate_count=len(lane_result.source_candidates),
+        duration_ms=duration_ms,
+        error_code=first_failure.status if first_failure else None,
+        error_message=first_failure.public_message if first_failure else None,
     )
 
 

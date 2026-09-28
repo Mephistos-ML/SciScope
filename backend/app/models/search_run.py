@@ -103,3 +103,30 @@ class SearchRunProviderOutcome:
     error_code: str | None = None
     error_message: str | None = None
     details: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class SearchProviderOutcomeReport:
+    """Provider-channel facts emitted before a run assigns durable identity."""
+
+    source: str
+    channel: str
+    query: str
+    attempt: int
+    status: str
+    candidate_count: int
+    duration_ms: int
+    error_code: str | None = None
+    error_message: str | None = None
+
+
+@dataclass(frozen=True)
+class SearchStageReport:
+    """Run-independent facts emitted when one Explore stage finishes."""
+
+    executed_queries: tuple[str, ...]
+    retrieved_candidate_count: int
+    admitted_candidate_count: int
+    visible_candidate_count: int
+    timings: dict[str, int]
+    provider_outcomes: tuple[SearchProviderOutcomeReport, ...]
