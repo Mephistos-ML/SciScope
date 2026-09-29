@@ -6,7 +6,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "0015_search_run_planner_reasoning_effort"
+revision = "0015_planner_reasoning_effort"
 down_revision = "0014_search_run_observability"
 branch_labels = None
 depends_on = None
