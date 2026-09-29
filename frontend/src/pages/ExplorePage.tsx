@@ -18,6 +18,7 @@ type ExploreSearchFeedback = {
 };
 
 type ExploreSortOption = "relevance" | "recent_activity" | "stars";
+type SearchDiagnosticsStatus = "idle" | "loading" | "ready" | "unavailable";
 
 type ExplorePageProps = {
   canExpandSearch: boolean;
@@ -37,6 +38,8 @@ type ExplorePageProps = {
   subscribedRepositoryIds: string[];
   topicInput: string;
   searchStageLabel: string | null;
+  searchDiagnosticsActive: boolean;
+  searchDiagnosticsStatus: SearchDiagnosticsStatus;
   turnstileReady: boolean;
   turnstileResetKey: number;
   turnstileSiteKey: string | null;
@@ -58,6 +61,8 @@ export function ExplorePage({
   isExpandingSearch,
   searchPending,
   searchStageLabel,
+  searchDiagnosticsActive,
+  searchDiagnosticsStatus,
   subscribePendingRepositoryId,
   subscribedRepositoryIds,
   topicInput,
@@ -163,6 +168,18 @@ export function ExplorePage({
                 Sign In with Google
               </button>{" "}
               to save subscriptions and build your feed.
+            </p>
+          ) : null}
+          {searchDiagnosticsActive ? (
+            <p className="query-context-note">
+              <strong>Search diagnostics is enabled.</strong>{" "}
+              {searchDiagnosticsStatus === "loading"
+                ? "Loading internal execution data."
+                : searchDiagnosticsStatus === "ready"
+                  ? "Internal execution data is ready for this run."
+                  : searchDiagnosticsStatus === "unavailable"
+                    ? "Internal execution data is unavailable for this run."
+                    : "Internal execution data will load after the search completes."}
             </p>
           ) : null}
           {exploreSearchFeedback ? (

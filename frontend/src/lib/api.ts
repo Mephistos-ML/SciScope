@@ -2,6 +2,7 @@ import type {
   ExploreAccessErrorPayload,
   FeedEventDetailPayload,
   FeedEventListPayload,
+  SearchDiagnosticsReport,
   ExploreSearchRunPayload,
   ExploreSearchPayload,
   SubscriptionItem,
@@ -214,6 +215,12 @@ export async function expandExploreSearchRun(runId: string): Promise<ExploreSear
   return requestJson<ExploreSearchRunPayload>(`/api/explore/search-runs/${runId}/expand`, {
     method: "POST",
   });
+}
+
+export async function fetchSearchDiagnosticsReport(runId: string): Promise<SearchDiagnosticsReport> {
+  return requestJson<SearchDiagnosticsReport>(
+    `/api/internal/search-runs/${encodeURIComponent(runId)}/report`,
+  );
 }
 
 export async function fetchFeed(options: { cursor?: string; state?: "all" | "unread"; subscriptionId?: string; limit?: number } = {}): Promise<FeedEventListPayload> {
