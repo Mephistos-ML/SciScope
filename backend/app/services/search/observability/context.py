@@ -12,12 +12,12 @@ class SearchLogContext:
 
     request_id: str
     topic_hash: str
-    job_id: str | None = None
+    run_id: str | None = None
 
-    def with_job_id(self, job_id: str) -> SearchLogContext:
-        """Return the same context bound to one async job id."""
+    def with_run_id(self, run_id: str) -> SearchLogContext:
+        """Return the same context bound to one durable search run."""
 
-        return replace(self, job_id=job_id)
+        return replace(self, run_id=run_id)
 
 
 def build_request_id() -> str:

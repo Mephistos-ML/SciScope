@@ -83,7 +83,7 @@ def create_explore_search_job(
         topic_description=topic_description,
         response_mode=response_mode,
         database_url=database_url,
-        log_context=_build_log_context(topic_description, log_context).with_job_id(run_id),
+        log_context=_build_log_context(topic_description, log_context).with_run_id(run_id),
     )
     return get_explore_search_job(run_id, database_url=database_url) or {}
 
@@ -196,7 +196,7 @@ def _run_explore_search_job(
             log_context=_build_log_context(
                 topic_description,
                 log_context,
-            ).with_job_id(job_id),
+            ).with_run_id(job_id),
             stage_report_callback=lambda report: _record_stage_report(
                 job_id=job_id,
                 operation_id=operation_id,
@@ -254,7 +254,7 @@ def _run_explore_search_expansion_job(
             response_mode=response_mode,
             database_url=database_url,
             execution_callback=lambda value: _store_execution(job_id, value, database_url),
-            log_context=_build_log_context(topic_description, None).with_job_id(job_id),
+            log_context=_build_log_context(topic_description, None).with_run_id(job_id),
             stage_report_callback=lambda report: _record_stage_report(
                 job_id=job_id,
                 operation_id=operation_id,

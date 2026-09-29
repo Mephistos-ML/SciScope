@@ -186,7 +186,7 @@ def consume_lane_result(
 
     query_failures = lane_result.query_failures
     completed_query_count = lane_result.completed_query_count
-    logger.info(
+    logger.debug(
         (
             "Explore retrieval completed for source=%s channel=%s candidate_count=%s "
             "failed_query_count=%s"
@@ -377,7 +377,7 @@ def _run_lane_worker(
     deadline_monotonic: float | None,
     result_queue: Queue[LaneResult],
 ) -> None:
-    logger.info(
+    logger.debug(
         "Explore retrieval started for source=%s channel=%s query_count=%s queries=%s",
         source_name,
         channel_name,
@@ -394,7 +394,7 @@ def _run_lane_worker(
             supports_deadline=supports_deadline,
         )
     except RepositorySourceError as exc:
-        logger.warning(
+        logger.debug(
             (
                 "Explore retrieval failed for source=%s channel=%s status=%s "
                 "queries=%s message=%s"
@@ -415,7 +415,7 @@ def _run_lane_worker(
         )
         return
     except Exception:
-        logger.exception(
+        logger.debug(
             "Explore retrieval crashed for source=%s channel=%s queries=%s",
             source_name,
             channel_name,

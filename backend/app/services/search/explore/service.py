@@ -104,7 +104,7 @@ def run_explore_search(
             logger=logger,
             event="explore_search_started",
             context=log_context,
-            mode="async" if log_context.job_id else "sync",
+            mode="async" if log_context.run_id else "sync",
             response_mode=response_mode,
         )
 
@@ -269,6 +269,10 @@ def run_explore_search(
                     else None
                 ),
                 lowest_visible_score=(visible_candidates[-1].score if visible_candidates else None),
+                ai_planning_duration_ms=planning_duration_ms,
+                retrieval_duration_ms=retrieval_duration_ms,
+                evaluation_duration_ms=evaluation_duration_ms,
+                stage_wall_time_ms=build_duration_ms(search_started_at),
             )
         current_stage = "response_build"
         response_build_started_at = monotonic()
