@@ -111,7 +111,7 @@ Persistence uses SQLAlchemy and Postgres. Alembic migrations live in `alembic/ve
 Important environment variables:
 
 - `APP_LOG_LEVEL`: structured search-event log level; use `INFO` in deployed environments
-- `AI_PLANNER_MODE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_REASONING_EFFORT`, `OPENAI_TIMEOUT_SECONDS`: query-planning configuration. Use `gpt-5.6-luna` with `low` reasoning as the production latency/quality baseline; benchmark `none` before adopting it.
+- `AI_PLANNER_MODE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_REASONING_EFFORT`, `OPENAI_TIMEOUT_SECONDS`: query-planning configuration. Use `gpt-6-luna` with `low` reasoning as the production latency/quality baseline; benchmark `none` before adopting it.
 - `SEMANTIC_CATALOG_ENABLED`, `SEMANTIC_EMBEDDING_MODEL`, `SEMANTIC_CATALOG_MIN_SIMILARITY`: opt-in pgvector hybrid catalog retrieval. After the migration, run `python backend/scripts/backfill_semantic_catalog.py` once in the deployed backend environment.
 - `EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS`, `EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS`: async job budgets
 - `EXPLORE_SEARCH_REPOSITORY_LANE_TIMEOUT_SECONDS`, `EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS`: retrieval lane budgets
