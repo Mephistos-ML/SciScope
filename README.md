@@ -98,7 +98,7 @@ The core dependency direction is `api -> services -> sources/storage -> database
 - GitHub code retrieval stops after a provider rate-limit response and reports a retry window when the provider supplies one.
 - Search emits structured events for planning, retrieval, admission, ranking, and completion.
 - Public search quotas and abuse controls are configured through environment variables.
-- Restricted beta diagnostics are available only to configured internal users.
+- Restricted search diagnostics are available only to configured internal users.
 
 ## Development
 

@@ -41,6 +41,7 @@ def test_search_run_storage_persists_execution_facts(tmp_path) -> None:
         status="running",
         planner_mode="openai",
         planner_model="gpt-5",
+        planner_reasoning_effort="low",
         ranking_policy_version="heuristic-v1",
         backend_revision="abc123",
         created_at=started_at,
@@ -76,9 +77,12 @@ def test_search_run_storage_persists_execution_facts(tmp_path) -> None:
         channel="repository_search",
         query_id="q1",
         attempt=1,
-        status="ok",
+        status="rate_limited",
         candidate_count=7,
         duration_ms=420,
+        retry_after_seconds=120,
+        error_code="rate_limited",
+        error_message="GitHub repository search is rate-limited right now.",
     )
 
     create_search_run(run, database_url=database_url)
@@ -114,6 +118,7 @@ def test_search_run_storage_persists_execution_facts(tmp_path) -> None:
     assert stored.status == run.status
     assert stored.planner_mode == run.planner_mode
     assert stored.planner_model == run.planner_model
+    assert stored.planner_reasoning_effort == run.planner_reasoning_effort
     assert stored.ranking_policy_version == run.ranking_policy_version
     assert stored.backend_revision == run.backend_revision
     assert count_search_run_stages(run.run_id, database_url=database_url) == 1
@@ -122,9 +127,45 @@ def test_search_run_storage_persists_execution_facts(tmp_path) -> None:
     report = get_search_run_report(run.run_id, database_url=database_url)
     assert report is not None
     assert report["run"]["runId"] == run.run_id
+    assert report["run"]["plannerReasoningEffort"] == "low"
     assert report["stages"][0]["timings"]["stage_wall_time"] == 820
     assert report["providerOutcomes"][0]["source"] == "github"
+    assert report["providerOutcomes"][0]["retryAfterSeconds"] == 120
+    assert report["providerOutcomes"][0]["errorMessage"] == (
+        "GitHub repository search is rate-limited right now."
+    )
     assert report["rankingSnapshots"][0]["repositoryId"] == "github:repo:science/example"
+
+
+def test_search_run_report_projects_run_failure_fields(tmp_path) -> None:
+    database_url = build_test_database_url(tmp_path / "failed-search-run.sqlite3")
+    migrate_test_database(database_url)
+    failed_at = datetime(2026, 9, 28, 12, 0, tzinfo=UTC)
+    run = SearchRun(
+        run_id="run_failed",
+        owner_user_id=None,
+        topic_description="Paramagnetic NMR fitting",
+        topic_hash="topic_hash",
+        status="failed",
+        planner_mode="openai",
+        planner_model="gpt-5",
+        planner_reasoning_effort="low",
+        ranking_policy_version="heuristic-v1",
+        backend_revision="abc123",
+        created_at=failed_at,
+        completed_at=failed_at,
+        error_code="search_failed",
+        error_message="Repository search is temporarily unavailable across all providers.",
+    )
+    create_search_run(run, database_url=database_url)
+
+    report = get_search_run_report(run.run_id, database_url=database_url)
+
+    assert report is not None
+    assert report["run"]["errorCode"] == "search_failed"
+    assert report["run"]["errorMessage"] == (
+        "Repository search is temporarily unavailable across all providers."
+    )
 
 
 def test_search_run_operation_lease_allows_one_worker_and_recovers_after_expiry(
@@ -141,6 +182,7 @@ def test_search_run_operation_lease_allows_one_worker_and_recovers_after_expiry(
         status="queued",
         planner_mode="bootstrap",
         planner_model=None,
+        planner_reasoning_effort=None,
         ranking_policy_version="heuristic-v1",
         backend_revision="unknown",
         created_at=now,

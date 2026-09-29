@@ -134,11 +134,15 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
             sa.text("SELECT version_num FROM alembic_version")
         ).scalar_one()
 
-    assert version == "0014_search_run_observability"
+    assert version == "0015_search_run_planner_reasoning_effort"
     assert inspector.has_table("search_runs")
     assert inspector.has_table("search_run_operations")
     assert inspector.has_table("search_run_stages")
     assert inspector.has_table("search_run_provider_outcomes")
+    search_run_columns = {
+        column["name"] for column in inspector.get_columns("search_runs")
+    }
+    assert "planner_reasoning_effort" in search_run_columns
 
 
 def test_feed_event_migration_replaces_provider_derived_ids(tmp_path: Path) -> None:

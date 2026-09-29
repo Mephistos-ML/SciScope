@@ -51,6 +51,7 @@ def _extract_response_text(data: dict[str, Any]) -> str:
 def build_openai_json_response(
     *,
     model: str,
+    reasoning_effort: str,
     system_prompt: str,
     user_prompt: str,
     json_schema: dict[str, Any],
@@ -64,6 +65,7 @@ def build_openai_json_response(
 
     payload = {
         "model": model,
+        "reasoning": {"effort": reasoning_effort},
         "input": [
             {
                 "role": "system",

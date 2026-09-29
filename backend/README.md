@@ -72,7 +72,7 @@ Main modules:
 
 Explore runs as an asynchronous job. Repository and code-search lanes have separate source and timeout budgets. A source failure or code-query timeout returns completed candidates with partial coverage. GitHub code search stops after a rate-limit response and reports the provider retry time.
 
-Admission removes obvious non-software candidates. Ranking scores the retained pool from query coverage, source-independent match location, and bounded evidence density. The relevance cutoff controls Explore delivery. Beta diagnostics can expose the full evaluated pool for configured internal users.
+Admission removes obvious non-software candidates. Ranking scores the retained pool from query coverage, source-independent match location, and bounded evidence density. The relevance cutoff controls Explore delivery. Search diagnostics can expose the full evaluated pool for configured internal users.
 
 ### Subscription Flow
 
@@ -111,13 +111,13 @@ Persistence uses SQLAlchemy and Postgres. Alembic migrations live in `alembic/ve
 Important environment variables:
 
 - `APP_LOG_LEVEL`: structured search-event log level; use `INFO` in deployed environments
-- `AI_PLANNER_MODE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_TIMEOUT_SECONDS`: query-planning configuration
+- `AI_PLANNER_MODE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_REASONING_EFFORT`, `OPENAI_TIMEOUT_SECONDS`: query-planning configuration. Use `gpt-5.6-luna` with `low` reasoning as the production latency/quality baseline; benchmark `none` before adopting it.
 - `SEMANTIC_CATALOG_ENABLED`, `SEMANTIC_EMBEDDING_MODEL`, `SEMANTIC_CATALOG_MIN_SIMILARITY`: opt-in pgvector hybrid catalog retrieval. After the migration, run `python backend/scripts/backfill_semantic_catalog.py` once in the deployed backend environment.
 - `EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS`, `EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS`: async job budgets
 - `EXPLORE_SEARCH_REPOSITORY_LANE_TIMEOUT_SECONDS`, `EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS`: retrieval lane budgets
 - `EXPLORE_ADMISSION_MODE`, `EXPLORE_SEARCH_RELEVANCE_CUTOFF`: canonical result policy
 - External discovery runs for every Explore search and is merged with local catalog candidates before source-agnostic admission and ranking.
-- `BETA_USER_EMAILS`: restricted diagnostic access
+- `SEARCH_DIAGNOSTICS_USER_EMAILS`: restricted diagnostic access
 - `SEARCH_QUOTA_BYPASS_USER_EMAILS`: restricted bypass for SciScope product quotas only; it does not bypass provider limits
 
 Provider authentication, rate limits, and unavailable search capabilities are handled in `sources/` and exposed through source statuses.

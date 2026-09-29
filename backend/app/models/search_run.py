@@ -37,6 +37,7 @@ class SearchRun:
     status: SearchRunStatus
     planner_mode: str
     planner_model: str | None
+    planner_reasoning_effort: str | None
     ranking_policy_version: str
     backend_revision: str
     created_at: datetime
@@ -115,6 +116,7 @@ class SearchProviderOutcomeReport:
     status: str
     candidate_count: int
     duration_ms: int
+    retry_after_seconds: int | None = None
     error_code: str | None = None
     error_message: str | None = None
 

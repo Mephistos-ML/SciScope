@@ -16,8 +16,10 @@ type AppShellProps = {
   children: ReactNode;
   onNavigate: (view: "explore" | "feed" | "subscriptions" | "about") => void;
   onOpenAccount: () => void;
+  onToggleSearchDiagnostics: () => void;
   onSignIn: () => void;
   onSignOut: () => void;
+  searchDiagnosticsActive: boolean;
   unreadFeedCount: number;
   signingIn: boolean;
   signingOut: boolean;
@@ -30,8 +32,10 @@ export function AppShell({
   children,
   onNavigate,
   onOpenAccount,
+  onToggleSearchDiagnostics,
   onSignIn,
   onSignOut,
+  searchDiagnosticsActive,
   unreadFeedCount,
   signingIn,
   signingOut,
@@ -105,6 +109,20 @@ export function AppShell({
                       <img alt="" className="viewer-menu-item-icon" src={accountSettingsIcon} />
                       Account settings
                     </button>
+                    {viewer.features.includes("search_diagnostics") ? (
+                      <button
+                        className="viewer-menu-item"
+                        onClick={() => {
+                          setAccountMenuOpen(false);
+                          onToggleSearchDiagnostics();
+                        }}
+                        role="menuitem"
+                        type="button"
+                      >
+                        <img alt="" className="viewer-menu-item-icon" src={exploreIcon} />
+                        {searchDiagnosticsActive ? "Exit search diagnostics" : "Search diagnostics"}
+                      </button>
+                    ) : null}
                     <button
                       className="viewer-menu-item viewer-menu-sign-out"
                       disabled={signingOut}

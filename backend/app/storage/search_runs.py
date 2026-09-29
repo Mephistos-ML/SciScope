@@ -40,6 +40,7 @@ def create_search_run(run: SearchRun, *, database_url: str) -> None:
                 status=run.status,
                 planner_mode=run.planner_mode,
                 planner_model=run.planner_model,
+                planner_reasoning_effort=run.planner_reasoning_effort,
                 ranking_policy_version=run.ranking_policy_version,
                 backend_revision=run.backend_revision,
                 created_at=run.created_at,
@@ -438,9 +439,12 @@ def get_search_run_report(run_id: str, *, database_url: str) -> dict[str, object
                 "status": run.status,
                 "plannerMode": run.planner_mode,
                 "plannerModel": run.planner_model,
+                "plannerReasoningEffort": run.planner_reasoning_effort,
                 "rankingPolicyVersion": run.ranking_policy_version,
                 "backendRevision": run.backend_revision,
                 "partial": run.partial,
+                "errorCode": run.error_code,
+                "errorMessage": run.error_message,
                 "createdAt": run.created_at.isoformat(),
                 "startedAt": run.started_at.isoformat() if run.started_at else None,
                 "completedAt": run.completed_at.isoformat() if run.completed_at else None,
@@ -470,7 +474,9 @@ def get_search_run_report(run_id: str, *, database_url: str) -> dict[str, object
                     "status": outcome.status,
                     "candidateCount": outcome.candidate_count,
                     "durationMs": outcome.duration_ms,
+                    "retryAfterSeconds": outcome.retry_after_seconds,
                     "errorCode": outcome.error_code,
+                    "errorMessage": outcome.error_message,
                 }
                 for outcome in outcomes
             ],
@@ -517,6 +523,7 @@ def get_search_run(run_id: str, *, database_url: str) -> SearchRun | None:
             status=record.status,  # type: ignore[arg-type]
             planner_mode=record.planner_mode,
             planner_model=record.planner_model,
+            planner_reasoning_effort=record.planner_reasoning_effort,
             ranking_policy_version=record.ranking_policy_version,
             backend_revision=record.backend_revision,
             created_at=record.created_at,

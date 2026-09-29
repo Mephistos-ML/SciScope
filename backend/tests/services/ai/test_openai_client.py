@@ -17,7 +17,10 @@ def test_openai_client_parses_text_from_output_content(monkeypatch) -> None:
     monkeypatch.setattr(config, "OPENAI_BASE_URL", "https://api.openai.com/v1")
     monkeypatch.setattr(config, "OPENAI_TIMEOUT_SECONDS", 20.0)
 
+    captured_request: dict[str, object] = {}
+
     def fake_post(self: httpx.Client, url: str, json: dict[str, object]) -> httpx.Response:
+        captured_request.update(json)
         return httpx.Response(
             200,
             json={
@@ -40,12 +43,14 @@ def test_openai_client_parses_text_from_output_content(monkeypatch) -> None:
 
     payload = build_openai_json_response(
         model="gpt-5-mini",
+        reasoning_effort="low",
         system_prompt="system",
         user_prompt="user",
         json_schema={"type": "object"},
     )
 
     assert payload == {"queries": []}
+    assert captured_request["reasoning"] == {"effort": "low"}
 
 
 def test_openai_client_rejects_missing_output_text(monkeypatch) -> None:
@@ -65,6 +70,7 @@ def test_openai_client_rejects_missing_output_text(monkeypatch) -> None:
     with pytest.raises(OpenAIResponseError, match="did not include output text"):
         build_openai_json_response(
             model="gpt-5-mini",
+            reasoning_effort="low",
             system_prompt="system",
             user_prompt="user",
             json_schema={"type": "object"},

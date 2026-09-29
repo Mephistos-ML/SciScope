@@ -92,7 +92,13 @@ def test_merge_retrieval_hits_accumulates_candidate_provenance() -> None:
     }
     assert candidate.provenance.hit_count == 2
     assert candidate.provenance.match_evidence[0].location == "description"
+    assert candidate.provenance.match_evidence[0].channel == "repository_search"
+    assert candidate.provenance.match_evidence[0].origin == "provider"
+    assert candidate.provenance.match_evidence[0].retrieval_rank == 7
     assert candidate.provenance.match_evidence[1].location == "code"
+    assert candidate.provenance.match_evidence[1].channel == "code_search"
+    assert candidate.provenance.match_evidence[1].origin == "provider"
+    assert candidate.provenance.match_evidence[1].retrieval_rank == 3
     assert candidate.provenance.match_evidence[1].path == "src/orto/parser.py"
 
 
@@ -396,6 +402,7 @@ def test_run_external_repository_retrieval_stops_code_lane_after_rate_limit() ->
         "GitHub code search is rate-limited. Try again in 2 minutes 14 seconds. "
         "Retained results from 1 completed queries.",
     )
+    assert retrieved.lane_outcomes[0].retry_after_seconds == 134
 
 
 def _build_hit(

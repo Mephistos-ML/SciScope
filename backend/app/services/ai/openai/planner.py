@@ -63,6 +63,7 @@ class OpenAiSearchPlanner:
         )
         payload = build_openai_json_response(
             model=config.OPENAI_MODEL,
+            reasoning_effort=config.OPENAI_REASONING_EFFORT,
             system_prompt=_SYSTEM_PROMPT,
             user_prompt=user_prompt,
             json_schema=_SEARCH_PLAN_JSON_SCHEMA,

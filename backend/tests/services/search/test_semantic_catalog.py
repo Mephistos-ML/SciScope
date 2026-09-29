@@ -54,6 +54,9 @@ def test_semantic_retrieval_maps_historical_evidence_to_the_current_query(monkey
     assert evidence.location == "readme"
     assert evidence.path == "README.md"
     assert evidence.alignment == 0.82
+    assert evidence.channel == "semantic_catalog"
+    assert evidence.origin == "catalog"
+    assert evidence.retrieval_rank == 1
 
 
 def test_backfill_propagates_embedding_errors(monkeypatch) -> None:

@@ -9,6 +9,7 @@ import {
   deleteSubscription,
   fetchFeed,
   fetchExploreSearchRun,
+  fetchSearchDiagnosticsReport,
   expandExploreSearchRun,
   fetchMe,
   fetchSubscriptions,
@@ -30,6 +31,7 @@ import type {
   ExploreSearchRunPayload,
   ExploreSearchRunStatus,
   ExploreResultItem,
+  SearchDiagnosticsReport,
   SubscriptionItem,
   Viewer,
 } from "../types/api";
@@ -91,6 +93,18 @@ export function App() {
   const [lastCompletedExploreJobId, setLastCompletedExploreJobId] = useState<string | null>(null);
   const [activeExploreJobStatus, setActiveExploreJobStatus] =
     useState<ExploreSearchRunStatus | null>(null);
+  const [searchDiagnosticsRequested, setSearchDiagnosticsRequested] = useState(
+    () => isSearchDiagnosticsRequested(window.location.search),
+  );
+  const [searchDiagnosticsReport, setSearchDiagnosticsReport] =
+    useState<SearchDiagnosticsReport | null>(null);
+  const [searchDiagnosticsLoading, setSearchDiagnosticsLoading] = useState(false);
+  const [searchDiagnosticsUnavailable, setSearchDiagnosticsUnavailable] = useState(false);
+  const [lastCompletedExploreRunVersion, setLastCompletedExploreRunVersion] = useState<string | null>(
+    null,
+  );
+  const hasSearchDiagnosticsAccess = viewer?.features.includes("search_diagnostics") === true;
+  const searchDiagnosticsActive = hasSearchDiagnosticsAccess && searchDiagnosticsRequested;
 
   useEffect(() => {
     const authError = readAuthErrorFromUrl();
@@ -132,6 +146,7 @@ export function App() {
         void restoreGlobalFeed();
       }
       setActiveView(nextView);
+      setSearchDiagnosticsRequested(isSearchDiagnosticsRequested(window.location.search));
     };
     window.addEventListener("popstate", syncViewFromHistory);
     return () => window.removeEventListener("popstate", syncViewFromHistory);
@@ -152,6 +167,45 @@ export function App() {
   }, [viewer]);
 
   useEffect(() => {
+    if (!searchDiagnosticsActive || !lastCompletedExploreJobId || !lastCompletedExploreRunVersion) {
+      setSearchDiagnosticsReport(null);
+      setSearchDiagnosticsLoading(false);
+      setSearchDiagnosticsUnavailable(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSearchDiagnosticsLoading(true);
+    setSearchDiagnosticsUnavailable(false);
+
+    void fetchSearchDiagnosticsReport(lastCompletedExploreJobId)
+      .then((report) => {
+        if (!cancelled) {
+          setSearchDiagnosticsReport(report);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSearchDiagnosticsReport(null);
+          setSearchDiagnosticsUnavailable(true);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSearchDiagnosticsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    lastCompletedExploreJobId,
+    lastCompletedExploreRunVersion,
+    searchDiagnosticsActive,
+  ]);
+
+  useEffect(() => {
     if (!activeExploreJobId) {
       return;
     }
@@ -170,6 +224,7 @@ export function App() {
         if (snapshot.status === "completed" || snapshot.status === "completed_partial") {
           applyExploreSearchRunSnapshot(snapshot);
           setLastCompletedExploreJobId(snapshot.runId);
+          setLastCompletedExploreRunVersion(snapshot.updatedAt);
           setSearchPending(false);
           setCanExpandSearch(snapshot.canExpand === true);
           setActiveExploreJobId(null);
@@ -194,6 +249,8 @@ export function App() {
         }
 
         if (snapshot.status === "failed") {
+          setLastCompletedExploreJobId(snapshot.runId);
+          setLastCompletedExploreRunVersion(snapshot.updatedAt);
           setSearchPending(false);
           setActiveExploreJobId(null);
           setActiveExploreJobStatus(null);
@@ -276,6 +333,7 @@ export function App() {
     setErrorMessage(null);
     setResults([]);
     setLastCompletedExploreJobId(null);
+    setLastCompletedExploreRunVersion(null);
     setLastAiSearchPlan(null);
     setExploreSearchFeedback(null);
     try {
@@ -325,6 +383,7 @@ export function App() {
 
     setSearchPending(true);
     setIsExpandingSearch(true);
+    setLastCompletedExploreRunVersion(null);
     setExploreSearchFeedback(null);
     try {
       const job = await expandExploreSearchRun(lastCompletedExploreJobId);
@@ -521,10 +580,27 @@ export function App() {
     navigateTo(nextView);
   }
 
+  function handleToggleSearchDiagnostics() {
+    const nextRequested = !searchDiagnosticsActive;
+    const nextUrl = new URL(window.location.href);
+    nextUrl.pathname = VIEW_PATHS.explore;
+    if (nextRequested) {
+      nextUrl.searchParams.set("diagnostics", "1");
+    } else {
+      nextUrl.searchParams.delete("diagnostics");
+    }
+    window.history.pushState({}, "", `${nextUrl.pathname}${nextUrl.search}`);
+    setSearchDiagnosticsRequested(nextRequested);
+    setActiveView("explore");
+  }
+
   function navigateTo(nextView: AppView) {
     const nextPath = VIEW_PATHS[nextView];
     if (window.location.pathname !== nextPath) {
       window.history.pushState({}, "", nextPath);
+    }
+    if (nextView !== "explore") {
+      setSearchDiagnosticsRequested(false);
     }
     setActiveView(nextView);
   }
@@ -551,8 +627,10 @@ export function App() {
       isBootstrapping={bootstrapStatus === "loading"}
       onNavigate={handleViewChange}
       onOpenAccount={() => handleViewChange("account")}
+      onToggleSearchDiagnostics={handleToggleSearchDiagnostics}
       onSignIn={() => void handleSignIn()}
       onSignOut={() => void handleSignOut()}
+      searchDiagnosticsActive={searchDiagnosticsActive}
       signingIn={signingIn}
       signingOut={signingOut}
       unreadFeedCount={unreadFeedCount}
@@ -581,6 +659,17 @@ export function App() {
               canExpandSearch={canExpandSearch}
               isExpandingSearch={isExpandingSearch}
               searchPending={searchPending}
+              searchDiagnosticsActive={searchDiagnosticsActive}
+              searchDiagnosticsReport={searchDiagnosticsReport}
+              searchDiagnosticsStatus={
+                searchDiagnosticsLoading
+                  ? "loading"
+                  : searchDiagnosticsUnavailable
+                    ? "unavailable"
+                    : searchDiagnosticsReport
+                      ? "ready"
+                      : "idle"
+              }
               subscribePendingRepositoryId={createPendingRepositoryId}
               subscribedRepositoryIds={subscriptions.map((item) => item.repository.repositoryId)}
               topicInput={topicInput}
@@ -670,6 +759,10 @@ function viewFromPath(pathname: string): AppView {
     (candidate) => VIEW_PATHS[candidate] === normalizedPath,
   );
   return view ?? "explore";
+}
+
+function isSearchDiagnosticsRequested(search: string): boolean {
+  return new URLSearchParams(search).get("diagnostics") === "1";
 }
 
 function mapExploreJobStatusToStage(

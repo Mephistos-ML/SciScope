@@ -33,6 +33,7 @@ from app.storage.feed import upsert_feed_events
 from app.storage.search_runs import (
     count_search_run_ranking_candidates,
     count_search_run_stages,
+    get_search_run_report,
     get_search_run_stage,
 )
 from app.storage.subscriptions import SubscriptionWatchRecord
@@ -161,6 +162,9 @@ def _build_retrieved_candidates(
                                     else "description"
                                 )
                             ),
+                            channel=matched_channels[0],
+                            origin="provider",
+                            retrieval_rank=1,
                         ),
                     ),
                 ),
@@ -531,26 +535,105 @@ def test_google_auth_callback_creates_user_session(monkeypatch) -> None:
             assert client.get("/api/me").json()["user"]["email"] == "scientist@example.com"
 
 
-def test_get_me_exposes_enabled_beta_features(monkeypatch) -> None:
+def test_get_me_exposes_enabled_search_diagnostics_feature(monkeypatch) -> None:
     user = auth_service.User(
-        user_id="user_beta",
-        email="beta@example.com",
-        display_name="Beta User",
+        user_id="user_diagnostics",
+        email="diagnostics@example.com",
+        display_name="Diagnostics User",
     )
     monkeypatch.setattr(
         "app.api.routes.auth.get_current_user",
         lambda request, *, database_url: user,
     )
     monkeypatch.setattr(
-        "app.services.features.access.BETA_USER_EMAILS",
-        ("beta@example.com",),
+        "app.services.features.access.SEARCH_DIAGNOSTICS_USER_EMAILS",
+        ("diagnostics@example.com",),
     )
 
     with TestClient(app) as client:
         response = client.get("/api/me")
 
     assert response.status_code == 200
-    assert response.json()["user"]["features"] == ["explore_beta"]
+    assert response.json()["user"]["features"] == ["search_diagnostics"]
+
+
+def test_search_diagnostics_report_requires_feature_access(monkeypatch) -> None:
+    user = auth_service.User(
+        user_id="user_diagnostics",
+        email="diagnostics@example.com",
+        display_name="Diagnostics User",
+    )
+    monkeypatch.setattr(
+        "app.api.routes.run_reports.get_current_user",
+        lambda request, *, database_url: user,
+    )
+    monkeypatch.setattr(
+        "app.api.routes.run_reports.has_feature",
+        lambda _email, _feature: False,
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/api/internal/search-runs/run_1/report")
+
+    assert response.status_code == 403
+    assert response.json()["error"] == "Search diagnostics access is required."
+
+
+def test_search_diagnostics_report_rejects_another_users_run(monkeypatch) -> None:
+    user = auth_service.User(
+        user_id="user_diagnostics",
+        email="diagnostics@example.com",
+        display_name="Diagnostics User",
+    )
+    monkeypatch.setattr(
+        "app.api.routes.run_reports.get_current_user",
+        lambda request, *, database_url: user,
+    )
+    monkeypatch.setattr(
+        "app.api.routes.run_reports.has_feature",
+        lambda _email, _feature: True,
+    )
+
+    def reject_other_users_run(**_kwargs) -> None:
+        raise PermissionError("This search run does not belong to the current user.")
+
+    monkeypatch.setattr(
+        "app.api.routes.run_reports.read_search_run_report",
+        reject_other_users_run,
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/api/internal/search-runs/run_1/report")
+
+    assert response.status_code == 403
+    assert response.json()["error"] == "This search run does not belong to the current user."
+
+
+def test_search_diagnostics_report_returns_owners_run(monkeypatch) -> None:
+    user = auth_service.User(
+        user_id="user_diagnostics",
+        email="diagnostics@example.com",
+        display_name="Diagnostics User",
+    )
+    report = {"run": {"runId": "run_1", "ownerUserId": user.user_id}, "stages": []}
+    monkeypatch.setattr(
+        "app.api.routes.run_reports.get_current_user",
+        lambda request, *, database_url: user,
+    )
+    monkeypatch.setattr(
+        "app.api.routes.run_reports.has_feature",
+        lambda _email, _feature: True,
+    )
+    monkeypatch.setattr(
+        "app.api.routes.run_reports.read_search_run_report",
+        lambda **_kwargs: report,
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/api/internal/search-runs/run_1/report")
+
+    assert response.status_code == 200
+    assert response.json() == report
 
 
 def test_explore_search_bypasses_quota_for_internal_email(monkeypatch) -> None:
@@ -1395,6 +1478,15 @@ def test_explore_search_run_returns_completed_snapshot(
         created["runId"],
         database_url=explore_run_database,
     ) == 1
+    report = get_search_run_report(
+        created["runId"],
+        database_url=explore_run_database,
+    )
+    assert report is not None
+    evidence = report["rankingSnapshots"][0]["retrievalFacts"]["match_evidence"][0]
+    assert evidence["channel"] == "repository_search"
+    assert evidence["origin"] == "provider"
+    assert evidence["retrieval_rank"] == 1
     stage = get_search_run_stage(
         created["runId"],
         1,

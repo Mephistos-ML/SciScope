@@ -85,6 +85,9 @@ def retrieve_catalog_candidates(
                 ),
                 location=item.match_location,  # type: ignore[arg-type]
                 path=item.matched_path,
+                channel=item.channel,
+                origin="catalog",
+                retrieval_rank=item.provider_rank,
             )
             for item in match.evidence
         )
@@ -93,6 +96,8 @@ def retrieve_catalog_candidates(
                 RetrievalMatchEvidence(
                     query=query,
                     location="metadata",
+                    channel="catalog",
+                    origin="catalog",
                 )
                 for query in match.matched_queries
             )
@@ -194,7 +199,11 @@ def _build_evidence(
     default_channel = channels[0]
     evidence_items: list[RepositorySearchEvidence] = []
     for item in candidate.provenance.match_evidence:
-        channel = _channel_for_location(item, channels, default_channel)
+        channel = item.channel if item.channel != "unknown" else _channel_for_location(
+            item,
+            channels,
+            default_channel,
+        )
         evidence_items.append(
             RepositorySearchEvidence(
                 repository_id=candidate.repository_id,
@@ -203,7 +212,11 @@ def _build_evidence(
                 match_location=item.location,
                 matched_path=item.path,
                 matched_excerpt=str(candidate.signal.payload.get("matched_excerpt") or ""),
-                provider_rank=candidate.provenance.best_rank_by_channel.get(channel),
+                provider_rank=(
+                    item.retrieval_rank
+                    if item.retrieval_rank is not None
+                    else candidate.provenance.best_rank_by_channel.get(channel)
+                ),
                 first_seen_at=now,
                 last_seen_at=now,
             )

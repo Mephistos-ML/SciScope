@@ -28,6 +28,9 @@ class RetrievalMatchEvidence:
     location: RetrievalMatchLocation
     path: str = ""
     alignment: float = 1.0
+    channel: str = "unknown"
+    origin: Literal["catalog", "provider", "unknown"] = "unknown"
+    retrieval_rank: int | None = None
 
 
 @dataclass(frozen=True)
@@ -73,6 +76,7 @@ class RetrievalLaneOutcome:
     duration_ms: int
     query: str = ""
     attempt: int = 1
+    retry_after_seconds: int | None = None
     error_code: str | None = None
     error_message: str | None = None
 

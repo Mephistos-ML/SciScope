@@ -117,6 +117,14 @@ def run_explore_search(
                 duration_ms=planning_duration_ms,
                 query_count=len(planned_queries),
                 planner=config.AI_PLANNER_MODE,
+                planner_model=(
+                    config.OPENAI_MODEL if config.AI_PLANNER_MODE == "openai" else None
+                ),
+                planner_reasoning_effort=(
+                    config.OPENAI_REASONING_EFFORT
+                    if config.AI_PLANNER_MODE == "openai"
+                    else None
+                ),
             )
 
         if not executed_queries:
@@ -456,6 +464,7 @@ def _build_stage_report(
                 status=outcome.status,
                 candidate_count=outcome.candidate_count,
                 duration_ms=outcome.duration_ms,
+                retry_after_seconds=outcome.retry_after_seconds,
                 error_code=outcome.error_code,
                 error_message=outcome.error_message,
             )
@@ -502,6 +511,9 @@ def _build_ranking_candidate_reports(
                         "location": evidence.location,
                         "path": evidence.path,
                         "alignment": evidence.alignment,
+                        "channel": evidence.channel,
+                        "origin": evidence.origin,
+                        "retrieval_rank": evidence.retrieval_rank,
                     }
                     for evidence in ranked.candidate.provenance.match_evidence
                 ],

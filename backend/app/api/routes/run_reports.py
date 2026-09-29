@@ -13,8 +13,11 @@ def get_search_run_report_response(request: Request, run_id: str) -> dict[str, o
     """Authorize access to one private durable search report."""
 
     user = get_current_user(request, database_url=request.app.state.database_url)
-    if user is None or not has_feature(user.email, "explore_beta"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Internal beta access is required.")
+    if user is None or not has_feature(user.email, "search_diagnostics"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Search diagnostics access is required.",
+        )
     try:
         return read_search_run_report(
             run_id=run_id,
