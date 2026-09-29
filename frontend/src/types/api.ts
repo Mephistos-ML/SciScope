@@ -134,7 +134,7 @@ export type ExploreSearchPayload = {
   beta?: ExploreBetaPayload | null;
 };
 
-export type ExploreSearchJobStatus =
+export type ExploreSearchRunStatus =
   | "queued"
   | "planning"
   | "retrieving"
@@ -142,9 +142,9 @@ export type ExploreSearchJobStatus =
   | "completed_partial"
   | "failed";
 
-export type ExploreSearchJobPayload = ExploreSearchPayload & {
-  jobId: string;
-  status: ExploreSearchJobStatus;
+export type ExploreSearchRunPayload = ExploreSearchPayload & {
+  runId: string;
+  status: ExploreSearchRunStatus;
   error: string | null;
   message: string | null;
   createdAt: string;

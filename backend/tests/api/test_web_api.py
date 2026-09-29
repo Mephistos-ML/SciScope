@@ -1309,7 +1309,7 @@ def test_explore_search_job_fails_after_all_timeout_retries_are_exhausted(
 
     with TestClient(app) as client:
         response = client.post(
-            "/api/explore/search-jobs",
+            "/api/explore/search-runs",
             json={"topicDescription": "Exhausted timeout workflow"},
         )
 
@@ -1582,7 +1582,7 @@ def test_explore_search_job_returns_completed_snapshot(
 
     with TestClient(app) as client:
         response = client.post(
-            "/api/explore/search-jobs",
+            "/api/explore/search-runs",
             json={"topicDescription": "Paramagnetic NMR analysis workflows"},
         )
 
@@ -1592,24 +1592,24 @@ def test_explore_search_job_returns_completed_snapshot(
         assert created["canExpand"] is True
         assert created["items"][0]["itemId"] == "github:repo:Mephistos-ML/paranmr"
 
-        follow_up = client.get(f"/api/explore/search-jobs/{created['jobId']}")
+        follow_up = client.get(f"/api/explore/search-runs/{created['runId']}")
 
     assert follow_up.status_code == 200
     assert follow_up.json()["status"] == "completed"
     assert "_execution" not in follow_up.json()
-    stored_execution = STATE.explore_search_jobs[created["jobId"]]["_execution"]
+    stored_execution = STATE.explore_search_jobs[created["runId"]]["_execution"]
     assert stored_execution.executed_queries == ("paramagnetic nmr",)
     assert stored_execution.pending_queries == ("pcs tensor fitting", "pseudocontact shift")
     assert count_search_run_stages(
-        created["jobId"],
+        created["runId"],
         database_url=explore_run_database,
     ) == 1
     assert count_search_run_ranking_candidates(
-        created["jobId"],
+        created["runId"],
         database_url=explore_run_database,
     ) == 1
     stage = get_search_run_stage(
-        created["jobId"],
+        created["runId"],
         1,
         database_url=explore_run_database,
     )
@@ -1669,12 +1669,12 @@ def test_explore_search_job_expands_one_pending_query_and_merges_candidates(
 
     with TestClient(app) as client:
         created = client.post(
-            "/api/explore/search-jobs",
+            "/api/explore/search-runs",
             json={"topicDescription": "Paramagnetic NMR analysis workflows"},
         ).json()
         STATE.explore_search_jobs.clear()
         expanded = client.post(
-            f"/api/explore/search-jobs/{created['jobId']}/expand",
+            f"/api/explore/search-runs/{created['runId']}/expand",
         )
 
     assert expanded.status_code == 202
@@ -1686,7 +1686,7 @@ def test_explore_search_job_expands_one_pending_query_and_merges_candidates(
         "github:repo:science/pcs-tensor-fitting",
     }
     assert retrieval_queries == [("paramagnetic nmr",), ("pcs tensor fitting",)]
-    stored_execution = STATE.explore_search_jobs[created["jobId"]]["_execution"]
+    stored_execution = STATE.explore_search_jobs[created["runId"]]["_execution"]
     assert stored_execution.executed_queries == (
         "paramagnetic nmr",
         "pcs tensor fitting",
@@ -1744,13 +1744,13 @@ def test_explore_search_expansion_preserves_all_previous_results(
 
     with TestClient(app) as client:
         created = client.post(
-            "/api/explore/search-jobs",
+            "/api/explore/search-runs",
             json={"topicDescription": "Incremental search preservation"},
         ).json()
         initial_ids = {item["itemId"] for item in created["items"]}
 
         first_expansion = client.post(
-            f"/api/explore/search-jobs/{created['jobId']}/expand",
+            f"/api/explore/search-runs/{created['runId']}/expand",
         )
         assert first_expansion.status_code == 202
         first_expansion_ids = {
@@ -1758,7 +1758,7 @@ def test_explore_search_expansion_preserves_all_previous_results(
         }
 
         second_expansion = client.post(
-            f"/api/explore/search-jobs/{created['jobId']}/expand",
+            f"/api/explore/search-runs/{created['runId']}/expand",
         )
         assert second_expansion.status_code == 202
         second_expansion_ids = {
@@ -1808,10 +1808,10 @@ def test_explore_search_job_rejects_expansion_after_plan_is_exhausted(
 
     with TestClient(app) as client:
         created = client.post(
-            "/api/explore/search-jobs",
+            "/api/explore/search-runs",
             json={"topicDescription": "Paramagnetic NMR analysis workflows"},
         ).json()
-        response = client.post(f"/api/explore/search-jobs/{created['jobId']}/expand")
+        response = client.post(f"/api/explore/search-runs/{created['runId']}/expand")
 
     assert response.status_code == 409
     assert response.json()["error"] == "Explore search job has no more planned queries."
@@ -1859,7 +1859,7 @@ def test_explore_search_beta_job_returns_diagnostics_snapshot(
 
     with TestClient(app) as client:
         response = client.post(
-            "/api/explore/search-jobs",
+            "/api/explore/search-runs",
             json={"topicDescription": "Paramagnetic NMR", "betaMode": True},
         )
 
@@ -1869,7 +1869,7 @@ def test_explore_search_beta_job_returns_diagnostics_snapshot(
         assert payload["beta"]["enabled"] is True
         assert payload["items"][0]["beta"]["decision"]["status"] == "included"
 
-        follow_up = client.get(f"/api/explore/search-jobs/{payload['jobId']}")
+        follow_up = client.get(f"/api/explore/search-runs/{payload['runId']}")
 
     assert follow_up.status_code == 200
     assert follow_up.json()["beta"]["candidateCount"] == 1
@@ -1930,16 +1930,16 @@ def test_explore_search_beta_stage_snapshots_explain_incremental_results(
 
     with TestClient(app) as client:
         created = client.post(
-            "/api/explore/search-jobs",
+            "/api/explore/search-runs",
             json={"topicDescription": "Incremental beta diagnostics", "betaMode": True},
         ).json()
         initial_snapshots = created["beta"]["execution"]["stageSnapshots"]
 
         first_expansion = client.post(
-            f"/api/explore/search-jobs/{created['jobId']}/expand",
+            f"/api/explore/search-runs/{created['runId']}/expand",
         ).json()
         second_expansion = client.post(
-            f"/api/explore/search-jobs/{created['jobId']}/expand",
+            f"/api/explore/search-runs/{created['runId']}/expand",
         ).json()
 
     assert len(initial_snapshots) == 1
@@ -2000,7 +2000,7 @@ def test_explore_search_job_returns_failed_snapshot_when_all_sources_fail(
 
     with TestClient(app) as client:
         response = client.post(
-            "/api/explore/search-jobs",
+            "/api/explore/search-runs",
             json={"topicDescription": "A python package for working with Orca."},
         )
 
@@ -2044,7 +2044,7 @@ def test_explore_search_job_returns_completed_partial_snapshot(
 
     with TestClient(app) as client:
         response = client.post(
-            "/api/explore/search-jobs",
+            "/api/explore/search-runs",
             json={"topicDescription": "A python package for working with Orca."},
         )
 

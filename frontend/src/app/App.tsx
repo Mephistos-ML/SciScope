@@ -3,13 +3,13 @@ import { useEffect, useState } from "react";
 import {
   ApiError,
   beginGoogleSignIn,
-  createExploreSearchJob,
+  createExploreSearchRun,
   createSubscription,
   deleteAccount,
   deleteSubscription,
   fetchFeed,
-  fetchExploreSearchJob,
-  expandExploreSearchJob,
+  fetchExploreSearchRun,
+  expandExploreSearchRun,
   fetchMe,
   fetchSubscriptions,
   markAllFeedEventsRead,
@@ -28,8 +28,8 @@ import type {
   AiSearchPlanPayload,
   FeedEventItem,
   ExploreBetaPayload,
-  ExploreSearchJobPayload,
-  ExploreSearchJobStatus,
+  ExploreSearchRunPayload,
+  ExploreSearchRunStatus,
   ExploreResultItem,
   SubscriptionItem,
   Viewer,
@@ -92,7 +92,7 @@ export function App() {
   const [activeExploreJobId, setActiveExploreJobId] = useState<string | null>(null);
   const [lastCompletedExploreJobId, setLastCompletedExploreJobId] = useState<string | null>(null);
   const [activeExploreJobStatus, setActiveExploreJobStatus] =
-    useState<ExploreSearchJobStatus | null>(null);
+    useState<ExploreSearchRunStatus | null>(null);
   const [betaMode, setBetaMode] = useState(false);
 
   useEffect(() => {
@@ -164,15 +164,15 @@ export function App() {
 
     const syncJob = async () => {
       try {
-        const snapshot = await fetchExploreSearchJob(activeExploreJobId);
+        const snapshot = await fetchExploreSearchRun(activeExploreJobId);
         if (cancelled) {
           return;
         }
         setActiveExploreJobStatus(snapshot.status);
 
         if (snapshot.status === "completed" || snapshot.status === "completed_partial") {
-          applyExploreSearchJobSnapshot(snapshot);
-          setLastCompletedExploreJobId(snapshot.jobId);
+          applyExploreSearchRunSnapshot(snapshot);
+          setLastCompletedExploreJobId(snapshot.runId);
           setSearchPending(false);
           setCanExpandSearch(snapshot.canExpand === true);
           setActiveExploreJobId(null);
@@ -284,12 +284,12 @@ export function App() {
     setLastExploreBeta(null);
     setExploreSearchFeedback(null);
     try {
-      const job = await createExploreSearchJob({
+      const job = await createExploreSearchRun({
         topicDescription: topicInput.trim(),
         turnstileToken,
         betaMode: betaMode && (viewer?.features.includes("explore_beta") ?? false),
       });
-      setActiveExploreJobId(job.jobId);
+      setActiveExploreJobId(job.runId);
       setActiveExploreJobStatus(job.status);
       setTurnstileToken(null);
       setTurnstileResetKey((current) => current + 1);
@@ -334,8 +334,8 @@ export function App() {
     setIsExpandingSearch(true);
     setExploreSearchFeedback(null);
     try {
-      const job = await expandExploreSearchJob(lastCompletedExploreJobId);
-      setActiveExploreJobId(job.jobId);
+      const job = await expandExploreSearchRun(lastCompletedExploreJobId);
+      setActiveExploreJobId(job.runId);
       setActiveExploreJobStatus(job.status);
     } catch (error) {
       setSearchPending(false);
@@ -349,7 +349,7 @@ export function App() {
     }
   }
 
-  function applyExploreSearchJobSnapshot(snapshot: ExploreSearchJobPayload) {
+  function applyExploreSearchRunSnapshot(snapshot: ExploreSearchRunPayload) {
     setResults(snapshot.items);
     setLastAiSearchPlan(snapshot.aiSearchPlan);
     setLastExploreBeta(snapshot.beta ?? null);
@@ -686,7 +686,7 @@ function viewFromPath(pathname: string): AppView {
 }
 
 function mapExploreJobStatusToStage(
-  status: ExploreSearchJobStatus | null,
+  status: ExploreSearchRunStatus | null,
 ): string | null {
   if (status === "queued" || status === "planning") {
     return "Understanding your topic";

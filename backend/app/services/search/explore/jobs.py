@@ -106,7 +106,7 @@ def get_explore_search_job(
     }
     payload.update(
         {
-            "jobId": run.run_id,
+            "runId": run.run_id,
             "status": run.status,
             "error": run.error_message,
             "message": payload.get("message"),

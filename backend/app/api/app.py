@@ -190,8 +190,8 @@ def run_explore_search(
     return explore_routes.search_explore_response(request, payload.model_dump())
 
 
-@app.post("/api/explore/search-jobs", status_code=status.HTTP_202_ACCEPTED)
-def create_explore_search_job(
+@app.post("/api/explore/search-runs", status_code=status.HTTP_202_ACCEPTED)
+def create_explore_search_run(
     request: Request,
     payload: ExploreSearchRequest,
 ) -> dict[str, object]:
@@ -203,11 +203,11 @@ def create_explore_search_job(
     )
 
 
-@app.get("/api/explore/search-jobs/{job_id}")
-def get_explore_search_job(request: Request, job_id: str) -> dict[str, object]:
+@app.get("/api/explore/search-runs/{run_id}")
+def get_explore_search_run(request: Request, run_id: str) -> dict[str, object]:
     """Return one manual explore search job snapshot."""
 
-    payload = explore_routes.get_explore_search_job_response(request, job_id)
+    payload = explore_routes.get_explore_search_job_response(request, run_id)
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -216,11 +216,11 @@ def get_explore_search_job(request: Request, job_id: str) -> dict[str, object]:
     return payload
 
 
-@app.post("/api/explore/search-jobs/{job_id}/expand", status_code=status.HTTP_202_ACCEPTED)
-def expand_explore_search_job(request: Request, job_id: str) -> dict[str, object]:
+@app.post("/api/explore/search-runs/{run_id}/expand", status_code=status.HTTP_202_ACCEPTED)
+def expand_explore_search_run(request: Request, run_id: str) -> dict[str, object]:
     """Run one next query from a completed Explore search job."""
 
-    payload = explore_routes.expand_explore_search_job_response(request, job_id)
+    payload = explore_routes.expand_explore_search_job_response(request, run_id)
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
