@@ -22,7 +22,6 @@ from app.services.ai.search_plans import (
     serialize_ai_search_plan,
 )
 from app.services.search.explore.canonical import select_canonical_candidates
-from app.services.search.explore.diagnostics import build_explore_stage_snapshot
 from app.services.search.explore.execution import ExploreQueryAttempt, ExploreSearchExecution
 from app.services.search.catalog import (
     persist_catalog_candidates,
@@ -30,12 +29,9 @@ from app.services.search.catalog import (
 )
 from app.services.search.explore.evaluation import build_explore_search_evaluation
 from app.services.search.explore.response import (
-    ExploreResponseMode,
     build_empty_explore_search_payload,
     build_explore_search_payload,
 )
-from app.services.search.explore.timings import ExploreSearchTimings
-from app.services.search.observability.context import SearchLogContext
 from app.services.search.observability.service import (
     SearchLogContext,
     build_duration_ms,
@@ -82,7 +78,6 @@ class AiSearchPlanningError(RuntimeError):
 def run_explore_search(
     *,
     topic_description: str,
-    response_mode: ExploreResponseMode = "canonical",
     progress_callback: ExploreSearchProgressCallback | None = None,
     execution_callback: ExploreSearchExecutionCallback | None = None,
     stage_report_callback: ExploreSearchStageReportCallback | None = None,
@@ -105,7 +100,6 @@ def run_explore_search(
             event="explore_search_started",
             context=log_context,
             mode="async" if log_context.run_id else "sync",
-            response_mode=response_mode,
         )
 
     try:
@@ -130,20 +124,8 @@ def run_explore_search(
             payload = build_empty_explore_search_payload(
                 topic_description=topic_description,
                 ai_search_plan_payload=ai_search_plan_payload,
-                response_mode=response_mode,
             )
             response_build_duration_ms = build_duration_ms(response_build_started_at)
-            _attach_beta_timings(
-                payload,
-                response_mode=response_mode,
-                timings=ExploreSearchTimings(
-                    ai_planning_duration_ms=planning_duration_ms,
-                    retrieval_duration_ms=0,
-                    evaluation_duration_ms=0,
-                    response_build_duration_ms=response_build_duration_ms,
-                    total_duration_ms=build_duration_ms(search_started_at),
-                ),
-            )
             if log_context is not None:
                 log_search_event(
                     logger=logger,
@@ -168,7 +150,6 @@ def run_explore_search(
             queries=planned_queries,
             topic_description=topic_description,
             ai_search_plan_payload=ai_search_plan_payload,
-            response_mode=response_mode,
             progress_callback=progress_callback,
             log_context=log_context,
             database_url=database_url,
@@ -198,24 +179,11 @@ def run_explore_search(
         repository_persistence_duration_ms = build_duration_ms(persistence_started_at)
         evaluation_duration_ms = build_duration_ms(evaluation_started_at)
 
-        stage_snapshots = (
-            (
-                build_explore_stage_snapshot(
-                    evaluation,
-                    stage=1,
-                    queries=retrieval_sequence.executed_queries,
-                    executed_queries=executed_queries,
-                ),
-            )
-            if response_mode == "beta"
-            else ()
-        )
         execution = ExploreSearchExecution(
             ai_search_plan=ai_search_plan,
             executed_queries=executed_queries,
             retrieved=retrieved,
             attempts=retrieval_sequence.attempts,
-            stage_snapshots=stage_snapshots,
         )
         if execution_callback is not None:
             execution_callback(execution)
@@ -280,24 +248,9 @@ def run_explore_search(
             topic_description=topic_description,
             ai_search_plan_payload=ai_search_plan_payload,
             evaluation=evaluation,
-            response_mode=response_mode,
             can_expand=bool(execution.pending_queries),
-            executed_queries=execution.executed_queries,
-            query_attempts=_serialize_query_attempts(execution.attempts),
-            stage_snapshots=execution.stage_snapshots,
         )
         response_build_duration_ms = build_duration_ms(response_build_started_at)
-        _attach_beta_timings(
-            payload,
-            response_mode=response_mode,
-            timings=ExploreSearchTimings(
-                ai_planning_duration_ms=planning_duration_ms,
-                retrieval_duration_ms=retrieval_duration_ms,
-                evaluation_duration_ms=evaluation_duration_ms,
-                response_build_duration_ms=response_build_duration_ms,
-                total_duration_ms=build_duration_ms(search_started_at),
-            ),
-        )
         if stage_report_callback is not None:
             stage_report_callback(
                 _build_stage_report(
@@ -333,7 +286,6 @@ def run_explore_search(
                 admitted_candidate_count=len(evaluation.admission.visible_candidates),
                 visible_result_count=len(visible_candidates),
                 relevance_cutoff=evaluation.ranking.relevance_cutoff,
-                response_mode=response_mode,
                 ai_planning_duration_ms=planning_duration_ms,
                 retrieval_duration_ms=retrieval_duration_ms,
                 evaluation_duration_ms=evaluation_duration_ms,
@@ -369,7 +321,6 @@ def expand_explore_search(
     *,
     topic_description: str,
     execution: ExploreSearchExecution,
-    response_mode: ExploreResponseMode = "canonical",
     execution_callback: ExploreSearchExecutionCallback | None = None,
     stage_report_callback: ExploreSearchStageReportCallback | None = None,
     log_context: SearchLogContext | None = None,
@@ -388,7 +339,6 @@ def expand_explore_search(
         queries=next_queries,
         topic_description=topic_description,
         ai_search_plan_payload=ai_search_plan_payload,
-        response_mode=response_mode,
         progress_callback=None,
         log_context=log_context,
         database_url=database_url,
@@ -418,25 +368,11 @@ def expand_explore_search(
     )
     repository_persistence_duration_ms = build_duration_ms(persistence_started_at)
     evaluation_duration_ms = build_duration_ms(evaluation_started_at)
-    stage_snapshots = (
-        (
-            *execution.stage_snapshots,
-            build_explore_stage_snapshot(
-                evaluation,
-                stage=len(execution.stage_snapshots) + 1,
-                queries=retrieval_sequence.executed_queries,
-                executed_queries=executed_queries,
-            ),
-        )
-        if response_mode == "beta"
-        else ()
-    )
     expanded_execution = ExploreSearchExecution(
         ai_search_plan=execution.ai_search_plan,
         executed_queries=executed_queries,
         retrieved=retrieved,
         attempts=(*execution.attempts, *retrieval_sequence.attempts),
-        stage_snapshots=stage_snapshots,
     )
     if execution_callback is not None:
         execution_callback(expanded_execution)
@@ -446,24 +382,9 @@ def expand_explore_search(
         topic_description=topic_description,
         ai_search_plan_payload=ai_search_plan_payload,
         evaluation=evaluation,
-        response_mode=response_mode,
         can_expand=bool(expanded_execution.pending_queries),
-        executed_queries=expanded_execution.executed_queries,
-        query_attempts=_serialize_query_attempts(expanded_execution.attempts),
-        stage_snapshots=expanded_execution.stage_snapshots,
     )
     response_build_duration_ms = build_duration_ms(response_build_started_at)
-    _attach_beta_timings(
-        payload,
-        response_mode=response_mode,
-        timings=ExploreSearchTimings(
-            ai_planning_duration_ms=0,
-            retrieval_duration_ms=retrieval_duration_ms,
-            evaluation_duration_ms=evaluation_duration_ms,
-            response_build_duration_ms=response_build_duration_ms,
-            total_duration_ms=build_duration_ms(search_started_at),
-        ),
-    )
     if stage_report_callback is not None:
         stage_report_callback(
             _build_stage_report(
@@ -613,7 +534,6 @@ def _retrieve_planned_queries(
     queries: tuple[str, ...],
     topic_description: str,
     ai_search_plan_payload: dict[str, object],
-    response_mode: ExploreResponseMode,
     progress_callback: ExploreSearchProgressCallback | None,
     log_context: SearchLogContext | None,
     database_url: str,
@@ -641,7 +561,6 @@ def _retrieve_planned_queries(
                 query=query,
                 topic_description=topic_description,
                 ai_search_plan_payload=ai_search_plan_payload,
-                response_mode=response_mode,
                 progress_callback=progress_callback if not attempts else None,
                 log_context=log_context,
                 database_url=database_url,
@@ -678,7 +597,6 @@ def _retrieve_query_with_timeout_retries(
     query: str,
     topic_description: str,
     ai_search_plan_payload: dict[str, object],
-    response_mode: ExploreResponseMode,
     progress_callback: ExploreSearchProgressCallback | None,
     log_context: SearchLogContext | None,
     database_url: str,
@@ -700,7 +618,6 @@ def _retrieve_query_with_timeout_retries(
             local_candidates=local_candidates,
             topic_description=topic_description,
             ai_search_plan_payload=ai_search_plan_payload,
-            response_mode=response_mode,
             progress_callback=progress_callback if attempt_number == 1 else None,
             soft_deadline_monotonic=(
                 attempt_started_at + config.EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS
@@ -777,21 +694,6 @@ def _query_attempt_timed_out(retrieved: RetrievedCandidates) -> bool:
     )
 
 
-def _serialize_query_attempts(
-    attempts: tuple[ExploreQueryAttempt, ...],
-) -> tuple[dict[str, object], ...]:
-    return tuple(
-        {
-            "query": attempt.query,
-            "attempt": attempt.attempt,
-            "status": attempt.status,
-            "durationMs": attempt.duration_ms,
-            "candidateCount": attempt.candidate_count,
-        }
-        for attempt in attempts
-    )
-
-
 def _plan_explore_search(*, topic_description: str):
     try:
         return build_ai_search_plan(topic_description=topic_description)
@@ -812,7 +714,6 @@ def _run_external_retrieval(
     local_candidates,
     topic_description: str,
     ai_search_plan_payload: dict[str, object],
-    response_mode: ExploreResponseMode,
     progress_callback: ExploreSearchProgressCallback | None,
     soft_deadline_monotonic: float | None,
     hard_deadline_monotonic: float | None,
@@ -840,7 +741,6 @@ def _run_external_retrieval(
                     warnings=partial.warnings,
                 ),
                 queries=queries,
-                response_mode=response_mode,
             )
         )
     return run_external_repository_retrieval(queries, **retrieval_options)
@@ -852,7 +752,6 @@ def _build_explore_search_progress_payload(
     ai_search_plan_payload: dict[str, object],
     retrieved,
     queries: tuple[str, ...],
-    response_mode: ExploreResponseMode,
 ) -> dict[str, object]:
     evaluation = build_explore_search_evaluation(
         retrieved,
@@ -862,7 +761,6 @@ def _build_explore_search_progress_payload(
         topic_description=topic_description,
         ai_search_plan_payload=ai_search_plan_payload,
         evaluation=evaluation,
-        response_mode=response_mode,
     )
 
 
@@ -896,19 +794,3 @@ def _summarize_source_statuses(
         }
         for status in source_statuses
     ]
-
-
-def _attach_beta_timings(
-    payload: dict[str, object],
-    *,
-    response_mode: ExploreResponseMode,
-    timings: ExploreSearchTimings,
-) -> None:
-    """Attach completed run timings to the restricted beta payload only."""
-
-    if response_mode != "beta":
-        return
-
-    beta = payload.get("beta")
-    if isinstance(beta, dict):
-        beta["timings"] = timings.to_beta_payload()

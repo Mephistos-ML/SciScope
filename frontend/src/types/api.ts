@@ -72,55 +72,6 @@ export type ExploreResultItem = {
   query: string | null;
   score: number;
   reason: string;
-  beta?: ExploreBetaDiagnostic;
-};
-
-export type ExploreBetaDiagnostic = {
-  decision: {
-    status: "gate_rejected" | "admission_rejected" | "below_cutoff" | "included";
-    admissionBucket: string;
-    label: string;
-  };
-  retrievalOrigin: {
-    kind: "catalog" | "provider" | "catalog_and_provider";
-    label: string;
-  };
-  scoreBreakdown: {
-    strongestMatchQuality: number;
-    strongestMatchPoints: number;
-    corroborationQuality: number;
-    corroborationPoints: number;
-    matchedQueryCount: number;
-    totalQueryCount: number;
-    evidenceCount: number;
-    hitCount: number;
-  };
-};
-
-export type ExploreBetaPayload = {
-  enabled: true;
-  candidateCount: number;
-  relevanceCutoff: number;
-  execution?: {
-    executedQueries: string[];
-    pendingQueryCount: number;
-    attempts: Array<{
-      query: string;
-      attempt: number;
-      status: "completed" | "timed_out";
-      durationMs: number;
-      candidateCount: number;
-    }>;
-  };
-  timings?: ExploreSearchTimingPayload;
-};
-
-export type ExploreSearchTimingPayload = {
-  aiPlanningDurationMs: number;
-  retrievalDurationMs: number;
-  evaluationDurationMs: number;
-  responseBuildDurationMs: number;
-  totalDurationMs: number;
 };
 
 export type ExploreSearchPayload = {
@@ -131,7 +82,6 @@ export type ExploreSearchPayload = {
   partial?: boolean;
   canExpand?: boolean;
   message?: string | null;
-  beta?: ExploreBetaPayload | null;
 };
 
 export type ExploreSearchRunStatus =
@@ -149,7 +99,6 @@ export type ExploreSearchRunPayload = ExploreSearchPayload & {
   message: string | null;
   createdAt: string;
   updatedAt: string;
-  responseMode: "canonical" | "beta";
 };
 
 export type ExploreAccessErrorPayload = {

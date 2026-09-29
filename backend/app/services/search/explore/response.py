@@ -1,17 +1,9 @@
-"""Explore response-mode selection and shared response envelopes."""
+"""Canonical product response envelopes for Explore searches."""
 
 from __future__ import annotations
 
-from typing import Literal
-
-from app import config
-from app.services.search.explore.beta import build_beta_items
 from app.services.search.explore.canonical import build_canonical_items
-from app.services.search.explore.diagnostics import serialize_explore_stage_snapshots
 from app.services.search.explore.evaluation import ExploreSearchEvaluation
-from app.services.search.explore.execution import ExploreStageSnapshot
-
-ExploreResponseMode = Literal["canonical", "beta"]
 
 
 def build_explore_search_payload(
@@ -19,70 +11,34 @@ def build_explore_search_payload(
     topic_description: str,
     ai_search_plan_payload: dict[str, object],
     evaluation: ExploreSearchEvaluation,
-    response_mode: ExploreResponseMode,
     can_expand: bool = False,
-    executed_queries: tuple[str, ...] = (),
-    query_attempts: tuple[dict[str, object], ...] = (),
-    stage_snapshots: tuple[ExploreStageSnapshot, ...] = (),
 ) -> dict[str, object]:
-    """Project one shared evaluation into its requested response mode."""
+    """Project an evaluation into the one public product representation."""
 
-    if response_mode == "beta":
-        items = build_beta_items(evaluation)
-    else:
-        items = build_canonical_items(evaluation)
-
-    payload = _build_response_envelope(
+    return _build_response_envelope(
         topic_description=topic_description,
         ai_search_plan_payload=ai_search_plan_payload,
         evaluation=evaluation,
-        items=items,
-        response_mode=response_mode,
+        items=build_canonical_items(evaluation),
         can_expand=can_expand,
     )
-    if response_mode == "beta":
-        payload["beta"] = {
-            "enabled": True,
-            "candidateCount": len(evaluation.ranking.ranked_candidates),
-            "relevanceCutoff": evaluation.ranking.relevance_cutoff,
-            "execution": {
-                "executedQueries": list(executed_queries),
-                "pendingQueryCount": max(
-                    len(ai_search_plan_payload.get("queries", [])) - len(executed_queries),
-                    0,
-                ),
-                "attempts": list(query_attempts),
-                "stageSnapshots": serialize_explore_stage_snapshots(stage_snapshots),
-            },
-        }
-    return payload
 
 
 def build_empty_explore_search_payload(
     *,
     topic_description: str,
     ai_search_plan_payload: dict[str, object],
-    response_mode: ExploreResponseMode,
     can_expand: bool = False,
 ) -> dict[str, object]:
     """Build an empty response when planning produces no repository queries."""
 
     payload: dict[str, object] = {
         "topicDescription": topic_description,
-        "aiSearchPlan": _build_public_ai_search_plan(
-            ai_search_plan_payload,
-            response_mode=response_mode,
-        ),
+        "aiSearchPlan": _build_public_ai_search_plan(ai_search_plan_payload),
         "items": [],
         "sourceStatuses": [],
         "canExpand": can_expand,
     }
-    if response_mode == "beta":
-        payload["beta"] = {
-            "enabled": True,
-            "candidateCount": 0,
-            "relevanceCutoff": config.EXPLORE_SEARCH_RELEVANCE_CUTOFF,
-        }
     return payload
 
 
@@ -92,16 +48,12 @@ def _build_response_envelope(
     ai_search_plan_payload: dict[str, object],
     evaluation: ExploreSearchEvaluation,
     items: list[dict[str, object]],
-    response_mode: ExploreResponseMode,
     can_expand: bool,
 ) -> dict[str, object]:
     retrieved = evaluation.retrieved
     return {
         "topicDescription": topic_description,
-        "aiSearchPlan": _build_public_ai_search_plan(
-            ai_search_plan_payload,
-            response_mode=response_mode,
-        ),
+        "aiSearchPlan": _build_public_ai_search_plan(ai_search_plan_payload),
         "items": items,
         "sourceStatuses": list(retrieved.source_statuses),
         "partial": retrieved.partial,
@@ -112,13 +64,9 @@ def _build_response_envelope(
 
 def _build_public_ai_search_plan(
     ai_search_plan_payload: dict[str, object],
-    *,
-    response_mode: ExploreResponseMode,
 ) -> dict[str, object]:
-    """Expose generated query text only through the restricted beta response."""
+    """Keep generated query text in the private durable report surface."""
 
-    if response_mode == "beta":
-        return dict(ai_search_plan_payload)
     return {
         "status": ai_search_plan_payload.get("status", "pending"),
         "queries": [],

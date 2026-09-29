@@ -18,7 +18,6 @@ def test_save_search_run_ranking_labels_targets_latest_snapshot(monkeypatch) -> 
             owner_user_id="user_1",
             topic_description="topic",
             topic_hash="hash",
-            response_mode="canonical",
             status="completed",
             planner_mode="heuristic",
             planner_model=None,

@@ -26,7 +26,6 @@ class SearchRunRecordModel(Base):
     )
     topic_description: Mapped[str] = mapped_column(Text, nullable=False)
     topic_hash: Mapped[str] = mapped_column(String, nullable=False)
-    response_mode: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False)
     planner_mode: Mapped[str] = mapped_column(String, nullable=False)
     planner_model: Mapped[str | None] = mapped_column(String, nullable=True)

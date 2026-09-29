@@ -28,7 +28,6 @@ def upgrade() -> None:
         ),
         sa.Column("topic_description", sa.Text(), nullable=False),
         sa.Column("topic_hash", sa.String(), nullable=False),
-        sa.Column("response_mode", sa.String(), nullable=False),
         sa.Column("status", sa.String(), nullable=False),
         sa.Column("planner_mode", sa.String(), nullable=False),
         sa.Column("planner_model", sa.String(), nullable=True),

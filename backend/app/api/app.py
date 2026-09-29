@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.__version__ import __version__
 from app.api.routes import auth as auth_routes
@@ -32,9 +32,10 @@ from app.services.search.explore.service import (
 class ExploreSearchRequest(BaseModel):
     """Request body for one topic-driven explore search."""
 
+    model_config = ConfigDict(extra="forbid")
+
     topicDescription: str = ""
     turnstileToken: str | None = None
-    betaMode: bool = False
 
 
 class CreateSubscriptionRequest(BaseModel):
@@ -196,9 +197,9 @@ def create_explore_search_run(
     request: Request,
     payload: ExploreSearchRequest,
 ) -> dict[str, object]:
-    """Create one manual explore search job."""
+    """Create one manual explore search run."""
 
-    return explore_routes.create_explore_search_job_response(
+    return explore_routes.create_explore_search_run_response(
         request,
         payload.model_dump(),
     )
@@ -206,26 +207,26 @@ def create_explore_search_run(
 
 @app.get("/api/explore/search-runs/{run_id}")
 def get_explore_search_run(request: Request, run_id: str) -> dict[str, object]:
-    """Return one manual explore search job snapshot."""
+    """Return one manual explore search run snapshot."""
 
-    payload = explore_routes.get_explore_search_job_response(request, run_id)
+    payload = explore_routes.get_explore_search_run_response(request, run_id)
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Explore search job not found",
+            detail="Explore search run not found",
         )
     return payload
 
 
 @app.post("/api/explore/search-runs/{run_id}/expand", status_code=status.HTTP_202_ACCEPTED)
 def expand_explore_search_run(request: Request, run_id: str) -> dict[str, object]:
-    """Run one next query from a completed Explore search job."""
+    """Run one next query from a completed Explore search run."""
 
-    payload = explore_routes.expand_explore_search_job_response(request, run_id)
+    payload = explore_routes.expand_explore_search_run_response(request, run_id)
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Explore search job not found",
+            detail="Explore search run not found",
         )
     return payload
 

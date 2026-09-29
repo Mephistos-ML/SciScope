@@ -28,18 +28,6 @@ class ExploreQueryAttempt:
 
 
 @dataclass(frozen=True)
-class ExploreStageSnapshot:
-    """Beta-only state needed to explain one incremental search stage."""
-
-    stage: int
-    queries: tuple[str, ...]
-    executed_queries: tuple[str, ...]
-    candidate_pool: tuple[dict[str, object], ...]
-    ranked_candidates: tuple[dict[str, object], ...]
-    canonical_item_ids: tuple[str, ...]
-
-
-@dataclass(frozen=True)
 class ExploreSearchExecution:
     """A completed portion of one AI-generated Explore search plan."""
 
@@ -47,7 +35,6 @@ class ExploreSearchExecution:
     executed_queries: tuple[str, ...]
     retrieved: RetrievedCandidates
     attempts: tuple[ExploreQueryAttempt, ...] = ()
-    stage_snapshots: tuple[ExploreStageSnapshot, ...] = ()
 
     @property
     def pending_queries(self) -> tuple[str, ...]:
@@ -107,17 +94,6 @@ def serialize_execution(execution: ExploreSearchExecution) -> dict[str, object]:
             "warnings": list(execution.retrieved.warnings),
         },
         "attempts": [attempt.__dict__ for attempt in execution.attempts],
-        "stageSnapshots": [
-            {
-                "stage": snapshot.stage,
-                "queries": list(snapshot.queries),
-                "executedQueries": list(snapshot.executed_queries),
-                "candidatePool": list(snapshot.candidate_pool),
-                "rankedCandidates": list(snapshot.ranked_candidates),
-                "canonicalItemIds": list(snapshot.canonical_item_ids),
-            }
-            for snapshot in execution.stage_snapshots
-        ],
     }
 
 
@@ -143,17 +119,6 @@ def deserialize_execution(state: dict[str, Any]) -> ExploreSearchExecution:
             warnings=tuple(retrieved["warnings"]),
         ),
         attempts=tuple(ExploreQueryAttempt(**attempt) for attempt in state["attempts"]),
-        stage_snapshots=tuple(
-            ExploreStageSnapshot(
-                stage=snapshot["stage"],
-                queries=tuple(snapshot["queries"]),
-                executed_queries=tuple(snapshot["executedQueries"]),
-                candidate_pool=tuple(snapshot["candidatePool"]),
-                ranked_candidates=tuple(snapshot["rankedCandidates"]),
-                canonical_item_ids=tuple(snapshot["canonicalItemIds"]),
-            )
-            for snapshot in state["stageSnapshots"]
-        ),
     )
 
 

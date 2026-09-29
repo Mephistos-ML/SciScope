@@ -196,7 +196,6 @@ export async function runExploreSearch(payload: {
 export async function createExploreSearchRun(payload: {
   topicDescription: string;
   turnstileToken?: string | null;
-  betaMode?: boolean;
 }): Promise<ExploreSearchRunPayload> {
   return requestJson<ExploreSearchRunPayload>("/api/explore/search-runs", {
     method: "POST",
@@ -214,18 +213,6 @@ export async function fetchExploreSearchRun(runId: string): Promise<ExploreSearc
 export async function expandExploreSearchRun(runId: string): Promise<ExploreSearchRunPayload> {
   return requestJson<ExploreSearchRunPayload>(`/api/explore/search-runs/${runId}/expand`, {
     method: "POST",
-  });
-}
-
-export async function saveSearchRunRankingLabels(runId: string, labels: Record<string, 0 | 1 | 2>): Promise<{
-  runId: string;
-  stageNumber: number;
-  labelledCount: number;
-}> {
-  return requestJson(`/api/internal/search-runs/${encodeURIComponent(runId)}/ranking-labels`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ labels }),
   });
 }
 
