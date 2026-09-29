@@ -3,9 +3,11 @@ import { useEffect, useMemo, useState } from "react";
 import type {
   AiSearchPlanPayload,
   ExploreResultItem,
+  SearchDiagnosticsRankingSnapshot,
   SearchDiagnosticsReport,
   ViewerPayload,
 } from "../types/api";
+import { SearchDiagnosticsRepositoryDetails } from "../components/SearchDiagnosticsRepositoryDetails";
 import { SearchDiagnosticsSummary } from "../components/SearchDiagnosticsSummary";
 import { SourceBadge } from "../components/SourceBadge";
 import { TurnstileWidget } from "../components/TurnstileWidget";
@@ -82,6 +84,9 @@ export function ExplorePage({
   const [retrySecondsRemaining, setRetrySecondsRemaining] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortOption, setSortOption] = useState<ExploreSortOption>("relevance");
+  const [expandedDiagnosticsRepositoryId, setExpandedDiagnosticsRepositoryId] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     const retryUntilEpochMs = exploreSearchFeedback?.retryUntilEpochMs;
@@ -107,6 +112,10 @@ export function ExplorePage({
     setCurrentPage(1);
   }, [results, sortOption]);
 
+  useEffect(() => {
+    setExpandedDiagnosticsRepositoryId(null);
+  }, [results]);
+
   const retryLockActive = retrySecondsRemaining !== null && retrySecondsRemaining > 0;
   const searchDisabled =
     searchPending ||
@@ -124,6 +133,10 @@ export function ExplorePage({
   const sortedResults = useMemo(
     () => sortExploreResults(results, sortOption),
     [results, sortOption],
+  );
+  const diagnosticsByRepositoryId = useMemo(
+    () => buildLatestDiagnosticsByRepositoryId(searchDiagnosticsReport),
+    [searchDiagnosticsReport],
   );
   const totalPages = Math.max(1, Math.ceil(sortedResults.length / RESULTS_PER_PAGE));
   const visibleResults = sortedResults.slice(
@@ -360,53 +373,74 @@ export function ExplorePage({
                     {visibleResults.map((result) => {
                       const isSubscribed = subscribedRepositoryIds.includes(result.itemId);
                       const isPending = subscribePendingRepositoryId === result.itemId;
+                      const diagnostics = searchDiagnosticsActive
+                        ? diagnosticsByRepositoryId.get(result.itemId)
+                        : undefined;
+                      const diagnosticsExpanded = expandedDiagnosticsRepositoryId === result.itemId;
 
                       return (
-                        <div className="repository-row" key={result.itemId}>
-                          <div className="repository-main-cell">
-                            <p className="repository-title">{result.fullName}</p>
-                            <p className="repository-description repository-about">
-                              {result.description || result.reason}
-                            </p>
-                          </div>
+                        <div className="repository-row-group" key={result.itemId}>
+                          <div className="repository-row">
+                            <div className="repository-main-cell">
+                              <p className="repository-title">{result.fullName}</p>
+                              <p className="repository-description repository-about">
+                                {result.description || result.reason}
+                              </p>
+                            </div>
 
-                          <div className="repository-cell" data-label="Source">
-                            <SourceBadge href={result.url} source={result.source} />
-                          </div>
+                            <div className="repository-cell" data-label="Source">
+                              <SourceBadge href={result.url} source={result.source} />
+                            </div>
 
-                          <div
-                            className="repository-cell repository-metadata-cell"
-                            data-label="Stars"
-                          >
-                            {result.stars !== null ? formatCompactNumber(result.stars) : "-"}
-                          </div>
-
-                          <div
-                            className="repository-cell repository-metadata-cell"
-                            data-label="Activity"
-                          >
-                            {formatProviderActivity(result.providerUpdatedAt)}
-                          </div>
-
-                          <div
-                            className="repository-cell repository-actions-cell"
-                            data-label="Actions"
-                          >
-                            <button
-                              className={
-                                isSubscribed
-                                  ? "outline-button results-action-button results-action-button-subscribed"
-                                  : "solid-button results-action-button"
-                              }
-                              disabled={
-                                !canSubscribe || isSubscribed || isPending
-                              }
-                              onClick={() => onSubscribe(result)}
-                              type="button"
+                            <div
+                              className="repository-cell repository-metadata-cell"
+                              data-label="Stars"
                             >
-                              {isSubscribed ? "Subscribed" : isPending ? "Saving..." : "Subscribe"}
-                            </button>
+                              {result.stars !== null ? formatCompactNumber(result.stars) : "-"}
+                            </div>
+
+                            <div
+                              className="repository-cell repository-metadata-cell"
+                              data-label="Activity"
+                            >
+                              {formatProviderActivity(result.providerUpdatedAt)}
+                            </div>
+
+                            <div
+                              className="repository-cell repository-actions-cell"
+                              data-label="Actions"
+                            >
+                              {diagnostics ? (
+                                <button
+                                  aria-expanded={diagnosticsExpanded}
+                                  className="outline-button results-action-button repository-diagnostics-button"
+                                  onClick={() => setExpandedDiagnosticsRepositoryId(
+                                    diagnosticsExpanded ? null : result.itemId,
+                                  )}
+                                  type="button"
+                                >
+                                  {diagnosticsExpanded ? "Hide ranking details" : "Ranking details"}
+                                </button>
+                              ) : null}
+                              <button
+                                className={
+                                  isSubscribed
+                                    ? "outline-button results-action-button results-action-button-subscribed"
+                                    : "solid-button results-action-button"
+                                }
+                                disabled={
+                                  !canSubscribe || isSubscribed || isPending
+                                }
+                                onClick={() => onSubscribe(result)}
+                                type="button"
+                              >
+                                {isSubscribed ? "Subscribed" : isPending ? "Saving..." : "Subscribe"}
+                              </button>
+                            </div>
                           </div>
+                          {diagnostics && diagnosticsExpanded ? (
+                            <SearchDiagnosticsRepositoryDetails snapshot={diagnostics} />
+                          ) : null}
                         </div>
                       );
                     })}
@@ -564,6 +598,20 @@ function compareProviderActivity(left: string | null, right: string | null): num
   if (leftTimestamp === null) return 1;
   if (rightTimestamp === null) return -1;
   return rightTimestamp - leftTimestamp;
+}
+
+function buildLatestDiagnosticsByRepositoryId(
+  report: SearchDiagnosticsReport | null,
+): Map<string, SearchDiagnosticsRankingSnapshot> {
+  if (!report?.rankingSnapshots.length) return new Map();
+  const latestStageNumber = Math.max(
+    ...report.rankingSnapshots.map((snapshot) => snapshot.stageNumber),
+  );
+  return new Map(
+    report.rankingSnapshots
+      .filter((snapshot) => snapshot.stageNumber === latestStageNumber)
+      .map((snapshot) => [snapshot.repositoryId, snapshot]),
+  );
 }
 
 function readTimestamp(value: string | null): number | null {

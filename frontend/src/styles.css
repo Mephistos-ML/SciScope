@@ -1197,6 +1197,19 @@ input::placeholder {
   background: var(--surface);
 }
 
+.repository-row-group {
+  min-width: 760px;
+  border-top: var(--border-subtle);
+}
+
+.repository-row-group:first-child {
+  border-top: 0;
+}
+
+.repository-row-group .repository-row {
+  border-top: 0;
+}
+
 .repository-row-unread {
   box-shadow: inset 3px 0 0 var(--coral-500);
 }
@@ -1355,6 +1368,8 @@ input::placeholder {
 
 .repository-actions-cell {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
   justify-content: flex-end;
 }
 
@@ -1367,6 +1382,169 @@ input::placeholder {
   border-color: color-mix(in srgb, var(--teal-600) 34%, var(--border-strong));
   background: color-mix(in srgb, var(--teal-100) 55%, var(--surface));
   color: var(--teal-600);
+}
+
+.repository-diagnostics-button {
+  border-color: color-mix(in srgb, var(--navy-700) 28%, var(--border-strong));
+  color: var(--navy-800);
+}
+
+.repository-diagnostics-details {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 0 18px 18px;
+  border-top: var(--border-subtle);
+  background: color-mix(in srgb, var(--navy-700) 4%, var(--surface));
+}
+
+.repository-diagnostics-header,
+.repository-diagnostics-metrics,
+.repository-diagnostics-columns {
+  display: flex;
+}
+
+.repository-diagnostics-header {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 18px;
+}
+
+.repository-diagnostics-header h4,
+.repository-diagnostics-columns h5,
+.repository-diagnostics-evidence h5 {
+  margin: 0;
+  color: var(--navy-900);
+}
+
+.repository-diagnostics-header h4 {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.repository-diagnostics-score {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: right;
+}
+
+.repository-diagnostics-score strong {
+  color: var(--navy-900);
+  font-size: 16px;
+  line-height: 22px;
+}
+
+.repository-diagnostics-metrics {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.repository-diagnostics-metric {
+  display: flex;
+  flex: 1 1 132px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border: var(--border-subtle);
+  border-radius: var(--radius-button);
+  background: var(--surface);
+}
+
+.repository-diagnostics-metric span,
+.repository-diagnostics-definition-list dt,
+.repository-diagnostics-evidence p {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.repository-diagnostics-metric strong {
+  color: var(--navy-900);
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.repository-diagnostics-columns {
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.repository-diagnostics-columns > section {
+  flex: 1 1 240px;
+}
+
+.repository-diagnostics-columns h5,
+.repository-diagnostics-evidence h5 {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.repository-diagnostics-definition-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+.repository-diagnostics-definition-list > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.repository-diagnostics-definition-list dt,
+.repository-diagnostics-definition-list dd {
+  margin: 0;
+}
+
+.repository-diagnostics-definition-list dd {
+  color: var(--navy-900);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 18px;
+  text-align: right;
+}
+
+.repository-diagnostics-evidence ul {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.repository-diagnostics-evidence li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 9px 10px;
+  border: var(--border-subtle);
+  border-radius: var(--radius-button);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.repository-diagnostics-evidence li strong {
+  color: var(--navy-900);
+}
+
+.repository-diagnostics-evidence code {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--navy-800);
+  font-family: var(--font-mono);
+  font-size: 11px;
 }
 
 .skeleton-shimmer {
@@ -1998,6 +2176,10 @@ input::placeholder {
 
   .repository-table-body {
     overflow: visible;
+  }
+
+  .repository-row-group {
+    min-width: 0;
   }
 
   .repository-row {
