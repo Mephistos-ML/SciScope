@@ -17,10 +17,10 @@ def save_search_run_ranking_labels_response(
     """Authorize and save human relevance labels for one completed run."""
 
     user = get_current_user(request, database_url=request.app.state.database_url)
-    if user is None or not has_feature(user.email, "explore_beta"):
+    if user is None or not has_feature(user.email, "search_diagnostics"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Internal beta access is required.",
+            detail="Search diagnostics access is required.",
         )
     normalized_labels = {
         str(repository_id): value

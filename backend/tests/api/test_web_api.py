@@ -531,26 +531,26 @@ def test_google_auth_callback_creates_user_session(monkeypatch) -> None:
             assert client.get("/api/me").json()["user"]["email"] == "scientist@example.com"
 
 
-def test_get_me_exposes_enabled_beta_features(monkeypatch) -> None:
+def test_get_me_exposes_enabled_search_diagnostics_feature(monkeypatch) -> None:
     user = auth_service.User(
-        user_id="user_beta",
-        email="beta@example.com",
-        display_name="Beta User",
+        user_id="user_diagnostics",
+        email="diagnostics@example.com",
+        display_name="Diagnostics User",
     )
     monkeypatch.setattr(
         "app.api.routes.auth.get_current_user",
         lambda request, *, database_url: user,
     )
     monkeypatch.setattr(
-        "app.services.features.access.BETA_USER_EMAILS",
-        ("beta@example.com",),
+        "app.services.features.access.SEARCH_DIAGNOSTICS_USER_EMAILS",
+        ("diagnostics@example.com",),
     )
 
     with TestClient(app) as client:
         response = client.get("/api/me")
 
     assert response.status_code == 200
-    assert response.json()["user"]["features"] == ["explore_beta"]
+    assert response.json()["user"]["features"] == ["search_diagnostics"]
 
 
 def test_explore_search_bypasses_quota_for_internal_email(monkeypatch) -> None:
