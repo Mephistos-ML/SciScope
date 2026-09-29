@@ -15,7 +15,7 @@ from app.api.routes import auth as auth_routes
 from app.api.routes import dashboard as dashboard_routes
 from app.api.routes import explore as explore_routes
 from app.api.routes import feed as feed_routes
-from app.api.routes import ranking_dataset as ranking_dataset_routes
+from app.api.routes import ranking_labels as ranking_labels_routes
 from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS, DATABASE_URL
 from app.database.session import check_database_connection
@@ -43,8 +43,7 @@ class CreateSubscriptionRequest(BaseModel):
     selectedQuery: str | None = None
 
 
-class SaveRankingDatasetRequest(BaseModel):
-    searchJobId: str
+class SaveSearchRunRankingLabelsRequest(BaseModel):
     labels: dict[str, int] = Field(default_factory=dict)
 
 
@@ -230,16 +229,21 @@ def expand_explore_search_job(request: Request, job_id: str) -> dict[str, object
     return payload
 
 
-@app.post("/api/internal/ranking-dataset/runs", status_code=status.HTTP_201_CREATED)
-def save_ranking_dataset_run(
+@app.post(
+    "/api/internal/search-runs/{run_id}/ranking-labels",
+    status_code=status.HTTP_201_CREATED,
+)
+def save_search_run_ranking_labels(
     request: Request,
-    payload: SaveRankingDatasetRequest,
+    run_id: str,
+    payload: SaveSearchRunRankingLabelsRequest,
 ) -> dict[str, object]:
-    """Persist one explicit, manually labelled Explore beta dataset run."""
+    """Persist human labels for candidates in an immutable run snapshot."""
 
-    return ranking_dataset_routes.save_ranking_dataset_run_response(
+    return ranking_labels_routes.save_search_run_ranking_labels_response(
         request,
-        payload.model_dump(),
+        run_id,
+        payload.labels,
     )
 
 

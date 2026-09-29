@@ -23,6 +23,8 @@ from app.database.records.repositories import (
 from app.database.records.search_runs import (
     SearchRunOperationRecordModel,
     SearchRunProviderOutcomeRecordModel,
+    SearchRunRankingCandidateRecordModel,
+    SearchRunRankingLabelRecordModel,
     SearchRunRecordModel,
     SearchRunStageRecordModel,
 )
@@ -39,6 +41,8 @@ REGISTERED_MODELS = (
     SearchRunOperationRecordModel,
     SearchRunStageRecordModel,
     SearchRunProviderOutcomeRecordModel,
+    SearchRunRankingCandidateRecordModel,
+    SearchRunRankingLabelRecordModel,
 )
 
 config = context.config

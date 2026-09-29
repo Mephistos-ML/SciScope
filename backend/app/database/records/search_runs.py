@@ -144,3 +144,22 @@ class SearchRunRankingCandidateRecordModel(Base):
     admission_facts_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     ranking_features_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     score_breakdown_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
+class SearchRunRankingLabelRecordModel(Base):
+    __tablename__ = "search_run_ranking_labels"
+    __table_args__ = (Index("ix_search_run_ranking_labels_run_stage", "run_id", "stage_number"),)
+
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("search_runs.run_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    repository_id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.user_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    stage_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    label: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

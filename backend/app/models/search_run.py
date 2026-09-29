@@ -146,3 +146,16 @@ class SearchRankingCandidateReport:
     admission_facts: dict[str, Any]
     ranking_features: dict[str, Any]
     score_breakdown: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class SearchRunRankingLabel:
+    """One human relevance judgment for an immutable ranking candidate."""
+
+    run_id: str
+    repository_id: str
+    user_id: str
+    stage_number: int
+    label: int
+    created_at: datetime
+    updated_at: datetime

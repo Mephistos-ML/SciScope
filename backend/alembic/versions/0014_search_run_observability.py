@@ -14,6 +14,47 @@ depends_on = None
 
 def upgrade() -> None:
     op.create_table(
+        "archived_ranking_dataset_examples",
+        sa.Column("legacy_run_id", sa.String(), primary_key=True),
+        sa.Column("repository_id", sa.String(), primary_key=True),
+        sa.Column("user_id", sa.String(), nullable=False),
+        sa.Column("search_job_id", sa.String(), nullable=False),
+        sa.Column("topic_description", sa.Text(), nullable=False),
+        sa.Column("generated_queries_json", sa.JSON(), nullable=False),
+        sa.Column("ranking_policy_version", sa.String(), nullable=False),
+        sa.Column("source", sa.String(), nullable=False),
+        sa.Column("full_name", sa.Text(), nullable=False),
+        sa.Column("url", sa.Text(), nullable=False),
+        sa.Column("rank_position", sa.Integer(), nullable=False),
+        sa.Column("ranking_score", sa.Float(), nullable=False),
+        sa.Column("candidate_snapshot_json", sa.JSON(), nullable=False),
+        sa.Column("features_json", sa.JSON(), nullable=False),
+        sa.Column("manual_label", sa.Integer(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    )
+    op.execute(
+        """
+        INSERT INTO archived_ranking_dataset_examples (
+            legacy_run_id, repository_id, user_id, search_job_id,
+            topic_description, generated_queries_json, ranking_policy_version,
+            source, full_name, url, rank_position, ranking_score,
+            candidate_snapshot_json, features_json, manual_label, created_at
+        )
+        SELECT runs.run_id, examples.repository_id, runs.user_id, runs.search_job_id,
+               runs.topic_description, runs.generated_queries_json,
+               runs.ranking_policy_version, examples.source, examples.full_name,
+               examples.url, examples.rank_position, examples.ranking_score,
+               examples.candidate_snapshot_json, examples.features_json,
+               examples.manual_label, examples.created_at
+        FROM ranking_dataset_examples AS examples
+        JOIN ranking_dataset_runs AS runs ON runs.run_id = examples.run_id
+        """
+    )
+    op.drop_index("ix_ranking_dataset_examples_run_rank", table_name="ranking_dataset_examples")
+    op.drop_table("ranking_dataset_examples")
+    op.drop_index("ix_ranking_dataset_runs_user_created_at", table_name="ranking_dataset_runs")
+    op.drop_table("ranking_dataset_runs")
+    op.create_table(
         "search_runs",
         sa.Column("run_id", sa.String(), primary_key=True),
         sa.Column(
@@ -160,9 +201,39 @@ def upgrade() -> None:
         "search_run_ranking_candidates",
         ["repository_id"],
     )
+    op.create_table(
+        "search_run_ranking_labels",
+        sa.Column(
+            "run_id",
+            sa.String(),
+            sa.ForeignKey("search_runs.run_id", ondelete="CASCADE"),
+            primary_key=True,
+        ),
+        sa.Column("repository_id", sa.String(), primary_key=True),
+        sa.Column(
+            "user_id",
+            sa.String(),
+            sa.ForeignKey("users.user_id", ondelete="CASCADE"),
+            primary_key=True,
+        ),
+        sa.Column("stage_number", sa.Integer(), nullable=False),
+        sa.Column("label", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    )
+    op.create_index(
+        "ix_search_run_ranking_labels_run_stage",
+        "search_run_ranking_labels",
+        ["run_id", "stage_number"],
+    )
 
 
 def downgrade() -> None:
+    op.drop_index(
+        "ix_search_run_ranking_labels_run_stage",
+        table_name="search_run_ranking_labels",
+    )
+    op.drop_table("search_run_ranking_labels")
     op.drop_index(
         "ix_search_run_ranking_candidates_repository",
         table_name="search_run_ranking_candidates",
@@ -191,3 +262,49 @@ def downgrade() -> None:
     op.drop_index("ix_search_runs_status_created", table_name="search_runs")
     op.drop_index("ix_search_runs_owner_created", table_name="search_runs")
     op.drop_table("search_runs")
+    op.create_table(
+        "ranking_dataset_runs",
+        sa.Column("run_id", sa.String(), primary_key=True),
+        sa.Column(
+            "user_id",
+            sa.String(),
+            sa.ForeignKey("users.user_id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column("search_job_id", sa.String(), nullable=False, unique=True),
+        sa.Column("topic_description", sa.Text(), nullable=False),
+        sa.Column("generated_queries_json", sa.JSON(), nullable=False),
+        sa.Column("ranking_policy_version", sa.String(), nullable=False),
+        sa.Column("candidate_count", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    )
+    op.create_index(
+        "ix_ranking_dataset_runs_user_created_at",
+        "ranking_dataset_runs",
+        ["user_id", "created_at"],
+    )
+    op.create_table(
+        "ranking_dataset_examples",
+        sa.Column(
+            "run_id",
+            sa.String(),
+            sa.ForeignKey("ranking_dataset_runs.run_id", ondelete="CASCADE"),
+            primary_key=True,
+        ),
+        sa.Column("repository_id", sa.String(), primary_key=True),
+        sa.Column("source", sa.String(), nullable=False),
+        sa.Column("full_name", sa.Text(), nullable=False),
+        sa.Column("url", sa.Text(), nullable=False),
+        sa.Column("rank_position", sa.Integer(), nullable=False),
+        sa.Column("ranking_score", sa.Float(), nullable=False),
+        sa.Column("candidate_snapshot_json", sa.JSON(), nullable=False),
+        sa.Column("features_json", sa.JSON(), nullable=False),
+        sa.Column("manual_label", sa.Integer(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    )
+    op.create_index(
+        "ix_ranking_dataset_examples_run_rank",
+        "ranking_dataset_examples",
+        ["run_id", "rank_position"],
+    )
+    op.drop_table("archived_ranking_dataset_examples")

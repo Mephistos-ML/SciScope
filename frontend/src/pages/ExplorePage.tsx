@@ -9,7 +9,7 @@ import type {
 } from "../types/api";
 import { SourceBadge } from "../components/SourceBadge";
 import { TurnstileWidget } from "../components/TurnstileWidget";
-import { RankingDatasetLabeler, RankingDatasetLabelSelect } from "../features/ranking-dataset/RankingDatasetLabeler";
+import { RankingSnapshotLabeler, RankingSnapshotLabelSelect } from "../features/ranking-dataset/RankingDatasetLabeler";
 import exploreEmptyIllustration from "../assets/states/explore/explore-empty.svg";
 import noResultsIllustration from "../assets/states/explore/search-no-results.svg";
 
@@ -337,7 +337,7 @@ export function ExplorePage({
             ) : null}
 
             {betaMode && results[0]?.beta && hasResults ? (
-              <RankingDatasetLabeler key={searchJobId} searchJobId={searchJobId} results={results} labels={datasetLabels} />
+              <RankingSnapshotLabeler key={searchJobId} searchJobId={searchJobId} results={results} labels={datasetLabels} />
             ) : null}
 
             {betaMode && lastExploreBeta?.timings ? (
@@ -469,7 +469,7 @@ export function ExplorePage({
                               {isSubscribed ? "Subscribed" : isPending ? "Saving..." : "Subscribe"}
                             </button>
                             {betaMode && result.beta ? (
-                              <RankingDatasetLabelSelect
+                              <RankingSnapshotLabelSelect
                                 value={datasetLabels[result.itemId]}
                                 onChange={(label) => setDatasetLabels((current) => {
                                   const next = { ...current };

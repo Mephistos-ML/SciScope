@@ -217,14 +217,15 @@ export async function expandExploreSearchJob(jobId: string): Promise<ExploreSear
   });
 }
 
-export async function saveRankingDatasetRun(payload: {
-  searchJobId: string;
-  labels: Record<string, 0 | 1 | 2>;
-}): Promise<{ runId: string; candidateCount: number; labeledCount: number }> {
-  return requestJson("/api/internal/ranking-dataset/runs", {
+export async function saveSearchRunRankingLabels(runId: string, labels: Record<string, 0 | 1 | 2>): Promise<{
+  runId: string;
+  stageNumber: number;
+  labelledCount: number;
+}> {
+  return requestJson(`/api/internal/search-runs/${encodeURIComponent(runId)}/ranking-labels`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ labels }),
   });
 }
 

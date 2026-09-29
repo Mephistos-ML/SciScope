@@ -12,6 +12,7 @@ from app.database.records.search_runs import (
     SearchRunOperationRecordModel,
     SearchRunProviderOutcomeRecordModel,
     SearchRunRankingCandidateRecordModel,
+    SearchRunRankingLabelRecordModel,
     SearchRunRecordModel,
     SearchRunStageRecordModel,
 )
@@ -21,6 +22,7 @@ from app.models.search_run import (
     SearchRunOperation,
     SearchRunProviderOutcome,
     SearchRankingCandidateReport,
+    SearchRunRankingLabel,
     SearchRunStage,
 )
 
@@ -160,6 +162,56 @@ def record_search_run_ranking_candidates(
             )
             for candidate in candidates
         )
+
+
+def list_search_run_ranking_repository_ids(
+    run_id: str,
+    stage_number: int,
+    *,
+    database_url: str,
+) -> set[str]:
+    """Return candidate identities available for one immutable snapshot."""
+
+    with session_scope(database_url) as session:
+        return set(
+            session.scalars(
+                select(SearchRunRankingCandidateRecordModel.repository_id).where(
+                    SearchRunRankingCandidateRecordModel.run_id == run_id,
+                    SearchRunRankingCandidateRecordModel.stage_number == stage_number,
+                )
+            )
+        )
+
+
+def upsert_search_run_ranking_labels(
+    labels: Sequence[SearchRunRankingLabel],
+    *,
+    database_url: str,
+) -> None:
+    """Store human labels without changing the referenced snapshot facts."""
+
+    with session_scope(database_url) as session:
+        for label in labels:
+            record = session.get(
+                SearchRunRankingLabelRecordModel,
+                (label.run_id, label.repository_id, label.user_id),
+            )
+            if record is None:
+                session.add(
+                    SearchRunRankingLabelRecordModel(
+                        run_id=label.run_id,
+                        repository_id=label.repository_id,
+                        user_id=label.user_id,
+                        stage_number=label.stage_number,
+                        label=label.label,
+                        created_at=label.created_at,
+                        updated_at=label.updated_at,
+                    )
+                )
+                continue
+            record.stage_number = label.stage_number
+            record.label = label.label
+            record.updated_at = label.updated_at
 
 
 def count_search_run_stages(run_id: str, *, database_url: str) -> int:

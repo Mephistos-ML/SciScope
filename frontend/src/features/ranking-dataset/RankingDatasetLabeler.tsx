@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 
-import { saveRankingDatasetRun } from "../../lib/api";
+import { saveSearchRunRankingLabels } from "../../lib/api";
 import type { ExploreResultItem } from "../../types/api";
 
 type Label = 0 | 1 | 2;
 
-export function RankingDatasetLabeler({
+export function RankingSnapshotLabeler({
   searchJobId,
   results,
   labels,
@@ -28,11 +28,11 @@ export function RankingDatasetLabeler({
     setSaving(true);
     setMessage(null);
     try {
-      const saved = await saveRankingDatasetRun({ searchJobId, labels });
+      const saved = await saveSearchRunRankingLabels(searchJobId, labels);
       setSaved(true);
-      setMessage(`Dataset saved: ${saved.candidateCount} candidates, ${saved.labeledCount} labels.`);
+      setMessage(`Labels saved for snapshot stage ${saved.stageNumber}: ${saved.labelledCount} judgments.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Failed to save dataset.");
+      setMessage(error instanceof Error ? error.message : "Failed to save labels.");
     } finally {
       setSaving(false);
     }
@@ -47,14 +47,14 @@ export function RankingDatasetLabeler({
         </p>
       </div>
       <button className="outline-button" disabled={!searchJobId || saved || saving || counts.golden === 0} onClick={() => void save()} type="button">
-        {saved ? "Dataset saved" : saving ? "Saving dataset..." : "Save dataset"}
+        {saved ? "Labels saved" : saving ? "Saving labels..." : "Save labels"}
       </button>
       {message ? <p className="ranking-dataset-message">{message}</p> : null}
     </section>
   );
 }
 
-export function RankingDatasetLabelSelect({
+export function RankingSnapshotLabelSelect({
   value,
   onChange,
 }: {
