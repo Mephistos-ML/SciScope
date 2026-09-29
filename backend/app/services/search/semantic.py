@@ -108,12 +108,15 @@ def retrieve_semantic_catalog_candidates(
         evidence_by_repository: dict[str, list[RetrievalMatchEvidence]] = defaultdict(list)
         matched_queries_by_repository: dict[str, list[str]] = defaultdict(list)
         for query, embedding in zip(normalized_queries, embeddings, strict=True):
-            for row in find_semantic_query_evidence(
-                embedding,
-                embedding_model=config.SEMANTIC_EMBEDDING_MODEL,
-                limit=config.SEMANTIC_CATALOG_QUERY_LIMIT,
-                min_similarity=config.SEMANTIC_CATALOG_MIN_SIMILARITY,
-                database_url=database_url,
+            for retrieval_rank, row in enumerate(
+                find_semantic_query_evidence(
+                    embedding,
+                    embedding_model=config.SEMANTIC_EMBEDDING_MODEL,
+                    limit=config.SEMANTIC_CATALOG_QUERY_LIMIT,
+                    min_similarity=config.SEMANTIC_CATALOG_MIN_SIMILARITY,
+                    database_url=database_url,
+                ),
+                start=1,
             ):
                 repository_id = str(row["repository_id"])
                 _append_match(
@@ -124,13 +127,17 @@ def retrieve_semantic_catalog_candidates(
                     location=str(row["match_location"]),
                     path=str(row["matched_path"] or ""),
                     similarity=float(row["similarity"]),
+                    retrieval_rank=retrieval_rank,
                 )
-            for row in find_semantic_profiles(
-                embedding,
-                embedding_model=config.SEMANTIC_EMBEDDING_MODEL,
-                limit=config.SEMANTIC_CATALOG_PROFILE_LIMIT,
-                min_similarity=config.SEMANTIC_CATALOG_MIN_SIMILARITY,
-                database_url=database_url,
+            for retrieval_rank, row in enumerate(
+                find_semantic_profiles(
+                    embedding,
+                    embedding_model=config.SEMANTIC_EMBEDDING_MODEL,
+                    limit=config.SEMANTIC_CATALOG_PROFILE_LIMIT,
+                    min_similarity=config.SEMANTIC_CATALOG_MIN_SIMILARITY,
+                    database_url=database_url,
+                ),
+                start=1,
             ):
                 repository_id = str(row["repository_id"])
                 _append_match(
@@ -141,6 +148,7 @@ def retrieve_semantic_catalog_candidates(
                     location="metadata",
                     path="",
                     similarity=float(row["similarity"]),
+                    retrieval_rank=retrieval_rank,
                 )
         repositories = list_repositories_by_ids(
             tuple(evidence_by_repository),
@@ -236,7 +244,16 @@ def _build_candidate(
         provenance=CandidateProvenance(
             matched_queries=matched_queries,
             matched_channels=("semantic_catalog",),
-            best_rank_by_channel={"semantic_catalog": 1},
+            best_rank_by_channel={
+                "semantic_catalog": min(
+                    (
+                        item.retrieval_rank
+                        for item in evidence
+                        if item.retrieval_rank is not None
+                    ),
+                    default=1,
+                )
+            },
             hit_count=len(evidence),
             match_evidence=evidence,
             origins=("catalog",),
@@ -253,6 +270,7 @@ def _append_match(
     location: str,
     path: str,
     similarity: float,
+    retrieval_rank: int,
 ) -> None:
     bounded_similarity = min(1.0, max(0.0, similarity))
     if query not in queries_by_repository[repository_id]:
@@ -262,6 +280,9 @@ def _append_match(
         location=location,  # type: ignore[arg-type]
         path=path,
         alignment=bounded_similarity,
+        channel="semantic_catalog",
+        origin="catalog",
+        retrieval_rank=retrieval_rank,
     )
     if item not in evidence_by_repository[repository_id]:
         evidence_by_repository[repository_id].append(item)

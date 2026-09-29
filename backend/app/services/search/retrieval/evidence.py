@@ -85,6 +85,9 @@ def build_retrieval_match_evidence(hit: RetrievalHit) -> RetrievalMatchEvidence:
         query=query,
         location=location,
         path=path,
+        channel=hit.channel,
+        origin="provider",
+        retrieval_rank=hit.rank,
     )
 
 

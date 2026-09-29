@@ -28,6 +28,9 @@ class RetrievalMatchEvidence:
     location: RetrievalMatchLocation
     path: str = ""
     alignment: float = 1.0
+    channel: str = "unknown"
+    origin: Literal["catalog", "provider", "unknown"] = "unknown"
+    retrieval_rank: int | None = None
 
 
 @dataclass(frozen=True)

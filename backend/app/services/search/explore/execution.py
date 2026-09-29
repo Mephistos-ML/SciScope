@@ -80,6 +80,9 @@ def serialize_execution(execution: ExploreSearchExecution) -> dict[str, object]:
                                 "location": evidence.location,
                                 "path": evidence.path,
                                 "alignment": evidence.alignment,
+                                "channel": evidence.channel,
+                                "origin": evidence.origin,
+                                "retrieval_rank": evidence.retrieval_rank,
                             }
                             for evidence in candidate.provenance.match_evidence
                         ],

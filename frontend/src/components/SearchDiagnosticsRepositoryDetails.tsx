@@ -9,6 +9,9 @@ type MatchEvidence = {
   location: string;
   path: string | null;
   alignment: number | null;
+  channel: string | null;
+  origin: string | null;
+  retrievalRank: number | null;
 };
 
 export function SearchDiagnosticsRepositoryDetails({
@@ -85,9 +88,14 @@ export function SearchDiagnosticsRepositoryDetails({
         {evidence.length ? (
           <ul>
             {evidence.map((item, index) => (
-              <li key={`${item.query}-${item.location}-${item.path ?? ""}-${index}`}>
+              <li key={`${item.query}-${item.channel ?? ""}-${item.location}-${item.path ?? ""}-${index}`}>
                 <strong>{item.query}</strong>
                 <span>{formatLabel(item.location)}</span>
+                {item.channel ? <span>Channel {formatLabel(item.channel)}</span> : null}
+                {item.origin ? <span>Origin {formatLabel(item.origin)}</span> : null}
+                {item.retrievalRank !== null ? (
+                  <span>Retrieval rank #{item.retrievalRank}</span>
+                ) : null}
                 {item.path ? <code>{item.path}</code> : null}
                 {item.alignment !== null ? <span>Alignment {formatDecimal(item.alignment)}</span> : null}
               </li>
@@ -148,8 +156,16 @@ function readMatchEvidence(value: unknown): MatchEvidence[] {
       location,
       path: readString(candidate, "path"),
       alignment: readNumber(candidate, "alignment"),
+      channel: readKnownString(candidate, "channel"),
+      origin: readKnownString(candidate, "origin"),
+      retrievalRank: readNumber(candidate, "retrieval_rank"),
     }];
   });
+}
+
+function readKnownString(value: Record<string, unknown>, key: string): string | null {
+  const candidate = readString(value, key);
+  return candidate && candidate !== "unknown" ? candidate : null;
 }
 
 function formatScore(value: number): string {

@@ -92,7 +92,13 @@ def test_merge_retrieval_hits_accumulates_candidate_provenance() -> None:
     }
     assert candidate.provenance.hit_count == 2
     assert candidate.provenance.match_evidence[0].location == "description"
+    assert candidate.provenance.match_evidence[0].channel == "repository_search"
+    assert candidate.provenance.match_evidence[0].origin == "provider"
+    assert candidate.provenance.match_evidence[0].retrieval_rank == 7
     assert candidate.provenance.match_evidence[1].location == "code"
+    assert candidate.provenance.match_evidence[1].channel == "code_search"
+    assert candidate.provenance.match_evidence[1].origin == "provider"
+    assert candidate.provenance.match_evidence[1].retrieval_rank == 3
     assert candidate.provenance.match_evidence[1].path == "src/orto/parser.py"
 
 

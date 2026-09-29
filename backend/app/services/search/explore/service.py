@@ -503,6 +503,9 @@ def _build_ranking_candidate_reports(
                         "location": evidence.location,
                         "path": evidence.path,
                         "alignment": evidence.alignment,
+                        "channel": evidence.channel,
+                        "origin": evidence.origin,
+                        "retrieval_rank": evidence.retrieval_rank,
                     }
                     for evidence in ranked.candidate.provenance.match_evidence
                 ],

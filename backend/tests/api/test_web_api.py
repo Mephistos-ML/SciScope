@@ -33,6 +33,7 @@ from app.storage.feed import upsert_feed_events
 from app.storage.search_runs import (
     count_search_run_ranking_candidates,
     count_search_run_stages,
+    get_search_run_report,
     get_search_run_stage,
 )
 from app.storage.subscriptions import SubscriptionWatchRecord
@@ -161,6 +162,9 @@ def _build_retrieved_candidates(
                                     else "description"
                                 )
                             ),
+                            channel=matched_channels[0],
+                            origin="provider",
+                            retrieval_rank=1,
                         ),
                     ),
                 ),
@@ -1474,6 +1478,15 @@ def test_explore_search_run_returns_completed_snapshot(
         created["runId"],
         database_url=explore_run_database,
     ) == 1
+    report = get_search_run_report(
+        created["runId"],
+        database_url=explore_run_database,
+    )
+    assert report is not None
+    evidence = report["rankingSnapshots"][0]["retrievalFacts"]["match_evidence"][0]
+    assert evidence["channel"] == "repository_search"
+    assert evidence["origin"] == "provider"
+    assert evidence["retrieval_rank"] == 1
     stage = get_search_run_stage(
         created["runId"],
         1,

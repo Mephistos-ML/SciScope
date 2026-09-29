@@ -50,11 +50,17 @@ def test_catalog_retrieval_keeps_query_specific_evidence(tmp_path) -> None:
                 RetrievalMatchEvidence(
                     query="paramagnetic nmr",
                     location="description",
+                    channel="repository_search",
+                    origin="provider",
+                    retrieval_rank=1,
                 ),
                 RetrievalMatchEvidence(
                     query="paramagnetic relaxation",
                     location="code",
                     path="paranmr/relaxation.py",
+                    channel="code_search",
+                    origin="provider",
+                    retrieval_rank=3,
                 ),
             ),
         ),
@@ -68,9 +74,15 @@ def test_catalog_retrieval_keeps_query_specific_evidence(tmp_path) -> None:
     assert pnmr[0].signal.payload["query"] == "paramagnetic nmr"
     assert pnmr[0].signal.payload["provider_updated_at"] == "2026-09-03T12:30:00+00:00"
     assert pnmr[0].provenance.match_evidence[0].location == "description"
+    assert pnmr[0].provenance.match_evidence[0].channel == "repository_search"
+    assert pnmr[0].provenance.match_evidence[0].origin == "catalog"
+    assert pnmr[0].provenance.match_evidence[0].retrieval_rank == 1
     assert relaxation[0].provenance.matched_queries == ("relaxation",)
     assert relaxation[0].provenance.match_evidence[0].location == "code"
     assert relaxation[0].provenance.match_evidence[0].path == "paranmr/relaxation.py"
+    assert relaxation[0].provenance.match_evidence[0].channel == "code_search"
+    assert relaxation[0].provenance.match_evidence[0].origin == "catalog"
+    assert relaxation[0].provenance.match_evidence[0].retrieval_rank == 3
 
 
 def test_catalog_evidence_keeps_its_location_for_a_case_variant_current_query(tmp_path) -> None:
