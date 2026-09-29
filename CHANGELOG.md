@@ -1,3 +1,19 @@
+# [1.19.0](https://github.com/Mephistos-ML/SciScope/compare/v1.18.1...v1.19.0) (2026-09-29)
+
+
+### Features
+
+* add beta search stage diagnostics ([9c44989](https://github.com/Mephistos-ML/SciScope/commit/9c44989589dea463615ad9357f629b1e6446bdd2))
+* add durable search run records ([9d060b0](https://github.com/Mephistos-ML/SciScope/commit/9d060b0385f23dcc66e982a909aecfe4480715f6))
+* capture detailed search stage timings ([fc80c42](https://github.com/Mephistos-ML/SciScope/commit/fc80c42e6be3db3d595bf7a27463dbaf61d71b3f))
+* emit safe product search run events ([aa7a92d](https://github.com/Mephistos-ML/SciScope/commit/aa7a92d206e33ebb61d7e4991c3b3f3d733d00cb))
+* expose private durable search run reports ([2c25834](https://github.com/Mephistos-ML/SciScope/commit/2c2583408b7c0bad36e300d4506040e53aa1d09e))
+* persist durable explore search runs ([c46bb3f](https://github.com/Mephistos-ML/SciScope/commit/c46bb3f38093ee6e5e0c547b580f4838267846f1))
+* persist immutable ranking snapshots ([438fecf](https://github.com/Mephistos-ML/SciScope/commit/438fecf10c83ff89d3a484bdb553d806fda0256c))
+* persist search stage reports and provider outcomes ([8eafec7](https://github.com/Mephistos-ML/SciScope/commit/8eafec7e2cca5b289508bfe4f87788896acb1060))
+* run explore searches through durable worker leases ([ee7ebb7](https://github.com/Mephistos-ML/SciScope/commit/ee7ebb7f19312872e4804168551ed5e0a9e1cc72))
+* store labels on immutable ranking snapshots ([12a1d4e](https://github.com/Mephistos-ML/SciScope/commit/12a1d4ecaa70b8bf291a6adc1e550fb610640d24))
+
 ## [1.18.1](https://github.com/Mephistos-ML/SciScope/compare/v1.18.0...v1.18.1) (2026-09-28)
 
 
