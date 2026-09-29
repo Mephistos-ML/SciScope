@@ -117,6 +117,14 @@ def run_explore_search(
                 duration_ms=planning_duration_ms,
                 query_count=len(planned_queries),
                 planner=config.AI_PLANNER_MODE,
+                planner_model=(
+                    config.OPENAI_MODEL if config.AI_PLANNER_MODE == "openai" else None
+                ),
+                planner_reasoning_effort=(
+                    config.OPENAI_REASONING_EFFORT
+                    if config.AI_PLANNER_MODE == "openai"
+                    else None
+                ),
             )
 
         if not executed_queries:

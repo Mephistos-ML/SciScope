@@ -174,7 +174,8 @@ GITLAB_SERVICE_ACCOUNT_TOKEN = _read_optional_env("GITLAB_SERVICE_ACCOUNT_TOKEN"
 AI_PLANNER_MODE = _read_optional_env("AI_PLANNER_MODE") or "bootstrap"
 OPENAI_API_KEY = _read_optional_env("OPENAI_API_KEY")
 OPENAI_BASE_URL = _read_optional_env("OPENAI_BASE_URL") or "https://api.openai.com/v1"
-OPENAI_MODEL = _read_optional_env("OPENAI_MODEL") or "gpt-5.4-mini"
+OPENAI_MODEL = _read_optional_env("OPENAI_MODEL") or "gpt-5.6-luna"
+OPENAI_REASONING_EFFORT = _read_optional_env("OPENAI_REASONING_EFFORT") or "low"
 OPENAI_TIMEOUT_SECONDS = _read_optional_int_env("OPENAI_TIMEOUT_SECONDS", 20)
 EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS = _read_optional_int_env(
     "EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS",
@@ -289,6 +290,11 @@ if TURNSTILE_VERIFY_TIMEOUT_SECONDS <= 0:
 
 if AI_PLANNER_MODE not in {"bootstrap", "openai"}:
     raise RuntimeError("AI_PLANNER_MODE must be one of: bootstrap, openai")
+
+if OPENAI_REASONING_EFFORT not in {"none", "low", "medium", "high", "xhigh", "max"}:
+    raise RuntimeError(
+        "OPENAI_REASONING_EFFORT must be one of: none, low, medium, high, xhigh, max"
+    )
 
 if OPENAI_TIMEOUT_SECONDS <= 0:
     raise RuntimeError("OPENAI_TIMEOUT_SECONDS must be a positive integer")

@@ -134,6 +134,7 @@ export type SearchDiagnosticsRun = {
   status: string;
   plannerMode: string;
   plannerModel: string | null;
+  plannerReasoningEffort: string | null;
   rankingPolicyVersion: string;
   backendRevision: string;
   partial: boolean;

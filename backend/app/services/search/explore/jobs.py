@@ -54,16 +54,23 @@ def create_explore_search_run(
     run_id, operation_id = uuid4().hex, uuid4().hex
     create_search_run(
         SearchRun(
-            run_id,
-            owner_user_id,
-            topic_description,
-            hash_explore_topic(topic_description),
-            "queued",
-            config.AI_PLANNER_MODE,
-            None,
-            "heuristic-v1",
-            "unknown",
-            now,
+            run_id=run_id,
+            owner_user_id=owner_user_id,
+            topic_description=topic_description,
+            topic_hash=hash_explore_topic(topic_description),
+            status="queued",
+            planner_mode=config.AI_PLANNER_MODE,
+            planner_model=(
+                config.OPENAI_MODEL if config.AI_PLANNER_MODE == "openai" else None
+            ),
+            planner_reasoning_effort=(
+                config.OPENAI_REASONING_EFFORT
+                if config.AI_PLANNER_MODE == "openai"
+                else None
+            ),
+            ranking_policy_version="heuristic-v1",
+            backend_revision="unknown",
+            created_at=now,
         ),
         database_url=database_url,
     )

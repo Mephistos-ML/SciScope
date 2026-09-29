@@ -41,6 +41,7 @@ def test_search_run_storage_persists_execution_facts(tmp_path) -> None:
         status="running",
         planner_mode="openai",
         planner_model="gpt-5",
+        planner_reasoning_effort="low",
         ranking_policy_version="heuristic-v1",
         backend_revision="abc123",
         created_at=started_at,
@@ -117,6 +118,7 @@ def test_search_run_storage_persists_execution_facts(tmp_path) -> None:
     assert stored.status == run.status
     assert stored.planner_mode == run.planner_mode
     assert stored.planner_model == run.planner_model
+    assert stored.planner_reasoning_effort == run.planner_reasoning_effort
     assert stored.ranking_policy_version == run.ranking_policy_version
     assert stored.backend_revision == run.backend_revision
     assert count_search_run_stages(run.run_id, database_url=database_url) == 1
@@ -125,6 +127,7 @@ def test_search_run_storage_persists_execution_facts(tmp_path) -> None:
     report = get_search_run_report(run.run_id, database_url=database_url)
     assert report is not None
     assert report["run"]["runId"] == run.run_id
+    assert report["run"]["plannerReasoningEffort"] == "low"
     assert report["stages"][0]["timings"]["stage_wall_time"] == 820
     assert report["providerOutcomes"][0]["source"] == "github"
     assert report["providerOutcomes"][0]["retryAfterSeconds"] == 120
@@ -146,6 +149,7 @@ def test_search_run_report_projects_run_failure_fields(tmp_path) -> None:
         status="failed",
         planner_mode="openai",
         planner_model="gpt-5",
+        planner_reasoning_effort="low",
         ranking_policy_version="heuristic-v1",
         backend_revision="abc123",
         created_at=failed_at,
@@ -178,6 +182,7 @@ def test_search_run_operation_lease_allows_one_worker_and_recovers_after_expiry(
         status="queued",
         planner_mode="bootstrap",
         planner_model=None,
+        planner_reasoning_effort=None,
         ranking_policy_version="heuristic-v1",
         backend_revision="unknown",
         created_at=now,

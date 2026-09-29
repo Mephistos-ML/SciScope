@@ -29,6 +29,7 @@ class SearchRunRecordModel(Base):
     status: Mapped[str] = mapped_column(String, nullable=False)
     planner_mode: Mapped[str] = mapped_column(String, nullable=False)
     planner_model: Mapped[str | None] = mapped_column(String, nullable=True)
+    planner_reasoning_effort: Mapped[str | None] = mapped_column(String, nullable=True)
     ranking_policy_version: Mapped[str] = mapped_column(String, nullable=False)
     backend_revision: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

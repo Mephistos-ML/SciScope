@@ -37,6 +37,7 @@ class SearchRun:
     status: SearchRunStatus
     planner_mode: str
     planner_model: str | None
+    planner_reasoning_effort: str | None
     ranking_policy_version: str
     backend_revision: str
     created_at: datetime

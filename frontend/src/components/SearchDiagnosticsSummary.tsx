@@ -33,6 +33,13 @@ export function SearchDiagnosticsSummary({ report }: SearchDiagnosticsSummaryPro
         <summary>Run details</summary>
         <div className="search-diagnostics-details-content">
           <section className="search-diagnostics-section">
+            <h3>AI planner</h3>
+            <p className="search-diagnostics-empty">
+              {formatPlannerConfiguration(report.run.plannerMode, report.run.plannerModel, report.run.plannerReasoningEffort)}
+            </p>
+          </section>
+
+          <section className="search-diagnostics-section">
             <h3>Executed queries</h3>
             {executedQueries.length ? (
               <div className="query-chip-row search-diagnostics-query-chip-row">
@@ -160,6 +167,17 @@ function formatTimingName(value: string): string {
 
 function formatSource(value: string): string {
   return value === "github" ? "GitHub" : value === "gitlab" ? "GitLab" : formatLabel(value);
+}
+
+function formatPlannerConfiguration(
+  mode: string,
+  model: string | null,
+  reasoningEffort: string | null,
+): string {
+  if (!model) return `Mode: ${formatLabel(mode)}`;
+  return reasoningEffort
+    ? `${model} · reasoning: ${reasoningEffort}`
+    : model;
 }
 
 function formatLabel(value: string): string {

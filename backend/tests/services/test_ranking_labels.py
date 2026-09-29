@@ -21,6 +21,7 @@ def test_save_search_run_ranking_labels_targets_latest_snapshot(monkeypatch) -> 
             status="completed",
             planner_mode="heuristic",
             planner_model=None,
+            planner_reasoning_effort=None,
             ranking_policy_version="heuristic-v1",
             backend_revision="unknown",
             created_at=now,
