@@ -249,6 +249,8 @@ export function App() {
         }
 
         if (snapshot.status === "failed") {
+          setLastCompletedExploreJobId(snapshot.runId);
+          setLastCompletedExploreRunVersion(snapshot.updatedAt);
           setSearchPending(false);
           setActiveExploreJobId(null);
           setActiveExploreJobStatus(null);
@@ -596,6 +598,9 @@ export function App() {
     const nextPath = VIEW_PATHS[nextView];
     if (window.location.pathname !== nextPath) {
       window.history.pushState({}, "", nextPath);
+    }
+    if (nextView !== "explore") {
+      setSearchDiagnosticsRequested(false);
     }
     setActiveView(nextView);
   }
