@@ -765,6 +765,195 @@ input::placeholder {
   min-height: 0;
 }
 
+.search-diagnostics-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 20px;
+  border-color: color-mix(in srgb, var(--navy-700) 26%, var(--border));
+  background: linear-gradient(
+    to bottom right,
+    color-mix(in srgb, var(--navy-700) 6%, var(--surface)),
+    var(--surface)
+  );
+}
+
+.search-diagnostics-header,
+.search-diagnostics-metrics,
+.search-diagnostics-details-content,
+.search-diagnostics-section,
+.search-diagnostics-timings {
+  display: flex;
+}
+
+.search-diagnostics-header {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.search-diagnostics-status,
+.search-diagnostics-outcome-status {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.search-diagnostics-status {
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--navy-700) 12%, var(--surface));
+  color: var(--navy-900);
+}
+
+.search-diagnostics-status-completed_partial,
+.search-diagnostics-outcome-status-partial,
+.search-diagnostics-outcome-status-rate_limited,
+.search-diagnostics-outcome-status-timed_out {
+  background: color-mix(in srgb, var(--coral-400) 16%, var(--surface));
+}
+
+.search-diagnostics-message,
+.search-diagnostics-empty {
+  margin: -8px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.search-diagnostics-metrics {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.search-diagnostics-metric {
+  display: flex;
+  flex: 1 1 180px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 14px;
+  border: var(--border-subtle);
+  border-radius: var(--radius-button);
+  background: color-mix(in srgb, var(--surface) 82%, var(--surface-subtle));
+}
+
+.search-diagnostics-metric span,
+.search-diagnostics-metric small,
+.search-diagnostics-timing span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.search-diagnostics-metric strong {
+  color: var(--navy-900);
+  font-size: 16px;
+  line-height: 22px;
+}
+
+.search-diagnostics-details {
+  border-top: var(--border-subtle);
+}
+
+.search-diagnostics-details > summary {
+  padding-top: 16px;
+  color: var(--navy-900);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.search-diagnostics-details-content {
+  flex-direction: column;
+  gap: 20px;
+  padding-top: 18px;
+}
+
+.search-diagnostics-section {
+  flex-direction: column;
+  gap: 10px;
+}
+
+.search-diagnostics-section h3 {
+  margin: 0;
+  color: var(--navy-900);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+.search-diagnostics-query-chip-row {
+  justify-content: flex-start;
+}
+
+.search-diagnostics-outcomes-table {
+  overflow-x: auto;
+  border: var(--border-subtle);
+  border-radius: var(--radius-button);
+}
+
+.search-diagnostics-outcomes-head,
+.search-diagnostics-outcome-row {
+  display: grid;
+  grid-template-columns: 52px 88px 130px 120px 88px 76px minmax(220px, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-width: 860px;
+}
+
+.search-diagnostics-outcomes-head {
+  padding: 10px 12px;
+  border-bottom: var(--border-subtle);
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.search-diagnostics-outcome-row {
+  padding: 12px;
+  border-top: var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.search-diagnostics-outcome-row:first-child {
+  border-top: 0;
+}
+
+.search-diagnostics-outcome-status {
+  padding: 3px 7px;
+  background: var(--surface-subtle);
+  color: var(--navy-900);
+}
+
+.search-diagnostics-timings {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.search-diagnostics-timing {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 8px 10px;
+  border: var(--border-subtle);
+  border-radius: var(--radius-button);
+  background: var(--surface);
+}
+
+.search-diagnostics-timing strong {
+  color: var(--navy-900);
+  font-size: 12px;
+}
+
 .empty-state-panel {
   display: flex;
   flex-direction: column;

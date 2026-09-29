@@ -655,6 +655,7 @@ export function App() {
               isExpandingSearch={isExpandingSearch}
               searchPending={searchPending}
               searchDiagnosticsActive={searchDiagnosticsActive}
+              searchDiagnosticsReport={searchDiagnosticsReport}
               searchDiagnosticsStatus={
                 searchDiagnosticsLoading
                   ? "loading"

@@ -3,8 +3,10 @@ import { useEffect, useMemo, useState } from "react";
 import type {
   AiSearchPlanPayload,
   ExploreResultItem,
+  SearchDiagnosticsReport,
   ViewerPayload,
 } from "../types/api";
+import { SearchDiagnosticsSummary } from "../components/SearchDiagnosticsSummary";
 import { SourceBadge } from "../components/SourceBadge";
 import { TurnstileWidget } from "../components/TurnstileWidget";
 import exploreEmptyIllustration from "../assets/states/explore/explore-empty.svg";
@@ -39,6 +41,7 @@ type ExplorePageProps = {
   topicInput: string;
   searchStageLabel: string | null;
   searchDiagnosticsActive: boolean;
+  searchDiagnosticsReport: SearchDiagnosticsReport | null;
   searchDiagnosticsStatus: SearchDiagnosticsStatus;
   turnstileReady: boolean;
   turnstileResetKey: number;
@@ -62,6 +65,7 @@ export function ExplorePage({
   searchPending,
   searchStageLabel,
   searchDiagnosticsActive,
+  searchDiagnosticsReport,
   searchDiagnosticsStatus,
   subscribePendingRepositoryId,
   subscribedRepositoryIds,
@@ -228,6 +232,10 @@ export function ExplorePage({
           </div>
         </article>
       </section>
+
+      {searchDiagnosticsActive && searchDiagnosticsReport ? (
+        <SearchDiagnosticsSummary report={searchDiagnosticsReport} />
+      ) : null}
 
       {isPreSearch ? (
         <section className="results-panel">
