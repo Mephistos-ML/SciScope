@@ -210,39 +210,13 @@ def _allow_explore_access(monkeypatch) -> None:
     )
 
 
-def _run_explore_job_inline(
-    *,
-    run_id: str,
-    operation_id: str,
-    topic_description: str,
-    database_url: str,
-    log_context=None,
-) -> None:
-    from app.services.search.explore import jobs as search_jobs
+def _process_next_search_run_operation(database_url: str) -> None:
+    from app.jobs.process_search_runs import process_next_search_run_operation
 
-    search_jobs._run_explore_search_run(
-        run_id=run_id,
-        operation_id=operation_id,
-        topic_description=topic_description,
+    assert process_next_search_run_operation(
+        worker_id="test-worker",
         database_url=database_url,
-        log_context=log_context,
-    )
-
-
-def _run_explore_expansion_inline(
-    *,
-    run_id: str,
-    operation_id: str,
-    topic_description: str,
-    database_url: str,
-) -> None:
-    from app.services.search.explore import jobs as search_jobs
-
-    search_jobs._run_explore_search_expansion_run(
-        run_id=run_id,
-        operation_id=operation_id,
-        topic_description=topic_description,
-        database_url=database_url,
+        lease_seconds=30,
     )
 
 
@@ -1090,10 +1064,6 @@ def test_explore_search_run_fails_after_all_timeout_retries_are_exhausted(
 ) -> None:
     _allow_explore_access(monkeypatch)
     monkeypatch.setattr(
-        "app.services.search.explore.jobs._start_explore_search_run_runner",
-        _run_explore_job_inline,
-    )
-    monkeypatch.setattr(
         "app.services.search.explore.service.build_ai_search_plan",
         lambda topic_description: _build_ready_repository_ai_plan(
             "primary query",
@@ -1133,8 +1103,10 @@ def test_explore_search_run_fails_after_all_timeout_retries_are_exhausted(
             "/api/explore/search-runs",
             json={"topicDescription": "Exhausted timeout workflow"},
         )
+        _process_next_search_run_operation(explore_run_database)
+        response = client.get(f"/api/explore/search-runs/{response.json()['runId']}")
 
-    assert response.status_code == 202
+    assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "failed"
     assert payload["error"] == "Repository search is temporarily unavailable across all providers."
@@ -1374,10 +1346,6 @@ def test_explore_search_run_returns_completed_snapshot(
 ) -> None:
     _allow_explore_access(monkeypatch)
     monkeypatch.setattr(
-        "app.services.search.explore.jobs._start_explore_search_run_runner",
-        _run_explore_job_inline,
-    )
-    monkeypatch.setattr(
         "app.services.search.explore.service.build_ai_search_plan",
         lambda topic_description: _build_ready_repository_ai_plan(
             "paramagnetic nmr",
@@ -1406,7 +1374,9 @@ def test_explore_search_run_returns_completed_snapshot(
         )
 
         assert response.status_code == 202
-        created = response.json()
+        assert response.json()["status"] == "queued"
+        _process_next_search_run_operation(explore_run_database)
+        created = client.get(f"/api/explore/search-runs/{response.json()['runId']}").json()
         assert created["status"] == "completed"
         assert created["canExpand"] is True
         assert created["items"][0]["itemId"] == "github:repo:Mephistos-ML/paranmr"
@@ -1448,14 +1418,6 @@ def test_explore_search_run_expands_one_pending_query_and_merges_candidates(
 ) -> None:
     _allow_explore_access(monkeypatch)
     monkeypatch.setattr(
-        "app.services.search.explore.jobs._start_explore_search_run_runner",
-        _run_explore_job_inline,
-    )
-    monkeypatch.setattr(
-        "app.services.search.explore.jobs._start_explore_search_expansion_runner",
-        _run_explore_expansion_inline,
-    )
-    monkeypatch.setattr(
         "app.services.search.explore.service.build_ai_search_plan",
         lambda topic_description: _build_ready_repository_ai_plan(
             "paramagnetic nmr",
@@ -1488,11 +1450,15 @@ def test_explore_search_run_expands_one_pending_query_and_merges_candidates(
             "/api/explore/search-runs",
             json={"topicDescription": "Paramagnetic NMR analysis workflows"},
         ).json()
+        _process_next_search_run_operation(explore_run_database)
+        created = client.get(f"/api/explore/search-runs/{created['runId']}").json()
         expanded = client.post(
             f"/api/explore/search-runs/{created['runId']}/expand",
         )
+        _process_next_search_run_operation(explore_run_database)
+        expanded = client.get(f"/api/explore/search-runs/{created['runId']}")
 
-    assert expanded.status_code == 202
+    assert expanded.status_code == 200
     payload = expanded.json()
     assert payload["status"] == "completed"
     assert payload["canExpand"] is True
@@ -1509,14 +1475,6 @@ def test_explore_search_expansion_preserves_all_previous_results(
     """Incremental expansion may add candidates but must not remove prior ones."""
 
     _allow_explore_access(monkeypatch)
-    monkeypatch.setattr(
-        "app.services.search.explore.jobs._start_explore_search_run_runner",
-        _run_explore_job_inline,
-    )
-    monkeypatch.setattr(
-        "app.services.search.explore.jobs._start_explore_search_expansion_runner",
-        _run_explore_expansion_inline,
-    )
     monkeypatch.setattr(
         "app.services.search.explore.service.build_ai_search_plan",
         lambda topic_description: _build_ready_repository_ai_plan(
@@ -1555,12 +1513,16 @@ def test_explore_search_expansion_preserves_all_previous_results(
             "/api/explore/search-runs",
             json={"topicDescription": "Incremental search preservation"},
         ).json()
+        _process_next_search_run_operation(explore_run_database)
+        created = client.get(f"/api/explore/search-runs/{created['runId']}").json()
         initial_ids = {item["itemId"] for item in created["items"]}
 
         first_expansion = client.post(
             f"/api/explore/search-runs/{created['runId']}/expand",
         )
-        assert first_expansion.status_code == 202
+        _process_next_search_run_operation(explore_run_database)
+        first_expansion = client.get(f"/api/explore/search-runs/{created['runId']}")
+        assert first_expansion.status_code == 200
         first_expansion_ids = {
             item["itemId"] for item in first_expansion.json()["items"]
         }
@@ -1568,7 +1530,9 @@ def test_explore_search_expansion_preserves_all_previous_results(
         second_expansion = client.post(
             f"/api/explore/search-runs/{created['runId']}/expand",
         )
-        assert second_expansion.status_code == 202
+        _process_next_search_run_operation(explore_run_database)
+        second_expansion = client.get(f"/api/explore/search-runs/{created['runId']}")
+        assert second_expansion.status_code == 200
         second_expansion_ids = {
             item["itemId"] for item in second_expansion.json()["items"]
         }
@@ -1592,10 +1556,6 @@ def test_explore_search_run_rejects_expansion_after_plan_is_exhausted(
 ) -> None:
     _allow_explore_access(monkeypatch)
     monkeypatch.setattr(
-        "app.services.search.explore.jobs._start_explore_search_run_runner",
-        _run_explore_job_inline,
-    )
-    monkeypatch.setattr(
         "app.services.search.explore.service.build_ai_search_plan",
         lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
     )
@@ -1618,6 +1578,7 @@ def test_explore_search_run_rejects_expansion_after_plan_is_exhausted(
             "/api/explore/search-runs",
             json={"topicDescription": "Paramagnetic NMR analysis workflows"},
         ).json()
+        _process_next_search_run_operation(explore_run_database)
         response = client.post(f"/api/explore/search-runs/{created['runId']}/expand")
 
     assert response.status_code == 409
@@ -1628,10 +1589,6 @@ def test_explore_search_run_returns_failed_snapshot_when_all_sources_fail(
     monkeypatch, explore_run_database
 ) -> None:
     _allow_explore_access(monkeypatch)
-    monkeypatch.setattr(
-        "app.services.search.explore.jobs._start_explore_search_run_runner",
-        _run_explore_job_inline,
-    )
     monkeypatch.setattr(
         "app.services.search.explore.service.build_ai_search_plan",
         lambda topic_description: _build_ready_repository_ai_plan("orca parser"),
@@ -1662,8 +1619,10 @@ def test_explore_search_run_returns_failed_snapshot_when_all_sources_fail(
             "/api/explore/search-runs",
             json={"topicDescription": "A python package for working with Orca."},
         )
+        _process_next_search_run_operation(explore_run_database)
+        response = client.get(f"/api/explore/search-runs/{response.json()['runId']}")
 
-    assert response.status_code == 202
+    assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "failed"
     assert payload["sourceStatuses"][0]["source"] == "github"
@@ -1674,10 +1633,6 @@ def test_explore_search_run_returns_completed_partial_snapshot(
     monkeypatch, explore_run_database
 ) -> None:
     _allow_explore_access(monkeypatch)
-    monkeypatch.setattr(
-        "app.services.search.explore.jobs._start_explore_search_run_runner",
-        _run_explore_job_inline,
-    )
     monkeypatch.setattr(
         "app.services.search.explore.service.build_ai_search_plan",
         lambda topic_description: _build_ready_repository_ai_plan("orca parser"),
@@ -1705,8 +1660,10 @@ def test_explore_search_run_returns_completed_partial_snapshot(
             "/api/explore/search-runs",
             json={"topicDescription": "A python package for working with Orca."},
         )
+        _process_next_search_run_operation(explore_run_database)
+        response = client.get(f"/api/explore/search-runs/{response.json()['runId']}")
 
-    assert response.status_code == 202
+    assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "completed_partial"
     assert payload["items"][0]["itemId"] == "gitlab:repo:kragskow-group/orto"

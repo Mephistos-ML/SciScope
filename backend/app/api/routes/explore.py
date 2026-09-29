@@ -62,10 +62,6 @@ def create_explore_search_run_response(
     return create_explore_search_run(
         topic_description=topic_description,
         owner_user_id=user.user_id if user else None,
-        log_context=SearchLogContext(
-            request_id=build_request_id(),
-            topic_hash=topic_hash,
-        ),
         database_url=request.app.state.database_url,
     )
 

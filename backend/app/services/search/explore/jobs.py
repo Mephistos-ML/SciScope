@@ -5,7 +5,6 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import UTC, datetime
 import logging
-import threading
 from uuid import uuid4
 
 from app import config
@@ -48,10 +47,9 @@ def create_explore_search_run(
     *,
     topic_description: str,
     owner_user_id: str | None = None,
-    log_context: SearchLogContext | None = None,
     database_url: str,
 ) -> dict[str, object]:
-    """Create a durable logical run and schedule its initial operation."""
+    """Create a durable logical run with one queued initial operation."""
     now = datetime.now(UTC)
     run_id, operation_id = uuid4().hex, uuid4().hex
     create_search_run(
@@ -72,13 +70,6 @@ def create_explore_search_run(
     create_search_run_operation(
         SearchRunOperation(operation_id, run_id, "initial", "queued", now),
         database_url=database_url,
-    )
-    _start_explore_search_run_runner(
-        run_id=run_id,
-        operation_id=operation_id,
-        topic_description=topic_description,
-        database_url=database_url,
-        log_context=_build_log_context(topic_description, log_context).with_run_id(run_id),
     )
     return get_explore_search_run(run_id, database_url=database_url) or {}
 
@@ -140,26 +131,52 @@ def expand_explore_search_run(
         database_url=database_url,
     )
     update_search_run(run_id, status="running", database_url=database_url)
-    _start_explore_search_expansion_runner(
-        run_id=run_id,
-        operation_id=operation_id,
-        topic_description=run.topic_description,
-        database_url=database_url,
-    )
     return get_explore_search_run(run_id, database_url=database_url)
 
 
-def _start_explore_search_run_runner(**kwargs: object) -> None:
-    threading.Thread(target=lambda: _run_explore_search_run(**kwargs), daemon=True).start()
+def execute_search_run_operation(
+    operation: SearchRunOperation,
+    *,
+    database_url: str,
+) -> None:
+    """Execute one leased operation selected by the worker composition boundary."""
+
+    run = get_search_run(operation.run_id, database_url=database_url)
+    if run is None:
+        logger.error("Claimed search operation refers to a missing run: %s", operation.operation_id)
+        return
+    if run.status in {"completed", "completed_partial", "failed", "interrupted"}:
+        update_search_run_operation(
+            operation.operation_id,
+            status=run.status,
+            error_code=run.error_code,
+            error_message=run.error_message,
+            completed_at=run.completed_at or datetime.now(UTC),
+            database_url=database_url,
+        )
+        return
+    if operation.kind == "initial":
+        _run_initial_search_run(
+            run_id=run.run_id,
+            operation_id=operation.operation_id,
+            topic_description=run.topic_description,
+            database_url=database_url,
+        )
+        return
+    _run_search_expansion(
+        run_id=run.run_id,
+        operation_id=operation.operation_id,
+        topic_description=run.topic_description,
+        database_url=database_url,
+    )
 
 
-def _run_explore_search_run(
+def _run_initial_search_run(
     *,
     run_id: str,
     operation_id: str,
     topic_description: str,
     database_url: str,
-    log_context: SearchLogContext | None = None,
 ) -> None:
     now = datetime.now(UTC)
     update_search_run(
@@ -185,7 +202,7 @@ def _run_explore_search_run(
             ),
             log_context=_build_log_context(
                 topic_description,
-                log_context,
+                None,
             ).with_run_id(run_id),
             stage_report_callback=lambda report: _record_stage_report(
                 run_id=run_id,
@@ -209,14 +226,7 @@ def _run_explore_search_run(
     _complete(run_id, operation_id, payload, database_url)
 
 
-def _start_explore_search_expansion_runner(**kwargs: object) -> None:
-    threading.Thread(
-        target=lambda: _run_explore_search_expansion_run(**kwargs),
-        daemon=True,
-    ).start()
-
-
-def _run_explore_search_expansion_run(
+def _run_search_expansion(
     *,
     run_id: str,
     operation_id: str,
