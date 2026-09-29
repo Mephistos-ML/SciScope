@@ -182,6 +182,14 @@ EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS = _read_optional_int_env(
     "EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS",
     120,
 )
+SEARCH_RUN_WORKER_LEASE_SECONDS = _read_optional_int_env(
+    "SEARCH_RUN_WORKER_LEASE_SECONDS",
+    300,
+)
+SEARCH_RUN_WORKER_POLL_SECONDS = _read_optional_float_env(
+    "SEARCH_RUN_WORKER_POLL_SECONDS",
+    1.0,
+)
 EXPLORE_SEARCH_REPOSITORY_LANE_TIMEOUT_SECONDS = _read_optional_int_env(
     "EXPLORE_SEARCH_REPOSITORY_LANE_TIMEOUT_SECONDS",
     20,
@@ -235,6 +243,12 @@ if APP_LOG_LEVEL not in {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}:
 
 if AUTH_SESSION_TTL_SECONDS <= 0:
     raise RuntimeError("AUTH_SESSION_TTL_SECONDS must be a positive integer")
+
+if SEARCH_RUN_WORKER_LEASE_SECONDS <= 0:
+    raise RuntimeError("SEARCH_RUN_WORKER_LEASE_SECONDS must be a positive integer")
+
+if SEARCH_RUN_WORKER_POLL_SECONDS <= 0:
+    raise RuntimeError("SEARCH_RUN_WORKER_POLL_SECONDS must be positive")
 
 if AUTH_SESSION_SAMESITE not in {"lax", "strict", "none"}:
     raise RuntimeError("AUTH_SESSION_SAMESITE must be one of: lax, strict, none")

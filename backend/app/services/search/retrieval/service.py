@@ -50,6 +50,7 @@ def run_external_repository_retrieval(
         successful_source_count=int(retrieval_state["successful_source_count"]),
         partial=bool(retrieval_state["partial"]),
         warnings=tuple(str(warning) for warning in retrieval_state["warnings"]),
+        lane_outcomes=tuple(retrieval_state["lane_outcomes"]),
     )
     if log_context is not None and retrieval_started_at is not None:
         log_search_event(

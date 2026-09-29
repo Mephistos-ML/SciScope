@@ -8,14 +8,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.__version__ import __version__
 from app.api.routes import auth as auth_routes
 from app.api.routes import dashboard as dashboard_routes
 from app.api.routes import explore as explore_routes
 from app.api.routes import feed as feed_routes
-from app.api.routes import ranking_dataset as ranking_dataset_routes
+from app.api.routes import ranking_labels as ranking_labels_routes
+from app.api.routes import run_reports as run_reports_routes
 from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS, DATABASE_URL
 from app.database.session import check_database_connection
@@ -31,9 +32,10 @@ from app.services.search.explore.service import (
 class ExploreSearchRequest(BaseModel):
     """Request body for one topic-driven explore search."""
 
+    model_config = ConfigDict(extra="forbid")
+
     topicDescription: str = ""
     turnstileToken: str | None = None
-    betaMode: bool = False
 
 
 class CreateSubscriptionRequest(BaseModel):
@@ -43,8 +45,7 @@ class CreateSubscriptionRequest(BaseModel):
     selectedQuery: str | None = None
 
 
-class SaveRankingDatasetRequest(BaseModel):
-    searchJobId: str
+class SaveSearchRunRankingLabelsRequest(BaseModel):
     labels: dict[str, int] = Field(default_factory=dict)
 
 
@@ -53,7 +54,6 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Fail fast if the configured database is unavailable at startup."""
 
     configure_logging()
-    _app.state.database_url = DATABASE_URL
     check_database_connection(_app.state.database_url)
     yield
 
@@ -192,56 +192,71 @@ def run_explore_search(
     return explore_routes.search_explore_response(request, payload.model_dump())
 
 
-@app.post("/api/explore/search-jobs", status_code=status.HTTP_202_ACCEPTED)
-def create_explore_search_job(
+@app.post("/api/explore/search-runs", status_code=status.HTTP_202_ACCEPTED)
+def create_explore_search_run(
     request: Request,
     payload: ExploreSearchRequest,
 ) -> dict[str, object]:
-    """Create one manual explore search job."""
+    """Create one manual explore search run."""
 
-    return explore_routes.create_explore_search_job_response(
+    return explore_routes.create_explore_search_run_response(
         request,
         payload.model_dump(),
     )
 
 
-@app.get("/api/explore/search-jobs/{job_id}")
-def get_explore_search_job(request: Request, job_id: str) -> dict[str, object]:
-    """Return one manual explore search job snapshot."""
+@app.get("/api/explore/search-runs/{run_id}")
+def get_explore_search_run(request: Request, run_id: str) -> dict[str, object]:
+    """Return one manual explore search run snapshot."""
 
-    payload = explore_routes.get_explore_search_job_response(request, job_id)
+    payload = explore_routes.get_explore_search_run_response(request, run_id)
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Explore search job not found",
+            detail="Explore search run not found",
         )
     return payload
 
 
-@app.post("/api/explore/search-jobs/{job_id}/expand", status_code=status.HTTP_202_ACCEPTED)
-def expand_explore_search_job(request: Request, job_id: str) -> dict[str, object]:
-    """Run one next query from a completed Explore search job."""
+@app.post("/api/explore/search-runs/{run_id}/expand", status_code=status.HTTP_202_ACCEPTED)
+def expand_explore_search_run(request: Request, run_id: str) -> dict[str, object]:
+    """Run one next query from a completed Explore search run."""
 
-    payload = explore_routes.expand_explore_search_job_response(request, job_id)
+    payload = explore_routes.expand_explore_search_run_response(request, run_id)
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Explore search job not found",
+            detail="Explore search run not found",
         )
     return payload
 
 
-@app.post("/api/internal/ranking-dataset/runs", status_code=status.HTTP_201_CREATED)
-def save_ranking_dataset_run(
+@app.post(
+    "/api/internal/search-runs/{run_id}/ranking-labels",
+    status_code=status.HTTP_201_CREATED,
+)
+def save_search_run_ranking_labels(
     request: Request,
-    payload: SaveRankingDatasetRequest,
+    run_id: str,
+    payload: SaveSearchRunRankingLabelsRequest,
 ) -> dict[str, object]:
-    """Persist one explicit, manually labelled Explore beta dataset run."""
+    """Persist human labels for candidates in an immutable run snapshot."""
 
-    return ranking_dataset_routes.save_ranking_dataset_run_response(
+    return ranking_labels_routes.save_search_run_ranking_labels_response(
         request,
-        payload.model_dump(),
+        run_id,
+        payload.labels,
     )
+
+
+@app.get("/api/internal/search-runs/{run_id}/report")
+def get_search_run_report(request: Request, run_id: str) -> dict[str, object]:
+    """Return the authorized private report for one durable search run."""
+
+    report = run_reports_routes.get_search_run_report_response(request, run_id)
+    if report is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Search run not found")
+    return report
 
 
 @app.get("/api/subscriptions")

@@ -7,7 +7,6 @@ from fastapi import HTTPException, status
 
 from app.models.explore_access import ExploreTier
 from app.services.auth.service import get_current_user
-from app.services.features.access import has_feature
 from app.services.security.turnstile import verify_turnstile_token
 from app.services.search.access.errors import build_explore_access_denied_error
 from app.services.search.access.policy import has_search_quota_bypass
@@ -21,12 +20,11 @@ from app.services.search.access.service import (
     resolve_explore_actor,
 )
 from app.services.search.explore.jobs import (
-    create_explore_search_job,
-    expand_explore_search_job,
-    get_explore_search_job,
+    create_explore_search_run,
+    expand_explore_search_run,
+    get_explore_search_run,
 )
 from app.services.search.explore.service import run_explore_search
-from app.services.search.explore.response import ExploreResponseMode
 from app.services.search.observability.context import SearchLogContext, build_request_id
 
 
@@ -36,13 +34,12 @@ def search_explore_response(
 ) -> dict[str, object]:
     """Run an explore search from one topic description."""
 
-    topic_description, topic_hash, response_mode = _authorize_explore_search_request(
+    topic_description, topic_hash = _authorize_explore_search_request(
         request,
         payload,
     )
     return run_explore_search(
         topic_description=topic_description,
-        response_mode=response_mode,
         database_url=request.app.state.database_url,
         log_context=SearchLogContext(
             request_id=build_request_id(),
@@ -51,61 +48,47 @@ def search_explore_response(
     )
 
 
-def create_explore_search_job_response(
+def create_explore_search_run_response(
     request: Request,
     payload: dict[str, object],
 ) -> dict[str, object]:
-    """Create one background explore search job."""
+    """Create one background explore search run."""
 
-    topic_description, topic_hash, response_mode = _authorize_explore_search_request(
+    topic_description, topic_hash = _authorize_explore_search_request(
         request,
         payload,
     )
     user = get_current_user(request, database_url=request.app.state.database_url)
-    return create_explore_search_job(
+    return create_explore_search_run(
         topic_description=topic_description,
-        response_mode=response_mode,
-        owner_user_id=user.user_id if response_mode == "beta" and user else None,
-        log_context=SearchLogContext(
-            request_id=build_request_id(),
-            topic_hash=topic_hash,
-        ),
+        owner_user_id=user.user_id if user else None,
+        database_url=request.app.state.database_url,
     )
 
 
-def get_explore_search_job_response(
+def get_explore_search_run_response(
     request: Request,
-    job_id: str,
+    run_id: str,
 ) -> dict[str, object] | None:
-    """Return one background explore search job snapshot."""
+    """Return one background explore search run snapshot."""
 
-    payload = get_explore_search_job(job_id)
+    payload = get_explore_search_run(run_id, database_url=request.app.state.database_url)
     if payload is None:
         return None
-    if payload.get("responseMode") == "beta":
-        user = get_current_user(
-            request,
-            database_url=request.app.state.database_url,
-        )
-        if not has_feature(user.email if user else None, "explore_beta"):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Beta access is not enabled for this account.",
-            )
     return payload
 
 
-def expand_explore_search_job_response(
+def expand_explore_search_run_response(
     request: Request,
-    job_id: str,
+    run_id: str,
 ) -> dict[str, object] | None:
-    """Start one pending query for an existing Explore search job."""
+    """Start one pending query for an existing Explore search run."""
 
-    existing = get_explore_search_job_response(request, job_id)
+    existing = get_explore_search_run_response(request, run_id)
     if existing is None:
         return None
     try:
-        return expand_explore_search_job(job_id)
+        return expand_explore_search_run(run_id, database_url=request.app.state.database_url)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -116,7 +99,7 @@ def expand_explore_search_job_response(
 def _authorize_explore_search_request(
     request: Request,
     payload: dict[str, object],
-) -> tuple[str, str, ExploreResponseMode]:
+) -> tuple[str, str]:
     database_url = request.app.state.database_url
     topic_description = str(payload.get("topicDescription") or "").strip()
     turnstile_token = str(payload.get("turnstileToken") or "").strip()
@@ -164,18 +147,10 @@ def _authorize_explore_search_request(
         )
         raise build_explore_access_denied_error(decision)
 
-    beta_requested = bool(payload.get("betaMode"))
-    if beta_requested and not has_feature(user.email if user else None, "explore_beta"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Beta access is not enabled for this account.",
-        )
-
     record_allowed_explore_attempt(
         actor,
         topic_hash=topic_hash,
         quota_bypassed=quota_bypassed,
         database_url=database_url,
     )
-    response_mode = "beta" if beta_requested else "canonical"
-    return topic_description, topic_hash, response_mode
+    return topic_description, topic_hash

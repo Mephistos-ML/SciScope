@@ -2,7 +2,7 @@ import type {
   ExploreAccessErrorPayload,
   FeedEventDetailPayload,
   FeedEventListPayload,
-  ExploreSearchJobPayload,
+  ExploreSearchRunPayload,
   ExploreSearchPayload,
   SubscriptionItem,
   SubscriptionListPayload,
@@ -193,12 +193,11 @@ export async function runExploreSearch(payload: {
   });
 }
 
-export async function createExploreSearchJob(payload: {
+export async function createExploreSearchRun(payload: {
   topicDescription: string;
   turnstileToken?: string | null;
-  betaMode?: boolean;
-}): Promise<ExploreSearchJobPayload> {
-  return requestJson<ExploreSearchJobPayload>("/api/explore/search-jobs", {
+}): Promise<ExploreSearchRunPayload> {
+  return requestJson<ExploreSearchRunPayload>("/api/explore/search-runs", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -207,24 +206,13 @@ export async function createExploreSearchJob(payload: {
   });
 }
 
-export async function fetchExploreSearchJob(jobId: string): Promise<ExploreSearchJobPayload> {
-  return requestJson<ExploreSearchJobPayload>(`/api/explore/search-jobs/${jobId}`);
+export async function fetchExploreSearchRun(runId: string): Promise<ExploreSearchRunPayload> {
+  return requestJson<ExploreSearchRunPayload>(`/api/explore/search-runs/${runId}`);
 }
 
-export async function expandExploreSearchJob(jobId: string): Promise<ExploreSearchJobPayload> {
-  return requestJson<ExploreSearchJobPayload>(`/api/explore/search-jobs/${jobId}/expand`, {
+export async function expandExploreSearchRun(runId: string): Promise<ExploreSearchRunPayload> {
+  return requestJson<ExploreSearchRunPayload>(`/api/explore/search-runs/${runId}/expand`, {
     method: "POST",
-  });
-}
-
-export async function saveRankingDatasetRun(payload: {
-  searchJobId: string;
-  labels: Record<string, 0 | 1 | 2>;
-}): Promise<{ runId: string; candidateCount: number; labeledCount: number }> {
-  return requestJson("/api/internal/ranking-dataset/runs", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
   });
 }
 

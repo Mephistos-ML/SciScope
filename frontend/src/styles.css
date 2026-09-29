@@ -860,8 +860,7 @@ input::placeholder {
   gap: 20px;
 }
 
-.results-header-main,
-.results-plan-summary {
+.results-header-main {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -871,35 +870,6 @@ input::placeholder {
   display: flex;
   justify-content: flex-end;
   margin: 18px 0 12px;
-}
-
-.ranking-dataset-panel {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  margin: 0 0 12px;
-  padding: 10px 12px;
-  border: var(--border-subtle-strong);
-  border-radius: var(--radius-card);
-  background: var(--teal-100);
-}
-
-.ranking-dataset-copy,
-.ranking-dataset-message {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-.repository-actions-cell select {
-  min-height: 36px;
-  padding: 7px 8px;
-  border: var(--border-subtle);
-  border-radius: var(--radius-button);
-  background: var(--surface-primary);
-  color: var(--text-primary);
-  font: inherit;
 }
 
 .results-sort-control {
@@ -1141,104 +1111,6 @@ input::placeholder {
   -webkit-line-clamp: 3;
 }
 
-.beta-mode-button {
-  min-width: 170px;
-}
-
-.beta-mode-button-active {
-  border-color: #b57818;
-  background: #fff8e7;
-  color: #7a4b05;
-}
-
-.results-beta-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 8px;
-  border: 1px solid #e8c77b;
-  border-radius: var(--radius-pill);
-  background: #fff8e7;
-  color: #7a4b05;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 16px;
-}
-
-.repository-beta-diagnostic {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
-  border-left: 3px solid #d7ad4a;
-  background: #fffbf1;
-  color: var(--text-secondary);
-  font-size: 11px;
-  line-height: 16px;
-}
-
-.beta-run-timings {
-  margin: 14px 0;
-  padding: 12px;
-  border: 1px solid #e8c77b;
-  border-radius: var(--radius-card);
-  background: #fffbeb;
-}
-
-.beta-run-timings-title {
-  margin: 0 0 10px;
-  color: #7a4b05;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.beta-run-timings-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.beta-run-timing-metric {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-.beta-run-timing-metric strong {
-  color: var(--text-primary);
-  font-size: 14px;
-}
-
-.repository-beta-status {
-  align-self: flex-start;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.repository-beta-status-included {
-  color: #166534;
-}
-
-.repository-beta-status-below_cutoff {
-  color: #92400e;
-}
-
-.repository-beta-status-gate_rejected,
-.repository-beta-status-admission_rejected {
-  color: #a52929;
-}
-
-.repository-beta-score,
-.repository-beta-meta {
-  margin: 0;
-}
-
 .repository-term-row {
   display: flex;
   gap: 8px;
@@ -1419,30 +1291,6 @@ input::placeholder {
   font-size: 14px;
   line-height: 21px;
   text-align: center;
-}
-
-.beta-execution-summary {
-  margin: 10px 0 0;
-}
-
-.beta-query-attempts {
-  margin-top: 16px;
-  padding: 16px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-card);
-  background: var(--surface-raised);
-}
-
-.beta-query-attempt-list {
-  display: grid;
-  gap: 6px;
-}
-
-.beta-query-attempt-list p {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 20px;
 }
 
 .pagination-nav,
@@ -2012,26 +1860,14 @@ input::placeholder {
     flex-direction: column;
   }
 
-  .beta-run-timings-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .results-toolbar {
     justify-content: flex-start;
-  }
-
-  .ranking-dataset-panel {
-    align-items: flex-start;
-    flex-direction: column;
   }
 
   .results-footer {
     align-items: flex-start;
   }
 
-  .results-plan-summary {
-    align-items: flex-start;
-  }
 
   .query-chip-row {
     justify-content: flex-start;

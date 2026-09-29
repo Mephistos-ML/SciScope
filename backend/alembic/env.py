@@ -20,6 +20,14 @@ from app.database.records.repositories import (
     RepositoryRecordModel,
     SubscriptionRecordModel,
 )
+from app.database.records.search_runs import (
+    SearchRunOperationRecordModel,
+    SearchRunProviderOutcomeRecordModel,
+    SearchRunRankingCandidateRecordModel,
+    SearchRunRankingLabelRecordModel,
+    SearchRunRecordModel,
+    SearchRunStageRecordModel,
+)
 
 REGISTERED_MODELS = (
     UserRecordModel,
@@ -29,6 +37,12 @@ REGISTERED_MODELS = (
     SubscriptionRecordModel,
     ExploreSearchEventRecordModel,
     FeedEventRecordModel,
+    SearchRunRecordModel,
+    SearchRunOperationRecordModel,
+    SearchRunStageRecordModel,
+    SearchRunProviderOutcomeRecordModel,
+    SearchRunRankingCandidateRecordModel,
+    SearchRunRankingLabelRecordModel,
 )
 
 config = context.config
