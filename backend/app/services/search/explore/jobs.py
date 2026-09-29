@@ -335,6 +335,7 @@ def _record_stage_report(
                 status=outcome.status,
                 candidate_count=outcome.candidate_count,
                 duration_ms=outcome.duration_ms,
+                retry_after_seconds=outcome.retry_after_seconds,
                 error_code=outcome.error_code,
                 error_message=outcome.error_message,
             )

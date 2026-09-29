@@ -73,6 +73,7 @@ class RetrievalLaneOutcome:
     duration_ms: int
     query: str = ""
     attempt: int = 1
+    retry_after_seconds: int | None = None
     error_code: str | None = None
     error_message: str | None = None
 

@@ -284,6 +284,7 @@ def build_lane_outcome(lane_result: LaneResult) -> RetrievalLaneOutcome:
             status=lane_result.source_error.status,
             candidate_count=0,
             duration_ms=duration_ms,
+            retry_after_seconds=lane_result.source_error.retry_after_seconds,
             error_code=lane_result.source_error.status,
             error_message=lane_result.source_error.public_message,
         )
@@ -306,6 +307,9 @@ def build_lane_outcome(lane_result: LaneResult) -> RetrievalLaneOutcome:
         status="partial" if lane_result.query_failures else "ok",
         candidate_count=len(lane_result.source_candidates),
         duration_ms=duration_ms,
+        retry_after_seconds=(
+            first_failure.retry_after_seconds if first_failure else None
+        ),
         error_code=first_failure.status if first_failure else None,
         error_message=first_failure.public_message if first_failure else None,
     )

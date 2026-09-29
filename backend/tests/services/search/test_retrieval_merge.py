@@ -396,6 +396,7 @@ def test_run_external_repository_retrieval_stops_code_lane_after_rate_limit() ->
         "GitHub code search is rate-limited. Try again in 2 minutes 14 seconds. "
         "Retained results from 1 completed queries.",
     )
+    assert retrieved.lane_outcomes[0].retry_after_seconds == 134
 
 
 def _build_hit(

@@ -115,6 +115,7 @@ class SearchProviderOutcomeReport:
     status: str
     candidate_count: int
     duration_ms: int
+    retry_after_seconds: int | None = None
     error_code: str | None = None
     error_message: str | None = None
 

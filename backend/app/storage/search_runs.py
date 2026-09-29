@@ -441,6 +441,8 @@ def get_search_run_report(run_id: str, *, database_url: str) -> dict[str, object
                 "rankingPolicyVersion": run.ranking_policy_version,
                 "backendRevision": run.backend_revision,
                 "partial": run.partial,
+                "errorCode": run.error_code,
+                "errorMessage": run.error_message,
                 "createdAt": run.created_at.isoformat(),
                 "startedAt": run.started_at.isoformat() if run.started_at else None,
                 "completedAt": run.completed_at.isoformat() if run.completed_at else None,
@@ -470,7 +472,9 @@ def get_search_run_report(run_id: str, *, database_url: str) -> dict[str, object
                     "status": outcome.status,
                     "candidateCount": outcome.candidate_count,
                     "durationMs": outcome.duration_ms,
+                    "retryAfterSeconds": outcome.retry_after_seconds,
                     "errorCode": outcome.error_code,
+                    "errorMessage": outcome.error_message,
                 }
                 for outcome in outcomes
             ],
