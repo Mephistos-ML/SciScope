@@ -65,7 +65,7 @@ def create_explore_search_job_response(
     return create_explore_search_job(
         topic_description=topic_description,
         response_mode=response_mode,
-        owner_user_id=user.user_id if response_mode == "beta" and user else None,
+        owner_user_id=user.user_id if user else None,
         log_context=SearchLogContext(
             request_id=build_request_id(),
             topic_hash=topic_hash,

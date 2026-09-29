@@ -13,43 +13,6 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "archived_ranking_dataset_examples",
-        sa.Column("legacy_run_id", sa.String(), primary_key=True),
-        sa.Column("repository_id", sa.String(), primary_key=True),
-        sa.Column("user_id", sa.String(), nullable=False),
-        sa.Column("search_job_id", sa.String(), nullable=False),
-        sa.Column("topic_description", sa.Text(), nullable=False),
-        sa.Column("generated_queries_json", sa.JSON(), nullable=False),
-        sa.Column("ranking_policy_version", sa.String(), nullable=False),
-        sa.Column("source", sa.String(), nullable=False),
-        sa.Column("full_name", sa.Text(), nullable=False),
-        sa.Column("url", sa.Text(), nullable=False),
-        sa.Column("rank_position", sa.Integer(), nullable=False),
-        sa.Column("ranking_score", sa.Float(), nullable=False),
-        sa.Column("candidate_snapshot_json", sa.JSON(), nullable=False),
-        sa.Column("features_json", sa.JSON(), nullable=False),
-        sa.Column("manual_label", sa.Integer(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-    )
-    op.execute(
-        """
-        INSERT INTO archived_ranking_dataset_examples (
-            legacy_run_id, repository_id, user_id, search_job_id,
-            topic_description, generated_queries_json, ranking_policy_version,
-            source, full_name, url, rank_position, ranking_score,
-            candidate_snapshot_json, features_json, manual_label, created_at
-        )
-        SELECT runs.run_id, examples.repository_id, runs.user_id, runs.search_job_id,
-               runs.topic_description, runs.generated_queries_json,
-               runs.ranking_policy_version, examples.source, examples.full_name,
-               examples.url, examples.rank_position, examples.ranking_score,
-               examples.candidate_snapshot_json, examples.features_json,
-               examples.manual_label, examples.created_at
-        FROM ranking_dataset_examples AS examples
-        JOIN ranking_dataset_runs AS runs ON runs.run_id = examples.run_id
-        """
-    )
     op.drop_index("ix_ranking_dataset_examples_run_rank", table_name="ranking_dataset_examples")
     op.drop_table("ranking_dataset_examples")
     op.drop_index("ix_ranking_dataset_runs_user_created_at", table_name="ranking_dataset_runs")
@@ -307,4 +270,3 @@ def downgrade() -> None:
         "ranking_dataset_examples",
         ["run_id", "rank_position"],
     )
-    op.drop_table("archived_ranking_dataset_examples")

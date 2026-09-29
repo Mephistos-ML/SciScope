@@ -119,7 +119,6 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
     assert "ix_user_feed_events_user_subscription_chronological" in feed_indexes
     assert not inspector.has_table("ranking_dataset_runs")
     assert not inspector.has_table("ranking_dataset_examples")
-    assert inspector.has_table("archived_ranking_dataset_examples")
     assert inspector.has_table("search_run_ranking_candidates")
     assert inspector.has_table("search_run_ranking_labels")
     assert inspector.has_table("repository_query_embeddings")
