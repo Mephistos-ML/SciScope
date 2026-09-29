@@ -18,6 +18,7 @@ from app.storage.search_runs import (
     count_search_run_ranking_candidates,
     count_search_run_stages,
     get_search_run,
+    get_search_run_report,
     record_search_run_provider_outcomes,
     record_search_run_ranking_candidates,
     record_search_run_stage,
@@ -116,3 +117,9 @@ def test_search_run_storage_persists_execution_facts(tmp_path) -> None:
     assert count_search_run_stages(run.run_id, database_url=database_url) == 1
     assert count_search_run_provider_outcomes(run.run_id, database_url=database_url) == 1
     assert count_search_run_ranking_candidates(run.run_id, database_url=database_url) == 1
+    report = get_search_run_report(run.run_id, database_url=database_url)
+    assert report is not None
+    assert report["run"]["runId"] == run.run_id
+    assert report["stages"][0]["timings"]["stage_wall_time"] == 820
+    assert report["providerOutcomes"][0]["source"] == "github"
+    assert report["rankingSnapshots"][0]["repositoryId"] == "github:repo:science/example"

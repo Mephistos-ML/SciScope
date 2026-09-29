@@ -16,6 +16,7 @@ from app.api.routes import dashboard as dashboard_routes
 from app.api.routes import explore as explore_routes
 from app.api.routes import feed as feed_routes
 from app.api.routes import ranking_labels as ranking_labels_routes
+from app.api.routes import run_reports as run_reports_routes
 from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS, DATABASE_URL
 from app.database.session import check_database_connection
@@ -245,6 +246,16 @@ def save_search_run_ranking_labels(
         run_id,
         payload.labels,
     )
+
+
+@app.get("/api/internal/search-runs/{run_id}/report")
+def get_search_run_report(request: Request, run_id: str) -> dict[str, object]:
+    """Return the authorized private report for one durable search run."""
+
+    report = run_reports_routes.get_search_run_report_response(request, run_id)
+    if report is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Search run not found")
+    return report
 
 
 @app.get("/api/subscriptions")

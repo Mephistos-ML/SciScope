@@ -283,6 +283,113 @@ def get_search_run_stage(
         )
 
 
+def get_search_run_report(run_id: str, *, database_url: str) -> dict[str, object] | None:
+    """Read the complete private report for one durable search run."""
+
+    with session_scope(database_url) as session:
+        run = session.get(SearchRunRecordModel, run_id)
+        if run is None:
+            return None
+        stages = session.scalars(
+            select(SearchRunStageRecordModel)
+            .where(SearchRunStageRecordModel.run_id == run_id)
+            .order_by(SearchRunStageRecordModel.stage_number)
+        ).all()
+        outcomes = session.scalars(
+            select(SearchRunProviderOutcomeRecordModel)
+            .where(SearchRunProviderOutcomeRecordModel.run_id == run_id)
+            .order_by(
+                SearchRunProviderOutcomeRecordModel.stage_number,
+                SearchRunProviderOutcomeRecordModel.source,
+                SearchRunProviderOutcomeRecordModel.channel,
+                SearchRunProviderOutcomeRecordModel.attempt,
+            )
+        ).all()
+        candidates = session.scalars(
+            select(SearchRunRankingCandidateRecordModel)
+            .where(SearchRunRankingCandidateRecordModel.run_id == run_id)
+            .order_by(
+                SearchRunRankingCandidateRecordModel.stage_number,
+                SearchRunRankingCandidateRecordModel.rank_position,
+            )
+        ).all()
+        labels = session.scalars(
+            select(SearchRunRankingLabelRecordModel)
+            .where(SearchRunRankingLabelRecordModel.run_id == run_id)
+            .order_by(SearchRunRankingLabelRecordModel.updated_at)
+        ).all()
+        return {
+            "run": {
+                "runId": run.run_id,
+                "ownerUserId": run.owner_user_id,
+                "topicDescription": run.topic_description,
+                "status": run.status,
+                "plannerMode": run.planner_mode,
+                "plannerModel": run.planner_model,
+                "rankingPolicyVersion": run.ranking_policy_version,
+                "backendRevision": run.backend_revision,
+                "partial": run.partial,
+                "createdAt": run.created_at.isoformat(),
+                "startedAt": run.started_at.isoformat() if run.started_at else None,
+                "completedAt": run.completed_at.isoformat() if run.completed_at else None,
+            },
+            "stages": [
+                {
+                    "stageNumber": stage.stage_number,
+                    "operationId": stage.operation_id,
+                    "status": stage.status,
+                    "executedQueries": stage.executed_query_ids_json,
+                    "candidateCounts": {
+                        "retrieved": stage.retrieved_candidate_count,
+                        "admitted": stage.admitted_candidate_count,
+                        "visible": stage.visible_candidate_count,
+                    },
+                    "timings": stage.timings_json,
+                }
+                for stage in stages
+            ],
+            "providerOutcomes": [
+                {
+                    "stageNumber": outcome.stage_number,
+                    "source": outcome.source,
+                    "channel": outcome.channel,
+                    "query": outcome.query_id,
+                    "attempt": outcome.attempt,
+                    "status": outcome.status,
+                    "candidateCount": outcome.candidate_count,
+                    "durationMs": outcome.duration_ms,
+                    "errorCode": outcome.error_code,
+                }
+                for outcome in outcomes
+            ],
+            "rankingSnapshots": [
+                {
+                    "stageNumber": candidate.stage_number,
+                    "repositoryId": candidate.repository_id,
+                    "repositorySource": candidate.repository_source,
+                    "rankPosition": candidate.rank_position,
+                    "finalScore": candidate.final_score,
+                    "candidateFacts": candidate.candidate_facts_json,
+                    "retrievalFacts": candidate.retrieval_facts_json,
+                    "admissionFacts": candidate.admission_facts_json,
+                    "rankingFeatures": candidate.ranking_features_json,
+                    "scoreBreakdown": candidate.score_breakdown_json,
+                }
+                for candidate in candidates
+            ],
+            "labels": [
+                {
+                    "repositoryId": label.repository_id,
+                    "userId": label.user_id,
+                    "stageNumber": label.stage_number,
+                    "label": label.label,
+                    "updatedAt": label.updated_at.isoformat(),
+                }
+                for label in labels
+            ],
+        }
+
+
 def get_search_run(run_id: str, *, database_url: str) -> SearchRun | None:
     """Return the durable top-level record for one Explore search run."""
 
