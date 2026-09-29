@@ -1,3 +1,10 @@
+## [1.20.1](https://github.com/Mephistos-ML/SciScope/compare/v1.20.0...v1.20.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* use gpt-6 luna for AI search planning ([81a921b](https://github.com/Mephistos-ML/SciScope/commit/81a921b7c8f72ff94761549001c51aac80055f9f))
+
 # [1.20.0](https://github.com/Mephistos-ML/SciScope/compare/v1.19.0...v1.20.0) (2026-09-29)
 
 
