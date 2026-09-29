@@ -1,3 +1,20 @@
+# [1.20.0](https://github.com/Mephistos-ML/SciScope/compare/v1.19.0...v1.20.0) (2026-09-29)
+
+
+### Bug Fixes
+
+* complete search diagnostics flow ([bbfea88](https://github.com/Mephistos-ML/SciScope/commit/bbfea88f5d0ad6cd4384c29178f97594f12b4d3d))
+
+
+### Features
+
+* add search diagnostics mode foundationʼ ([b01651c](https://github.com/Mephistos-ML/SciScope/commit/b01651c1d047be6a3737a43a53cc6f0ab86e7c9b))
+* configure low-latency AI search planning ([fda8e84](https://github.com/Mephistos-ML/SciScope/commit/fda8e84c7a93a83a262a1be8d37995c3cfd6f08f))
+* expose search diagnostics failure details ([4211218](https://github.com/Mephistos-ML/SciScope/commit/421121871c5c78cf6e64f7bf84668f7363f11d33))
+* persist per-evidence retrieval provenance ([ddfeaec](https://github.com/Mephistos-ML/SciScope/commit/ddfeaec3568b97207282a2cfc1c4a21b52367107))
+* show repository ranking diagnostics ([550953b](https://github.com/Mephistos-ML/SciScope/commit/550953b2f0618dffb13c083df239a19d4dc7eb8e))
+* show search diagnostics run summary ([94cfee1](https://github.com/Mephistos-ML/SciScope/commit/94cfee1f54c7d3731457c9f2ef1096705cc7274b))
+
 # [1.19.0](https://github.com/Mephistos-ML/SciScope/compare/v1.18.1...v1.19.0) (2026-09-29)
 
 
