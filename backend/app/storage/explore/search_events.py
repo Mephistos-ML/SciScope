@@ -3,16 +3,12 @@
 from __future__ import annotations
 
 import uuid
-from contextlib import contextmanager
-from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import Select, func, select, update
-from sqlalchemy.orm import Session
-from app.models.explore_access import ExploreUsage
+from sqlalchemy import Select, func, select
 
-from app.database.records.explore import ExploreSearchEventRecordModel, ExploreAccessLockRecordModel
+from app.database.records.explore import ExploreSearchEventRecordModel
 from app.database.session import session_scope
 
 
@@ -204,39 +200,3 @@ def _ensure_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
-
-
-class ExploreAdmissionStore:
-    """Usage reads and event writes within one locked admission transaction."""
-
-    def __init__(self, session: Session):
-        self._session = session
-
-    def read_usage(self, *, subject_type: str, subject_key: str, since: datetime) -> ExploreUsage:
-        events = ExploreSearchEventRecordModel
-        allowed = events.outcome == "allowed"
-        actor = (events.subject_type == subject_type) & (events.subject_key == subject_key)
-        window = events.created_at >= _ensure_utc(since)
-        global_count = self._session.scalar(select(func.count()).select_from(events).where(allowed, window))
-        actor_count = self._session.scalar(select(func.count()).select_from(events).where(allowed, window, actor))
-        last = self._session.scalar(select(func.max(events.created_at)).where(allowed, actor))
-        first = self._session.scalar(select(func.min(events.created_at)).where(allowed, window, actor))
-        return ExploreUsage(int(global_count or 0), int(actor_count or 0),
-                            _ensure_utc(last) if last else None, _ensure_utc(first) if first else None)
-
-    def record_event(self, **values: object) -> None:
-        self._session.add(ExploreSearchEventRecordModel(
-            event_id=f"exp_{uuid.uuid4().hex[:20]}", **values,
-        ))
-
-
-@contextmanager
-def explore_admission_transaction(*, database_url: str) -> Iterator[ExploreAdmissionStore]:
-    """Serialize admission reads and writes with a database row lock."""
-    with session_scope(database_url) as session:
-        result = session.execute(update(ExploreAccessLockRecordModel).where(
-            ExploreAccessLockRecordModel.lock_id == 1,
-        ).values(lock_id=1))
-        if result.rowcount != 1:
-            raise RuntimeError("Search admission lock is missing; apply database migrations.")
-        yield ExploreAdmissionStore(session)

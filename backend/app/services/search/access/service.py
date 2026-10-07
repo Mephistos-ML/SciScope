@@ -38,7 +38,7 @@ from app.storage.explore import (
     record_explore_search_event,
 )
 
-from app.storage.explore.search_events import explore_admission_transaction
+from app.storage.search_admission import ExploreAdmissionStore, explore_admission_transaction
 
 SUSPICIOUS_GUEST_OUTCOMES = (
     str(ExploreAccessOutcome.BLOCKED_COOLDOWN),
@@ -285,17 +285,29 @@ def reserve_explore_access(
 ) -> ExploreAccessDecision:
     """Decide and persist admission before another request can consume capacity."""
     with explore_admission_transaction(database_url=database_url) as store:
-        current_time = _ensure_utc(now or _utc_now())
-        policy = get_explore_policy_for_actor(actor)
-        usage = store.read_usage(subject_type=actor.subject_type, subject_key=actor.subject_key,
-                                 since=current_time - timedelta(seconds=policy.quota_window_seconds))
-        decision = check_explore_access(actor, turnstile_verified=turnstile_verified,
-                                        bypass_quota=bypass_quota, now=current_time,
-                                        usage=usage)
-        outcome = (str(ExploreAccessOutcome.ALLOWED_INTERNAL if bypass_quota else ExploreAccessOutcome.ALLOWED)
-                   if decision.allowed else _map_blocked_decision_to_outcome(decision))
-        store.record_event(user_id=actor.user_id, subject_type=actor.subject_type,
-                           subject_key=actor.subject_key, ip_hash=actor.ip_hash,
-                           topic_hash=topic_hash, outcome=outcome, created_at=current_time,
-                           retry_after_seconds=decision.retry_after_seconds)
-        return decision
+        return record_explore_admission(
+            actor, store=store, topic_hash=topic_hash, turnstile_verified=turnstile_verified,
+            bypass_quota=bypass_quota, now=now,
+        )
+
+
+def record_explore_admission(
+    actor: ExploreActor, *, store: ExploreAdmissionStore, topic_hash: str,
+    turnstile_verified: bool = False, bypass_quota: bool = False,
+    now: datetime | None = None,
+) -> ExploreAccessDecision:
+    """Apply admission policy and record its outcome in the caller's transaction."""
+    current_time = _ensure_utc(now or _utc_now())
+    policy = get_explore_policy_for_actor(actor)
+    usage = store.read_usage(subject_type=actor.subject_type, subject_key=actor.subject_key,
+                             since=current_time - timedelta(seconds=policy.quota_window_seconds))
+    decision = check_explore_access(actor, turnstile_verified=turnstile_verified,
+                                    bypass_quota=bypass_quota, now=current_time,
+                                    usage=usage)
+    outcome = (str(ExploreAccessOutcome.ALLOWED_INTERNAL if bypass_quota else ExploreAccessOutcome.ALLOWED)
+               if decision.allowed else _map_blocked_decision_to_outcome(decision))
+    store.record_event(user_id=actor.user_id, subject_type=actor.subject_type,
+                       subject_key=actor.subject_key, ip_hash=actor.ip_hash,
+                       topic_hash=topic_hash, outcome=outcome, created_at=current_time,
+                       retry_after_seconds=decision.retry_after_seconds)
+    return decision

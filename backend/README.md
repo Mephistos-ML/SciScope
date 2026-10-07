@@ -41,6 +41,9 @@ Each expansion consumes an attempt under the same cooldown, actor quota, global
 capacity, and Turnstile rules as initial search. Send an optional `turnstileToken`
 in the expansion JSON body. Admission checks and usage recording share a locked
 transaction across processes; the singleton `search_access_lock` row must exist.
+Expansion admission, operation creation, and the run's transition to `running`
+commit together. Concurrent expansion requests receive 409 without consuming
+another attempt; a persistence failure rolls back all three changes.
 
 ### Auth
 

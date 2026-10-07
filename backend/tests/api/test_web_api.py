@@ -208,6 +208,10 @@ def _allow_explore_access(monkeypatch) -> None:
             allowed=True
         ),
     )
+    monkeypatch.setattr(
+        "app.services.search.explore.jobs.record_explore_admission",
+        lambda actor, **kwargs: ExploreAccessDecision(allowed=True),
+    )
 
 
 def _process_next_search_run_operation(database_url: str) -> None:

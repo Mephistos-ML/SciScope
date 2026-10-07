@@ -11,6 +11,7 @@ import secrets
 from uuid import uuid4
 
 from app import config
+from app.models.explore_access import ExploreAdmission
 from app.models.search_run import (
     SearchRun,
     SearchRunOperation,
@@ -19,6 +20,9 @@ from app.models.search_run import (
     SearchStageReport,
 )
 from app.services.search.access import hash_explore_topic
+from app.services.search.access.service import record_explore_admission
+from app.services.search.access.errors import build_explore_access_denied_error
+from app.storage.search_admission import explore_admission_transaction
 from app.services.search.explore.execution import (
     ExploreSearchExecution,
     deserialize_execution,
@@ -145,35 +149,46 @@ def expand_explore_search_run(
     *,
     viewer_user_id: str | None,
     guest_access_token: str | None = None,
-    authorize_attempt: Callable[[str], object],
+    prepare_admission: Callable[[str], ExploreAdmission],
     database_url: str,
 ) -> dict[str, object] | None:
-    """Schedule one expansion against a completed durable run."""
+    """Atomically admit and schedule one expansion against a completed run."""
     run = get_search_run(run_id, database_url=database_url)
     if run is None or not _can_access_run(run, viewer_user_id, guest_access_token):
         return None
+    _require_expandable_run(run)
+    admission = prepare_admission(run.topic_description)
+
+    with explore_admission_transaction(database_url=database_url) as store:
+        run = store.get_run(run_id)
+        if run is None or not _can_access_run(run, viewer_user_id, guest_access_token):
+            return None
+        _require_expandable_run(run)
+        decision = record_explore_admission(
+            admission.actor, store=store, topic_hash=run.topic_hash,
+            turnstile_verified=admission.turnstile_verified,
+            bypass_quota=admission.bypass_quota,
+        )
+        if decision.allowed:
+            store.schedule_expansion(
+                run_id=run_id, operation_id=uuid4().hex, queued_at=datetime.now(UTC),
+            )
+
+    if not decision.allowed:
+        raise build_explore_access_denied_error(decision)
+    return get_explore_search_run(
+        run_id, viewer_user_id=viewer_user_id, guest_access_token=guest_access_token,
+        database_url=database_url,
+    )
+
+
+def _require_expandable_run(run: SearchRun) -> None:
+    """Reject a lifecycle conflict before consuming capacity."""
     if run.status not in {"completed", "completed_partial"}:
         raise ValueError("Explore search run is not ready to expand.")
     execution = _load_execution(run.execution_state)
     if not isinstance(execution, ExploreSearchExecution) or not execution.pending_queries:
         raise ValueError("Explore search run has no more planned queries.")
-    authorize_attempt(run.topic_description)
-    operation_id = uuid4().hex
-    create_search_run_operation(
-        SearchRunOperation(
-            operation_id,
-            run_id,
-            "expansion",
-            "queued",
-            datetime.now(UTC),
-        ),
-        database_url=database_url,
-    )
-    update_search_run(run_id, status="running", database_url=database_url)
-    return get_explore_search_run(
-        run_id, viewer_user_id=viewer_user_id, guest_access_token=guest_access_token,
-        database_url=database_url,
-    )
 
 
 def execute_search_run_operation(

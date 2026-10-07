@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import Request
 from fastapi import HTTPException, status
 
-from app.models.explore_access import ExploreTier
+from app.models.explore_access import ExploreAdmission, ExploreTier
 from app.services.auth.service import get_current_user
 from app.services.security.turnstile import verify_turnstile_token
 from app.services.search.access.errors import build_explore_access_denied_error
@@ -93,7 +93,7 @@ def expand_explore_search_run_response(
     try:
         return expand_explore_search_run(
             run_id,
-            authorize_attempt=lambda topic: _authorize_explore_search_request(
+            prepare_admission=lambda topic: _prepare_explore_search_request(
                 request, {"topicDescription": topic, "turnstileToken": payload.get("turnstileToken")},
             ),
             viewer_user_id=user.user_id if user else None,
@@ -111,6 +111,25 @@ def _authorize_explore_search_request(
     request: Request,
     payload: dict[str, object],
 ) -> tuple[str, str]:
+    topic_description = str(payload.get("topicDescription") or "").strip()
+    topic_hash = hash_explore_topic(topic_description)
+    admission = _prepare_explore_search_request(request, payload)
+    decision = reserve_explore_access(
+        admission.actor,
+        topic_hash=topic_hash,
+        turnstile_verified=admission.turnstile_verified,
+        bypass_quota=admission.bypass_quota,
+        database_url=request.app.state.database_url,
+    )
+    if not decision.allowed:
+        raise build_explore_access_denied_error(decision)
+    return topic_description, topic_hash
+
+
+def _prepare_explore_search_request(
+    request: Request, payload: dict[str, object],
+) -> ExploreAdmission:
+    """Resolve the actor and verify external proof before database admission."""
     database_url = request.app.state.database_url
     topic_description = str(payload.get("topicDescription") or "").strip()
     turnstile_token = str(payload.get("turnstileToken") or "").strip()
@@ -142,15 +161,6 @@ def _authorize_explore_search_request(
             raise build_explore_access_denied_error(decision)
         turnstile_verified = True
 
-    decision = reserve_explore_access(
-        actor,
-        topic_hash=topic_hash,
-        turnstile_verified=turnstile_verified,
-        bypass_quota=quota_bypassed,
-        database_url=database_url,
+    return ExploreAdmission(
+        actor=actor, turnstile_verified=turnstile_verified, bypass_quota=quota_bypassed,
     )
-
-    if not decision.allowed:
-        raise build_explore_access_denied_error(decision)
-
-    return topic_description, topic_hash

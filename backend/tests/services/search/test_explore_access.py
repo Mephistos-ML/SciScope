@@ -164,7 +164,7 @@ def test_parallel_reservations_do_not_exceed_last_slot(tmp_path, monkeypatch, sh
 
 def test_failed_reservation_transaction_rolls_back(tmp_path):
     from tests.conftest import build_test_database_url, migrate_test_database
-    from app.storage.explore.search_events import explore_admission_transaction
+    from app.storage.search_admission import explore_admission_transaction
     from datetime import UTC, datetime, timedelta
     from app.storage.explore import count_global_explore_events_since
     database_url = build_test_database_url(tmp_path / "rollback.sqlite3")

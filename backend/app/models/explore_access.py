@@ -71,3 +71,12 @@ class ExploreUsage:
     actor_count: int
     last_allowed_at: datetime | None
     first_allowed_at: datetime | None
+
+
+@dataclass(frozen=True)
+class ExploreAdmission:
+    """Actor and completed verification facts for a search admission request."""
+
+    actor: ExploreActor
+    turnstile_verified: bool = False
+    bypass_quota: bool = False

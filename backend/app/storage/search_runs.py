@@ -516,27 +516,33 @@ def get_search_run(run_id: str, *, database_url: str) -> SearchRun | None:
         record = session.get(SearchRunRecordModel, run_id)
         if record is None:
             return None
-        return SearchRun(
-            run_id=record.run_id,
-            owner_user_id=record.owner_user_id,
-            guest_access_token_hash=record.guest_access_token_hash,
-            topic_description=record.topic_description,
-            topic_hash=record.topic_hash,
-            status=record.status,  # type: ignore[arg-type]
-            planner_mode=record.planner_mode,
-            planner_model=record.planner_model,
-            planner_reasoning_effort=record.planner_reasoning_effort,
-            ranking_policy_version=record.ranking_policy_version,
-            backend_revision=record.backend_revision,
-            created_at=record.created_at,
-            started_at=record.started_at,
-            completed_at=record.completed_at,
-            partial=record.partial,
-            error_code=record.error_code,
-            error_message=record.error_message,
-            response_payload=record.response_payload_json,
-            execution_state=record.execution_state_json,
-        )
+        return map_search_run_record(record)
+
+
+def map_search_run_record(record: SearchRunRecordModel) -> SearchRun:
+    """Map a persistence record for standalone and transactional run reads."""
+
+    return SearchRun(
+        run_id=record.run_id,
+        owner_user_id=record.owner_user_id,
+        guest_access_token_hash=record.guest_access_token_hash,
+        topic_description=record.topic_description,
+        topic_hash=record.topic_hash,
+        status=record.status,  # type: ignore[arg-type]
+        planner_mode=record.planner_mode,
+        planner_model=record.planner_model,
+        planner_reasoning_effort=record.planner_reasoning_effort,
+        ranking_policy_version=record.ranking_policy_version,
+        backend_revision=record.backend_revision,
+        created_at=record.created_at,
+        started_at=record.started_at,
+        completed_at=record.completed_at,
+        partial=record.partial,
+        error_code=record.error_code,
+        error_message=record.error_message,
+        response_payload=record.response_payload_json,
+        execution_state=record.execution_state_json,
+    )
 
 
 def update_search_run(

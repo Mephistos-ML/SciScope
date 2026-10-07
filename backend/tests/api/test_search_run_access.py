@@ -221,6 +221,11 @@ def test_expansion_enforces_existing_limits(database_url, users, monkeypatch, li
                 "global": ExploreLimitCode.GLOBAL_CAPACITY_REACHED,
                 "cooldown": ExploreLimitCode.GUEST_COOLDOWN}
     assert response.json()["code"] == expected[limit]
+    from app.database.records.explore import ExploreSearchEventRecordModel
+    with session_scope(database_url) as session:
+        outcomes = session.scalars(select(ExploreSearchEventRecordModel.outcome)).all()
+    assert sorted(outcomes) == ["allowed", "blocked_capacity" if limit == "global" else
+                                "blocked_cooldown" if limit == "cooldown" else "blocked_quota"]
     assert _operation_count(created["runId"], database_url) == 1
     assert get_search_run(created["runId"], database_url=database_url).status == "completed"
 
@@ -273,3 +278,101 @@ def test_unexpandable_run_does_not_consume_quota(database_url, monkeypatch):
                                headers={"X-Search-Run-Token": created["guestAccessToken"]})
     assert response.status_code == 409
     assert _operation_count(created["runId"], database_url) == 1
+
+
+@pytest.mark.parametrize("actor_kind", ["guest", "owner", "bypass"])
+def test_parallel_expansions_schedule_once_and_charge_once(database_url, users, monkeypatch, actor_kind):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from app.api.routes import explore
+    from app.database.records.explore import ExploreSearchEventRecordModel
+    from app.services.search.access import policy
+
+    user = users["owner"] if actor_kind != "guest" else None
+    created = _completed_run(database_url, user.user_id if user else None)
+    session_token = create_authenticated_session(user.user_id, Response(), database_url=database_url) if user else None
+    monkeypatch.setattr(policy, "EXPLORE_GUEST_COOLDOWN_SECONDS", 0)
+    monkeypatch.setattr(policy, "EXPLORE_USER_COOLDOWN_SECONDS", 0)
+    monkeypatch.setattr(policy, "SEARCH_QUOTA_BYPASS_USER_EMAILS", (user.email,) if actor_kind == "bypass" else ())
+    barrier = Barrier(6, timeout=10)
+    prepare = explore._prepare_explore_search_request
+    def prepare_together(*args, **kwargs):
+        admission = prepare(*args, **kwargs)
+        barrier.wait()
+        return admission
+    monkeypatch.setattr(explore, "_prepare_explore_search_request", prepare_together)
+    def expand(_):
+        with TestClient(app) as client:
+            if session_token:
+                client.cookies.set(AUTH_SESSION_COOKIE_NAME, session_token)
+            headers = {"X-Search-Run-Token": created["guestAccessToken"]} if not user else {}
+            return client.post(f"/api/explore/search-runs/{created['runId']}/expand", headers=headers)
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        responses = list(pool.map(expand, range(6)))
+    assert sorted(response.status_code for response in responses) == [202, 409, 409, 409, 409, 409]
+    assert _operation_count(created["runId"], database_url) == 2
+    assert get_search_run(created["runId"], database_url=database_url).status == "running"
+    with session_scope(database_url) as session:
+        outcomes = session.scalars(select(ExploreSearchEventRecordModel.outcome)).all()
+    assert outcomes == ["allowed_internal" if actor_kind == "bypass" else "allowed"]
+
+
+@pytest.mark.parametrize("status", ["completed", "completed_partial"])
+def test_expansion_commit_failure_rolls_back_quota_operation_and_run(database_url, monkeypatch, status):
+    from types import SimpleNamespace
+    from sqlalchemy.exc import IntegrityError
+    from app.database.records.explore import ExploreSearchEventRecordModel
+    from app.services.search.explore import jobs
+
+    created = _completed_run(database_url)
+    update_search_run(created["runId"], status=status, partial=status == "completed_partial",
+                      response_payload={"items": [{"itemId": "preserved"}]}, database_url=database_url)
+    original = get_search_run(created["runId"], database_url=database_url)
+    with session_scope(database_url) as session:
+        existing_operation_id = session.scalar(select(SearchRunOperationRecordModel.operation_id))
+    with monkeypatch.context() as failure:
+        failure.setattr(jobs, "uuid4", lambda: SimpleNamespace(hex=existing_operation_id))
+        with TestClient(app) as client:
+            with pytest.raises(IntegrityError):
+                client.post(f"/api/explore/search-runs/{created['runId']}/expand",
+                            headers={"X-Search-Run-Token": created["guestAccessToken"]})
+    assert get_search_run(created["runId"], database_url=database_url) == original
+    assert _operation_count(created["runId"], database_url) == 1
+    with session_scope(database_url) as session:
+        assert session.scalar(select(func.count()).select_from(ExploreSearchEventRecordModel)) == 0
+    with TestClient(app) as client:
+        retry = client.post(f"/api/explore/search-runs/{created['runId']}/expand",
+                            headers={"X-Search-Run-Token": created["guestAccessToken"]})
+    assert retry.status_code == 202
+    assert _operation_count(created["runId"], database_url) == 2
+    with session_scope(database_url) as session:
+        assert session.scalar(select(func.count()).select_from(ExploreSearchEventRecordModel)) == 1
+
+
+@pytest.mark.parametrize("change", ["owner", "status", "plan"])
+def test_expansion_rechecks_run_after_external_verification(database_url, users, monkeypatch, change):
+    from app.api.routes import explore
+    from app.database.records.explore import ExploreSearchEventRecordModel
+    from app.database.records.search_runs import SearchRunRecordModel
+    from sqlalchemy import update
+
+    created = _completed_run(database_url, users["owner"].user_id)
+    prepare = explore._prepare_explore_search_request
+    def change_during_verification(*args, **kwargs):
+        admission = prepare(*args, **kwargs)
+        values = {"owner_user_id": users["other"].user_id} if change == "owner" else (
+            {"status": "running"} if change == "status" else {"execution_state_json": None}
+        )
+        with session_scope(database_url) as session:
+            session.execute(update(SearchRunRecordModel).where(
+                SearchRunRecordModel.run_id == created["runId"],
+            ).values(**values))
+        return admission
+    monkeypatch.setattr(explore, "_prepare_explore_search_request", change_during_verification)
+    with TestClient(app) as client:
+        _sign_in(client, users["owner"], database_url)
+        response = client.post(f"/api/explore/search-runs/{created['runId']}/expand")
+    assert response.status_code == (404 if change == "owner" else 409)
+    assert _operation_count(created["runId"], database_url) == 1
+    with session_scope(database_url) as session:
+        assert session.scalar(select(func.count()).select_from(ExploreSearchEventRecordModel)) == 0
