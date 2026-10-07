@@ -272,12 +272,17 @@ export function App() {
           return;
         }
 
+        if (error instanceof ApiError && error.status === 404) {
+          clearUnavailableExploreRun();
+        }
         setSearchPending(false);
         setIsExpandingSearch(false);
         setActiveExploreJobId(null);
         setActiveExploreJobStatus(null);
         setExploreSearchFeedback({
-          message: error instanceof Error ? error.message : "Failed to refresh search status.",
+          message: error instanceof ApiError && error.status === 404
+            ? "This search is no longer available. Start a new search."
+            : error instanceof Error ? error.message : "Failed to refresh search status.",
           retryUntilEpochMs: null,
           signInSuggested: false,
           turnstileRequired: false,
@@ -390,19 +395,40 @@ export function App() {
     setLastCompletedExploreRunVersion(null);
     setExploreSearchFeedback(null);
     try {
-      const job = await expandExploreSearchRun(lastCompletedExploreJobId, exploreGuestAccessToken);
+      const job = await expandExploreSearchRun(lastCompletedExploreJobId, exploreGuestAccessToken, turnstileToken);
+      setTurnstileToken(null);
+      setTurnstileResetKey((current) => current + 1);
       setActiveExploreJobId(job.runId);
       setActiveExploreJobStatus(job.status);
     } catch (error) {
       setSearchPending(false);
       setIsExpandingSearch(false);
+      if (error instanceof ApiError && error.status === 404) {
+        clearUnavailableExploreRun();
+      }
+      if (turnstileToken || (error instanceof ApiError && error.turnstileRequired)) {
+        setTurnstileToken(null);
+        setTurnstileResetKey((current) => current + 1);
+      }
       setExploreSearchFeedback({
-        message: error instanceof Error ? error.message : "Could not expand search.",
-        retryUntilEpochMs: null,
-        signInSuggested: false,
-        turnstileRequired: false,
+        message: error instanceof ApiError && error.status === 404
+          ? "This search is no longer available. Start a new search."
+          : error instanceof Error ? error.message : "Could not expand search.",
+        retryUntilEpochMs: error instanceof ApiError && error.retryAfterSeconds !== null
+          ? Date.now() + error.retryAfterSeconds * 1000 : null,
+        signInSuggested: error instanceof ApiError && error.signInSuggested,
+        turnstileRequired: error instanceof ApiError && error.turnstileRequired,
       });
     }
+  }
+
+  function clearUnavailableExploreRun() {
+    setCanExpandSearch(false);
+    setActiveExploreJobId(null);
+    setActiveExploreJobStatus(null);
+    setLastCompletedExploreJobId(null);
+    setLastCompletedExploreRunVersion(null);
+    setExploreGuestAccessToken(null);
   }
 
   function applyExploreSearchRunSnapshot(snapshot: ExploreSearchRunPayload) {

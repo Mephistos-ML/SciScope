@@ -7,7 +7,7 @@ import hashlib
 import json
 
 import pytest
-from fastapi import Response
+from fastapi import Request, Response
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
@@ -191,3 +191,85 @@ def test_browser_preflight_allows_guest_token_header(database_url):
         })
     assert response.status_code == 200
     assert "x-search-run-token" in response.headers["access-control-allow-headers"].lower()
+
+
+@pytest.mark.parametrize("limit", ["guest", "user", "global", "cooldown"])
+def test_expansion_enforces_existing_limits(database_url, users, monkeypatch, limit):
+    from app.services.search.access import policy, service
+    from app.models.explore_access import ExploreLimitCode
+
+    user = users["owner"] if limit == "user" else None
+    created = _completed_run(database_url, user.user_id if user else None)
+    with TestClient(app) as client:
+        if user:
+            _sign_in(client, user, database_url)
+        actor = service.resolve_explore_actor(
+            Request({"type": "http", "headers": [], "client": ("testclient", 80)}),
+            user, database_url=database_url,
+        )
+        service.record_allowed_explore_attempt(actor, topic_hash="old", database_url=database_url)
+        monkeypatch.setattr(policy, "EXPLORE_GUEST_COOLDOWN_SECONDS", 0 if limit != "cooldown" else 60)
+        monkeypatch.setattr(policy, "EXPLORE_GUEST_DAILY_LIMIT", 1 if limit == "guest" else 100)
+        monkeypatch.setattr(policy, "EXPLORE_USER_DAILY_LIMIT", 1)
+        monkeypatch.setattr(policy, "EXPLORE_USER_COOLDOWN_SECONDS", 0)
+        monkeypatch.setattr(policy, "EXPLORE_GLOBAL_DAILY_LIMIT", 1 if limit == "global" else 100)
+        response = client.post(f"/api/explore/search-runs/{created['runId']}/expand",
+                               headers={"X-Search-Run-Token": created["guestAccessToken"]} if not user else {})
+    assert response.status_code == (503 if limit == "global" else 429)
+    expected = {"guest": ExploreLimitCode.GUEST_QUOTA_EXCEEDED,
+                "user": ExploreLimitCode.USER_QUOTA_EXCEEDED,
+                "global": ExploreLimitCode.GLOBAL_CAPACITY_REACHED,
+                "cooldown": ExploreLimitCode.GUEST_COOLDOWN}
+    assert response.json()["code"] == expected[limit]
+    assert _operation_count(created["runId"], database_url) == 1
+    assert get_search_run(created["runId"], database_url=database_url).status == "completed"
+
+
+@pytest.mark.parametrize("token", [None, "invalid", "valid"])
+def test_expansion_requires_and_verifies_turnstile(database_url, monkeypatch, token):
+    from app.api.routes import explore
+    from app.models.explore_access import ExploreActor, ExploreTier
+    from app.services.search.access import policy
+    from app.services.security.turnstile import TurnstileVerificationResult
+
+    monkeypatch.setattr(policy, "TURNSTILE_ENABLED", True)
+    monkeypatch.setattr(explore, "resolve_explore_actor", lambda *args, **kwargs: ExploreActor(
+        ExploreTier.SUSPICIOUS, "guest_ip", "suspicious-ip"))
+    verified = []
+    def verify(value, **kwargs):
+        verified.append(value)
+        return TurnstileVerificationResult(success=value == "valid")
+    monkeypatch.setattr(explore, "verify_turnstile_token", verify)
+    created = _completed_run(database_url)
+    with TestClient(app) as client:
+        response = client.post(f"/api/explore/search-runs/{created['runId']}/expand",
+                               headers={"X-Search-Run-Token": created["guestAccessToken"]},
+                               json={"turnstileToken": token})
+    assert response.status_code == (202 if token == "valid" else 403)
+    assert verified == ([] if token is None else [token])
+    assert _operation_count(created["runId"], database_url) == (2 if token == "valid" else 1)
+    if token != "valid":
+        assert response.json()["turnstileRequired"] is True
+
+
+def test_inaccessible_expansion_does_not_check_turnstile_or_reserve_quota(database_url, monkeypatch):
+    from app.api.routes import explore
+    def unexpected(*args, **kwargs):
+        raise AssertionError("Admission ran before ownership check")
+    monkeypatch.setattr(explore, "resolve_explore_actor", unexpected)
+    monkeypatch.setattr(explore, "reserve_explore_access", unexpected)
+    created = _completed_run(database_url)
+    with TestClient(app) as client:
+        response = client.post(f"/api/explore/search-runs/{created['runId']}/expand", json={"turnstileToken": "secret"})
+    assert response.status_code == 404
+
+
+def test_unexpandable_run_does_not_consume_quota(database_url, monkeypatch):
+    from app.api.routes import explore
+    created = create_explore_search_run(topic_description="topic", owner_user_id=None, database_url=database_url)
+    monkeypatch.setattr(explore, "reserve_explore_access", lambda *args, **kwargs: pytest.fail("Reserved for invalid expansion"))
+    with TestClient(app) as client:
+        response = client.post(f"/api/explore/search-runs/{created['runId']}/expand",
+                               headers={"X-Search-Run-Token": created["guestAccessToken"]})
+    assert response.status_code == 409
+    assert _operation_count(created["runId"], database_url) == 1

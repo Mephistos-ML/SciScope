@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from collections.abc import Callable
 from datetime import UTC, datetime
 import hashlib
 import logging
@@ -144,6 +145,7 @@ def expand_explore_search_run(
     *,
     viewer_user_id: str | None,
     guest_access_token: str | None = None,
+    authorize_attempt: Callable[[str], object],
     database_url: str,
 ) -> dict[str, object] | None:
     """Schedule one expansion against a completed durable run."""
@@ -155,6 +157,7 @@ def expand_explore_search_run(
     execution = _load_execution(run.execution_state)
     if not isinstance(execution, ExploreSearchExecution) or not execution.pending_queries:
         raise ValueError("Explore search run has no more planned queries.")
+    authorize_attempt(run.topic_description)
     operation_id = uuid4().hex
     create_search_run_operation(
         SearchRunOperation(

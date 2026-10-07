@@ -37,6 +37,11 @@ returned only on creation; only its SHA-256 hash is stored. An inaccessible run
 returns the same 404 as a missing run. Guest runs created before token support
 are inaccessible. Internal reports retain their separate owner and feature checks.
 
+Each expansion consumes an attempt under the same cooldown, actor quota, global
+capacity, and Turnstile rules as initial search. Send an optional `turnstileToken`
+in the expansion JSON body. Admission checks and usage recording share a locked
+transaction across processes; the singleton `search_access_lock` row must exist.
+
 ### Auth
 
 - `GET /api/me`

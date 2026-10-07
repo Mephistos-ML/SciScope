@@ -203,14 +203,10 @@ def _allow_explore_access(monkeypatch) -> None:
         lambda topic_description: "topic_hash",
     )
     monkeypatch.setattr(
-        "app.api.routes.explore.check_explore_access",
-        lambda actor, turnstile_verified=False, bypass_quota=False, *, database_url: ExploreAccessDecision(
+        "app.api.routes.explore.reserve_explore_access",
+        lambda actor, turnstile_verified=False, bypass_quota=False, *, topic_hash, database_url: ExploreAccessDecision(
             allowed=True
         ),
-    )
-    monkeypatch.setattr(
-        "app.api.routes.explore.record_allowed_explore_attempt",
-        lambda actor, *, topic_hash, quota_bypassed=False, database_url: None,
     )
 
 
@@ -669,18 +665,12 @@ def test_explore_search_bypasses_quota_for_internal_email(monkeypatch) -> None:
         ("internal@example.com",),
     )
 
-    def check_access(actor, turnstile_verified=False, bypass_quota=False, *, database_url):
+    def check_access(actor, turnstile_verified=False, bypass_quota=False, *, topic_hash, database_url):
         assert bypass_quota is True
+        recorded.update(topic_hash=topic_hash, quota_bypassed=bypass_quota)
         return ExploreAccessDecision(allowed=True)
 
-    monkeypatch.setattr("app.api.routes.explore.check_explore_access", check_access)
-    monkeypatch.setattr(
-        "app.api.routes.explore.record_allowed_explore_attempt",
-        lambda actor, *, topic_hash, quota_bypassed=False, database_url: recorded.update(
-            topic_hash=topic_hash,
-            quota_bypassed=quota_bypassed,
-        ),
-    )
+    monkeypatch.setattr("app.api.routes.explore.reserve_explore_access", check_access)
     monkeypatch.setattr(
         "app.api.routes.explore.run_explore_search",
         lambda **kwargs: {"items": []},
@@ -1280,8 +1270,8 @@ def test_explore_search_returns_structured_access_denial_payload(
         lambda topic_description: "topic_hash",
     )
     monkeypatch.setattr(
-        "app.api.routes.explore.check_explore_access",
-        lambda actor, turnstile_verified=False, bypass_quota=False, *, database_url: ExploreAccessDecision(
+        "app.api.routes.explore.reserve_explore_access",
+        lambda actor, turnstile_verified=False, bypass_quota=False, *, topic_hash, database_url: ExploreAccessDecision(
             allowed=False,
             code=ExploreLimitCode.GUEST_COOLDOWN,
             message="Please wait 30 seconds before running another search.",
@@ -1332,8 +1322,8 @@ def test_explore_search_returns_turnstile_requirement_payload(
         lambda topic_description: "topic_hash",
     )
     monkeypatch.setattr(
-        "app.api.routes.explore.check_explore_access",
-        lambda actor, turnstile_verified=False, bypass_quota=False, *, database_url: ExploreAccessDecision(
+        "app.api.routes.explore.reserve_explore_access",
+        lambda actor, turnstile_verified=False, bypass_quota=False, *, topic_hash, database_url: ExploreAccessDecision(
             allowed=False,
             code=ExploreLimitCode.TURNSTILE_REQUIRED,
             message="Please complete the verification challenge before continuing.",
@@ -1388,15 +1378,11 @@ def test_explore_search_accepts_verified_turnstile_token_for_suspicious_guest(
         lambda token, *, remote_ip=None: TurnstileVerificationResult(success=True),
     )
 
-    def _check_access(actor, turnstile_verified=False, bypass_quota=False, *, database_url):
+    def _check_access(actor, turnstile_verified=False, bypass_quota=False, *, topic_hash, database_url):
         assert turnstile_verified is True
         return ExploreAccessDecision(allowed=True)
 
-    monkeypatch.setattr("app.api.routes.explore.check_explore_access", _check_access)
-    monkeypatch.setattr(
-        "app.api.routes.explore.record_allowed_explore_attempt",
-        lambda actor, *, topic_hash, quota_bypassed=False, database_url: None,
-    )
+    monkeypatch.setattr("app.api.routes.explore.reserve_explore_access", _check_access)
     monkeypatch.setattr(
         "app.services.search.explore.service.build_ai_search_plan",
         lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),

@@ -12,10 +12,9 @@ from app.services.search.access.errors import build_explore_access_denied_error
 from app.services.search.access.policy import has_search_quota_bypass
 from app.services.search.access.service import (
     build_turnstile_failure_decision,
-    check_explore_access,
+    reserve_explore_access,
     hash_explore_topic,
     read_explore_client_ip,
-    record_allowed_explore_attempt,
     record_blocked_explore_attempt,
     resolve_explore_actor,
 )
@@ -85,6 +84,7 @@ def get_explore_search_run_response(
 def expand_explore_search_run_response(
     request: Request,
     run_id: str,
+    payload: dict[str, object],
 ) -> dict[str, object] | None:
     """Start one pending query for an existing Explore search run."""
 
@@ -93,6 +93,9 @@ def expand_explore_search_run_response(
     try:
         return expand_explore_search_run(
             run_id,
+            authorize_attempt=lambda topic: _authorize_explore_search_request(
+                request, {"topicDescription": topic, "turnstileToken": payload.get("turnstileToken")},
+            ),
             viewer_user_id=user.user_id if user else None,
             guest_access_token=request.headers.get("X-Search-Run-Token"),
             database_url=database_url,
@@ -139,26 +142,15 @@ def _authorize_explore_search_request(
             raise build_explore_access_denied_error(decision)
         turnstile_verified = True
 
-    decision = check_explore_access(
+    decision = reserve_explore_access(
         actor,
+        topic_hash=topic_hash,
         turnstile_verified=turnstile_verified,
         bypass_quota=quota_bypassed,
         database_url=database_url,
     )
 
     if not decision.allowed:
-        record_blocked_explore_attempt(
-            actor,
-            decision,
-            topic_hash=topic_hash,
-            database_url=database_url,
-        )
         raise build_explore_access_denied_error(decision)
 
-    record_allowed_explore_attempt(
-        actor,
-        topic_hash=topic_hash,
-        quota_bypassed=quota_bypassed,
-        database_url=database_url,
-    )
     return topic_description, topic_hash

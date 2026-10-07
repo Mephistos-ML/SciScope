@@ -7,8 +7,10 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 import sqlalchemy as sa
+from alembic import command
+from alembic.config import Config
 
-from tests.conftest import build_test_database_url, migrate_test_database
+from tests.conftest import BACKEND_ROOT, build_test_database_url, migrate_test_database
 
 
 def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path) -> None:
@@ -144,6 +146,9 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
     }
     assert "planner_reasoning_effort" in search_run_columns
     assert "guest_access_token_hash" in search_run_columns
+    assert inspector.has_table("search_access_lock")
+    with engine.connect() as connection:
+        assert connection.execute(sa.text("SELECT lock_id FROM search_access_lock")).scalars().all() == [1]
 
 
 def test_feed_event_migration_replaces_provider_derived_ids(tmp_path: Path) -> None:
@@ -217,3 +222,18 @@ def test_guest_access_migration_preserves_legacy_runs_without_granting_tokens(tm
     assert all(row["guest_access_token_hash"] is None for row in rows)
     assert all(row["topic_description"] == "Preserved topic" for row in rows)
     assert all(row["response_payload_json"] == {"items": [{"itemId": "github:repo:123"}]} for row in rows)
+
+
+def test_guest_access_migration_downgrade_and_reupgrade(tmp_path: Path, monkeypatch) -> None:
+    database_url = build_test_database_url(tmp_path / "guest-access-roundtrip.sqlite3")
+    migrate_test_database(database_url)
+    alembic_config = Config(str(BACKEND_ROOT / "alembic.ini"))
+    alembic_config.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    command.downgrade(alembic_config, "0015_planner_reasoning_effort")
+    engine = sa.create_engine(database_url)
+    assert not sa.inspect(engine).has_table("search_access_lock")
+    assert "guest_access_token_hash" not in {c["name"] for c in sa.inspect(engine).get_columns("search_runs")}
+    migrate_test_database(database_url)
+    with engine.connect() as connection:
+        assert connection.execute(sa.text("SELECT lock_id FROM search_access_lock")).scalar_one() == 1

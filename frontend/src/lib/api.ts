@@ -217,10 +217,15 @@ export async function fetchExploreSearchRun(
 export async function expandExploreSearchRun(
   runId: string,
   guestAccessToken: string | null,
+  turnstileToken: string | null,
 ): Promise<ExploreSearchRunPayload> {
   return requestJson<ExploreSearchRunPayload>(`/api/explore/search-runs/${encodeURIComponent(runId)}/expand`, {
     method: "POST",
-    headers: guestAccessToken ? { "X-Search-Run-Token": guestAccessToken } : undefined,
+    headers: {
+      "Content-Type": "application/json",
+      ...(guestAccessToken ? { "X-Search-Run-Token": guestAccessToken } : {}),
+    },
+    body: JSON.stringify({ turnstileToken }),
   });
 }
 

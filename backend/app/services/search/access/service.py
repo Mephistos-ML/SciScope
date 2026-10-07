@@ -19,6 +19,7 @@ from app.models.explore_access import (
     ExploreActor,
     ExploreLimitCode,
     ExploreTier,
+    ExploreUsage,
 )
 from app.services.auth.service import User
 from app.services.search.access.policy import (
@@ -34,11 +35,10 @@ from app.services.search.access.policy import (
 )
 from app.storage.explore import (
     count_explore_events_since,
-    count_global_explore_events_since,
-    get_first_explore_event_at_since,
-    get_last_explore_event_at,
     record_explore_search_event,
 )
+
+from app.storage.explore.search_events import explore_admission_transaction
 
 SUSPICIOUS_GUEST_OUTCOMES = (
     str(ExploreAccessOutcome.BLOCKED_COOLDOWN),
@@ -84,8 +84,8 @@ def check_explore_access(
     *,
     turnstile_verified: bool = False,
     bypass_quota: bool = False,
+    usage: ExploreUsage,
     now: datetime | None = None,
-    database_url: str = DATABASE_URL,
 ) -> ExploreAccessDecision:
     """Return whether the actor may run a new explore search."""
 
@@ -101,22 +101,12 @@ def check_explore_access(
     if bypass_quota:
         return ExploreAccessDecision(allowed=True)
 
-    quota_window_start = current_time - timedelta(seconds=policy.quota_window_seconds)
     global_limit = get_global_explore_daily_limit()
-    global_count = count_global_explore_events_since(
-        since=quota_window_start,
-        outcomes=(str(ExploreAccessOutcome.ALLOWED),),
-        database_url=database_url,
-    )
+    global_count = usage.global_count
     if global_count >= global_limit:
         return build_global_capacity_decision()
 
-    last_allowed_event_at = get_last_explore_event_at(
-        subject_type=actor.subject_type,
-        subject_key=actor.subject_key,
-        outcomes=(str(ExploreAccessOutcome.ALLOWED),),
-        database_url=database_url,
-    )
+    last_allowed_event_at = usage.last_allowed_at
     if last_allowed_event_at is not None:
         next_allowed_at = last_allowed_event_at + timedelta(
             seconds=policy.cooldown_seconds
@@ -128,21 +118,9 @@ def check_explore_access(
                 retry_after_seconds=max(retry_after_seconds, 1),
             )
 
-    actor_count = count_explore_events_since(
-        subject_type=actor.subject_type,
-        subject_key=actor.subject_key,
-        since=quota_window_start,
-        outcomes=(str(ExploreAccessOutcome.ALLOWED),),
-        database_url=database_url,
-    )
+    actor_count = usage.actor_count
     if actor_count >= policy.daily_limit:
-        first_allowed_event_at = get_first_explore_event_at_since(
-            subject_type=actor.subject_type,
-            subject_key=actor.subject_key,
-            since=quota_window_start,
-            outcomes=(str(ExploreAccessOutcome.ALLOWED),),
-            database_url=database_url,
-        )
+        first_allowed_event_at = usage.first_allowed_at
         next_reset_at = (first_allowed_event_at or current_time) + timedelta(
             seconds=policy.quota_window_seconds
         )
@@ -270,7 +248,7 @@ def _map_blocked_decision_to_outcome(decision: ExploreAccessDecision) -> str:
         ExploreLimitCode.TURNSTILE_VERIFICATION_FAILED,
     }:
         return str(ExploreAccessOutcome.BLOCKED_TURNSTILE)
-    return str(ExploreAccessOutcome.BLOCKED_GLOBAL_CAPACITY)
+    return str(ExploreAccessOutcome.BLOCKED_CAPACITY)
 
 
 def _read_client_ip(request: Request) -> str | None:
@@ -299,3 +277,25 @@ def _ensure_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+def reserve_explore_access(
+    actor: ExploreActor, *, topic_hash: str, turnstile_verified: bool = False,
+    bypass_quota: bool = False, now: datetime | None = None, database_url: str,
+) -> ExploreAccessDecision:
+    """Decide and persist admission before another request can consume capacity."""
+    with explore_admission_transaction(database_url=database_url) as store:
+        current_time = _ensure_utc(now or _utc_now())
+        policy = get_explore_policy_for_actor(actor)
+        usage = store.read_usage(subject_type=actor.subject_type, subject_key=actor.subject_key,
+                                 since=current_time - timedelta(seconds=policy.quota_window_seconds))
+        decision = check_explore_access(actor, turnstile_verified=turnstile_verified,
+                                        bypass_quota=bypass_quota, now=current_time,
+                                        usage=usage)
+        outcome = (str(ExploreAccessOutcome.ALLOWED_INTERNAL if bypass_quota else ExploreAccessOutcome.ALLOWED)
+                   if decision.allowed else _map_blocked_decision_to_outcome(decision))
+        store.record_event(user_id=actor.user_id, subject_type=actor.subject_type,
+                           subject_key=actor.subject_key, ip_hash=actor.ip_hash,
+                           topic_hash=topic_hash, outcome=outcome, created_at=current_time,
+                           retry_after_seconds=decision.retry_after_seconds)
+        return decision

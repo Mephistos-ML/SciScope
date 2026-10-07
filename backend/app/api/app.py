@@ -221,10 +221,10 @@ def get_explore_search_run(request: Request, run_id: str) -> dict[str, object]:
 
 
 @app.post("/api/explore/search-runs/{run_id}/expand", status_code=status.HTTP_202_ACCEPTED)
-def expand_explore_search_run(request: Request, run_id: str) -> dict[str, object]:
+def expand_explore_search_run(request: Request, run_id: str, body: dict[str, object] | None = None) -> dict[str, object]:
     """Run one next query from a completed Explore search run."""
 
-    payload = explore_routes.expand_explore_search_run_response(request, run_id)
+    payload = explore_routes.expand_explore_search_run_response(request, run_id, body or {})
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
