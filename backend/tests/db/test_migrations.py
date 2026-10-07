@@ -134,7 +134,7 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
             sa.text("SELECT version_num FROM alembic_version")
         ).scalar_one()
 
-    assert version == "0015_planner_reasoning_effort"
+    assert version == "0016_guest_run_access"
     assert inspector.has_table("search_runs")
     assert inspector.has_table("search_run_operations")
     assert inspector.has_table("search_run_stages")
@@ -143,6 +143,7 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
         column["name"] for column in inspector.get_columns("search_runs")
     }
     assert "planner_reasoning_effort" in search_run_columns
+    assert "guest_access_token_hash" in search_run_columns
 
 
 def test_feed_event_migration_replaces_provider_derived_ids(tmp_path: Path) -> None:
@@ -185,3 +186,34 @@ def test_feed_event_migration_replaces_provider_derived_ids(tmp_path: Path) -> N
     assert event_id != legacy_event_id
     assert "/" not in event_id
     assert UUID(event_id).version == 5
+
+
+def test_guest_access_migration_preserves_legacy_runs_without_granting_tokens(tmp_path: Path) -> None:
+    database_url = build_test_database_url(tmp_path / "legacy-runs.sqlite3")
+    migrate_test_database(database_url, "0015_planner_reasoning_effort")
+    engine = sa.create_engine(database_url)
+    runs = sa.Table("search_runs", sa.MetaData(), autoload_with=engine)
+    now = datetime(2026, 10, 7, tzinfo=UTC)
+    with engine.begin() as connection:
+        connection.execute(sa.text(
+            "INSERT INTO users (user_id, email, display_name, created_at, updated_at) "
+            "VALUES (:id, :email, :name, :now, :now)"
+        ), {"id": "owner", "email": "owner@example.com", "name": "Owner", "now": now.isoformat()})
+        for run_id, owner in (("legacy-guest", None), ("legacy-owned", "owner")):
+            connection.execute(runs.insert().values(
+                run_id=run_id, owner_user_id=owner,
+                topic_description="Preserved topic", topic_hash="topic-hash",
+                status="completed", planner_mode="bootstrap", planner_model=None,
+                planner_reasoning_effort=None, ranking_policy_version="heuristic-v1",
+                backend_revision="known", created_at=now, partial=False,
+                response_payload_json={"items": [{"itemId": "github:repo:123"}]},
+            ))
+    migrate_test_database(database_url)
+    upgraded = sa.Table("search_runs", sa.MetaData(), autoload_with=engine)
+    with engine.connect() as connection:
+        rows = connection.execute(sa.select(upgraded).order_by(upgraded.c.run_id)).mappings().all()
+    assert [row["run_id"] for row in rows] == ["legacy-guest", "legacy-owned"]
+    assert [row["owner_user_id"] for row in rows] == [None, "owner"]
+    assert all(row["guest_access_token_hash"] is None for row in rows)
+    assert all(row["topic_description"] == "Preserved topic" for row in rows)
+    assert all(row["response_payload_json"] == {"items": [{"itemId": "github:repo:123"}]} for row in rows)

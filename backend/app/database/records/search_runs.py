@@ -24,6 +24,7 @@ class SearchRunRecordModel(Base):
         ForeignKey("users.user_id", ondelete="SET NULL"),
         nullable=True,
     )
+    guest_access_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     topic_description: Mapped[str] = mapped_column(Text, nullable=False)
     topic_hash: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False)

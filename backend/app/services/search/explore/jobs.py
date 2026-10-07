@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import UTC, datetime
+import hashlib
 import logging
+import secrets
 from uuid import uuid4
 
 from app import config
@@ -52,44 +54,69 @@ def create_explore_search_run(
     """Create a durable logical run with one queued initial operation."""
     now = datetime.now(UTC)
     run_id, operation_id = uuid4().hex, uuid4().hex
-    create_search_run(
-        SearchRun(
-            run_id=run_id,
-            owner_user_id=owner_user_id,
-            topic_description=topic_description,
-            topic_hash=hash_explore_topic(topic_description),
-            status="queued",
-            planner_mode=config.AI_PLANNER_MODE,
-            planner_model=(
-                config.OPENAI_MODEL if config.AI_PLANNER_MODE == "openai" else None
-            ),
-            planner_reasoning_effort=(
-                config.OPENAI_REASONING_EFFORT
-                if config.AI_PLANNER_MODE == "openai"
-                else None
-            ),
-            ranking_policy_version="heuristic-v1",
-            backend_revision="unknown",
-            created_at=now,
+    guest_access_token = secrets.token_urlsafe(32) if owner_user_id is None else None
+    run = SearchRun(
+        run_id=run_id,
+        owner_user_id=owner_user_id,
+        topic_description=topic_description,
+        topic_hash=hash_explore_topic(topic_description),
+        status="queued",
+        planner_mode=config.AI_PLANNER_MODE,
+        planner_model=(
+            config.OPENAI_MODEL if config.AI_PLANNER_MODE == "openai" else None
         ),
-        database_url=database_url,
+        planner_reasoning_effort=(
+            config.OPENAI_REASONING_EFFORT
+            if config.AI_PLANNER_MODE == "openai"
+            else None
+        ),
+        ranking_policy_version="heuristic-v1",
+        backend_revision="unknown",
+        created_at=now,
+        guest_access_token_hash=(
+            _hash_guest_token(guest_access_token) if guest_access_token else None
+        ),
     )
+    create_search_run(run, database_url=database_url)
     create_search_run_operation(
         SearchRunOperation(operation_id, run_id, "initial", "queued", now),
         database_url=database_url,
     )
-    return get_explore_search_run(run_id, database_url=database_url) or {}
+    payload = _build_run_snapshot(run)
+    if guest_access_token is not None:
+        payload["guestAccessToken"] = guest_access_token
+    return payload
 
 
 def get_explore_search_run(
     run_id: str,
     *,
+    viewer_user_id: str | None,
+    guest_access_token: str | None = None,
     database_url: str,
 ) -> dict[str, object] | None:
     """Read a run snapshot from the durable store."""
     run = get_search_run(run_id, database_url=database_url)
-    if run is None:
+    if run is None or not _can_access_run(run, viewer_user_id, guest_access_token):
         return None
+    return _build_run_snapshot(run)
+
+
+def _can_access_run(
+    run: SearchRun, viewer_user_id: str | None, guest_access_token: str | None,
+) -> bool:
+    if run.owner_user_id is not None:
+        return run.owner_user_id == viewer_user_id
+    if not run.guest_access_token_hash or not guest_access_token:
+        return False
+    return secrets.compare_digest(run.guest_access_token_hash, _hash_guest_token(guest_access_token))
+
+
+def _hash_guest_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _build_run_snapshot(run: SearchRun) -> dict[str, object]:
     payload = deepcopy(run.response_payload) if run.response_payload else {
         "topicDescription": run.topic_description,
         "aiSearchPlan": {"status": "pending", "queries": []},
@@ -115,11 +142,13 @@ def get_explore_search_run(
 def expand_explore_search_run(
     run_id: str,
     *,
+    viewer_user_id: str | None,
+    guest_access_token: str | None = None,
     database_url: str,
 ) -> dict[str, object] | None:
     """Schedule one expansion against a completed durable run."""
     run = get_search_run(run_id, database_url=database_url)
-    if run is None:
+    if run is None or not _can_access_run(run, viewer_user_id, guest_access_token):
         return None
     if run.status not in {"completed", "completed_partial"}:
         raise ValueError("Explore search run is not ready to expand.")
@@ -138,7 +167,10 @@ def expand_explore_search_run(
         database_url=database_url,
     )
     update_search_run(run_id, status="running", database_url=database_url)
-    return get_explore_search_run(run_id, database_url=database_url)
+    return get_explore_search_run(
+        run_id, viewer_user_id=viewer_user_id, guest_access_token=guest_access_token,
+        database_url=database_url,
+    )
 
 
 def execute_search_run_operation(

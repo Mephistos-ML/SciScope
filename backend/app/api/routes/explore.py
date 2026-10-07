@@ -72,10 +72,14 @@ def get_explore_search_run_response(
 ) -> dict[str, object] | None:
     """Return one background explore search run snapshot."""
 
-    payload = get_explore_search_run(run_id, database_url=request.app.state.database_url)
-    if payload is None:
-        return None
-    return payload
+    database_url = request.app.state.database_url
+    user = get_current_user(request, database_url=database_url)
+    return get_explore_search_run(
+        run_id,
+        viewer_user_id=user.user_id if user else None,
+        guest_access_token=request.headers.get("X-Search-Run-Token"),
+        database_url=database_url,
+    )
 
 
 def expand_explore_search_run_response(
@@ -84,11 +88,15 @@ def expand_explore_search_run_response(
 ) -> dict[str, object] | None:
     """Start one pending query for an existing Explore search run."""
 
-    existing = get_explore_search_run_response(request, run_id)
-    if existing is None:
-        return None
+    database_url = request.app.state.database_url
+    user = get_current_user(request, database_url=database_url)
     try:
-        return expand_explore_search_run(run_id, database_url=request.app.state.database_url)
+        return expand_explore_search_run(
+            run_id,
+            viewer_user_id=user.user_id if user else None,
+            guest_access_token=request.headers.get("X-Search-Run-Token"),
+            database_url=database_url,
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

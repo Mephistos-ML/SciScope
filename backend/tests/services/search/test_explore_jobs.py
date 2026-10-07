@@ -20,11 +20,6 @@ def test_openai_run_persists_planner_model_and_reasoning_effort(monkeypatch) -> 
         "app.services.search.explore.jobs.create_search_run_operation",
         lambda *_args, **_kwargs: None,
     )
-    monkeypatch.setattr(
-        "app.services.search.explore.jobs.get_explore_search_run",
-        lambda *_args, **_kwargs: {},
-    )
-
     create_explore_search_run(
         topic_description="Paramagnetic NMR fitting",
         database_url="sqlite://",

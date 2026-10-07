@@ -1190,6 +1190,7 @@ def test_explore_search_run_fails_after_all_timeout_retries_are_exhausted(
             "/api/explore/search-runs",
             json={"topicDescription": "Exhausted timeout workflow"},
         )
+        client.headers['X-Search-Run-Token'] = response.json()['guestAccessToken']
         _process_next_search_run_operation(explore_run_database)
         response = client.get(f"/api/explore/search-runs/{response.json()['runId']}")
 
@@ -1462,6 +1463,7 @@ def test_explore_search_run_returns_completed_snapshot(
 
         assert response.status_code == 202
         assert response.json()["status"] == "queued"
+        client.headers['X-Search-Run-Token'] = response.json()['guestAccessToken']
         _process_next_search_run_operation(explore_run_database)
         created = client.get(f"/api/explore/search-runs/{response.json()['runId']}").json()
         assert created["status"] == "completed"
@@ -1546,6 +1548,7 @@ def test_explore_search_run_expands_one_pending_query_and_merges_candidates(
             "/api/explore/search-runs",
             json={"topicDescription": "Paramagnetic NMR analysis workflows"},
         ).json()
+        client.headers['X-Search-Run-Token'] = created['guestAccessToken']
         _process_next_search_run_operation(explore_run_database)
         created = client.get(f"/api/explore/search-runs/{created['runId']}").json()
         expanded = client.post(
@@ -1609,6 +1612,7 @@ def test_explore_search_expansion_preserves_all_previous_results(
             "/api/explore/search-runs",
             json={"topicDescription": "Incremental search preservation"},
         ).json()
+        client.headers['X-Search-Run-Token'] = created['guestAccessToken']
         _process_next_search_run_operation(explore_run_database)
         created = client.get(f"/api/explore/search-runs/{created['runId']}").json()
         initial_ids = {item["itemId"] for item in created["items"]}
@@ -1674,6 +1678,7 @@ def test_explore_search_run_rejects_expansion_after_plan_is_exhausted(
             "/api/explore/search-runs",
             json={"topicDescription": "Paramagnetic NMR analysis workflows"},
         ).json()
+        client.headers['X-Search-Run-Token'] = created['guestAccessToken']
         _process_next_search_run_operation(explore_run_database)
         response = client.post(f"/api/explore/search-runs/{created['runId']}/expand")
 
@@ -1715,6 +1720,7 @@ def test_explore_search_run_returns_failed_snapshot_when_all_sources_fail(
             "/api/explore/search-runs",
             json={"topicDescription": "A python package for working with Orca."},
         )
+        client.headers['X-Search-Run-Token'] = response.json()['guestAccessToken']
         _process_next_search_run_operation(explore_run_database)
         response = client.get(f"/api/explore/search-runs/{response.json()['runId']}")
 
@@ -1756,6 +1762,7 @@ def test_explore_search_run_returns_completed_partial_snapshot(
             "/api/explore/search-runs",
             json={"topicDescription": "A python package for working with Orca."},
         )
+        client.headers['X-Search-Run-Token'] = response.json()['guestAccessToken']
         _process_next_search_run_operation(explore_run_database)
         response = client.get(f"/api/explore/search-runs/{response.json()['runId']}")
 

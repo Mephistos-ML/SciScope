@@ -26,8 +26,16 @@ Core domain objects:
 ### Explore
 
 - `POST /api/explore/search`
-- `POST /api/explore/search-jobs`
-- `GET /api/explore/search-jobs/{id}`
+- `POST /api/explore/search-runs`
+- `GET /api/explore/search-runs/{id}`
+- `POST /api/explore/search-runs/{id}/expand`
+
+Signed-in runs can be read or expanded only by their owner. Guest run creation
+returns a `guestAccessToken`; clients must retain it and send it in the
+`X-Search-Run-Token` header when reading or expanding that run. The token is
+returned only on creation; only its SHA-256 hash is stored. An inaccessible run
+returns the same 404 as a missing run. Guest runs created before token support
+are inaccessible. Internal reports retain their separate owner and feature checks.
 
 ### Auth
 

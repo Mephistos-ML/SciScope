@@ -35,6 +35,7 @@ def create_search_run(run: SearchRun, *, database_url: str) -> None:
             SearchRunRecordModel(
                 run_id=run.run_id,
                 owner_user_id=run.owner_user_id,
+                guest_access_token_hash=run.guest_access_token_hash,
                 topic_description=run.topic_description,
                 topic_hash=run.topic_hash,
                 status=run.status,
@@ -518,6 +519,7 @@ def get_search_run(run_id: str, *, database_url: str) -> SearchRun | None:
         return SearchRun(
             run_id=record.run_id,
             owner_user_id=record.owner_user_id,
+            guest_access_token_hash=record.guest_access_token_hash,
             topic_description=record.topic_description,
             topic_hash=record.topic_hash,
             status=record.status,  # type: ignore[arg-type]
