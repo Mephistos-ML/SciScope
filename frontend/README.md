@@ -2,6 +2,10 @@
 
 React + TypeScript frontend for SciScope.
 
+Run `npm test` for search polling lifecycle checks and `npm run build` for
+TypeScript validation and the production build. Backend API tests also verify
+that the client search status union matches the backend lifecycle contract.
+
 Public service:
 
 - `https://sciscope.uk/`

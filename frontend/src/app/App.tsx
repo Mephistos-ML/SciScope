@@ -18,6 +18,7 @@ import {
   signOut,
 } from "../lib/api";
 import { frontendConfig } from "../lib/config";
+import { pollExploreSearchRun, searchRunPresentation } from "../lib/searchRuns";
 import { AppShell } from "../components/AppShell";
 import { AboutPage } from "../pages/AboutPage";
 import { AccountPage } from "../pages/AccountPage";
@@ -211,18 +212,13 @@ export function App() {
       return;
     }
 
-    let cancelled = false;
-    let timeoutId: number | null = null;
-
-    const syncJob = async () => {
-      try {
-        const snapshot = await fetchExploreSearchRun(activeExploreJobId, exploreGuestAccessToken);
-        if (cancelled) {
-          return;
-        }
+    return pollExploreSearchRun({
+      fetchSnapshot: () => fetchExploreSearchRun(activeExploreJobId, exploreGuestAccessToken),
+      onSnapshot: (snapshot) => {
         setActiveExploreJobStatus(snapshot.status);
+        const presentation = searchRunPresentation[snapshot.status];
 
-        if (snapshot.status === "completed" || snapshot.status === "completed_partial") {
+        if (presentation.state === "completed") {
           applyExploreSearchRunSnapshot(snapshot);
           setLastCompletedExploreJobId(snapshot.runId);
           setLastCompletedExploreRunVersion(snapshot.updatedAt);
@@ -249,29 +245,24 @@ export function App() {
           return;
         }
 
-        if (snapshot.status === "failed") {
+        if (presentation.state === "error") {
           setLastCompletedExploreJobId(snapshot.runId);
           setLastCompletedExploreRunVersion(snapshot.updatedAt);
           setSearchPending(false);
+          setIsExpandingSearch(false);
+          setCanExpandSearch(false);
           setActiveExploreJobId(null);
           setActiveExploreJobStatus(null);
           setExploreSearchFeedback({
-            message: snapshot.error ?? "Failed to run search.",
+            message: snapshot.error ?? presentation.fallbackMessage,
             retryUntilEpochMs: null,
             signInSuggested: false,
             turnstileRequired: false,
           });
           return;
         }
-
-        timeoutId = window.setTimeout(() => {
-          void syncJob();
-        }, 1000);
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-
+      },
+      onError: (error) => {
         if (error instanceof ApiError && error.status === 404) {
           clearUnavailableExploreRun();
         }
@@ -287,17 +278,8 @@ export function App() {
           signInSuggested: false,
           turnstileRequired: false,
         });
-      }
-    };
-
-    void syncJob();
-
-    return () => {
-      cancelled = true;
-      if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
-      }
-    };
+      },
+    });
   }, [activeExploreJobId, exploreGuestAccessToken, isExpandingSearch]);
 
   async function handleSignIn() {
@@ -795,13 +777,11 @@ function isSearchDiagnosticsRequested(search: string): boolean {
 function mapExploreJobStatusToStage(
   status: ExploreSearchRunStatus | null,
 ): string | null {
-  if (status === "queued" || status === "planning") {
-    return "Understanding your topic";
+  if (status === null) {
+    return null;
   }
-  if (status === "retrieving") {
-    return "Searching repositories";
-  }
-  return null;
+  const presentation = searchRunPresentation[status];
+  return presentation.state === "pending" ? presentation.stageLabel : null;
 }
 
 function readAuthErrorFromUrl(): string | null {

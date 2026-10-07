@@ -30,6 +30,12 @@ Core domain objects:
 - `GET /api/explore/search-runs/{id}`
 - `POST /api/explore/search-runs/{id}/expand`
 
+Search snapshots use `queued`, `running`, `completed`, `completed_partial`,
+`failed`, or `interrupted`. Poll only `queued` and `running` runs. The other four
+statuses are terminal; `completed_partial` retains completed results, while
+`failed` and `interrupted` stop loading and expose an error. Lifecycle status
+does not describe individual planning or retrieval stages.
+
 Signed-in runs can be read or expanded only by their owner. Guest run creation
 returns a `guestAccessToken`; clients must retain it and send it in the
 `X-Search-Run-Token` header when reading or expanding that run. The token is

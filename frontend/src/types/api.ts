@@ -86,11 +86,11 @@ export type ExploreSearchPayload = {
 
 export type ExploreSearchRunStatus =
   | "queued"
-  | "planning"
-  | "retrieving"
+  | "running"
   | "completed"
   | "completed_partial"
-  | "failed";
+  | "failed"
+  | "interrupted";
 
 export type ExploreSearchRunPayload = ExploreSearchPayload & {
   runId: string;
