@@ -13,7 +13,7 @@ def test_load_repo_activity_builds_release_signals(monkeypatch) -> None:
     started_after = datetime(2026, 7, 17, 10, 0, tzinfo=UTC)
 
     def fake_fetch_json(url: str) -> JsonResponse:
-        if url.endswith("/releases?per_page=10"):
+        if url.endswith("/releases?per_page=100&page=1"):
             return JsonResponse(payload=[
                 {
                     "id": 12,
@@ -48,7 +48,7 @@ def test_load_repo_activity_ignores_events_before_start(monkeypatch) -> None:
     started_after = datetime(2026, 7, 17, 13, 0, tzinfo=UTC)
 
     def fake_fetch_json(url: str) -> JsonResponse:
-        if url.endswith("/releases?per_page=10"):
+        if url.endswith("/releases?per_page=100&page=1"):
             return JsonResponse(payload=[
                 {
                     "id": 5,
@@ -80,7 +80,7 @@ def test_load_repo_activity_reports_provider_redirect(monkeypatch) -> None:
     new_url = "https://api.github.com/repositories/123/commits?per_page=10"
 
     def fake_fetch_json(url: str) -> JsonResponse:
-        if url.endswith("/releases?per_page=10"):
+        if url.endswith("/releases?per_page=100&page=1"):
             return JsonResponse(payload=[], url=url)
         if url.endswith("/commits?per_page=10"):
             return JsonResponse(payload=[], url=new_url)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import UTC, datetime
+from json import JSONDecodeError
 
 from app.models.repository import Repository
 from app.models.signal import Signal
@@ -11,6 +12,7 @@ from app.sources.common import (
     RepositoryActivity,
     RepositoryCommit,
     RepositoryRelease,
+    RepositorySourceError,
     build_repository_main_commit_signal,
     build_repository_release_signal,
     read_repository_name,
@@ -21,6 +23,9 @@ from app.sources.github.client import (
     fetch_json,
 )
 
+
+RELEASE_PAGE_SIZE = 100
+MAX_RELEASE_PAGES = 10
 
 def load_repository_activity(
     repository: Repository,
@@ -39,7 +44,10 @@ def load_repository_activity(
     if release_started_after is not None:
         releases = _load_release_signals(repo_full_name, started_after=release_started_after)
     if commit_started_after is not None:
-        commits = _load_commit_signals(repo_full_name, started_after=commit_started_after)
+        try:
+            commits = _load_commit_signals(repo_full_name, started_after=commit_started_after)
+        except (RepositorySourceError, JSONDecodeError):
+            commits = RepositoryActivityBatch(signals=(), complete=False)
     return RepositoryActivity(
         signals=(*releases.signals, *commits.signals),
         releases_complete=releases.complete, commits_complete=commits.complete,
@@ -74,53 +82,66 @@ def _load_release_signals(
     *,
     started_after: datetime,
 ) -> RepositoryActivityBatch:
-    releases_url = f"{GITHUB_API_BASE}/repos/{repo_full_name}/releases?per_page=10"
-    response = fetch_json(releases_url)
-    payload = response.payload
-
-    if not isinstance(payload, list):
-        return RepositoryActivityBatch(signals=(), complete=False, redirected=response.url != releases_url)
-
-    complete = len(payload) < 10
     signals: list[Signal] = []
-    for item in payload:
-        if not isinstance(item, dict):
-            complete = False
-            continue
-
-        published_at = _parse_github_datetime(
-            item.get("published_at") or item.get("created_at"),
+    seen_ids: set[str] = set()
+    redirected = False
+    complete = True
+    for page in range(1, MAX_RELEASE_PAGES + 1):
+        releases_url = (
+            f"{GITHUB_API_BASE}/repos/{repo_full_name}/releases"
+            f"?per_page={RELEASE_PAGE_SIZE}&page={page}"
         )
-        if published_at is None:
-            complete = False
-            continue
-        if published_at <= started_after:
-            continue
+        try:
+            response = fetch_json(releases_url)
+        except (RepositorySourceError, JSONDecodeError):
+            return RepositoryActivityBatch(signals=tuple(signals), complete=False, redirected=redirected)
+        redirected = redirected or response.url != releases_url
+        payload = response.payload
+        if not isinstance(payload, list):
+            return RepositoryActivityBatch(signals=tuple(signals), complete=False, redirected=redirected)
+        for item in payload:
+            if not isinstance(item, dict):
+                complete = False
+                continue
 
-        title = str(item.get("name") or item.get("tag_name") or "GitHub release")
-        body = str(item.get("body") or "")
-        tag_name = str(item.get("tag_name") or "")
-        if not (item.get("id") or tag_name):
-            complete = False
-            continue
-        release_id = str(item.get("id") or tag_name or title)
+            published_at = _parse_github_datetime(
+                item.get("published_at") or item.get("created_at"),
+            )
+            if published_at is None:
+                complete = False
+                continue
+            if published_at < started_after:
+                continue
 
-        release = RepositoryRelease(
-            source="github",
-            repo_full_name=repo_full_name,
-            release_id=release_id,
-            title=title,
-            url=str(
-                item.get("html_url")
-                or f"https://github.com/{repo_full_name}/releases"
-            ),
-            published_at=published_at,
-            tag_name=tag_name,
-            body=body,
-        )
-        signals.append(build_repository_release_signal(release))
+            title = str(item.get("name") or item.get("tag_name") or "GitHub release")
+            body = str(item.get("body") or "")
+            tag_name = str(item.get("tag_name") or "")
+            if not (item.get("id") or tag_name):
+                complete = False
+                continue
+            release_id = str(item.get("id") or tag_name or title)
 
-    return RepositoryActivityBatch(signals=tuple(signals), complete=complete, redirected=response.url != releases_url)
+            release = RepositoryRelease(
+                source="github",
+                repo_full_name=repo_full_name,
+                release_id=release_id,
+                title=title,
+                url=str(
+                    item.get("html_url")
+                    or f"https://github.com/{repo_full_name}/releases"
+                ),
+                published_at=published_at,
+                tag_name=tag_name,
+                body=body,
+            )
+            signal = build_repository_release_signal(release)
+            if signal.item_id not in seen_ids:
+                seen_ids.add(signal.item_id)
+                signals.append(signal)
+        if len(payload) < RELEASE_PAGE_SIZE:
+            return RepositoryActivityBatch(signals=tuple(signals), complete=complete, redirected=redirected)
+
+    return RepositoryActivityBatch(signals=tuple(signals), complete=False, redirected=redirected)
 
 
 def _load_commit_signals(

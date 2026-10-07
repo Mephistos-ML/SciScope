@@ -27,12 +27,18 @@ def test_provider_reports_stream_completeness(monkeypatch, provider, stream, res
     if response_kind == "bad-id":
         for key in ("id", "sha", "tag_name"):
             item.pop(key)
+    page_size = adapter.RELEASE_PAGE_SIZE if stream == "releases" else 10
     payload = [] if response_kind == "empty" else (
-        [dict(item) for _ in range(10)] if response_kind == "full" else
+        [dict(item, id=str(n), sha=str(n), tag_name=f"v{n}") for n in range(page_size)] if response_kind == "full" else
         {"error": "invalid response"} if response_kind == "non-list" else
         [None] if response_kind == "bad-item" else [item]
     )
     def fetch(url):
+        if (
+            "/releases?" in url and stream == "releases"
+            and "page=1&" not in url and not url.endswith("page=1")
+        ):
+            return JsonResponse(payload={"error": "next page unavailable"}, url=url)
         return JsonResponse(payload=payload if f"/{stream}?" in url else [], url=url)
     monkeypatch.setattr(adapter, "fetch_json", fetch)
     repository = Repository(repository_id=f"{provider}:repo:123", source=provider,
@@ -45,11 +51,12 @@ def test_provider_reports_stream_completeness(monkeypatch, provider, stream, res
     complete = response_kind in {"empty", "short"}
     assert activity.releases_complete is (complete if stream == "releases" else True)
     assert activity.commits_complete is (complete if stream == "commits" else True)
-    assert len(activity.signals) == (10 if response_kind == "full" else 1 if response_kind == "short" else 0)
+    assert len(activity.signals) == (page_size if response_kind == "full" else 1 if response_kind == "short" else 0)
 
 
 @pytest.mark.parametrize("adapter", [github, gitlab])
-def test_full_page_with_old_events_does_not_assume_timestamp_order(monkeypatch, adapter):
+def test_full_old_page_uses_only_provider_supported_boundary(monkeypatch, adapter):
+    monkeypatch.setattr(adapter, "RELEASE_PAGE_SIZE", 10)
     payload = [{"id": n, "tag_name": f"v{n}", "published_at": "2026-10-06T12:00:00Z",
                 "released_at": "2026-10-06T12:00:00Z"} for n in range(10)]
     monkeypatch.setattr(adapter, "fetch_json", lambda url: JsonResponse(payload=payload, url=url))
@@ -59,4 +66,4 @@ def test_full_page_with_old_events_does_not_assume_timestamp_order(monkeypatch, 
         repository, release_started_after=datetime(2026, 10, 7, tzinfo=UTC), commit_started_after=None,
     )
     assert activity.signals == ()
-    assert activity.releases_complete is False
+    assert activity.releases_complete is (adapter is gitlab)

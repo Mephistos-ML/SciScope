@@ -143,6 +143,14 @@ read stream may advance its checkpoint; incomplete streams retain their previous
 boundary and make the monitoring check `partial`. Already read events are saved
 idempotently, so retries preserve event identities and read state.
 
+Release reads use pages of 100 entries, capped at 10 pages per repository per scan.
+GitHub reads to the end of the list; GitLab requests descending `released_at`
+order and may stop after passing the checkpoint. Entries exactly on the checkpoint
+are read again and deduplicated. A page error or exhausted page budget retains
+already read releases while leaving the release checkpoint unchanged. Repositories
+whose required history exceeds this budget remain partial until the interval can
+be fully read.
+
 Main modules:
 
 - `app/services/subscriptions/`

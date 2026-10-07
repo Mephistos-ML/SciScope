@@ -446,3 +446,56 @@ def test_provider_error_keeps_checkpoints_for_retry(monkeypatch):
     assert updates == []
     assert checks[0].status == "failed"
     assert checks[0].error_code == "timed_out"
+
+
+@pytest.mark.parametrize("provider", ["github", "gitlab"])
+def test_paginated_releases_recover_after_page_failure_without_duplicates(tmp_path, monkeypatch, provider):
+    from dataclasses import replace
+    from urllib.parse import parse_qs, urlsplit
+    from app.sources.common import JsonResponse
+    from app.sources.github import monitor as github
+    from app.sources.gitlab import monitor as gitlab
+    from app.storage.feed import mark_feed_event_read_for_user
+
+    adapter = github if provider == "github" else gitlab
+    database_url = build_test_database_url(tmp_path / "release-pagination.sqlite3")
+    migrate_test_database(database_url)
+    repository = replace(_repository(), source=provider, repository_id=f"{provider}:repo:123")
+    user = auth_storage.create_user(user_id="release-user", email="release@example.com",
+                                    display_name="Release", database_url=database_url)
+    upsert_repositories((repository,), database_url=database_url)
+    create_subscription(user_id=user.user_id, repository_id=repository.repository_id,
+                        selected_query="releases", database_url=database_url)
+    published_at = datetime.now(UTC) + timedelta(minutes=1)
+    fail_page = True
+    def fetch(url):
+        if "/commits?" in url:
+            return JsonResponse(payload=[], url=url)
+        page = int(parse_qs(urlsplit(url).query)["page"][0])
+        if page == 2 and fail_page:
+            raise RepositorySourceError(source=provider, status="timed_out", public_message="Second page timed out")
+        ids = range(1, 101) if page == 1 else range(101, 126)
+        return JsonResponse(payload=[{"id": n, "tag_name": f"v{n}", "name": f"Release {n}",
+                                     "published_at": published_at.isoformat(), "released_at": published_at.isoformat()}
+                                    for n in ids], url=url)
+    monkeypatch.setattr(adapter, "fetch_json", fetch)
+    monkeypatch.setattr(scan, "get_repository_monitor", lambda _source: adapter)
+    scan.run_repository_monitoring_scan(database_url=database_url)
+    initial_events = list_feed_events_for_user(user.user_id, database_url=database_url)
+    assert len(initial_events) == 100
+    cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
+    assert scan.REPOSITORY_RELEASE_CHECKPOINT_KEY not in cursors
+    assert scan.REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY in cursors
+    mark_feed_event_read_for_user(user.user_id, initial_events[0].event_id, database_url=database_url)
+    fail_page = False
+    scan.run_repository_monitoring_scan(database_url=database_url)
+    scan.run_repository_monitoring_scan(database_url=database_url)
+    events = list_feed_events_for_user(user.user_id, database_url=database_url)
+    assert len(events) == 125
+    assert len({event.event_id for event in events}) == 125
+    assert next(event for event in events if event.event_id == initial_events[0].event_id).read_at is not None
+    cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
+    assert cursors[scan.REPOSITORY_RELEASE_CHECKPOINT_KEY] == published_at.isoformat()
+    with session_scope(database_url) as session:
+        runs = session.scalars(select(MonitoringRunRecordModel)).all()
+    assert sorted(run.status for run in runs) == ["partial", "succeeded", "succeeded"]
