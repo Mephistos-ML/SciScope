@@ -4,6 +4,7 @@ import type {
   FeedEventListPayload,
   SearchDiagnosticsReport,
   ExploreSearchRunPayload,
+  ExploreSearchRunCreatedPayload,
   ExploreSearchPayload,
   SubscriptionItem,
   SubscriptionListPayload,
@@ -194,8 +195,8 @@ export async function runExploreSearch(payload: {
 export async function createExploreSearchRun(payload: {
   topicDescription: string;
   turnstileToken?: string | null;
-}): Promise<ExploreSearchRunPayload> {
-  return requestJson<ExploreSearchRunPayload>("/api/explore/search-runs", {
+}): Promise<ExploreSearchRunCreatedPayload> {
+  return requestJson<ExploreSearchRunCreatedPayload>("/api/explore/search-runs", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -204,13 +205,22 @@ export async function createExploreSearchRun(payload: {
   });
 }
 
-export async function fetchExploreSearchRun(runId: string): Promise<ExploreSearchRunPayload> {
-  return requestJson<ExploreSearchRunPayload>(`/api/explore/search-runs/${runId}`);
+export async function fetchExploreSearchRun(
+  runId: string,
+  guestAccessToken: string | null,
+): Promise<ExploreSearchRunPayload> {
+  return requestJson<ExploreSearchRunPayload>(`/api/explore/search-runs/${encodeURIComponent(runId)}`, {
+    headers: guestAccessToken ? { "X-Search-Run-Token": guestAccessToken } : undefined,
+  });
 }
 
-export async function expandExploreSearchRun(runId: string): Promise<ExploreSearchRunPayload> {
-  return requestJson<ExploreSearchRunPayload>(`/api/explore/search-runs/${runId}/expand`, {
+export async function expandExploreSearchRun(
+  runId: string,
+  guestAccessToken: string | null,
+): Promise<ExploreSearchRunPayload> {
+  return requestJson<ExploreSearchRunPayload>(`/api/explore/search-runs/${encodeURIComponent(runId)}/expand`, {
     method: "POST",
+    headers: guestAccessToken ? { "X-Search-Run-Token": guestAccessToken } : undefined,
   });
 }
 

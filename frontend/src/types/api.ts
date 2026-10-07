@@ -101,6 +101,10 @@ export type ExploreSearchRunPayload = ExploreSearchPayload & {
   updatedAt: string;
 };
 
+export type ExploreSearchRunCreatedPayload = ExploreSearchRunPayload & {
+  guestAccessToken?: string;
+};
+
 export type ExploreAccessErrorPayload = {
   error: string;
   code?: string;

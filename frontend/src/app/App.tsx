@@ -89,6 +89,7 @@ export function App() {
   );
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const [exploreGuestAccessToken, setExploreGuestAccessToken] = useState<string | null>(null);
   const [activeExploreJobId, setActiveExploreJobId] = useState<string | null>(null);
   const [lastCompletedExploreJobId, setLastCompletedExploreJobId] = useState<string | null>(null);
   const [activeExploreJobStatus, setActiveExploreJobStatus] =
@@ -215,7 +216,7 @@ export function App() {
 
     const syncJob = async () => {
       try {
-        const snapshot = await fetchExploreSearchRun(activeExploreJobId);
+        const snapshot = await fetchExploreSearchRun(activeExploreJobId, exploreGuestAccessToken);
         if (cancelled) {
           return;
         }
@@ -292,7 +293,7 @@ export function App() {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [activeExploreJobId, isExpandingSearch]);
+  }, [activeExploreJobId, exploreGuestAccessToken, isExpandingSearch]);
 
   async function handleSignIn() {
     setSigningIn(true);
@@ -332,6 +333,8 @@ export function App() {
     setCanExpandSearch(false);
     setErrorMessage(null);
     setResults([]);
+    setActiveExploreJobId(null);
+    setExploreGuestAccessToken(null);
     setLastCompletedExploreJobId(null);
     setLastCompletedExploreRunVersion(null);
     setLastAiSearchPlan(null);
@@ -341,6 +344,7 @@ export function App() {
         topicDescription: topicInput.trim(),
         turnstileToken,
       });
+      setExploreGuestAccessToken(job.guestAccessToken ?? null);
       setActiveExploreJobId(job.runId);
       setActiveExploreJobStatus(job.status);
       setTurnstileToken(null);
@@ -386,7 +390,7 @@ export function App() {
     setLastCompletedExploreRunVersion(null);
     setExploreSearchFeedback(null);
     try {
-      const job = await expandExploreSearchRun(lastCompletedExploreJobId);
+      const job = await expandExploreSearchRun(lastCompletedExploreJobId, exploreGuestAccessToken);
       setActiveExploreJobId(job.runId);
       setActiveExploreJobStatus(job.status);
     } catch (error) {
