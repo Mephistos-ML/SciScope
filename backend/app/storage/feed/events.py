@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 
 from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy.orm import Session
 
 from app.database.records.feed import FeedEventRecordModel
 from app.database.session import session_scope
@@ -23,53 +24,59 @@ def upsert_feed_events(
         return
 
     with session_scope(database_url) as session:
-        for event in events:
-            record = session.get(FeedEventRecordModel, event.event_id)
-            normalized_published_at = (
-                _ensure_utc(event.published_at) if event.published_at is not None else None
-            )
-            normalized_created_at = _ensure_utc(event.created_at or datetime.now(UTC))
-            if record is None:
-                session.add(
-                    FeedEventRecordModel(
-                        event_id=event.event_id,
-                        user_id=event.user_id,
-                        subscription_id=event.subscription_id,
-                        repository_id=event.repository_id,
-                        repository_full_name=event.repository_full_name,
-                        repository_source=event.repository_source,
-                        repository_url=event.repository_url,
-                        selected_query=event.selected_query,
-                        source=event.source,
-                        kind=event.kind,
-                        item_id=event.item_id,
-                        title=event.title,
-                        url=event.url,
-                        published_at=normalized_published_at,
-                        raw_text=event.raw_text,
-                        normalized_text=event.normalized_text,
-                        metadata_json=dict(event.metadata),
-                        created_at=normalized_created_at,
-                    )
-                )
-                continue
+        write_feed_events(session, events)
 
-            record.user_id = event.user_id
-            record.subscription_id = event.subscription_id
-            record.repository_id = event.repository_id
-            record.repository_full_name = event.repository_full_name
-            record.repository_source = event.repository_source
-            record.repository_url = event.repository_url
-            record.selected_query = event.selected_query
-            record.source = event.source
-            record.kind = event.kind
-            record.item_id = event.item_id
-            record.title = event.title
-            record.url = event.url
-            record.published_at = normalized_published_at
-            record.raw_text = event.raw_text
-            record.normalized_text = event.normalized_text
-            record.metadata_json = dict(event.metadata)
+
+def write_feed_events(session: Session, events: Sequence[FeedEvent]) -> None:
+    """Upsert events in a caller-owned storage transaction without committing."""
+
+    for event in events:
+        record = session.get(FeedEventRecordModel, event.event_id)
+        normalized_published_at = (
+            _ensure_utc(event.published_at) if event.published_at is not None else None
+        )
+        normalized_created_at = _ensure_utc(event.created_at or datetime.now(UTC))
+        if record is None:
+            session.add(
+                FeedEventRecordModel(
+                    event_id=event.event_id,
+                    user_id=event.user_id,
+                    subscription_id=event.subscription_id,
+                    repository_id=event.repository_id,
+                    repository_full_name=event.repository_full_name,
+                    repository_source=event.repository_source,
+                    repository_url=event.repository_url,
+                    selected_query=event.selected_query,
+                    source=event.source,
+                    kind=event.kind,
+                    item_id=event.item_id,
+                    title=event.title,
+                    url=event.url,
+                    published_at=normalized_published_at,
+                    raw_text=event.raw_text,
+                    normalized_text=event.normalized_text,
+                    metadata_json=dict(event.metadata),
+                    created_at=normalized_created_at,
+                )
+            )
+            continue
+
+        record.user_id = event.user_id
+        record.subscription_id = event.subscription_id
+        record.repository_id = event.repository_id
+        record.repository_full_name = event.repository_full_name
+        record.repository_source = event.repository_source
+        record.repository_url = event.repository_url
+        record.selected_query = event.selected_query
+        record.source = event.source
+        record.kind = event.kind
+        record.item_id = event.item_id
+        record.title = event.title
+        record.url = event.url
+        record.published_at = normalized_published_at
+        record.raw_text = event.raw_text
+        record.normalized_text = event.normalized_text
+        record.metadata_json = dict(event.metadata)
 
 
 def list_feed_events_for_user(

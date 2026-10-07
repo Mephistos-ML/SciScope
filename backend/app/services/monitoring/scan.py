@@ -21,15 +21,14 @@ from app.sources.common.factories import (
 )
 from app.sources.common.source_status import RepositorySourceError
 from app.sources.registry import get_repository_monitor
-from app.storage.feed.events import upsert_feed_events
 from app.storage.monitoring.state import (
     acquire_monitoring_job_lease,
     create_monitoring_run,
     finish_monitoring_run,
     get_repository_monitoring_cursors,
+    persist_repository_monitoring_result,
     record_repository_monitoring_check,
     release_monitoring_job_lease,
-    upsert_repository_monitoring_cursors,
 )
 from app.storage.repositories.repositories import upsert_repositories
 from app.storage.subscriptions.watches import (
@@ -170,7 +169,6 @@ def _scan_repository(
         if (signal.kind == "commit" and commit_after_sha is not None)
         or _is_after_subscription(signal.published_at, subscription.created_at)
     ]
-    upsert_feed_events(events, database_url=database_url)
     checkpoint_updates: dict[str, str] = {}
     if activity.releases_complete:
         checkpoint_updates[REPOSITORY_RELEASE_CHECKPOINT_KEY] = _latest(
@@ -182,10 +180,9 @@ def _scan_repository(
         checkpoint_updates[REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY] = _latest(
             activity.signals, "commit", commit_after,
         ).isoformat()
-    if checkpoint_updates:
-        upsert_repository_monitoring_cursors(
-            repository.repository_id, checkpoint_updates, database_url=database_url,
-        )
+    persist_repository_monitoring_result(
+        repository.repository_id, events, checkpoint_updates, database_url=database_url,
+    )
     return activity.releases_complete and activity.commits_complete
 
 

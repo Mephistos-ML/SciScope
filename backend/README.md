@@ -136,6 +136,12 @@ to refresh changed embeddings.
 
 ### Monitoring Flow
 
+Feed events and completed-stream checkpoints are committed in one database
+transaction per repository. A write or commit failure rolls back both, including
+updates to existing events. Retried scans remain idempotent and preserve read
+status. Partial scans may persist collected events, but only completed streams
+advance their checkpoints in that same transaction.
+
 `subscription watch -> source checkpoints -> releases and default-branch commits -> append-only Feed events`
 
 Adapters report completeness separately for releases and commits. Only a fully

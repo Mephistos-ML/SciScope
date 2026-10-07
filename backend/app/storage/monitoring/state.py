@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import or_, update
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from app.database.records.monitoring import (
     MonitoringJobLeaseRecordModel,
@@ -13,9 +15,10 @@ from app.database.records.monitoring import (
     RepositoryMonitoringCheckRecordModel,
     RepositoryMonitoringCursorRecordModel,
 )
-from app.models.monitoring import RepositoryMonitoringCheck
 from app.database.session import session_scope
-from app.models.monitoring import MonitoringRun
+from app.models.feed import FeedEvent
+from app.models.monitoring import MonitoringRun, RepositoryMonitoringCheck
+from app.storage.feed.events import write_feed_events
 
 
 def acquire_monitoring_job_lease(
@@ -121,33 +124,45 @@ def get_repository_monitoring_cursors(
     return {row.checkpoint_key: row.checkpoint_value for row in rows}
 
 
-def upsert_repository_monitoring_cursors(
+def persist_repository_monitoring_result(
     repository_id: str,
-    values: dict[str, str],
+    events: Sequence[FeedEvent],
+    checkpoint_updates: dict[str, str],
     *,
     database_url: str,
 ) -> None:
-    """Advance named repository-level cursors after a successful scan."""
+    """Commit Feed events and completed-stream checkpoints atomically."""
 
-    now = datetime.now(UTC)
+    if not events and not checkpoint_updates:
+        return
     with session_scope(database_url) as session:
-        for checkpoint_key, checkpoint_value in values.items():
-            row = session.get(
-                RepositoryMonitoringCursorRecordModel,
-                (repository_id, checkpoint_key),
-            )
-            if row is None:
-                session.add(
-                    RepositoryMonitoringCursorRecordModel(
-                        repository_id=repository_id,
-                        checkpoint_key=checkpoint_key,
-                        checkpoint_value=checkpoint_value,
-                        updated_at=now,
-                    )
+        write_feed_events(session, events)
+        _write_repository_monitoring_cursors(session, repository_id, checkpoint_updates)
+
+
+def _write_repository_monitoring_cursors(
+    session: Session,
+    repository_id: str,
+    values: dict[str, str],
+) -> None:
+    now = datetime.now(UTC)
+    for checkpoint_key, checkpoint_value in values.items():
+        row = session.get(
+            RepositoryMonitoringCursorRecordModel,
+            (repository_id, checkpoint_key),
+        )
+        if row is None:
+            session.add(
+                RepositoryMonitoringCursorRecordModel(
+                    repository_id=repository_id,
+                    checkpoint_key=checkpoint_key,
+                    checkpoint_value=checkpoint_value,
+                    updated_at=now,
                 )
-            else:
-                row.checkpoint_value = checkpoint_value
-                row.updated_at = now
+            )
+        else:
+            row.checkpoint_value = checkpoint_value
+            row.updated_at = now
 
 
 def record_repository_monitoring_check(
