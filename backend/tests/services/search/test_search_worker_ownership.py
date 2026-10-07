@@ -1,6 +1,7 @@
 """Recovery and cancellation at worker and application IO boundaries."""
 
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from threading import Event
 from uuid import uuid4
@@ -178,3 +179,68 @@ def test_worker_discards_cancelled_attempt_without_marking_failed(work, monkeypa
     assert storage.get_search_run(run_id, database_url=url).status == "queued"
     retry = claim(url)
     assert retry is not None and retry.lease_token is not None
+
+
+@pytest.mark.parametrize("change,code", [
+    ("missing", "execution_state_missing"),
+    ("unversioned", "execution_state_invalid"),
+    ("unsupported", "execution_state_unsupported"),
+    ("corrupt", "execution_state_invalid"),
+])
+def test_worker_reports_invalid_replay_state_without_external_work_or_data_loss(work, monkeypatch, change, code):
+    url, _, run_id = work
+    initial = claim(url)
+    storage.finish_search_run_operation(
+        initial, status="completed", execution_state=serialize_execution(execution(("first",))),
+        response_payload={"items": ["previous"]}, stage_report=report("first"), database_url=url,
+    )
+    with session_scope(url) as session:
+        run = session.get(SearchRunRecordModel, run_id)
+        state = dict(run.execution_state_json)
+        if change == "missing":
+            state = None
+        elif change == "unversioned":
+            del state["schemaVersion"]
+        elif change == "unsupported":
+            state["schemaVersion"] = 99
+        else:
+            state["executedQueries"] = ["second"]
+        run.execution_state_json = state
+        run.status = "running"
+        storage.write_search_run_operation(session, SearchRunOperation(
+            uuid4().hex, run_id, "expansion", "queued", datetime.now(UTC),
+        ))
+
+    def expand(**kwargs):
+        pytest.fail("Invalid state must not trigger provider IO")
+
+    monkeypatch.setattr(jobs, "expand_explore_search", expand)
+    operation = claim(url)
+    jobs.execute_search_run_operation(operation, ensure_lease=lambda: None, database_url=url)
+    run = storage.get_search_run(run_id, database_url=url)
+    assert run.status == "failed" and run.error_code == code
+    assert run.response_payload == {"items": ["previous"]}
+    assert run.execution_state == state
+    assert storage.count_search_run_stages(run_id, database_url=url) == 1
+    with session_scope(url) as session:
+        from app.database.records.search_runs import SearchRunOperationRecordModel
+        record = session.get(SearchRunOperationRecordModel, operation.operation_id)
+        assert record.status == "failed" and record.error_code == code
+
+
+def test_invalid_generated_progress_is_failed_without_publishing_it(work, monkeypatch):
+    url, _, run_id = work
+
+    def run(**kwargs):
+        invalid = replace(execution(("first",)), executed_queries=("second",))
+        kwargs["execution_callback"](invalid)
+        pytest.fail("Invalid progress must stop execution")
+
+    monkeypatch.setattr(jobs, "run_explore_search", run)
+    operation = claim(url)
+    jobs.execute_search_run_operation(operation, ensure_lease=lambda: None, database_url=url)
+    stored = storage.get_search_run(run_id, database_url=url)
+    assert stored.status == "failed" and stored.error_code == "execution_state_invalid"
+    assert stored.execution_state is None
+    assert stored.response_payload is None
+    assert storage.count_search_run_stages(run_id, database_url=url) == 0

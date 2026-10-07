@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 
 from app.api.app import app
 from app.config import AUTH_SESSION_COOKIE_NAME, CORS_ORIGINS
-from app.database.records.search_runs import SearchRunOperationRecordModel
+from app.database.records.search_runs import SearchRunOperationRecordModel, SearchRunRecordModel
 from app.database.session import session_scope
 from app.models.ai import AiSearchPlan
 from app.services.auth.service import create_authenticated_session
@@ -384,5 +384,45 @@ def test_expansion_rechecks_run_after_external_verification(database_url, users,
         response = client.post(f"/api/explore/search-runs/{created['runId']}/expand")
     assert response.status_code == (404 if change == "owner" else 409)
     assert _operation_count(created["runId"], database_url) == 1
+    with session_scope(database_url) as session:
+        assert session.scalar(select(func.count()).select_from(ExploreSearchEventRecordModel)) == 0
+
+
+@pytest.mark.parametrize("change,message", [
+    ("missing", "unavailable"),
+    ("unversioned", "invalid"),
+    ("unsupported", "unsupported"),
+    ("corrupt", "invalid"),
+])
+def test_invalid_execution_blocks_expansion_before_admission(database_url, users, change, message, monkeypatch):
+    from app.database.records.explore import ExploreSearchEventRecordModel
+    from app.api.routes import explore
+
+    created = _completed_run(database_url, users["owner"].user_id)
+    run = get_search_run(created["runId"], database_url=database_url)
+    state = dict(run.execution_state)
+    if change == "missing":
+        state = None
+    elif change == "unversioned":
+        del state["schemaVersion"]
+    elif change == "unsupported":
+        state["schemaVersion"] = 99
+    else:
+        state["executedQueries"] = ["second"]
+    with session_scope(database_url) as session:
+        record = session.get(SearchRunRecordModel, created["runId"])
+        record.execution_state_json = state
+
+    def prepare(*args, **kwargs):
+        pytest.fail("Invalid replay state must be rejected before access admission or external verification")
+
+    monkeypatch.setattr(explore, "_prepare_explore_search_request", prepare)
+    with TestClient(app) as client:
+        _sign_in(client, users["owner"], database_url)
+        response = client.post(f"/api/explore/search-runs/{created['runId']}/expand")
+    assert response.status_code == 409
+    assert message in response.json()["error"]
+    assert _operation_count(created["runId"], database_url) == 1
+    assert get_search_run(created["runId"], database_url=database_url).execution_state == state
     with session_scope(database_url) as session:
         assert session.scalar(select(func.count()).select_from(ExploreSearchEventRecordModel)) == 0

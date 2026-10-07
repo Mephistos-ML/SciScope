@@ -20,6 +20,9 @@ RetrievalMatchLocation = Literal[
 ]
 
 
+RetrievalMatchOrigin = Literal["catalog", "provider", "unknown"]
+
+
 @dataclass(frozen=True)
 class RetrievalMatchEvidence:
     """One normalized query match observed for a repository candidate."""
@@ -29,7 +32,7 @@ class RetrievalMatchEvidence:
     path: str = ""
     alignment: float = 1.0
     channel: str = "unknown"
-    origin: Literal["catalog", "provider", "unknown"] = "unknown"
+    origin: RetrievalMatchOrigin = "unknown"
     retrieval_rank: int | None = None
 
 
@@ -53,7 +56,7 @@ class CandidateProvenance:
     best_rank_by_channel: Mapping[str, int]
     hit_count: int
     match_evidence: tuple[RetrievalMatchEvidence, ...] = ()
-    origins: tuple[str, ...] = ("provider",)
+    origins: tuple[RetrievalMatchOrigin, ...] = ("provider",)
 
 
 @dataclass(frozen=True)

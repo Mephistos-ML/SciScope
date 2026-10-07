@@ -254,3 +254,55 @@ def test_guest_access_migration_downgrade_and_reupgrade(tmp_path: Path, monkeypa
     assert "lease_token" in {c["name"] for c in sa.inspect(engine).get_columns("search_run_operations")}
     with engine.connect() as connection:
         assert connection.execute(sa.text("SELECT lock_id FROM search_access_lock")).scalar_one() == 1
+
+
+def test_execution_state_migration_converts_data_without_a_runtime_legacy_reader(tmp_path: Path, monkeypatch):
+    import json
+
+    from app.services.search.explore.execution import deserialize_execution
+
+    snapshot = json.loads((BACKEND_ROOT / "tests/fixtures/explore_execution_v1.json").read_text())
+    unversioned = {key: value for key, value in snapshot.items() if key != "schemaVersion"}
+    unversioned["retrieved"] = {key: value for key, value in snapshot["retrieved"].items() if key != "laneOutcomes"}
+    future = {**snapshot, "schemaVersion": 99}
+    database_url = build_test_database_url(tmp_path / "versioned-execution.sqlite3")
+    migrate_test_database(database_url, "0015_planner_reasoning_effort")
+    engine = sa.create_engine(database_url)
+    runs = sa.Table("search_runs", sa.MetaData(), autoload_with=engine)
+    states = {"current": snapshot, "future": future, "missing": None, "malformed": "unreadable"}
+    states.update({f"unversioned-{index:04}": unversioned for index in range(501)})
+    with engine.begin() as connection:
+        connection.execute(runs.insert(), [{
+            "run_id": run_id, "owner_user_id": None,
+            "topic_description": "Preserved topic", "topic_hash": "hash", "status": "completed",
+            "planner_mode": "bootstrap", "ranking_policy_version": "heuristic-v1",
+            "backend_revision": "fixture", "created_at": datetime(2026, 10, 7, tzinfo=UTC),
+            "partial": False, "response_payload_json": {"items": ["preserved"]},
+            "execution_state_json": state,
+        } for run_id, state in states.items()])
+    migrate_test_database(database_url)
+    with engine.connect() as connection:
+        rows = connection.execute(sa.select(runs)).mappings().all()
+    assert len(rows) == len(states)
+    expected = {**unversioned, "schemaVersion": 1,
+                "retrieved": {**unversioned["retrieved"], "laneOutcomes": []}}
+    for row in rows:
+        assert row["response_payload_json"] == {"items": ["preserved"]}
+        assert row["status"] == "completed"
+        state = row["execution_state_json"]
+        if row["run_id"].startswith("unversioned-"):
+            assert state == expected
+            assert deserialize_execution(state).pending_queries == ("second",)
+        else:
+            assert state == states[row["run_id"]]
+
+    # A schema round trip must not erase the newly preserved execution facts.
+    expected_states = {row["run_id"]: row["execution_state_json"] for row in rows}
+    alembic_config = Config(str(BACKEND_ROOT / "alembic.ini"))
+    alembic_config.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    command.downgrade(alembic_config, "0015_planner_reasoning_effort")
+    migrate_test_database(database_url)
+    with engine.connect() as connection:
+        restored = connection.execute(sa.select(runs.c.run_id, runs.c.execution_state_json)).all()
+    assert dict(restored) == expected_states

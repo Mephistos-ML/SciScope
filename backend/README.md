@@ -76,7 +76,9 @@ The worker claims an operation with a renewable, token-fenced lease. Provider IO
 runs outside database transactions. Completion atomically commits the response,
 execution state, stage report, provider outcomes, ranking snapshot, and terminal
 run/operation statuses. Ownership loss prevents publication; recovery starts from
-the last committed execution state and repeats unfinished work.
+the last committed execution state and repeats unfinished work. The
+[execution-state contract](../docs/contracts/explore-execution-state.md) defines
+the persisted format, validation rules, and recovery failures.
 
 Run statuses are `queued`, `running`, `completed`, `completed_partial`, `failed`,
 and `interrupted`. Clients poll only `queued` and `running`. Signed-in runs belong

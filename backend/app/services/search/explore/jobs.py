@@ -23,6 +23,7 @@ from app.services.search.access.errors import ExploreAccessDeniedError
 from app.storage.search_admission import explore_admission_transaction
 from app.services.search.explore.execution import (
     ExploreSearchExecution,
+    ExploreExecutionStateError,
     deserialize_execution,
     serialize_execution,
 )
@@ -186,8 +187,8 @@ def _require_expandable_run(run: SearchRun) -> None:
     """Reject a lifecycle conflict before consuming capacity."""
     if run.status not in {"completed", "completed_partial"}:
         raise ValueError("Explore search run is not ready to expand.")
-    execution = _load_execution(run.execution_state)
-    if not isinstance(execution, ExploreSearchExecution) or not execution.pending_queries:
+    execution = deserialize_execution(run.execution_state)
+    if not execution.pending_queries:
         raise ValueError("Explore search run has no more planned queries.")
 
 
@@ -213,14 +214,14 @@ def execute_search_run_operation(
 
     # Callbacks collect attempt-local facts. Advancing the durable replay baseline
     # before committing the result would skip work after a crash or takeover.
-    execution: ExploreSearchExecution | None = None
+    execution_state: dict[str, object] | None = None
     report: SearchStageReport | None = None
     started_at = datetime.now(UTC)
 
     def remember_execution(value: ExploreSearchExecution) -> None:
-        nonlocal execution
+        nonlocal execution_state
         ensure_lease()
-        execution = value
+        execution_state = serialize_execution(value)
 
     def remember_report(value: SearchStageReport) -> None:
         nonlocal report
@@ -230,6 +231,7 @@ def execute_search_run_operation(
     payload: dict[str, object] | None = None
     message: str | None = None
     status: SearchRunStatus = "failed"
+    error_code = "search_failed"
     try:
         if operation.kind == "initial":
             payload = run_explore_search(
@@ -240,22 +242,23 @@ def execute_search_run_operation(
                 log_context=_build_log_context(run.topic_description, None).with_run_id(run.run_id),
             )
         else:
-            baseline = _load_execution(run.execution_state)
-            if not isinstance(baseline, ExploreSearchExecution):
-                message = "Search execution state is unavailable."
-            else:
-                payload = expand_explore_search(
-                    topic_description=run.topic_description,
-                    execution=baseline,
-                    database_url=database_url,
-                    execution_callback=remember_execution,
-                    stage_report_callback=remember_report,
-                    log_context=_build_log_context(run.topic_description, None).with_run_id(run.run_id),
-                )
+            baseline = deserialize_execution(run.execution_state)
+            payload = expand_explore_search(
+                topic_description=run.topic_description,
+                execution=baseline,
+                database_url=database_url,
+                execution_callback=remember_execution,
+                stage_report_callback=remember_report,
+                log_context=_build_log_context(run.topic_description, None).with_run_id(run.run_id),
+            )
         if payload is not None:
             status = "completed_partial" if payload.get("partial") else "completed"
     except SearchRunLeaseLostError:
         raise
+    except ExploreExecutionStateError as exc:
+        error_code = exc.code
+        message = str(exc)
+        logger.warning("Cannot resume Explore operation %s: %s", operation.operation_id, exc.code)
     except ExploreSearchUnavailableError as exc:
         message = str(exc)
         payload = {"sourceStatuses": list(exc.source_statuses)} if exc.source_statuses else None
@@ -275,26 +278,13 @@ def execute_search_run_operation(
         operation,
         status=status,
         response_payload=payload,
-        execution_state=serialize_execution(execution) if execution is not None else None,
+        execution_state=execution_state,
         stage_report=report,
         stage_started_at=started_at,
-        error_code="search_failed" if status == "failed" else None,
+        error_code=error_code if status == "failed" else None,
         error_message=message,
         database_url=database_url,
     )
-
-
-def _load_execution(
-    execution_state: dict[str, object] | None,
-) -> ExploreSearchExecution | None:
-    if execution_state is None:
-        return None
-    try:
-        execution = deserialize_execution(execution_state)
-    except (KeyError, TypeError, ValueError):
-        logger.exception("Stored Explore execution state is invalid.")
-        return None
-    return execution
 
 
 def _build_log_context(
