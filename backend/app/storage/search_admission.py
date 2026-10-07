@@ -1,4 +1,4 @@
-"""Persistence for atomic search admission and expansion scheduling."""
+"""Persistence for atomic search admission and durable scheduling."""
 
 from __future__ import annotations
 
@@ -14,11 +14,15 @@ from app.database.records.explore import (
     ExploreAccessLockRecordModel,
     ExploreSearchEventRecordModel,
 )
-from app.database.records.search_runs import SearchRunRecordModel, SearchRunOperationRecordModel
+from app.database.records.search_runs import SearchRunRecordModel
 from app.database.session import session_scope
 from app.models.explore_access import ExploreUsage
-from app.models.search_run import SearchRun
-from app.storage.search_runs import map_search_run_record
+from app.models.search_run import SearchRun, SearchRunOperation
+from app.storage.search_runs import (
+    map_search_run_record,
+    write_search_run,
+    write_search_run_operation,
+)
 
 
 def _ensure_utc(value: datetime) -> datetime:
@@ -64,9 +68,19 @@ class ExploreAdmissionStore:
         record = self._session.get(SearchRunRecordModel, run_id, with_for_update=True)
         return map_search_run_record(record) if record is not None else None
 
+    def schedule_initial_run(self, run: SearchRun, *, operation_id: str) -> None:
+        """Insert the admitted run and its initial operation in this transaction."""
+        write_search_run(self._session, run)
+        # Establish the referenced run before inserting its operation.
+        self._session.flush()
+        write_search_run_operation(self._session, SearchRunOperation(
+            operation_id=operation_id, run_id=run.run_id, kind="initial",
+            status="queued", queued_at=run.created_at,
+        ))
+
     def schedule_expansion(self, *, run_id: str, operation_id: str, queued_at: datetime) -> None:
         """Persist an expansion and its running state in this transaction."""
-        self._session.add(SearchRunOperationRecordModel(
+        write_search_run_operation(self._session, SearchRunOperation(
             operation_id=operation_id, run_id=run_id, kind="expansion",
             status="queued", queued_at=queued_at,
         ))

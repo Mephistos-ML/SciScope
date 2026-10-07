@@ -18,11 +18,11 @@ from app.database.session import session_scope
 from app.models.ai import AiSearchPlan
 from app.services.auth.service import create_authenticated_session
 from app.services.search.explore.execution import ExploreSearchExecution, serialize_execution
-from app.services.search.explore.jobs import create_explore_search_run
 from app.services.search.retrieval.models import RetrievedCandidates
 from app.storage.auth.users import create_user
-from app.storage.search_runs import create_search_run, get_search_run, get_search_run_report, update_search_run
+from app.storage.search_runs import write_search_run, get_search_run, get_search_run_report, update_search_run
 from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.search_runs import seed_search_run
 
 
 @pytest.fixture
@@ -47,7 +47,7 @@ def _sign_in(client, user, database_url):
 
 
 def _completed_run(database_url, owner_user_id=None):
-    created = create_explore_search_run(
+    created = seed_search_run(
         topic_description="Private research topic", owner_user_id=owner_user_id,
         database_url=database_url,
     )
@@ -99,7 +99,7 @@ def test_guest_run_requires_its_own_token(database_url, credential, method):
     created = _completed_run(database_url)
     token = created["guestAccessToken"]
     if credential == "another_run":
-        token = create_explore_search_run(topic_description="Other topic", database_url=database_url)["guestAccessToken"]
+        token = seed_search_run(topic_description="Other topic", database_url=database_url)["guestAccessToken"]
     elif credential == "wrong":
         token = "incorrect-token"
     headers = {} if credential == "missing" else {"X-Search-Run-Token": token}
@@ -166,7 +166,8 @@ def test_legacy_runs_without_guest_hash(database_url, users, owned):
     template = _completed_run(database_url, users["owner"].user_id if owned else None)
     stored = get_search_run(template["runId"], database_url=database_url)
     legacy = replace(stored, run_id="legacy-run", guest_access_token_hash=None)
-    create_search_run(legacy, database_url=database_url)
+    with session_scope(database_url) as session:
+        write_search_run(session, legacy)
     with TestClient(app) as client:
         _sign_in(client, users["owner"], database_url)
         headers = {"X-Search-Run-Token": template.get("guestAccessToken", "anything")}
@@ -276,7 +277,7 @@ def test_inaccessible_expansion_does_not_check_turnstile_or_reserve_quota(databa
 
 def test_unexpandable_run_does_not_consume_quota(database_url, monkeypatch):
     from app.api.routes import explore
-    created = create_explore_search_run(topic_description="topic", owner_user_id=None, database_url=database_url)
+    created = seed_search_run(topic_description="topic", owner_user_id=None, database_url=database_url)
     monkeypatch.setattr(explore, "_prepare_explore_search_request",
                         lambda *args, **kwargs: pytest.fail("Admission ran for invalid expansion"))
     from app.services.search.explore import jobs

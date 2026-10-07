@@ -1,30 +1,25 @@
 """Tests for durable Explore search job creation."""
 
-from __future__ import annotations
-
 from app import config
-from app.models.search_run import SearchRun
+from app.models.explore_access import ExploreActor, ExploreAdmission, ExploreTier
 from app.services.search.explore.jobs import create_explore_search_run
+from app.storage.search_runs import get_search_run
+from tests.conftest import build_test_database_url, migrate_test_database
 
 
-def test_openai_run_persists_planner_model_and_reasoning_effort(monkeypatch) -> None:
-    stored_runs: list[SearchRun] = []
+def test_openai_run_persists_planner_model_and_reasoning_effort(tmp_path, monkeypatch) -> None:
+    database_url = build_test_database_url(tmp_path / "planner-metadata.sqlite3")
+    migrate_test_database(database_url)
     monkeypatch.setattr(config, "AI_PLANNER_MODE", "openai")
     monkeypatch.setattr(config, "OPENAI_MODEL", "gpt-6-luna")
     monkeypatch.setattr(config, "OPENAI_REASONING_EFFORT", "low")
-    monkeypatch.setattr(
-        "app.services.search.explore.jobs.create_search_run",
-        lambda run, **_kwargs: stored_runs.append(run),
-    )
-    monkeypatch.setattr(
-        "app.services.search.explore.jobs.create_search_run_operation",
-        lambda *_args, **_kwargs: None,
-    )
-    create_explore_search_run(
+    created = create_explore_search_run(
         topic_description="Paramagnetic NMR fitting",
-        database_url="sqlite://",
+        admission=ExploreAdmission(ExploreActor(ExploreTier.GUEST, "guest_ip", "test-guest")),
+        database_url=database_url,
     )
+    stored = get_search_run(created["runId"], database_url=database_url)
 
-    assert len(stored_runs) == 1
-    assert stored_runs[0].planner_model == "gpt-6-luna"
-    assert stored_runs[0].planner_reasoning_effort == "low"
+    assert stored is not None
+    assert stored.planner_model == "gpt-6-luna"
+    assert stored.planner_reasoning_effort == "low"

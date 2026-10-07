@@ -53,14 +53,11 @@ def create_explore_search_run_response(
 ) -> dict[str, object]:
     """Create one background explore search run."""
 
-    topic_description, topic_hash = _authorize_explore_search_request(
-        request,
-        payload,
-    )
-    user = get_current_user(request, database_url=request.app.state.database_url)
+    topic_description = str(payload.get("topicDescription") or "").strip()
+    admission = _prepare_explore_search_request(request, payload)
     return create_explore_search_run(
         topic_description=topic_description,
-        owner_user_id=user.user_id if user else None,
+        admission=admission,
         database_url=request.app.state.database_url,
     )
 

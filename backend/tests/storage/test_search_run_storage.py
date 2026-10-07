@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from app.database.session import session_scope
 from app.models.search_run import (
     SearchRun,
     SearchRunOperation,
@@ -12,8 +13,8 @@ from app.models.search_run import (
     SearchRunStage,
 )
 from app.storage.search_runs import (
-    create_search_run,
-    create_search_run_operation,
+    write_search_run,
+    write_search_run_operation,
     claim_next_search_run_operation,
     count_search_run_provider_outcomes,
     count_search_run_ranking_candidates,
@@ -85,8 +86,10 @@ def test_search_run_storage_persists_execution_facts(tmp_path) -> None:
         error_message="GitHub repository search is rate-limited right now.",
     )
 
-    create_search_run(run, database_url=database_url)
-    create_search_run_operation(operation, database_url=database_url)
+    with session_scope(database_url) as session:
+        write_search_run(session, run)
+        session.flush()
+        write_search_run_operation(session, operation)
     record_search_run_stage(stage, database_url=database_url)
     record_search_run_provider_outcomes((outcome,), database_url=database_url)
     record_search_run_ranking_candidates(
@@ -157,7 +160,8 @@ def test_search_run_report_projects_run_failure_fields(tmp_path) -> None:
         error_code="search_failed",
         error_message="Repository search is temporarily unavailable across all providers.",
     )
-    create_search_run(run, database_url=database_url)
+    with session_scope(database_url) as session:
+        write_search_run(session, run)
 
     report = get_search_run_report(run.run_id, database_url=database_url)
 
@@ -194,8 +198,10 @@ def test_search_run_operation_lease_allows_one_worker_and_recovers_after_expiry(
         status="queued",
         queued_at=now,
     )
-    create_search_run(run, database_url=database_url)
-    create_search_run_operation(operation, database_url=database_url)
+    with session_scope(database_url) as session:
+        write_search_run(session, run)
+        session.flush()
+        write_search_run_operation(session, operation)
 
     first = claim_next_search_run_operation(
         holder_id="worker_one",

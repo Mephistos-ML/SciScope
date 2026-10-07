@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy.orm import Session
 
 from app.database.records.search_runs import (
     SearchRunOperationRecordModel,
@@ -27,58 +28,52 @@ from app.models.search_run import (
 )
 
 
-def create_search_run(run: SearchRun, *, database_url: str) -> None:
-    """Persist a newly created logical Explore search run."""
+def write_search_run(session: Session, run: SearchRun) -> None:
+    """Insert a logical run within the persistence caller's transaction."""
 
-    with session_scope(database_url) as session:
-        session.add(
-            SearchRunRecordModel(
-                run_id=run.run_id,
-                owner_user_id=run.owner_user_id,
-                guest_access_token_hash=run.guest_access_token_hash,
-                topic_description=run.topic_description,
-                topic_hash=run.topic_hash,
-                status=run.status,
-                planner_mode=run.planner_mode,
-                planner_model=run.planner_model,
-                planner_reasoning_effort=run.planner_reasoning_effort,
-                ranking_policy_version=run.ranking_policy_version,
-                backend_revision=run.backend_revision,
-                created_at=run.created_at,
-                started_at=run.started_at,
-                completed_at=run.completed_at,
-                partial=run.partial,
-                error_code=run.error_code,
-                error_message=run.error_message,
-                response_payload_json=run.response_payload,
-                execution_state_json=run.execution_state,
-            )
+    session.add(
+        SearchRunRecordModel(
+            run_id=run.run_id,
+            owner_user_id=run.owner_user_id,
+            guest_access_token_hash=run.guest_access_token_hash,
+            topic_description=run.topic_description,
+            topic_hash=run.topic_hash,
+            status=run.status,
+            planner_mode=run.planner_mode,
+            planner_model=run.planner_model,
+            planner_reasoning_effort=run.planner_reasoning_effort,
+            ranking_policy_version=run.ranking_policy_version,
+            backend_revision=run.backend_revision,
+            created_at=run.created_at,
+            started_at=run.started_at,
+            completed_at=run.completed_at,
+            partial=run.partial,
+            error_code=run.error_code,
+            error_message=run.error_message,
+            response_payload_json=run.response_payload,
+            execution_state_json=run.execution_state,
         )
+    )
 
 
-def create_search_run_operation(
-    operation: SearchRunOperation,
-    *,
-    database_url: str,
-) -> None:
-    """Persist one initial-search or expansion operation."""
+def write_search_run_operation(session: Session, operation: SearchRunOperation) -> None:
+    """Insert an operation within the persistence caller's transaction."""
 
-    with session_scope(database_url) as session:
-        session.add(
-            SearchRunOperationRecordModel(
-                operation_id=operation.operation_id,
-                run_id=operation.run_id,
-                kind=operation.kind,
-                status=operation.status,
-                queued_at=operation.queued_at,
-                started_at=operation.started_at,
-                completed_at=operation.completed_at,
-                lease_holder_id=operation.lease_holder_id,
-                lease_expires_at=operation.lease_expires_at,
-                error_code=operation.error_code,
-                error_message=operation.error_message,
-            )
+    session.add(
+        SearchRunOperationRecordModel(
+            operation_id=operation.operation_id,
+            run_id=operation.run_id,
+            kind=operation.kind,
+            status=operation.status,
+            queued_at=operation.queued_at,
+            started_at=operation.started_at,
+            completed_at=operation.completed_at,
+            lease_holder_id=operation.lease_holder_id,
+            lease_expires_at=operation.lease_expires_at,
+            error_code=operation.error_code,
+            error_message=operation.error_message,
         )
+    )
 
 
 def claim_next_search_run_operation(

@@ -9,9 +9,9 @@ import pytest
 
 from app.api.app import app
 from app.models.search_run import SearchRunStatus
-from app.services.search.explore.jobs import create_explore_search_run
 from app.storage.search_runs import update_search_run
 from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.search_runs import seed_search_run
 
 
 def test_frontend_search_status_contract_matches_backend() -> None:
@@ -28,7 +28,7 @@ def test_search_snapshot_exposes_each_lifecycle_status(tmp_path, monkeypatch, st
     database_url = build_test_database_url(tmp_path / "status-contract.sqlite3")
     migrate_test_database(database_url)
     monkeypatch.setattr(app.state, "database_url", database_url)
-    created = create_explore_search_run(topic_description="Scientific software", database_url=database_url)
+    created = seed_search_run(topic_description="Scientific software", database_url=database_url)
     update_search_run(created["runId"], status=status, database_url=database_url)
 
     with TestClient(app) as client:

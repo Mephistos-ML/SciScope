@@ -35,8 +35,6 @@ from app.services.search.explore.service import (
 )
 from app.services.search.observability.context import SearchLogContext, build_request_id
 from app.storage.search_runs import (
-    create_search_run,
-    create_search_run_operation,
     count_search_run_stages,
     get_search_run,
     record_search_run_provider_outcomes,
@@ -52,12 +50,13 @@ logger = logging.getLogger(__name__)
 def create_explore_search_run(
     *,
     topic_description: str,
-    owner_user_id: str | None = None,
+    admission: ExploreAdmission,
     database_url: str,
 ) -> dict[str, object]:
-    """Create a durable logical run with one queued initial operation."""
+    """Atomically admit a logical run and queue its initial operation."""
     now = datetime.now(UTC)
     run_id, operation_id = uuid4().hex, uuid4().hex
+    owner_user_id = admission.actor.user_id
     guest_access_token = secrets.token_urlsafe(32) if owner_user_id is None else None
     run = SearchRun(
         run_id=run_id,
@@ -81,11 +80,17 @@ def create_explore_search_run(
             _hash_guest_token(guest_access_token) if guest_access_token else None
         ),
     )
-    create_search_run(run, database_url=database_url)
-    create_search_run_operation(
-        SearchRunOperation(operation_id, run_id, "initial", "queued", now),
-        database_url=database_url,
-    )
+    with explore_admission_transaction(database_url=database_url) as store:
+        decision = record_explore_admission(
+            admission.actor, store=store, topic_hash=run.topic_hash,
+            turnstile_verified=admission.turnstile_verified,
+            bypass_quota=admission.bypass_quota,
+        )
+        if decision.allowed:
+            store.schedule_initial_run(run, operation_id=operation_id)
+
+    if not decision.allowed:
+        raise ExploreAccessDeniedError(decision)
     payload = _build_run_snapshot(run)
     if guest_access_token is not None:
         payload["guestAccessToken"] = guest_access_token
