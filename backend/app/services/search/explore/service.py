@@ -553,7 +553,6 @@ def _retrieve_planned_queries(
     """Retrieve planned queries until one completes or every timeout fallback is exhausted."""
 
     accumulated: RetrievedCandidates | None = None
-    last_timed_out_retrieval: RetrievedCandidates | None = None
     executed_queries: list[str] = []
     attempts: list[ExploreQueryAttempt] = []
     external_candidates: list = []
@@ -583,15 +582,12 @@ def _retrieve_planned_queries(
         external_candidates.extend(step_external_candidates)
         catalog_retrieval_duration_ms += step_catalog_retrieval_duration_ms
         candidate_merge_duration_ms += step_candidate_merge_duration_ms
-        if exhausted_timeouts:
-            last_timed_out_retrieval = step
-            continue
-
         accumulated = step if accumulated is None else _merge_retrieved_candidates(accumulated, step)
-        break
+        if not exhausted_timeouts:
+            break
 
     if accumulated is None:
-        accumulated = last_timed_out_retrieval or RetrievedCandidates(
+        accumulated = RetrievedCandidates(
             candidates=(), source_statuses=(), successful_source_count=0
         )
     return _RetrievalSequence(
