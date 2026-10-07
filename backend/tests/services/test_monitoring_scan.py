@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from sqlalchemy import select
 
 from tests.conftest import build_test_database_url, migrate_test_database
@@ -35,7 +36,7 @@ def test_scan_backfills_new_repository_since_earliest_subscription(monkeypatch) 
     cursor_updates: list[tuple[str, dict[str, str]]] = []
     signal = _signal("release-1", datetime(2026, 8, 2, 12, tzinfo=UTC))
     events = []
-    monitor = _Monitor(lambda *_args, **_kwargs: RepositoryActivity(signals=(signal,)))
+    monitor = _Monitor(lambda *_args, **_kwargs: RepositoryActivity(signals=(signal,), releases_complete=True, commits_complete=True))
     _configure_scan(
         monkeypatch,
         subscriptions=(_watch("sub_one", repository),),
@@ -71,7 +72,7 @@ def test_scan_loads_each_repository_once_and_fans_out_events(monkeypatch) -> Non
     repository = _repository()
     watches = (_watch("sub_one", repository), _watch("sub_two", repository))
     signal = _signal("release-1", datetime(2026, 9, 1, 12, tzinfo=UTC))
-    monitor = _Monitor(lambda *_args, **_kwargs: RepositoryActivity(signals=(signal,)))
+    monitor = _Monitor(lambda *_args, **_kwargs: RepositoryActivity(signals=(signal,), releases_complete=True, commits_complete=True))
     events = []
     finished_runs = []
     _configure_scan(
@@ -123,7 +124,7 @@ def test_scan_continues_after_one_repository_fails(monkeypatch) -> None:
             lambda repository, **_kwargs: (
                 (_ for _ in ()).throw(RuntimeError("provider unavailable"))
                 if repository.full_name == "example/broken"
-                else RepositoryActivity(signals=(healthy_signal,))
+                else RepositoryActivity(signals=(healthy_signal,), releases_complete=True, commits_complete=True)
             )
         ),
     )
@@ -184,7 +185,7 @@ def test_scan_refreshes_repository_profile_after_provider_redirect(monkeypatch) 
     repository = _repository()
     refreshed_repositories = []
     monitor = _Monitor(
-        lambda *_args, **_kwargs: RepositoryActivity(signals=(), redirected=True),
+        lambda *_args, **_kwargs: RepositoryActivity(signals=(), releases_complete=True, commits_complete=True, redirected=True),
         refreshed_name="example/renamed-repository",
     )
     _configure_scan(
@@ -237,7 +238,7 @@ def test_scan_persists_baseline_events_cursors_and_health_facts(tmp_path, monkey
     )
     signals: list[Signal] = []
     monitor = _Monitor(
-        lambda *_args, **_kwargs: RepositoryActivity(signals=tuple(signals))
+        lambda *_args, **_kwargs: RepositoryActivity(signals=tuple(signals), releases_complete=True, commits_complete=True)
     )
     monkeypatch.setattr(scan, "get_repository_monitor", lambda _source: monitor)
 
@@ -380,3 +381,68 @@ class _Monitor:
             metadata=repository.metadata,
             provider_repository_id=repository.provider_repository_id,
         )
+
+
+@pytest.mark.parametrize("releases_complete,commits_complete", [(False, True), (True, False), (False, False)])
+def test_incomplete_scan_retains_each_checkpoint_and_retries_without_duplicates(
+    tmp_path, monkeypatch, releases_complete, commits_complete,
+):
+    from dataclasses import replace
+    database_url = build_test_database_url(tmp_path / "partial-monitoring.sqlite3")
+    migrate_test_database(database_url)
+    repository = _repository()
+    user = auth_storage.create_user(user_id="monitor-user", email="monitor@example.com",
+                                    display_name="Monitor", database_url=database_url)
+    upsert_repositories((repository,), database_url=database_url)
+    create_subscription(user_id=user.user_id, repository_id=repository.repository_id,
+                        selected_query="monitor", database_url=database_url)
+    activity = RepositoryActivity(signals=(), releases_complete=True, commits_complete=True)
+    monitor = _Monitor(lambda *_args, **_kwargs: activity)
+    monkeypatch.setattr(scan, "get_repository_monitor", lambda _source: monitor)
+    scan.run_repository_monitoring_scan(database_url=database_url)
+    baseline = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
+    published_at = datetime.now(UTC) + timedelta(minutes=1)
+    signals = (_signal("release-1", published_at),
+               replace(_signal("commit-1", published_at), kind="commit"))
+    activity = RepositoryActivity(signals=signals, releases_complete=releases_complete,
+                                  commits_complete=commits_complete)
+    scan.run_repository_monitoring_scan(database_url=database_url)
+    first_events = list_feed_events_for_user(user.user_id, database_url=database_url)
+    assert len(first_events) == 2
+    from app.storage.feed import mark_feed_event_read_for_user
+    mark_feed_event_read_for_user(user.user_id, first_events[0].event_id, database_url=database_url)
+    partial_cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
+    for key, complete in ((scan.REPOSITORY_RELEASE_CHECKPOINT_KEY, releases_complete),
+                          (scan.REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY, commits_complete)):
+        assert partial_cursors[key] == (published_at.isoformat() if complete else baseline[key])
+    scan.run_repository_monitoring_scan(database_url=database_url)
+    assert get_repository_monitoring_cursors(repository.repository_id, database_url=database_url) == partial_cursors
+    retry_events = list_feed_events_for_user(user.user_id, database_url=database_url)
+    assert {event.event_id for event in retry_events} == {event.event_id for event in first_events}
+    assert next(event for event in retry_events if event.event_id == first_events[0].event_id).read_at is not None
+    with session_scope(database_url) as session:
+        runs = session.scalars(select(MonitoringRunRecordModel)).all()
+        checks = session.scalars(select(RepositoryMonitoringCheckRecordModel)).all()
+    assert sorted(run.status for run in runs) == ["partial", "partial", "succeeded"]
+    assert sorted(check.status for check in checks) == ["partial", "partial", "succeeded"]
+    assert sum(check.error_code == "incomplete_interval" for check in checks) == 2
+    activity = replace(activity, releases_complete=True, commits_complete=True)
+    scan.run_repository_monitoring_scan(database_url=database_url)
+    assert set(get_repository_monitoring_cursors(repository.repository_id, database_url=database_url).values()) == {published_at.isoformat()}
+    assert len(list_feed_events_for_user(user.user_id, database_url=database_url)) == 2
+
+
+def test_provider_error_keeps_checkpoints_for_retry(monkeypatch):
+    repository = _repository()
+    updates = []
+    checks = []
+    _configure_scan(monkeypatch, subscriptions=(_watch("sub_one", repository),),
+                    cursors={repository.repository_id: _cursors()}, checks=checks)
+    monkeypatch.setattr(scan, "upsert_repository_monitoring_cursors", lambda *args, **kwargs: updates.append(args))
+    def fail(*args, **kwargs):
+        raise RepositorySourceError(source="github", status="timed_out", public_message="Provider timed out.")
+    monkeypatch.setattr(scan, "get_repository_monitor", lambda _source: _Monitor(fail))
+    scan.run_repository_monitoring_scan(database_url="sqlite://")
+    assert updates == []
+    assert checks[0].status == "failed"
+    assert checks[0].error_code == "timed_out"

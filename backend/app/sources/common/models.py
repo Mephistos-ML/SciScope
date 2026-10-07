@@ -23,6 +23,17 @@ class RepositoryActivity:
     """Repository events returned by one provider scan."""
 
     signals: tuple[Signal, ...]
+    releases_complete: bool
+    commits_complete: bool
+    redirected: bool = False
+
+
+@dataclass(frozen=True)
+class RepositoryActivityBatch:
+    """Mapped events and completeness of one provider activity stream."""
+
+    signals: tuple[Signal, ...]
+    complete: bool
     redirected: bool = False
 
 

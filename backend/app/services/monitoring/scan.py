@@ -63,13 +63,16 @@ def run_repository_monitoring_scan(*, database_url: str = DATABASE_URL) -> None:
             repository = subscriptions[0].repository
             scanned_count += 1
             try:
-                _scan_repository(repository, subscriptions, database_url=database_url)
+                complete = _scan_repository(repository, subscriptions, database_url=database_url)
+                if not complete:
+                    failed_count += 1
+                    logger.warning("Repository monitoring read an incomplete interval for %s", repository.repository_id)
                 check = RepositoryMonitoringCheck(
                     repository.repository_id,
                     datetime.now(UTC),
-                    "succeeded",
-                    None,
-                    None,
+                    "succeeded" if complete else "partial",
+                    None if complete else "incomplete_interval",
+                    None if complete else "Activity reading is incomplete; monitoring will retry.",
                 )
             except RepositorySourceError as error:
                 failed_count += 1
@@ -124,10 +127,10 @@ def _scan_repository(
     subscriptions: list[SubscriptionWatchRecord],
     *,
     database_url: str,
-) -> None:
+) -> bool:
     monitor = get_repository_monitor(repository.source)
     if monitor is None:
-        return
+        return True
     cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
     subscription_started_at = min(
         datetime.fromisoformat(subscription.created_at).astimezone(UTC)
@@ -163,22 +166,20 @@ def _scan_repository(
         if _is_after_subscription(signal.published_at, subscription.created_at)
     ]
     upsert_feed_events(events, database_url=database_url)
-    upsert_repository_monitoring_cursors(
-        repository.repository_id,
-        {
-            REPOSITORY_RELEASE_CHECKPOINT_KEY: _latest(
-                activity.signals,
-                "release",
-                release_after,
-            ).isoformat(),
-            REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY: _latest(
-                activity.signals,
-                "commit",
-                commit_after,
-            ).isoformat(),
-        },
-        database_url=database_url,
-    )
+    checkpoint_updates: dict[str, str] = {}
+    if activity.releases_complete:
+        checkpoint_updates[REPOSITORY_RELEASE_CHECKPOINT_KEY] = _latest(
+            activity.signals, "release", release_after,
+        ).isoformat()
+    if activity.commits_complete:
+        checkpoint_updates[REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY] = _latest(
+            activity.signals, "commit", commit_after,
+        ).isoformat()
+    if checkpoint_updates:
+        upsert_repository_monitoring_cursors(
+            repository.repository_id, checkpoint_updates, database_url=database_url,
+        )
+    return activity.releases_complete and activity.commits_complete
 
 
 def _read_cursor(cursors: dict[str, str], key: str, fallback: datetime) -> datetime:

@@ -138,6 +138,11 @@ to refresh changed embeddings.
 
 `subscription watch -> source checkpoints -> releases and default-branch commits -> append-only Feed events`
 
+Adapters report completeness separately for releases and commits. Only a fully
+read stream may advance its checkpoint; incomplete streams retain their previous
+boundary and make the monitoring check `partial`. Already read events are saved
+idempotently, so retries preserve event identities and read state.
+
 Main modules:
 
 - `app/services/subscriptions/`

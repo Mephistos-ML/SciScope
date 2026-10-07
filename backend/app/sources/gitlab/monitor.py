@@ -16,6 +16,7 @@ from app.sources.common import (
     build_repository_release_signal,
     read_repository_name,
 )
+from app.sources.common.models import RepositoryActivityBatch
 from app.sources.gitlab.client import (
     GITLAB_API_BASE,
     fetch_json,
@@ -32,25 +33,19 @@ def load_repository_activity(
 
     repo_full_name = read_repository_name(repository)
     if repo_full_name is None:
-        return RepositoryActivity(signals=())
+        return RepositoryActivity(signals=(), releases_complete=False, commits_complete=False)
 
-    signals: list[Signal] = []
-    redirected = False
+    releases = RepositoryActivityBatch(signals=(), complete=True)
+    commits = RepositoryActivityBatch(signals=(), complete=True)
     if release_started_after is not None:
-        release_signals, release_redirected = _load_release_signals(
-            repo_full_name,
-            started_after=release_started_after,
-        )
-        signals.extend(release_signals)
-        redirected = redirected or release_redirected
+        releases = _load_release_signals(repo_full_name, started_after=release_started_after)
     if commit_started_after is not None:
-        commit_signals, commit_redirected = _load_commit_signals(
-            repo_full_name,
-            started_after=commit_started_after,
-        )
-        signals.extend(commit_signals)
-        redirected = redirected or commit_redirected
-    return RepositoryActivity(signals=tuple(signals), redirected=redirected)
+        commits = _load_commit_signals(repo_full_name, started_after=commit_started_after)
+    return RepositoryActivity(
+        signals=(*releases.signals, *commits.signals),
+        releases_complete=releases.complete, commits_complete=commits.complete,
+        redirected=releases.redirected or commits.redirected,
+    )
 
 
 def refresh_repository_profile(repository: Repository) -> Repository:
@@ -79,29 +74,37 @@ def _load_release_signals(
     repo_full_name: str,
     *,
     started_after: datetime,
-) -> tuple[list[Signal], bool]:
+) -> RepositoryActivityBatch:
     encoded_repo = quote_plus(repo_full_name)
     releases_url = f"{GITLAB_API_BASE}/projects/{encoded_repo}/releases?per_page=10"
     response = fetch_json(releases_url)
     payload = response.payload
 
     if not isinstance(payload, list):
-        return [], response.url != releases_url
+        return RepositoryActivityBatch(signals=(), complete=False, redirected=response.url != releases_url)
 
+    complete = len(payload) < 10
     signals: list[Signal] = []
     for item in payload:
         if not isinstance(item, dict):
+            complete = False
             continue
 
         published_at = _parse_gitlab_datetime(
             item.get("released_at") or item.get("created_at"),
         )
-        if published_at is None or published_at <= started_after:
+        if published_at is None:
+            complete = False
+            continue
+        if published_at <= started_after:
             continue
 
         title = str(item.get("name") or item.get("tag_name") or "GitLab release")
         body = str(item.get("description") or "")
         tag_name = str(item.get("tag_name") or "")
+        if not tag_name:
+            complete = False
+            continue
         release_id = tag_name or title
 
         release = RepositoryRelease(
@@ -121,14 +124,14 @@ def _load_release_signals(
         )
         signals.append(build_repository_release_signal(release))
 
-    return signals, response.url != releases_url
+    return RepositoryActivityBatch(signals=tuple(signals), complete=complete, redirected=response.url != releases_url)
 
 
 def _load_commit_signals(
     repo_full_name: str,
     *,
     started_after: datetime,
-) -> tuple[list[Signal], bool]:
+) -> RepositoryActivityBatch:
     encoded_repo = quote_plus(repo_full_name)
     commits_url = (
         f"{GITLAB_API_BASE}/projects/{encoded_repo}/repository/commits?per_page=10"
@@ -137,21 +140,27 @@ def _load_commit_signals(
     payload = response.payload
 
     if not isinstance(payload, list):
-        return [], response.url != commits_url
+        return RepositoryActivityBatch(signals=(), complete=False, redirected=response.url != commits_url)
 
+    complete = len(payload) < 10
     signals: list[Signal] = []
     for item in payload:
         if not isinstance(item, dict):
+            complete = False
             continue
 
         published_at = _parse_gitlab_datetime(
             item.get("committed_date") or item.get("created_at"),
         )
-        if published_at is None or published_at <= started_after:
+        if published_at is None:
+            complete = False
+            continue
+        if published_at <= started_after:
             continue
 
         commit_sha = str(item.get("id") or "").strip()
         if not commit_sha:
+            complete = False
             continue
 
         message = str(item.get("message") or item.get("title") or "").strip()
@@ -172,7 +181,7 @@ def _load_commit_signals(
         )
         signals.append(build_repository_main_commit_signal(commit))
 
-    return signals, response.url != commits_url
+    return RepositoryActivityBatch(signals=tuple(signals), complete=complete, redirected=response.url != commits_url)
 
 
 
@@ -181,7 +190,10 @@ def _parse_gitlab_datetime(value: object) -> datetime | None:
         return None
 
     normalized = value.replace("Z", "+00:00")
-    parsed = datetime.fromisoformat(normalized)
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)

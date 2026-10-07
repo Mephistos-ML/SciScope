@@ -15,6 +15,7 @@ from app.sources.common import (
     build_repository_release_signal,
     read_repository_name,
 )
+from app.sources.common.models import RepositoryActivityBatch
 from app.sources.github.client import (
     GITHUB_API_BASE,
     fetch_json,
@@ -31,25 +32,19 @@ def load_repository_activity(
 
     repo_full_name = read_repository_name(repository)
     if repo_full_name is None:
-        return RepositoryActivity(signals=())
+        return RepositoryActivity(signals=(), releases_complete=False, commits_complete=False)
 
-    signals: list[Signal] = []
-    redirected = False
+    releases = RepositoryActivityBatch(signals=(), complete=True)
+    commits = RepositoryActivityBatch(signals=(), complete=True)
     if release_started_after is not None:
-        release_signals, release_redirected = _load_release_signals(
-            repo_full_name,
-            started_after=release_started_after,
-        )
-        signals.extend(release_signals)
-        redirected = redirected or release_redirected
+        releases = _load_release_signals(repo_full_name, started_after=release_started_after)
     if commit_started_after is not None:
-        commit_signals, commit_redirected = _load_commit_signals(
-            repo_full_name,
-            started_after=commit_started_after,
-        )
-        signals.extend(commit_signals)
-        redirected = redirected or commit_redirected
-    return RepositoryActivity(signals=tuple(signals), redirected=redirected)
+        commits = _load_commit_signals(repo_full_name, started_after=commit_started_after)
+    return RepositoryActivity(
+        signals=(*releases.signals, *commits.signals),
+        releases_complete=releases.complete, commits_complete=commits.complete,
+        redirected=releases.redirected or commits.redirected,
+    )
 
 
 def refresh_repository_profile(repository: Repository) -> Repository:
@@ -78,28 +73,36 @@ def _load_release_signals(
     repo_full_name: str,
     *,
     started_after: datetime,
-) -> tuple[list[Signal], bool]:
+) -> RepositoryActivityBatch:
     releases_url = f"{GITHUB_API_BASE}/repos/{repo_full_name}/releases?per_page=10"
     response = fetch_json(releases_url)
     payload = response.payload
 
     if not isinstance(payload, list):
-        return [], response.url != releases_url
+        return RepositoryActivityBatch(signals=(), complete=False, redirected=response.url != releases_url)
 
+    complete = len(payload) < 10
     signals: list[Signal] = []
     for item in payload:
         if not isinstance(item, dict):
+            complete = False
             continue
 
         published_at = _parse_github_datetime(
             item.get("published_at") or item.get("created_at"),
         )
-        if published_at is None or published_at <= started_after:
+        if published_at is None:
+            complete = False
+            continue
+        if published_at <= started_after:
             continue
 
         title = str(item.get("name") or item.get("tag_name") or "GitHub release")
         body = str(item.get("body") or "")
         tag_name = str(item.get("tag_name") or "")
+        if not (item.get("id") or tag_name):
+            complete = False
+            continue
         release_id = str(item.get("id") or tag_name or title)
 
         release = RepositoryRelease(
@@ -117,28 +120,31 @@ def _load_release_signals(
         )
         signals.append(build_repository_release_signal(release))
 
-    return signals, response.url != releases_url
+    return RepositoryActivityBatch(signals=tuple(signals), complete=complete, redirected=response.url != releases_url)
 
 
 def _load_commit_signals(
     repo_full_name: str,
     *,
     started_after: datetime,
-) -> tuple[list[Signal], bool]:
+) -> RepositoryActivityBatch:
     commits_url = f"{GITHUB_API_BASE}/repos/{repo_full_name}/commits?per_page=10"
     response = fetch_json(commits_url)
     payload = response.payload
 
     if not isinstance(payload, list):
-        return [], response.url != commits_url
+        return RepositoryActivityBatch(signals=(), complete=False, redirected=response.url != commits_url)
 
+    complete = len(payload) < 10
     signals: list[Signal] = []
     for item in payload:
         if not isinstance(item, dict):
+            complete = False
             continue
 
         commit_payload = item.get("commit")
         if not isinstance(commit_payload, dict):
+            complete = False
             continue
 
         author_payload = commit_payload.get("author")
@@ -146,11 +152,15 @@ def _load_commit_signals(
             author_payload = {}
 
         published_at = _parse_github_datetime(author_payload.get("date"))
-        if published_at is None or published_at <= started_after:
+        if published_at is None:
+            complete = False
+            continue
+        if published_at <= started_after:
             continue
 
         commit_sha = str(item.get("sha") or "").strip()
         if not commit_sha:
+            complete = False
             continue
 
         message = str(commit_payload.get("message") or "").strip()
@@ -171,7 +181,7 @@ def _load_commit_signals(
         )
         signals.append(build_repository_main_commit_signal(commit))
 
-    return signals, response.url != commits_url
+    return RepositoryActivityBatch(signals=tuple(signals), complete=complete, redirected=response.url != commits_url)
 
 
 def _parse_github_datetime(value: object) -> datetime | None:
@@ -179,7 +189,10 @@ def _parse_github_datetime(value: object) -> datetime | None:
         return None
 
     normalized = value.replace("Z", "+00:00")
-    parsed = datetime.fromisoformat(normalized)
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
