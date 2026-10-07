@@ -56,6 +56,7 @@ def test_scan_backfills_new_repository_since_earliest_subscription(monkeypatch) 
         {
             "release_started_after": datetime(2026, 8, 1, 12, tzinfo=UTC),
             "commit_started_after": datetime(2026, 8, 1, 12, tzinfo=UTC),
+            "commit_after_sha": None,
         }
     ]
     assert [event.subscription_id for event in events] == ["sub_one"]
@@ -469,6 +470,8 @@ def test_paginated_releases_recover_after_page_failure_without_duplicates(tmp_pa
     published_at = datetime.now(UTC) + timedelta(minutes=1)
     fail_page = True
     def fetch(url):
+        if "?" not in url:
+            return JsonResponse(payload={"commit": {"sha": "head", "id": "head"}} if "/branches/" in url else {"default_branch": "main"}, url=url)
         if "/commits?" in url:
             return JsonResponse(payload=[], url=url)
         page = int(parse_qs(urlsplit(url).query)["page"][0])
@@ -499,3 +502,63 @@ def test_paginated_releases_recover_after_page_failure_without_duplicates(tmp_pa
     with session_scope(database_url) as session:
         runs = session.scalars(select(MonitoringRunRecordModel)).all()
     assert sorted(run.status for run in runs) == ["partial", "succeeded", "succeeded"]
+
+
+@pytest.mark.parametrize("provider", ["github", "gitlab"])
+@pytest.mark.parametrize("partial_first", [False, True])
+def test_sha_checkpoint_preserves_backdated_commits_and_retries(tmp_path, monkeypatch, provider, partial_first):
+    from dataclasses import replace
+    from app.models.monitoring import REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY
+    from app.sources.github import monitor as github
+    from app.sources.gitlab import monitor as gitlab
+    from app.storage.feed import mark_feed_event_read_for_user
+    from tests.sources.repositories.test_commit_checkpoints import commit, fake_provider
+
+    adapter = github if provider == "github" else gitlab
+    database_url = build_test_database_url(tmp_path / "commit-sha.sqlite3")
+    migrate_test_database(database_url)
+    repository = replace(_repository(), source=provider, repository_id=f"{provider}:repo:123")
+    user = auth_storage.create_user(user_id="commit-user", email="commit@example.com",
+                                    display_name="Commit", database_url=database_url)
+    upsert_repositories((repository,), database_url=database_url)
+    create_subscription(user_id=user.user_id, repository_id=repository.repository_id,
+                        selected_query="commits", database_url=database_url)
+    # Releases are independently empty; retain the real commit adapter.
+    def release_batch(*args, **kwargs):
+        from app.sources.common.models import RepositoryActivityBatch
+        return RepositoryActivityBatch(signals=(), complete=True)
+    monkeypatch.setattr(adapter, "_load_release_signals", release_batch)
+    monkeypatch.setattr(scan, "get_repository_monitor", lambda _source: adapter)
+    fake_provider(adapter, monkeypatch, [], head="old-head")
+    scan.run_repository_monitoring_scan(database_url=database_url)
+    baseline = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
+    assert baseline[REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY] == "old-head"
+    items = [commit("new-head"), *[commit(f"merged-{n}") for n in range(124)]]
+    fake_provider(adapter, monkeypatch, items)
+    if partial_first:
+        monkeypatch.setattr(adapter, "MAX_COMMIT_PAGES", 1)
+        scan.run_repository_monitoring_scan(database_url=database_url)
+        assert len(list_feed_events_for_user(user.user_id, database_url=database_url)) == 100
+        assert get_repository_monitoring_cursors(repository.repository_id, database_url=database_url) == baseline
+        scan.run_repository_monitoring_scan(database_url=database_url)
+        assert len(list_feed_events_for_user(user.user_id, database_url=database_url)) == 100
+        monkeypatch.setattr(adapter, "MAX_COMMIT_PAGES", 10)
+    scan.run_repository_monitoring_scan(database_url=database_url)
+    events = list_feed_events_for_user(user.user_id, database_url=database_url)
+    assert len(events) == 125
+    assert {event.published_at.year for event in events} == {2010}
+    cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
+    assert cursors[REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY] == "new-head"
+    assert cursors[scan.REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY] == baseline[scan.REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY]
+    mark_feed_event_read_for_user(user.user_id, events[0].event_id, database_url=database_url)
+    scan.run_repository_monitoring_scan(database_url=database_url)
+    repeated = list_feed_events_for_user(user.user_id, database_url=database_url)
+    assert len(repeated) == 125
+    assert next(event for event in repeated if event.event_id == events[0].event_id).read_at is not None
+    fake_provider(adapter, monkeypatch, [commit("rebased-head")], head="rebased-head", diverged=True)
+    scan.run_repository_monitoring_scan(database_url=database_url)
+    assert get_repository_monitoring_cursors(repository.repository_id, database_url=database_url) == cursors
+    assert len(list_feed_events_for_user(user.user_id, database_url=database_url)) == 125
+    with session_scope(database_url) as session:
+        checks = session.scalars(select(RepositoryMonitoringCheckRecordModel).order_by(RepositoryMonitoringCheckRecordModel.checked_at)).all()
+    assert checks[-1].status == "partial"

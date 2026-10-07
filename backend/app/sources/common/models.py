@@ -25,6 +25,7 @@ class RepositoryActivity:
     signals: tuple[Signal, ...]
     releases_complete: bool
     commits_complete: bool
+    commit_head_sha: str | None = None
     redirected: bool = False
 
 
@@ -34,6 +35,7 @@ class RepositoryActivityBatch:
 
     signals: tuple[Signal, ...]
     complete: bool
+    head_sha: str | None = None
     redirected: bool = False
 
 
@@ -46,6 +48,7 @@ class RepositoryMonitor(Protocol):
         *,
         release_started_after: datetime | None,
         commit_started_after: datetime | None,
+        commit_after_sha: str | None = None,
     ) -> RepositoryActivity: ...
 
     def refresh_repository_profile(self, repository: Repository) -> Repository: ...

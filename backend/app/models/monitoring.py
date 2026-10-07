@@ -24,3 +24,6 @@ class RepositoryMonitoringCheck:
     status: str
     error_code: str | None
     error_message: str | None
+
+
+REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY = "latest_main_commit_sha"

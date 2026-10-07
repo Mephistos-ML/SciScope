@@ -156,6 +156,8 @@ def test_redirect_on_later_page_is_retained(adapter, monkeypatch):
 @pytest.mark.parametrize("failed_stream", ["releases", "commits"])
 def test_one_stream_failure_preserves_other_stream(adapter, monkeypatch, failed_stream):
     def fetch(url):
+        if "?" not in url:
+            return JsonResponse(payload={"commit": {"sha": "head", "id": "head"}} if "/branches/" in url else {"default_branch": "main"}, url=url)
         if f"/{failed_stream}?" in url:
             raise RepositorySourceError(source="github" if adapter is github else "gitlab",
                                         status="timed_out", public_message="Timed out")

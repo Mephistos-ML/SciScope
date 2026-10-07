@@ -27,13 +27,17 @@ def test_provider_reports_stream_completeness(monkeypatch, provider, stream, res
     if response_kind == "bad-id":
         for key in ("id", "sha", "tag_name"):
             item.pop(key)
-    page_size = adapter.RELEASE_PAGE_SIZE if stream == "releases" else 10
+    page_size = adapter.RELEASE_PAGE_SIZE if stream == "releases" else adapter.COMMIT_PAGE_SIZE
     payload = [] if response_kind == "empty" else (
         [dict(item, id=str(n), sha=str(n), tag_name=f"v{n}") for n in range(page_size)] if response_kind == "full" else
         {"error": "invalid response"} if response_kind == "non-list" else
         [None] if response_kind == "bad-item" else [item]
     )
     def fetch(url):
+        if "?" not in url:
+            return JsonResponse(payload={"commit": {"sha": "head", "id": "head"}} if "/branches/" in url else {"default_branch": "main"}, url=url)
+        if stream == "commits" and response_kind == "full" and "page=1" not in url:
+            return JsonResponse(payload={}, url=url)
         if (
             "/releases?" in url and stream == "releases"
             and "page=1&" not in url and not url.endswith("page=1")

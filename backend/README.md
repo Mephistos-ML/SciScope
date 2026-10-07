@@ -151,6 +151,21 @@ already read releases while leaving the release checkpoint unchanged. Repositori
 whose required history exceeds this budget remain partial until the interval can
 be fully read.
 
+Commit monitoring stores `latest_main_commit_sha` in the existing cursor table.
+A first scan without this SHA backfills by the previous timestamp (or subscription
+start), using committer dates and a pinned default-branch HEAD. Only a complete
+read establishes the SHA. Later scans compare the stored SHA with a pinned new
+HEAD and deliver newly reachable commits even when their dates predate the
+subscription. GitHub comparison is paginated; GitLab uses complete direct
+comparison commit arrays and a reverse comparison to verify ancestry. Reads are
+limited to 1,000 commits; incomplete reads, a missing old SHA, or rewritten history
+retain the previous checkpoint and report `partial`. The legacy timestamp never
+moves backwards and is only a bootstrap boundary once a SHA exists. Missing or
+rewritten history requires investigation; the monitor does not automatically
+reset its checkpoint and discard the unread interval. Commit dates remain the
+original provider dates in Feed.
+
+
 Main modules:
 
 - `app/services/subscriptions/`

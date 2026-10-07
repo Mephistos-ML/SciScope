@@ -9,7 +9,9 @@ import logging
 from uuid import uuid4
 
 from app.config import DATABASE_URL
-from app.models.monitoring import MonitoringRun, RepositoryMonitoringCheck
+from app.models.monitoring import (
+    MonitoringRun, RepositoryMonitoringCheck, REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY,
+)
 from app.models.repository import Repository
 from app.models.signal import Signal
 from app.services.feed.service import build_feed_event
@@ -146,10 +148,12 @@ def _scan_repository(
         REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
         subscription_started_at,
     )
+    commit_after_sha = cursors.get(REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY)
     activity = monitor.load_repository_activity(
         repository,
         release_started_after=release_after,
         commit_started_after=commit_after,
+        commit_after_sha=commit_after_sha,
     )
     if activity.redirected:
         refreshed_repository = monitor.refresh_repository_profile(repository)
@@ -163,7 +167,8 @@ def _scan_repository(
         build_feed_event(signal, subscription)
         for subscription in subscriptions
         for signal in activity.signals
-        if _is_after_subscription(signal.published_at, subscription.created_at)
+        if (signal.kind == "commit" and commit_after_sha is not None)
+        or _is_after_subscription(signal.published_at, subscription.created_at)
     ]
     upsert_feed_events(events, database_url=database_url)
     checkpoint_updates: dict[str, str] = {}
@@ -172,6 +177,8 @@ def _scan_repository(
             activity.signals, "release", release_after,
         ).isoformat()
     if activity.commits_complete:
+        if activity.commit_head_sha is not None:
+            checkpoint_updates[REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY] = activity.commit_head_sha
         checkpoint_updates[REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY] = _latest(
             activity.signals, "commit", commit_after,
         ).isoformat()
@@ -188,14 +195,14 @@ def _read_cursor(cursors: dict[str, str], key: str, fallback: datetime) -> datet
 
 
 def _latest(signals: tuple[Signal, ...], kind: str, fallback: datetime) -> datetime:
-    return max(
+    return max(fallback, max(
         (
             signal.published_at
             for signal in signals
             if signal.kind == kind and signal.published_at
         ),
         default=fallback,
-    )
+    ))
 
 
 def _is_after_subscription(published_at: datetime | None, created_at: str) -> bool:
