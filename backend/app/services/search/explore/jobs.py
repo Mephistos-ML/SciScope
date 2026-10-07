@@ -19,9 +19,8 @@ from app.models.search_run import (
     SearchRunStage,
     SearchStageReport,
 )
-from app.services.search.access import hash_explore_topic
-from app.services.search.access.service import record_explore_admission
-from app.services.search.access.errors import build_explore_access_denied_error
+from app.services.search.access.service import hash_explore_topic, record_explore_admission
+from app.services.search.access.errors import ExploreAccessDeniedError
 from app.storage.search_admission import explore_admission_transaction
 from app.services.search.explore.execution import (
     ExploreSearchExecution,
@@ -175,7 +174,7 @@ def expand_explore_search_run(
             )
 
     if not decision.allowed:
-        raise build_explore_access_denied_error(decision)
+        raise ExploreAccessDeniedError(decision)
     return get_explore_search_run(
         run_id, viewer_user_id=viewer_user_id, guest_access_token=guest_access_token,
         database_url=database_url,

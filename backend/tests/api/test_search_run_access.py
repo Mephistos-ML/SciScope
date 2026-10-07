@@ -221,6 +221,10 @@ def test_expansion_enforces_existing_limits(database_url, users, monkeypatch, li
                 "global": ExploreLimitCode.GLOBAL_CAPACITY_REACHED,
                 "cooldown": ExploreLimitCode.GUEST_COOLDOWN}
     assert response.json()["code"] == expected[limit]
+    if "retryAfterSeconds" in response.json():
+        assert response.headers["Retry-After"] == str(response.json()["retryAfterSeconds"])
+    assert "signInSuggested" in response.json()
+    assert "turnstileRequired" in response.json()
     from app.database.records.explore import ExploreSearchEventRecordModel
     with session_scope(database_url) as session:
         outcomes = session.scalars(select(ExploreSearchEventRecordModel.outcome)).all()

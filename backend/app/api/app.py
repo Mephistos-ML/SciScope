@@ -22,6 +22,7 @@ from app.config import CORS_ORIGINS, DATABASE_URL
 from app.database.session import check_database_connection
 from app.logging import configure_logging
 from app.sources.registry import load_repository_profile
+from app.models.explore_access import ExploreLimitCode
 from app.services.auth.service import get_current_user
 from app.services.search.access.errors import ExploreAccessDeniedError
 from app.services.search.explore.service import (
@@ -117,14 +118,24 @@ async def handle_explore_access_denied(
 ) -> JSONResponse:
     """Return structured rate-limit and access-denial payloads."""
 
+    decision = exc.decision
     headers: dict[str, str] = {}
-    if exc.retry_after_seconds is not None:
-        headers["Retry-After"] = str(exc.retry_after_seconds)
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=exc.to_payload(),
-        headers=headers,
-    )
+    payload: dict[str, object] = {
+        "error": decision.message,
+        "code": str(decision.code),
+        "signInSuggested": decision.sign_in_suggested,
+        "turnstileRequired": decision.turnstile_required,
+    }
+    if decision.retry_after_seconds is not None:
+        headers["Retry-After"] = str(decision.retry_after_seconds)
+        payload["retryAfterSeconds"] = decision.retry_after_seconds
+    if decision.turnstile_required or decision.code is ExploreLimitCode.GUEST_SEARCH_DISABLED:
+        status_code = status.HTTP_403_FORBIDDEN
+    elif decision.code is ExploreLimitCode.GLOBAL_CAPACITY_REACHED:
+        status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    else:
+        status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    return JSONResponse(status_code=status_code, content=payload, headers=headers)
 
 
 @app.get("/")

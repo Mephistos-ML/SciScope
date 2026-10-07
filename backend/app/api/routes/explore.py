@@ -8,7 +8,7 @@ from fastapi import HTTPException, status
 from app.models.explore_access import ExploreAdmission, ExploreTier
 from app.services.auth.service import get_current_user
 from app.services.security.turnstile import verify_turnstile_token
-from app.services.search.access.errors import build_explore_access_denied_error
+from app.services.search.access.errors import ExploreAccessDeniedError
 from app.services.search.access.policy import has_search_quota_bypass
 from app.services.search.access.service import (
     build_turnstile_failure_decision,
@@ -122,7 +122,7 @@ def _authorize_explore_search_request(
         database_url=request.app.state.database_url,
     )
     if not decision.allowed:
-        raise build_explore_access_denied_error(decision)
+        raise ExploreAccessDeniedError(decision)
     return topic_description, topic_hash
 
 
@@ -158,7 +158,7 @@ def _prepare_explore_search_request(
                 topic_hash=topic_hash,
                 database_url=database_url,
             )
-            raise build_explore_access_denied_error(decision)
+            raise ExploreAccessDeniedError(decision)
         turnstile_verified = True
 
     return ExploreAdmission(

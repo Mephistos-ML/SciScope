@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
 import logging
@@ -20,7 +21,7 @@ from app.sources.common.factories import (
     REPOSITORY_RELEASE_CHECKPOINT_KEY,
 )
 from app.sources.common.source_status import RepositorySourceError
-from app.sources.registry import get_repository_monitor
+from app.sources.common.models import RepositoryMonitor
 from app.storage.monitoring.state import (
     acquire_monitoring_job_lease,
     create_monitoring_run,
@@ -41,7 +42,11 @@ JOB_NAME = "repository-monitoring-scan"
 logger = logging.getLogger(__name__)
 
 
-def run_repository_monitoring_scan(*, database_url: str = DATABASE_URL) -> None:
+def run_repository_monitoring_scan(
+    *,
+    resolve_monitor: Callable[[str], RepositoryMonitor | None],
+    database_url: str = DATABASE_URL,
+) -> None:
     """Scan every uniquely watched repository and fan out new events."""
 
     run_id = str(uuid4())
@@ -64,7 +69,10 @@ def run_repository_monitoring_scan(*, database_url: str = DATABASE_URL) -> None:
             repository = subscriptions[0].repository
             scanned_count += 1
             try:
-                complete = _scan_repository(repository, subscriptions, database_url=database_url)
+                complete = _scan_repository(
+                    repository, subscriptions, resolve_monitor=resolve_monitor,
+                    database_url=database_url,
+                )
                 if not complete:
                     failed_count += 1
                     logger.warning("Repository monitoring read an incomplete interval for %s", repository.repository_id)
@@ -127,9 +135,10 @@ def _scan_repository(
     repository: Repository,
     subscriptions: list[SubscriptionWatchRecord],
     *,
+    resolve_monitor: Callable[[str], RepositoryMonitor | None],
     database_url: str,
 ) -> bool:
-    monitor = get_repository_monitor(repository.source)
+    monitor = resolve_monitor(repository.source)
     if monitor is None:
         return True
     cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)

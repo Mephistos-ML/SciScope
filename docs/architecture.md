@@ -40,7 +40,8 @@ payload mapping stays in sources, and insert-if-absent stays in storage.
 Ownership:
 
 - `services/subscriptions/`: subscription lifecycle and canonical profile resolution
-- `services/monitoring/`: background scheduler and source polling
+- `jobs/scan_subscriptions.py`: monitoring adapter registry wiring
+- `services/monitoring/`: scanning through an injected monitoring capability
 - `services/feed/`: Feed-event assembly
 - `storage/`: catalog repository profiles, retrieval evidence, checkpoints, subscriptions, and Feed persistence
 - `sources/github/` and `sources/gitlab/`: provider monitoring adapters
@@ -108,3 +109,6 @@ Gitee, GitCode, and GitVerse remain unavailable source modules.
 `api -> services -> sources/storage -> database`
 
 `models` and `config` are shared layers. The complete change contract is maintained in [AGENTS.md](../AGENTS.md).
+
+Explore admission failures carry the domain access decision. The API exception
+handler owns HTTP status, response serialization, and retry headers.
