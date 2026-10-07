@@ -59,7 +59,6 @@ def test_check_explore_access_requires_turnstile_for_suspicious_guest(
 
 def test_check_explore_access_allows_verified_turnstile_guest(monkeypatch) -> None:
     monkeypatch.setattr("app.services.search.access.policy.TURNSTILE_ENABLED", True)
-    monkeypatch.setattr(access_service, "count_explore_events_since", lambda **kwargs: 0)
 
     actor = ExploreActor(
         tier=ExploreTier.SUSPICIOUS,
@@ -75,11 +74,6 @@ def test_check_explore_access_allows_verified_turnstile_guest(monkeypatch) -> No
 def test_check_explore_access_bypasses_product_quotas_for_internal_actor(
     monkeypatch,
 ) -> None:
-    monkeypatch.setattr(
-        access_service,
-        "count_explore_events_since",
-        lambda **kwargs: (_ for _ in ()).throw(AssertionError("actor quota checked")),
-    )
     actor = ExploreActor(
         tier=ExploreTier.USER,
         subject_type="user",

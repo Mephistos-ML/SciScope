@@ -22,3 +22,7 @@ package-dir = {"" = "backend"}
 
 [tool.setuptools.dynamic]
 version = {attr = "app.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["backend"]
+exclude = ["tests", "tests.*"]

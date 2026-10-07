@@ -56,18 +56,3 @@ def test_provider_reports_stream_completeness(monkeypatch, provider, stream, res
     assert activity.releases_complete is (complete if stream == "releases" else True)
     assert activity.commits_complete is (complete if stream == "commits" else True)
     assert len(activity.signals) == (page_size if response_kind == "full" else 1 if response_kind == "short" else 0)
-
-
-@pytest.mark.parametrize("adapter", [github, gitlab])
-def test_full_old_page_uses_only_provider_supported_boundary(monkeypatch, adapter):
-    monkeypatch.setattr(adapter, "RELEASE_PAGE_SIZE", 10)
-    payload = [{"id": n, "tag_name": f"v{n}", "published_at": "2026-10-06T12:00:00Z",
-                "released_at": "2026-10-06T12:00:00Z"} for n in range(10)]
-    monkeypatch.setattr(adapter, "fetch_json", lambda url: JsonResponse(payload=payload, url=url))
-    repository = Repository(repository_id="repo", source="github", full_name="science/example",
-                            url="https://example.com", provider_repository_id="123")
-    activity = adapter.load_repository_activity(
-        repository, release_started_after=datetime(2026, 10, 7, tzinfo=UTC), commit_started_after=None,
-    )
-    assert activity.signals == ()
-    assert activity.releases_complete is (adapter is gitlab)

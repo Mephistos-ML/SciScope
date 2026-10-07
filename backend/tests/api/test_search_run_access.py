@@ -262,7 +262,8 @@ def test_inaccessible_expansion_does_not_check_turnstile_or_reserve_quota(databa
     def unexpected(*args, **kwargs):
         raise AssertionError("Admission ran before ownership check")
     monkeypatch.setattr(explore, "resolve_explore_actor", unexpected)
-    monkeypatch.setattr(explore, "reserve_explore_access", unexpected)
+    from app.services.search.explore import jobs
+    monkeypatch.setattr(jobs, "record_explore_admission", unexpected)
     created = _completed_run(database_url)
     with TestClient(app) as client:
         response = client.post(f"/api/explore/search-runs/{created['runId']}/expand", json={"turnstileToken": "secret"})
@@ -272,7 +273,11 @@ def test_inaccessible_expansion_does_not_check_turnstile_or_reserve_quota(databa
 def test_unexpandable_run_does_not_consume_quota(database_url, monkeypatch):
     from app.api.routes import explore
     created = create_explore_search_run(topic_description="topic", owner_user_id=None, database_url=database_url)
-    monkeypatch.setattr(explore, "reserve_explore_access", lambda *args, **kwargs: pytest.fail("Reserved for invalid expansion"))
+    monkeypatch.setattr(explore, "_prepare_explore_search_request",
+                        lambda *args, **kwargs: pytest.fail("Admission ran for invalid expansion"))
+    from app.services.search.explore import jobs
+    monkeypatch.setattr(jobs, "record_explore_admission",
+                        lambda *args, **kwargs: pytest.fail("Reserved for invalid expansion"))
     with TestClient(app) as client:
         response = client.post(f"/api/explore/search-runs/{created['runId']}/expand",
                                headers={"X-Search-Run-Token": created["guestAccessToken"]})

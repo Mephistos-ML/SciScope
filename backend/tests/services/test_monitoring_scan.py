@@ -513,7 +513,7 @@ def test_sha_checkpoint_preserves_backdated_commits_and_retries(tmp_path, monkey
     from app.sources.github import monitor as github
     from app.sources.gitlab import monitor as gitlab
     from app.storage.feed import mark_feed_event_read_for_user
-    from tests.sources.repositories.test_commit_checkpoints import commit, fake_provider
+    from tests.fixtures.repository_monitoring import commit, fake_provider
 
     adapter = github if provider == "github" else gitlab
     database_url = build_test_database_url(tmp_path / "commit-sha.sqlite3")
