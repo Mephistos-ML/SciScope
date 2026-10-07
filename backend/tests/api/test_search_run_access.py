@@ -20,9 +20,9 @@ from app.services.auth.service import create_authenticated_session
 from app.services.search.explore.execution import ExploreSearchExecution, serialize_execution
 from app.services.search.retrieval.models import RetrievedCandidates
 from app.storage.auth.users import create_user
-from app.storage.search_runs import write_search_run, get_search_run, get_search_run_report, update_search_run
+from app.storage.search_runs import write_search_run, get_search_run, get_search_run_report
 from tests.conftest import build_test_database_url, migrate_test_database
-from tests.fixtures.search_runs import seed_search_run
+from tests.fixtures.search_runs import seed_search_run, set_search_run_state
 
 
 @pytest.fixture
@@ -54,7 +54,7 @@ def _completed_run(database_url, owner_user_id=None):
     execution = ExploreSearchExecution(
         AiSearchPlan("ready", ("first", "second")), ("first",), RetrievedCandidates((), (), 1),
     )
-    update_search_run(
+    set_search_run_state(
         created["runId"], status="completed", execution_state=serialize_execution(execution),
         database_url=database_url,
     )
@@ -121,7 +121,7 @@ def test_guest_run_requires_its_own_token(database_url, credential, method):
 @pytest.mark.parametrize("state", ["queued", "failed", "completed"])
 def test_denied_expansion_does_not_expose_lifecycle_state(database_url, state):
     created = _completed_run(database_url)
-    update_search_run(created["runId"], status=state, database_url=database_url)
+    set_search_run_state(created["runId"], status=state, database_url=database_url)
     with TestClient(app) as client:
         response = client.post(f"/api/explore/search-runs/{created['runId']}/expand")
     assert response.status_code == 404
@@ -335,7 +335,7 @@ def test_expansion_commit_failure_rolls_back_quota_operation_and_run(database_ur
     from app.services.search.explore import jobs
 
     created = _completed_run(database_url)
-    update_search_run(created["runId"], status=status, partial=status == "completed_partial",
+    set_search_run_state(created["runId"], status=status, partial=status == "completed_partial",
                       response_payload={"items": [{"itemId": "preserved"}]}, database_url=database_url)
     original = get_search_run(created["runId"], database_url=database_url)
     with session_scope(database_url) as session:

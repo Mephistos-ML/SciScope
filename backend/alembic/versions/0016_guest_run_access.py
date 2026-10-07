@@ -1,4 +1,4 @@
-"""Add guest run access and serialize search admission."""
+"""Add guest run access and serialize admission and fence worker claims."""
 
 from __future__ import annotations
 
@@ -23,7 +23,13 @@ def upgrade() -> None:
         sa.Column("guest_access_token_hash", sa.String(64), nullable=True),
     )
 
+    op.add_column(
+        "search_run_operations",
+        sa.Column("lease_token", sa.String(32), nullable=True),
+    )
+
 
 def downgrade() -> None:
+    op.drop_column("search_run_operations", "lease_token")
     op.drop_table("search_access_lock")
     op.drop_column("search_runs", "guest_access_token_hash")

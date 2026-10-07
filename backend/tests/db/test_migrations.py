@@ -146,6 +146,7 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
     }
     assert "planner_reasoning_effort" in search_run_columns
     assert "guest_access_token_hash" in search_run_columns
+    assert "lease_token" in {column["name"] for column in inspector.get_columns("search_run_operations")}
     assert inspector.has_table("search_access_lock")
     with engine.connect() as connection:
         assert connection.execute(sa.text("SELECT lock_id FROM search_access_lock")).scalars().all() == [1]
@@ -198,6 +199,7 @@ def test_guest_access_migration_preserves_legacy_runs_without_granting_tokens(tm
     migrate_test_database(database_url, "0015_planner_reasoning_effort")
     engine = sa.create_engine(database_url)
     runs = sa.Table("search_runs", sa.MetaData(), autoload_with=engine)
+    operations = sa.Table("search_run_operations", sa.MetaData(), autoload_with=engine)
     now = datetime(2026, 10, 7, tzinfo=UTC)
     with engine.begin() as connection:
         connection.execute(sa.text(
@@ -213,7 +215,20 @@ def test_guest_access_migration_preserves_legacy_runs_without_granting_tokens(tm
                 backend_revision="known", created_at=now, partial=False,
                 response_payload_json={"items": [{"itemId": "github:repo:123"}]},
             ))
+        for status in ("queued", "running", "completed"):
+            connection.execute(operations.insert().values(
+                operation_id=f"legacy-{status}", run_id="legacy-owned", kind="initial",
+                status=status, queued_at=now,
+                lease_holder_id="legacy-worker" if status == "running" else None,
+                lease_expires_at=now if status == "running" else None,
+            ))
     migrate_test_database(database_url)
+    upgraded_operations = sa.Table("search_run_operations", sa.MetaData(), autoload_with=engine)
+    with engine.connect() as connection:
+        operation_rows = connection.execute(sa.select(upgraded_operations)).mappings().all()
+    assert {row["status"] for row in operation_rows} == {"queued", "running", "completed"}
+    assert all(row["lease_token"] is None for row in operation_rows)
+    assert next(row for row in operation_rows if row["status"] == "running")["lease_holder_id"] == "legacy-worker"
     upgraded = sa.Table("search_runs", sa.MetaData(), autoload_with=engine)
     with engine.connect() as connection:
         rows = connection.execute(sa.select(upgraded).order_by(upgraded.c.run_id)).mappings().all()
@@ -234,6 +249,8 @@ def test_guest_access_migration_downgrade_and_reupgrade(tmp_path: Path, monkeypa
     engine = sa.create_engine(database_url)
     assert not sa.inspect(engine).has_table("search_access_lock")
     assert "guest_access_token_hash" not in {c["name"] for c in sa.inspect(engine).get_columns("search_runs")}
+    assert "lease_token" not in {c["name"] for c in sa.inspect(engine).get_columns("search_run_operations")}
     migrate_test_database(database_url)
+    assert "lease_token" in {c["name"] for c in sa.inspect(engine).get_columns("search_run_operations")}
     with engine.connect() as connection:
         assert connection.execute(sa.text("SELECT lock_id FROM search_access_lock")).scalar_one() == 1

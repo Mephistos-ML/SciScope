@@ -63,6 +63,7 @@ class SearchRunOperation:
     started_at: datetime | None = None
     completed_at: datetime | None = None
     lease_holder_id: str | None = None
+    lease_token: str | None = field(default=None, repr=False)
     lease_expires_at: datetime | None = None
     error_code: str | None = None
     error_message: str | None = None

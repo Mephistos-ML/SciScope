@@ -1,238 +1,158 @@
-# Backend
+# SciScope Backend
 
-SciScope backend is the API, auth, search, persistence, and monitoring layer behind `https://sciscope.uk/`.
+The backend provides repository discovery, Google authentication, subscriptions,
+and a personal Feed of repository activity. It is a Python application backed by
+PostgreSQL, with separate API, search-worker, and scheduled monitoring processes.
 
-## Responsibility
+## Runtime
 
-The backend owns:
+```mermaid
+flowchart LR
+    Client[Web client] --> API[FastAPI]
+    API --> DB[(PostgreSQL)]
+    API --> OAuth[Google OAuth]
+    API --> Verification[Turnstile]
+    Worker[Explore worker] --> DB
+    Worker --> AI[AI query planner]
+    Worker --> Providers[GitHub / GitLab]
+    Monitor[Scheduled monitoring] --> DB
+    Monitor --> Providers
+```
 
-- public asynchronous Explore search
-- AI query planning, local catalog retrieval, external fallback, admission, and heuristic ranking
-- Google-authenticated subscriptions
-- repository persistence and monitoring checkpoints
-- durable, append-only user Feed events
-- search access controls, quotas, and observability
-- background monitoring control
+| Process | Entrypoint | Responsibility |
+| --- | --- | --- |
+| HTTP API | `app.api.app:app` | Requests, sessions, search scheduling, subscriptions, and Feed reads |
+| Explore worker | `app.jobs.process_search_runs` | Claims and executes durable search operations |
+| Repository monitoring | `app.jobs.scan_subscriptions` | Scans watched repositories and persists new Feed events |
 
-Core domain objects:
+The container runs these processes through [Supervisor](infra/supervisord.conf).
+Monitoring is scheduled every two hours by [Supercronic](infra/monitoring.crontab).
+The direct search endpoint also executes the search pipeline in the API process.
 
-- `Repository`
-- `Subscription`
-- `Signal`
-- `FeedEvent`
+## Module Map
 
-## API Areas
+| Package | Responsibility |
+| --- | --- |
+| `app/api/` | HTTP routes, request parsing, and response/error mapping |
+| `app/services/auth/` | Authentication and session use cases |
+| `app/services/search/` | Search access, planning orchestration, retrieval, admission, ranking, and run lifecycle |
+| `app/services/subscriptions/` | Subscription lifecycle and canonical repository resolution |
+| `app/services/monitoring/` | Repository scan orchestration |
+| `app/services/feed/` | Feed assembly and read behavior |
+| `app/services/ai/` | AI query planning and its provider integration |
+| `app/sources/` | GitHub and GitLab access and payload mapping |
+| `app/storage/` | Persistence operations and transaction boundaries |
+| `app/database/` | SQLAlchemy records and engine/session plumbing |
+| `app/models/` | Application data structures |
+| `app/runtime/` | Process-local state |
+| `app/jobs/` | Background entrypoints |
+| `app/config.py` | Deployment configuration |
+
+Core product concepts are repositories, subscriptions, signals, Feed events,
+and Explore runs and operations. [AGENTS.md](../AGENTS.md) defines engineering
+requirements; this map describes the current implementation.
+
+## Product Flows
 
 ### Explore
 
-- `POST /api/explore/search`
-- `POST /api/explore/search-runs`
-- `GET /api/explore/search-runs/{id}`
-- `POST /api/explore/search-runs/{id}/expand`
-
-Search snapshots use `queued`, `running`, `completed`, `completed_partial`,
-`failed`, or `interrupted`. Poll only `queued` and `running` runs. The other four
-statuses are terminal; `completed_partial` retains completed results, while
-`failed` and `interrupted` stop loading and expose an error. Lifecycle status
-does not describe individual planning or retrieval stages.
-
-Signed-in runs can be read or expanded only by their owner. Guest run creation
-returns a `guestAccessToken`; clients must retain it and send it in the
-`X-Search-Run-Token` header when reading or expanding that run. The token is
-returned only on creation; only its SHA-256 hash is stored. An inaccessible run
-returns the same 404 as a missing run. Guest runs created before token support
-are inaccessible. Internal reports retain their separate owner and feature checks.
-
-Initial search admission, usage recording, the logical run, and its queued
-operation commit in one locked transaction. A persistence failure rolls back
-all writes without consuming an attempt or leaving an orphaned run. A denial
-records its outcome without scheduling work. External Turnstile verification
-finishes before the admission transaction acquires its lock. The run's owner
-is the same actor whose admission was evaluated.
-
-Each expansion consumes an attempt under the same cooldown, actor quota, global
-capacity, and Turnstile rules as initial search. Send an optional `turnstileToken`
-in the expansion JSON body. Admission checks and usage recording share a locked
-transaction across processes; the singleton `search_access_lock` row must exist.
-Expansion admission, operation creation, and the run's transition to `running`
-commit together. Concurrent expansion requests receive 409 without consuming
-another attempt; a persistence failure rolls back all three changes.
-
-### Auth
-
-- `GET /api/me`
-- `GET /api/auth/google/start`
-- `GET /api/auth/google/callback`
-- `POST /api/logout`
-
-### Feed
-
-- `GET /api/feed`
-- `GET /api/feed/{id}`
-
-Feed events are created only for activity discovered after subscription time. Removing a subscription does not delete earlier Feed events.
-
-### Subscriptions
-
-- `GET /api/subscriptions`
-- `POST /api/subscriptions`
-- `DELETE /api/subscriptions/{id}`
-
-### Monitoring
-
-- `POST /api/start`
-- `POST /api/stop`
-- `GET /api/status`
-
-## Request Flows
-
-### Explore Flow
-
-`topic description -> AI query plan -> local catalog retrieval -> parallel external fallback lanes when coverage is low -> candidate merge -> admission -> heuristic ranking -> result payload`
-
-Main modules:
-
-- `app/services/search/retrieval/`
-- `app/services/search/admission/`
-- `app/services/search/ranking/`
-- `app/services/search/explore/`
-- `app/sources/github/search/`
-- `app/sources/gitlab/search/`
-
-Explore runs as an asynchronous job. Repository and code-search lanes have separate source and timeout budgets. A source failure or code-query timeout returns completed candidates with partial coverage. GitHub code search stops after a rate-limit response and reports the provider retry time.
-
-Admission removes obvious non-software candidates. Ranking scores the retained pool from query coverage, source-independent match location, and bounded evidence density. The relevance cutoff controls Explore delivery. Search diagnostics can expose the full evaluated pool for configured internal users.
-
-### Subscription Flow
-
-`clicked repository ID -> canonical catalog profile (provider lookup if missing) -> subscription create`
-
-`POST /api/subscriptions` accepts `repository: {"itemId": "github:repo:123"}`
-and an optional `selectedQuery`. Existing clients may still send `source`,
-`fullName`, and `url`; names and URLs never update the catalog. A supplied
-source must agree with the canonical ID. Missing profiles are fetched by the
-numeric GitHub repository or GitLab project ID, verified, and inserted only if
-another discovery has not already created the profile. Provider failures return
-503 without creating a subscription. Existing profiles do not require provider IO.
-
-### Repairing Existing Catalog Profiles
-
-The repair command defaults to a read-only preview, makes provider requests,
-and returns JSON with before/after fields. Run it inside the configured backend
-environment:
-
-```sh
-python -m scripts.repair_repository_profiles --dry-run --limit 100
+```text
+topic -> AI query plan -> catalog + external retrieval
+      -> merge -> candidate admission -> heuristic ranking -> results
 ```
 
-Default selection targets profiles whose metadata contains
-`query`, with empty owner, description, language, topics and provider timestamp,
-and zero stars. This is a candidate signal, not proof of corruption. Legitimately
-sparse profiles without that signature are skipped. To inspect a specific catalog
-record regardless of that signature, use `--repository-id` (repeatable).
+External discovery runs for every search. Repository and code-search lanes have
+separate provider and timeout budgets. Candidate admission filters non-software
+results; ranking uses query coverage, match location, and bounded evidence density.
+Completed candidates can be delivered with partial coverage when a source fails.
+Admitted external discoveries update the shared repository catalog.
 
-After reviewing the preview, apply only the selected IDs:
+For asynchronous search, the API commits access admission, usage, a logical run,
+and its initial queued operation together. Expansion admission creates another
+operation and moves the run to `running` in one transaction. Turnstile verification
+runs before the admission lock; rejected requests schedule no work.
 
-```sh
-python -m scripts.repair_repository_profiles --apply --repository-id github:repo:123
+The worker claims an operation with a renewable, token-fenced lease. Provider IO
+runs outside database transactions. Completion atomically commits the response,
+execution state, stage report, provider outcomes, ranking snapshot, and terminal
+run/operation statuses. Ownership loss prevents publication; recovery starts from
+the last committed execution state and repeats unfinished work.
+
+Run statuses are `queued`, `running`, `completed`, `completed_partial`, `failed`,
+and `interrupted`. Clients poll only `queued` and `running`. Signed-in runs belong
+to their owner. Guest creation returns a `guestAccessToken`, supplied later in
+`X-Search-Run-Token`; persistence stores only its hash. Missing and inaccessible
+runs both return 404. Internal diagnostics require separate feature access.
+
+Main owners: `services/search/explore/`, `services/search/access/`,
+`services/search/retrieval/`, `services/search/admission/`, and
+`services/search/ranking/`.
+
+### Subscribe
+
+```text
+selected repository ID -> canonical catalog profile -> subscription
 ```
 
-The default cap is 100 provider lookups. Run reports classify each selected profile
-as `would_update`, `updated`, `unchanged`, `skipped_changed`, or `failed`. Apply
-uses a conditional update against the revision read before fetching the provider:
-a concurrent catalog update is preserved and reported as `skipped_changed`.
-Provider errors are isolated per profile. Exit code 1 indicates failed or skipped
-profiles; review the report before retrying. Repository IDs, subscriptions,
-query evidence, monitoring cursors and historical Feed events are preserved.
-If semantic catalog retrieval is enabled, run the semantic backfill after repair
-to refresh changed embeddings.
+Subscriptions accept a canonical `repository.itemId` and optional `selectedQuery`.
+A missing profile is fetched by provider ID, verified, and inserted before creating
+the subscription. Provider failures return 503 without creating a subscription.
+Client-supplied names and URLs do not replace catalog facts. Subscribing is an
+explicit user action; Explore does not create subscriptions.
 
-### Monitoring Flow
+### Monitor and Read Feed
 
-Feed events and completed-stream checkpoints are committed in one database
-transaction per repository. A write or commit failure rolls back both, including
-updates to existing events. Retried scans remain idempotent and preserve read
-status. Partial scans may persist collected events, but only completed streams
-advance their checkpoints in that same transaction.
+```text
+watched repository -> releases + default-branch commits
+                   -> Feed events + completed-stream checkpoints -> Feed reads
+```
 
-`subscription watch -> source checkpoints -> releases and default-branch commits -> append-only Feed events`
+Each repository scan commits collected events and completed-stream checkpoints
+together. Partial streams retain their checkpoints; retries deduplicate events
+and preserve read state. Events cover activity after subscription time, and
+removing a subscription preserves historical Feed events. The detailed scan
+contract is in [Repository Monitoring](../docs/operations/repository-monitoring.md).
 
-Adapters report completeness separately for releases and commits. Only a fully
-read stream may advance its checkpoint; incomplete streams retain their previous
-boundary and make the monitoring check `partial`. Already read events are saved
-idempotently, so retries preserve event identities and read state.
+## HTTP Surface
 
-Release reads use pages of 100 entries, capped at 10 pages per repository per scan.
-GitHub reads to the end of the list; GitLab requests descending `released_at`
-order and may stop after passing the checkpoint. Entries exactly on the checkpoint
-are read again and deduplicated. A page error or exhausted page budget retains
-already read releases while leaving the release checkpoint unchanged. Repositories
-whose required history exceeds this budget remain partial until the interval can
-be fully read.
+| Area | Endpoints |
+| --- | --- |
+| Explore | `POST /api/explore/search` (direct), `POST /api/explore/search-runs`, `GET /api/explore/search-runs/{id}`, `POST /api/explore/search-runs/{id}/expand` |
+| Authentication | `GET /api/me`, `GET /api/auth/google/start`, `GET /api/auth/google/callback`, `POST /api/logout` |
+| Subscriptions | `GET /api/subscriptions`, `POST /api/subscriptions`, `DELETE /api/subscriptions/{id}` |
+| Feed | `GET /api/feed`, `GET /api/feed/{id}` |
+| Monitoring controls | `POST /api/start`, `POST /api/stop`, `GET /api/status` |
 
-Commit monitoring stores `latest_main_commit_sha` in the existing cursor table.
-A first scan without this SHA backfills by the previous timestamp (or subscription
-start), using committer dates and a pinned default-branch HEAD. Only a complete
-read establishes the SHA. Later scans compare the stored SHA with a pinned new
-HEAD and deliver newly reachable commits even when their dates predate the
-subscription. GitHub comparison is paginated; GitLab uses complete direct
-comparison commit arrays and a reverse comparison to verify ancestry. Reads are
-limited to 1,000 commits; incomplete reads, a missing old SHA, or rewritten history
-retain the previous checkpoint and report `partial`. The legacy timestamp never
-moves backwards and is only a bootstrap boundary once a SHA exists. Missing or
-rewritten history requires investigation; the monitor does not automatically
-reset its checkpoint and discard the unread interval. Commit dates remain the
-original provider dates in Feed.
+Route handlers live in `app/api/routes/`; registration lives in `app/api/app.py`.
 
+## Durable Data
 
-Main modules:
+PostgreSQL stores:
 
-- `app/services/subscriptions/`
-- `app/services/monitoring/`
-- `app/services/feed/`
-- `app/storage/repositories/`
-- `app/storage/subscriptions/`
-- `app/storage/feed/`
+- repository catalog profiles, query evidence, and optional semantic embeddings;
+- subscriptions, monitoring cursors, leases, runs, and checks;
+- Feed events and read state;
+- Explore usage, runs, operations, execution state, reports, and ranking labels;
+- users, OAuth accounts, and sessions.
 
-## Persistence
+SQLAlchemy records live in `app/database/records/`; transaction operations live
+in `app/storage/`. Schema migrations live in `alembic/versions/`.
+The catalog stores compact discovery profiles rather than mirroring repositories.
 
-Primary persistence areas:
+## Configuration and Maintenance
 
-- repository catalog profiles and query-specific retrieval evidence
-- subscriptions
-- repository checkpoints
-- feed events
-- Explore usage records
-- users, OAuth accounts, and sessions
+| Configuration | Purpose |
+| --- | --- |
+| `DATABASE_URL`, `APP_ENV`, `APP_HOST`, `APP_PORT`, `CORS_ORIGINS` | Database and HTTP environment |
+| `APP_LOG_LEVEL` | Application logging |
+| `AI_PLANNER_MODE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_REASONING_EFFORT`, `OPENAI_TIMEOUT_SECONDS` | Query planner |
+| `SEARCH_RUN_WORKER_LEASE_SECONDS`, `SEARCH_RUN_WORKER_POLL_SECONDS` | Durable worker ownership and polling |
+| `EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS`, `EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS` | Search time budgets |
+| `EXPLORE_SEARCH_REPOSITORY_LANE_TIMEOUT_SECONDS`, `EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS` | Retrieval lane budgets |
+| `EXPLORE_ADMISSION_MODE`, `EXPLORE_SEARCH_RELEVANCE_CUTOFF` | Candidate and delivery policy |
+| `SEMANTIC_CATALOG_ENABLED`, `SEMANTIC_EMBEDDING_MODEL`, `SEMANTIC_CATALOG_MIN_SIMILARITY` | Optional semantic catalog retrieval |
+| `SEARCH_DIAGNOSTICS_USER_EMAILS`, `SEARCH_QUOTA_BYPASS_USER_EMAILS` | Restricted product capabilities |
 
-Search execution state is runtime-local. Admitted external candidates are persisted as compact catalog profiles and query-specific retrieval evidence; SciScope does not crawl or mirror whole repository hosts.
-
-Persistence uses SQLAlchemy and Postgres. Alembic migrations live in `alembic/versions/`.
-
-## Operations
-
-Important environment variables:
-
-- `APP_LOG_LEVEL`: structured search-event log level; use `INFO` in deployed environments
-- `AI_PLANNER_MODE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_REASONING_EFFORT`, `OPENAI_TIMEOUT_SECONDS`: query-planning configuration. Use `gpt-6-luna` with `low` reasoning as the production latency/quality baseline; benchmark `none` before adopting it.
-- `SEMANTIC_CATALOG_ENABLED`, `SEMANTIC_EMBEDDING_MODEL`, `SEMANTIC_CATALOG_MIN_SIMILARITY`: opt-in pgvector hybrid catalog retrieval. After the migration, run `python backend/scripts/backfill_semantic_catalog.py` once in the deployed backend environment.
-- `EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS`, `EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS`: async job budgets
-- `EXPLORE_SEARCH_REPOSITORY_LANE_TIMEOUT_SECONDS`, `EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS`: retrieval lane budgets
-- `EXPLORE_ADMISSION_MODE`, `EXPLORE_SEARCH_RELEVANCE_CUTOFF`: canonical result policy
-- External discovery runs for every Explore search and is merged with local catalog candidates before source-agnostic admission and ranking.
-- `SEARCH_DIAGNOSTICS_USER_EMAILS`: restricted diagnostic access
-- `SEARCH_QUOTA_BYPASS_USER_EMAILS`: restricted bypass for SciScope product quotas only; it does not bypass provider limits
-
-Provider authentication, rate limits, and unavailable search capabilities are handled in `sources/` and exposed through source statuses.
-
-## Architecture Contract
-
-[AGENTS.md](../AGENTS.md) defines the backend boundaries.
-
-Core direction:
-
-- `api -> services -> sources/storage -> database`
-- `models` and `config` are shared layers
-- source adapters perform provider IO only
-- persistence logic stays in `storage`
-- orchestration lives in `services`
+See [config.py](app/config.py) for the complete configuration and validation.
+Catalog maintenance instructions are in [Catalog Profile Repair](../docs/operations/catalog-repair.md).
+The semantic backfill entrypoint is `scripts.backfill_semantic_catalog`.

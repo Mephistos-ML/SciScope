@@ -58,6 +58,7 @@ class SearchRunOperationRecordModel(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     lease_holder_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    lease_token: Mapped[str | None] = mapped_column(String(32), nullable=True)
     lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error_code: Mapped[str | None] = mapped_column(String, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

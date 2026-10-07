@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from app.database.session import session_scope
 from app.models.search_run import (
@@ -21,9 +21,9 @@ from app.storage.search_runs import (
     count_search_run_stages,
     get_search_run,
     get_search_run_report,
-    record_search_run_provider_outcomes,
-    record_search_run_ranking_candidates,
-    record_search_run_stage,
+    write_search_run_provider_outcomes,
+    write_search_run_ranking_candidates,
+    write_search_run_stage,
     release_search_run_operation_lease,
     renew_search_run_operation_lease,
 )
@@ -90,26 +90,27 @@ def test_search_run_storage_persists_execution_facts(tmp_path) -> None:
         write_search_run(session, run)
         session.flush()
         write_search_run_operation(session, operation)
-    record_search_run_stage(stage, database_url=database_url)
-    record_search_run_provider_outcomes((outcome,), database_url=database_url)
-    record_search_run_ranking_candidates(
-        run.run_id,
-        stage.stage_number,
-        (
-            SearchRankingCandidateReport(
-                repository_id="github:repo:science/example",
-                repository_source="github",
-                rank_position=1,
-                final_score=87.5,
-                candidate_facts={"full_name": "science/example"},
-                retrieval_facts={"origins": ["provider"]},
-                admission_facts={"decision": "keep"},
-                ranking_features={"hit_count": 2},
-                score_breakdown={"corroboration_points": 10.0},
+    with session_scope(database_url) as session:
+        write_search_run_stage(session, stage)
+        write_search_run_provider_outcomes(session, (outcome,))
+        write_search_run_ranking_candidates(
+            session,
+            run.run_id,
+            stage.stage_number,
+            (
+                SearchRankingCandidateReport(
+                    repository_id="github:repo:science/example",
+                    repository_source="github",
+                    rank_position=1,
+                    final_score=87.5,
+                    candidate_facts={"full_name": "science/example"},
+                    retrieval_facts={"origins": ["provider"]},
+                    admission_facts={"decision": "keep"},
+                    ranking_features={"hit_count": 2},
+                    score_breakdown={"corroboration_points": 10.0},
+                ),
             ),
-        ),
-        database_url=database_url,
-    )
+        )
 
     stored = get_search_run(run.run_id, database_url=database_url)
 
@@ -172,7 +173,7 @@ def test_search_run_report_projects_run_failure_fields(tmp_path) -> None:
     )
 
 
-def test_search_run_operation_lease_allows_one_worker_and_recovers_after_expiry(
+def test_search_run_operation_lease_allows_one_worker_and_reclaims_after_release(
     tmp_path,
 ) -> None:
     database_url = build_test_database_url(tmp_path / "search-run-lease.sqlite3")
@@ -205,14 +206,12 @@ def test_search_run_operation_lease_allows_one_worker_and_recovers_after_expiry(
 
     first = claim_next_search_run_operation(
         holder_id="worker_one",
-        now=now,
-        lease_expires_at=now + timedelta(minutes=5),
+        lease_seconds=300,
         database_url=database_url,
     )
     second = claim_next_search_run_operation(
         holder_id="worker_two",
-        now=now + timedelta(minutes=1),
-        lease_expires_at=now + timedelta(minutes=6),
+        lease_seconds=300,
         database_url=database_url,
     )
 
@@ -220,20 +219,17 @@ def test_search_run_operation_lease_allows_one_worker_and_recovers_after_expiry(
     assert first.lease_holder_id == "worker_one"
     assert second is None
     assert renew_search_run_operation_lease(
-        operation.operation_id,
-        holder_id="worker_one",
-        lease_expires_at=now + timedelta(minutes=10),
+        first,
+        lease_seconds=600,
         database_url=database_url,
     )
     release_search_run_operation_lease(
-        operation.operation_id,
-        holder_id="worker_one",
+        first,
         database_url=database_url,
     )
     reclaimed = claim_next_search_run_operation(
         holder_id="worker_two",
-        now=now + timedelta(minutes=11),
-        lease_expires_at=now + timedelta(minutes=16),
+        lease_seconds=300,
         database_url=database_url,
     )
 
