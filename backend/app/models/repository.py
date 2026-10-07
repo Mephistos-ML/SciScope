@@ -72,6 +72,14 @@ class Repository:
 
 
 @dataclass(frozen=True)
+class RepositoryProfileSnapshot:
+    """A catalog profile and the revision observed before a provider refresh."""
+
+    repository: Repository
+    updated_at: datetime
+
+
+@dataclass(frozen=True)
 class RepositorySearchEvidence:
     """A durable, query-specific reason that a repository was retrieved."""
 

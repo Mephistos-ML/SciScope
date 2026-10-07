@@ -6,14 +6,15 @@ from collections.abc import Sequence
 from time import monotonic
 from urllib.parse import quote_plus
 
-from app.models.repository import parse_provider_updated_at
 from app.models.signal import Signal
 from app.sources.common import (
     RepositoryCandidate,
     build_repository_candidate_signal,
     raise_source_timeout_error,
+    RepositorySourceError,
 )
 from app.sources.github.client import GITHUB_API_BASE, fetch_json
+from app.sources.github.repository import map_repository_profile
 
 
 def discover_repository_candidates(
@@ -55,30 +56,23 @@ def discover_repository_candidates(
             if not full_name or not provider_repository_id:
                 continue
 
-            description = str(item.get("description") or "")
-            topics = item.get("topics")
-            topic_list = (
-                [str(value) for value in topics] if isinstance(topics, list) else []
-            )
-            language = str(item.get("language") or "")
-            stars = int(item.get("stargazers_count") or 0)
-            owner = item.get("owner")
-            owner_login = ""
-            if isinstance(owner, dict):
-                owner_login = str(owner.get("login") or "")
+            try:
+                profile = map_repository_profile(item)
+            except RepositorySourceError:
+                continue
 
             candidate = RepositoryCandidate(
                 source="github",
-                full_name=full_name,
-                url=str(item.get("html_url") or f"https://github.com/{full_name}"),
+                full_name=profile.full_name,
+                url=profile.url,
                 query=query,
-                provider_repository_id=provider_repository_id,
-                description=description,
-                owner_login=owner_login,
-                language=language,
-                stars=stars,
-                topics=tuple(topic_list),
-                provider_updated_at=parse_provider_updated_at(item.get("updated_at")),
+                provider_repository_id=profile.provider_repository_id,
+                description=profile.description,
+                owner_login=profile.owner_login,
+                language=profile.language,
+                stars=profile.stars,
+                topics=profile.topics,
+                provider_updated_at=profile.provider_updated_at,
             )
             signals.append(build_repository_candidate_signal(candidate))
 

@@ -160,9 +160,6 @@ export async function fetchSubscriptions(): Promise<SubscriptionListPayload> {
 export async function createSubscription(payload: {
   repository: {
     itemId: string;
-    source: string;
-    fullName: string;
-    url: string;
   };
   selectedQuery: string | null;
 }): Promise<SubscriptionItem> {

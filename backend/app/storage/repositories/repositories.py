@@ -5,7 +5,9 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import exists, func, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as postgres_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from app.database.records.repositories import (
     RepositoryRecordModel,
@@ -16,6 +18,7 @@ from app.models.repository import (
     CatalogRepositoryMatch,
     Repository,
     RepositorySearchEvidence,
+    RepositoryProfileSnapshot,
     parse_repository_id,
 )
 
@@ -34,51 +37,96 @@ def upsert_repositories(
     with session_scope(database_url) as session:
         for repository in repositories:
             record = session.get(RepositoryRecordModel, repository.repository_id)
-            provider_repository_id = repository.provider_repository_id.strip() or parse_repository_id(
-                repository.repository_id,
-                source=repository.source,
-            )
-            search_text = _build_search_text(repository)
+            values = _profile_values(repository, timestamp)
             if record is None:
                 session.add(
                     RepositoryRecordModel(
                         repository_id=repository.repository_id,
-                        source=repository.source,
-                        full_name=repository.full_name,
-                        url=repository.url,
-                        provider_repository_id=provider_repository_id,
-                        owner_login=repository.owner_login,
-                        description=repository.description,
-                        language=repository.language,
-                        stars=repository.stars,
-                        topics_json=list(repository.topics),
-                        search_text=search_text,
                         first_seen_at=repository.first_seen_at or timestamp,
-                        last_seen_at=repository.last_seen_at or timestamp,
-                        last_retrieved_at=repository.last_retrieved_at or timestamp,
-                        provider_updated_at=repository.provider_updated_at,
-                        metadata_json=dict(repository.metadata),
                         created_at=timestamp,
-                        updated_at=timestamp,
+                        **values,
                     )
                 )
                 continue
 
-            record.source = repository.source
-            record.full_name = repository.full_name
-            record.url = repository.url
-            record.provider_repository_id = provider_repository_id
-            record.owner_login = repository.owner_login
-            record.description = repository.description
-            record.language = repository.language
-            record.stars = repository.stars
-            record.topics_json = list(repository.topics)
-            record.search_text = search_text
-            record.last_seen_at = repository.last_seen_at or timestamp
-            record.last_retrieved_at = repository.last_retrieved_at or timestamp
-            record.provider_updated_at = repository.provider_updated_at
-            record.metadata_json = dict(repository.metadata)
-            record.updated_at = timestamp
+            for name, value in values.items():
+                setattr(record, name, value)
+
+
+def get_or_insert_repository(repository: Repository, *, database_url: str) -> Repository:
+    """Insert a fetched profile only if absent; never replace a concurrent discovery."""
+    timestamp = _utc_now()
+    dialect = get_engine(database_url).dialect.name
+    if dialect == "postgresql":
+        insert = postgres_insert
+    elif dialect == "sqlite":
+        insert = sqlite_insert
+    else:
+        raise ValueError(f"Repository insertion does not support database dialect: {dialect}")
+    statement = insert(RepositoryRecordModel).values(
+        repository_id=repository.repository_id,
+        first_seen_at=repository.first_seen_at or timestamp,
+        created_at=timestamp,
+        **_profile_values(repository, timestamp),
+    ).on_conflict_do_nothing(index_elements=["repository_id"])
+    with session_scope(database_url) as session:
+        session.execute(statement)
+        record = session.get(RepositoryRecordModel, repository.repository_id)
+        if record is None:
+            raise RuntimeError("Repository disappeared during profile insertion.")
+        return _to_repository(record)
+
+
+def list_repository_profile_snapshots(
+    *, database_url: str, repository_ids: Sequence[str] = (),
+) -> list[RepositoryProfileSnapshot]:
+    """Read profiles with their revisions for conditional catalog maintenance."""
+    statement = select(RepositoryRecordModel).order_by(RepositoryRecordModel.repository_id)
+    if repository_ids:
+        statement = statement.where(RepositoryRecordModel.repository_id.in_(repository_ids))
+    with session_scope(database_url) as session:
+        return [
+            RepositoryProfileSnapshot(_to_repository(row), _ensure_utc(row.updated_at))
+            for row in session.scalars(statement)
+        ]
+
+
+def replace_repository_profile_if_unchanged(
+    repository: Repository, *, expected_updated_at: datetime, database_url: str,
+) -> bool:
+    """Refresh a profile only if its observed revision is still current."""
+    with session_scope(database_url) as session:
+        result = session.execute(
+            update(RepositoryRecordModel)
+            .where(
+                RepositoryRecordModel.repository_id == repository.repository_id,
+                RepositoryRecordModel.updated_at == expected_updated_at,
+            )
+            .values(**_profile_values(repository, _utc_now()))
+        )
+        return result.rowcount == 1
+
+
+def _profile_values(repository: Repository, timestamp: datetime) -> dict[str, object]:
+    return {
+        "source": repository.source,
+        "full_name": repository.full_name,
+        "url": repository.url,
+        "provider_repository_id": repository.provider_repository_id.strip() or parse_repository_id(
+            repository.repository_id, source=repository.source,
+        ),
+        "owner_login": repository.owner_login,
+        "description": repository.description,
+        "language": repository.language,
+        "stars": repository.stars,
+        "topics_json": list(repository.topics),
+        "search_text": _build_search_text(repository),
+        "last_seen_at": repository.last_seen_at or timestamp,
+        "last_retrieved_at": repository.last_retrieved_at or timestamp,
+        "provider_updated_at": repository.provider_updated_at,
+        "metadata_json": dict(repository.metadata),
+        "updated_at": timestamp,
+    }
 
 
 def upsert_repository_search_evidence(

@@ -26,9 +26,12 @@ Explore is read-only and does not create subscriptions.
 
 ### Subscription
 
-`clicked repository -> repository upsert -> subscription create -> baseline sync`
+`clicked repository ID -> canonical catalog profile (provider lookup if missing) -> subscription create`
 
-The subscription is an explicit user decision to monitor one repository.
+The subscription is an explicit user decision to monitor one repository. Browser
+names and URLs never replace global profiles. The API composition boundary injects
+the registered profile-loading capability into the subscription service; provider
+payload mapping stays in sources, and insert-if-absent stays in storage.
 
 ### Monitoring
 
@@ -36,7 +39,7 @@ The subscription is an explicit user decision to monitor one repository.
 
 Ownership:
 
-- `services/subscriptions/`: subscription lifecycle and baseline initialization
+- `services/subscriptions/`: subscription lifecycle and canonical profile resolution
 - `services/monitoring/`: background scheduler and source polling
 - `services/feed/`: Feed-event assembly
 - `storage/`: catalog repository profiles, retrieval evidence, checkpoints, subscriptions, and Feed persistence

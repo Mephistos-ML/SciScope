@@ -422,9 +422,6 @@ export function App() {
       const subscription = await createSubscription({
         repository: {
           itemId: result.itemId,
-          source: result.source,
-          fullName: result.fullName,
-          url: result.url,
         },
         selectedQuery: result.query,
       });

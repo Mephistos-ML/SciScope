@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from app.config import DATABASE_URL
-from app.models.repository import Repository
+from app.models.repository import Repository, parse_repository_id
 from app.services.auth.service import User
-from app.services.subscriptions.repositories import build_subscribed_repository
-from app.storage.repositories.repositories import upsert_repositories
+from app.sources.common.source_status import RepositorySourceError
+from app.storage.repositories.repositories import get_repository, get_or_insert_repository
 from app.storage.subscriptions.subscriptions import (
     create_subscription,
     delete_subscription_for_user,
 )
 from app.storage.subscriptions.watches import list_subscription_watches_for_user
+
+
+class SubscriptionRepositoryUnavailableError(RuntimeError):
+    """A canonical repository profile could not be fetched for a subscription."""
 
 
 def list_subscription_payloads(
@@ -48,22 +54,33 @@ def create_subscription_payload(
     user: User,
     *,
     repository_item_id: str,
-    repository_source: str,
-    repository_full_name: str,
-    repository_url: str,
+    load_repository_profile: Callable[[str], Repository],
     selected_query: str | None,
     database_url: str = DATABASE_URL,
 ) -> dict[str, object]:
     """Persist and serialize one direct repository watch."""
 
-    repository: Repository = build_subscribed_repository(
-        repository_item_id=repository_item_id,
-        repository_source=repository_source,
-        repository_full_name=repository_full_name,
-        repository_url=repository_url,
-        selected_query=selected_query,
-    )
-    upsert_repositories((repository,), database_url=database_url)
+    repository_item_id = repository_item_id.strip()
+    source = repository_item_id.partition(":repo:")[0]
+    if source not in {"github", "gitlab"}:
+        raise ValueError("This repository source does not support subscriptions.")
+    provider_id = parse_repository_id(repository_item_id, source=source)
+    if not provider_id.isascii() or not provider_id.isdecimal() or int(provider_id) <= 0:
+        raise ValueError("Repository ID must contain a positive numeric provider ID.")
+
+    repository = get_repository(repository_item_id, database_url=database_url)
+    if repository is None:
+        try:
+            repository = load_repository_profile(repository_item_id)
+        except RepositorySourceError as exc:
+            raise SubscriptionRepositoryUnavailableError(exc.public_message) from exc
+        if (
+            repository.repository_id != repository_item_id
+            or repository.source != source
+            or repository.provider_repository_id != provider_id
+        ):
+            raise ValueError("Provider profile does not match the requested repository ID.")
+        repository = get_or_insert_repository(repository, database_url=database_url)
     subscription = create_subscription(
         user_id=user.user_id,
         repository_id=repository.repository_id,

@@ -21,6 +21,7 @@ from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS, DATABASE_URL
 from app.database.session import check_database_connection
 from app.logging import configure_logging
+from app.sources.registry import load_repository_profile
 from app.services.auth.service import get_current_user
 from app.services.search.access.errors import ExploreAccessDeniedError
 from app.services.search.explore.service import (
@@ -60,6 +61,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="SciScope API", version=__version__, lifespan=lifespan)
 app.state.database_url = DATABASE_URL
+app.state.load_repository_profile = load_repository_profile
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(CORS_ORIGINS),

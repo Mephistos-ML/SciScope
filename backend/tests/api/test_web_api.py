@@ -414,6 +414,10 @@ def test_missing_feed_event_returns_404_json() -> None:
 
 
 def test_session_auth_and_subscription_endpoints(monkeypatch) -> None:
+    monkeypatch.setattr(app.state, "load_repository_profile", lambda repository_id: Repository(
+        repository_id=repository_id, source="github", provider_repository_id="123",
+        full_name="Mephistos-ML/paranmr", url="https://github.com/Mephistos-ML/paranmr",
+    ))
     with tempfile.TemporaryDirectory() as temp_dir:
         database_url = build_test_database_url(Path(temp_dir) / "subscriptions.sqlite3")
         migrate_test_database(database_url)
