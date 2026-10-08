@@ -20,7 +20,15 @@ After reviewing the preview, apply only the selected IDs:
 python -m scripts.repair_repository_profiles --apply --repository-id github:repo:123
 ```
 
-The default cap is 100 provider lookups. Run reports classify each selected profile
+The default cap is 100 provider lookups. Catalog reads use ID-ordered pages of
+at most 100 profiles; explicit IDs are also queried in batches of at most 100.
+The eligibility check runs before counting against the provider cap, so finding
+candidates can require scanning the catalog. This bounds each database read and
+retained profile data, rather than the total number of rows examined. Existing
+explicit IDs beyond the cap are left unprocessed; only absent IDs are reported
+as missing.
+
+Run reports classify each selected profile
 as `would_update`, `updated`, `unchanged`, `skipped_changed`, or `failed`. Apply
 uses a conditional update against the revision read before fetching the provider:
 a concurrent catalog update is preserved and reported as `skipped_changed`.

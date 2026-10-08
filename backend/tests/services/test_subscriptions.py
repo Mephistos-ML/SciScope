@@ -276,3 +276,72 @@ def test_subscription_operations_use_only_the_explicit_database(tmp_path, monkey
     assert list_subscription_payloads(viewer, database_url=urls[1])["items"] == []
     assert delete_subscription_payload(viewer, saved["subscriptionId"], database_url=urls[1]) is False
     assert delete_subscription_payload(viewer, saved["subscriptionId"], database_url=urls[0]) is True
+
+
+def test_repair_pages_past_ineligible_profiles_and_stops_at_provider_budget(database_url):
+    from sqlalchemy import event
+    from app.database.session import get_engine
+
+    healthy = [_profile(provider_id=str(value)) for value in range(1000, 1200)]
+    candidates = [replace(_damaged(), repository_id=f"github:repo:{value}",
+                          provider_repository_id=str(value)) for value in (1200, 1201)]
+    upsert_repositories((*healthy, *candidates), database_url=database_url)
+    reads = []
+
+    def capture_read(connection, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().upper().startswith("SELECT") and "FROM repositories" in statement:
+            reads.append((statement, parameters))
+
+    engine = get_engine(database_url)
+    event.listen(engine, "before_cursor_execute", capture_read)
+    loader = Mock(return_value=_profile(provider_id="1200"))
+    try:
+        reports = repair_repository_profiles(
+            load_repository_profile=loader, database_url=database_url, limit=1,
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", capture_read)
+
+    assert [(report.repository_id, report.status) for report in reports] == [
+        ("github:repo:1200", "would_update"),
+    ]
+    loader.assert_called_once_with("github:repo:1200")
+    assert len(reads) == 3
+    assert all("LIMIT" in statement and parameters[-2:] == (100, 0)
+               for statement, parameters in reads)
+    assert get_repository("github:repo:1200", database_url=database_url).stars == 0
+
+
+def test_explicit_repair_batches_ids_without_misreporting_profiles_beyond_limit(database_url):
+    from sqlalchemy import event
+    from app.database.session import get_engine
+
+    profiles = [_profile(provider_id=str(value)) for value in range(1000, 1205)]
+    upsert_repositories(profiles, database_url=database_url)
+    ids = [profile.repository_id for profile in reversed(profiles)]
+    ids.extend(("github:repo:9999", "github:repo:1000"))
+    reads = []
+
+    def capture_read(connection, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().upper().startswith("SELECT") and "FROM repositories" in statement:
+            reads.append((statement, parameters))
+
+    engine = get_engine(database_url)
+    event.listen(engine, "before_cursor_execute", capture_read)
+    loader = Mock(return_value=profiles[0])
+    try:
+        reports = repair_repository_profiles(
+            load_repository_profile=loader, database_url=database_url,
+            repository_ids=ids, limit=1,
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", capture_read)
+
+    assert [(report.repository_id, report.status) for report in reports] == [
+        ("github:repo:1000", "unchanged"), ("github:repo:9999", "failed"),
+    ]
+    assert reports[-1].error == "Repository is not in the catalog."
+    loader.assert_called_once_with("github:repo:1000")
+    assert len(reads) == 3
+    assert all("LIMIT" in statement and parameters[-2:] == (100, 0)
+               and len(parameters) <= 102 for statement, parameters in reads)

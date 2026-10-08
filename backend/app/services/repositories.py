@@ -6,12 +6,15 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
-from app.models.repository import Repository, parse_repository_id
+from app.models.repository import Repository, RepositoryProfileSnapshot, parse_repository_id
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.storage.repositories.repositories import (
     list_repository_profile_snapshots,
     replace_repository_profile_if_unchanged,
 )
+
+
+_REPAIR_PAGE_SIZE = 100
 
 
 @dataclass(frozen=True)
@@ -33,13 +36,34 @@ def repair_repository_profiles(
     """Preview by default; apply refreshes only to unchanged catalog revisions."""
     if limit <= 0:
         raise ValueError("Repair limit must be positive.")
-    snapshots = list_repository_profile_snapshots(
-        database_url=database_url, repository_ids=repository_ids,
-    )
-    selected = [
-        snapshot for snapshot in snapshots
-        if repository_ids or _looks_like_subscription_profile(snapshot.repository)
-    ][:limit]
+    selected: list[RepositoryProfileSnapshot] = []
+    missing_ids = set(repository_ids)
+    if repository_ids:
+        requested_ids = sorted(missing_ids)
+        # Check every requested ID, including those beyond the provider budget,
+        # so existing but unprocessed profiles are never reported as missing.
+        for start in range(0, len(requested_ids), _REPAIR_PAGE_SIZE):
+            page = list_repository_profile_snapshots(
+                database_url=database_url, limit=_REPAIR_PAGE_SIZE,
+                repository_ids=requested_ids[start:start + _REPAIR_PAGE_SIZE],
+            )
+            missing_ids.difference_update(snapshot.repository.repository_id for snapshot in page)
+            selected.extend(page[:limit - len(selected)])
+    else:
+        after_repository_id = None
+        while len(selected) < limit:
+            page = list_repository_profile_snapshots(
+                database_url=database_url, limit=_REPAIR_PAGE_SIZE,
+                after_repository_id=after_repository_id,
+            )
+            if not page:
+                break
+            for snapshot in page:
+                if _looks_like_subscription_profile(snapshot.repository):
+                    selected.append(snapshot)
+                    if len(selected) == limit:
+                        break
+            after_repository_id = page[-1].repository.repository_id
     reports: list[RepositoryProfileRepair] = []
     for snapshot in selected:
         original = snapshot.repository
@@ -77,7 +101,6 @@ def repair_repository_profiles(
         else:
             status = "skipped_changed"
         reports.append(RepositoryProfileRepair(original.repository_id, status, changes))
-    missing_ids = set(repository_ids) - {snapshot.repository.repository_id for snapshot in snapshots}
     reports.extend(
         RepositoryProfileRepair(repository_id, "failed", {}, "Repository is not in the catalog.")
         for repository_id in sorted(missing_ids)

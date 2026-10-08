@@ -86,10 +86,19 @@ def get_or_insert_repository(repository: Repository, *, database_url: str) -> Re
 
 
 def list_repository_profile_snapshots(
-    *, database_url: str, repository_ids: Sequence[str] = (),
+    *, database_url: str, limit: int, repository_ids: Sequence[str] = (),
+    after_repository_id: str | None = None,
 ) -> list[RepositoryProfileSnapshot]:
-    """Read profiles with their revisions for conditional catalog maintenance."""
-    statement = select(RepositoryRecordModel).order_by(RepositoryRecordModel.repository_id)
+    """Read a bounded ID-ordered page with revisions for conditional maintenance."""
+    if limit <= 0:
+        raise ValueError("Snapshot page limit must be positive.")
+    statement = (
+        select(RepositoryRecordModel)
+        .order_by(RepositoryRecordModel.repository_id)
+        .limit(limit)
+    )
+    if after_repository_id is not None:
+        statement = statement.where(RepositoryRecordModel.repository_id > after_repository_id)
     if repository_ids:
         statement = statement.where(RepositoryRecordModel.repository_id.in_(repository_ids))
     with persistence_session(database_url) as session:
