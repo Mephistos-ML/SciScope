@@ -1,3 +1,30 @@
+## [1.20.3](https://github.com/Mephistos-ML/SciScope/compare/v1.20.2...v1.20.3) (2026-10-08)
+
+
+### Bug Fixes
+
+* align search run statuses and stop polling terminal runs ([374c9f4](https://github.com/Mephistos-ML/SciScope/commit/374c9f4c720bfeb94f2d4f10b46c614f512ed500))
+* authorize access to explore search runs ([b07eca3](https://github.com/Mephistos-ML/SciScope/commit/b07eca3dc3281cea10d721bdefc509e46ae6be91))
+* bound catalog repair reads with pagination ([24ebaaf](https://github.com/Mephistos-ML/SciScope/commit/24ebaaff273d6be13521485656398a6bb5825dad))
+* centralize repository identity and GitHub error decoding ([d6987a5](https://github.com/Mephistos-ML/SciScope/commit/d6987a553782383083a22c1453739411bf9b2470))
+* connect Playwright TypeScript project and allow test discovery ([d5aa7ca](https://github.com/Mephistos-ML/SciScope/commit/d5aa7ca6bc2b3672edf0c673cd6ed41e20f6bae0))
+* enforce and verify PostgreSQL concurrency guarantees ([b78da5b](https://github.com/Mephistos-ML/SciScope/commit/b78da5b82d3488e174f852c212e1f994e8021c04))
+* enforce atomic search quotas and expansion access checks ([4c2ea4e](https://github.com/Mephistos-ML/SciScope/commit/4c2ea4e8473e1ca3e5c50ec2d1e60311c3960fa6))
+* establish persistence error boundary and idempotent subscriptions ([5cce478](https://github.com/Mephistos-ML/SciScope/commit/5cce47893d81678542fbbae301bc6109cfda2690))
+* fence monitoring writes and renew job leases ([85379b5](https://github.com/Mephistos-ML/SciScope/commit/85379b5daf942b1739800fcfad2f25451e3613f5))
+* fence search worker writes and commit results atomically ([6e1578c](https://github.com/Mephistos-ML/SciScope/commit/6e1578c1d6b7682ab893f24752e26c78c380d574))
+* paginate release monitoring without skipping events ([278d7a6](https://github.com/Mephistos-ML/SciScope/commit/278d7a62345880f24046168babd6e6de9a3b0bdc))
+* persist monitoring events and checkpoints atomically ([3203464](https://github.com/Mephistos-ML/SciScope/commit/32034640c824951125ca3527beea65854cc8fd7a))
+* preserve canonical repository profiles when subscribing ([18969ea](https://github.com/Mephistos-ML/SciScope/commit/18969ea05b48b39ee34c053a151ebbb46fad18f0))
+* preserve partial search results across timeout fallbacks ([226d352](https://github.com/Mephistos-ML/SciScope/commit/226d352eda79c6e7dc3238e40b27ff02b8b2f2b4))
+* retain monitoring checkpoints for incomplete reads ([64c2fc0](https://github.com/Mephistos-ML/SciScope/commit/64c2fc0c7231532ae3e723246f4637962cc79b8a))
+* schedule initial searches and reserve quota atomically ([3f5be19](https://github.com/Mephistos-ML/SciScope/commit/3f5be19263d351a20a311ac76d318fa49ee29bd1))
+* schedule search expansions atomically ([6147cb0](https://github.com/Mephistos-ML/SciScope/commit/6147cb0bb9ece45a453f2e9f7445d04dca1cc95a))
+* send guest access tokens for explore search runs ([b01dc92](https://github.com/Mephistos-ML/SciScope/commit/b01dc922a19ce9360efc1ca20304a788b69b9eb4))
+* track monitored commits by pinned head SHA ([2aa8908](https://github.com/Mephistos-ML/SciScope/commit/2aa890839e2f287d6ab98b757c31b5533e9b332d))
+* upgrade frontend and CI to Node 24 ([024e135](https://github.com/Mephistos-ML/SciScope/commit/024e135aa591f5a695774303bbb142602465f166))
+* version and validate durable search execution state ([e6fa369](https://github.com/Mephistos-ML/SciScope/commit/e6fa369ffeda9705547ba09daa937210e3cf1092))
+
 ## [1.20.2](https://github.com/Mephistos-ML/SciScope/compare/v1.20.1...v1.20.2) (2026-09-29)
 
 
