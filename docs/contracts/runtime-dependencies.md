@@ -14,6 +14,11 @@ monitoring invocation and a profile-repair invocation each build their own set.
 Search, profile lookup and monitoring within a set use the same provider clients.
 Services receive use-case capabilities, not the composition registry.
 
+The monitoring capability is owned by `services/monitoring/capabilities.py`.
+Adapters return `models/monitoring.py` activity results; that module also owns
+all durable monitoring checkpoint keys. Provider stream batches and payload DTOs
+remain integration details.
+
 GitLab credentials and base URL are bound together. Profile validation uses the
 explicit base URL, including a self-hosted deployment's path prefix. Changing
 configuration does not retarget a client that has already been constructed. A

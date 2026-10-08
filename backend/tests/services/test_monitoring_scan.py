@@ -20,7 +20,10 @@ from app.database.session import session_scope
 from app.models.repository import Repository
 from app.models.signal import Signal
 from app.services.monitoring import scan
-from app.integrations.repositories.common.models import RepositoryActivity
+from app.models.monitoring import (
+    RepositoryActivity, REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
+    REPOSITORY_RELEASE_CHECKPOINT_KEY, REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY,
+)
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.storage import auth as auth_storage
 from app.storage.feed import list_feed_events_for_user
@@ -69,8 +72,8 @@ def test_scan_backfills_new_repository_since_earliest_subscription(monkeypatch) 
     repository_id, values = cursor_updates[0]
     assert repository_id == repository.repository_id
     assert values == {
-        scan.REPOSITORY_RELEASE_CHECKPOINT_KEY: signal.published_at.isoformat(),
-        scan.REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY: "2026-08-01T12:00:00+00:00",
+        REPOSITORY_RELEASE_CHECKPOINT_KEY: signal.published_at.isoformat(),
+        REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY: "2026-08-01T12:00:00+00:00",
     }
 
 
@@ -86,8 +89,8 @@ def test_scan_loads_each_repository_once_and_fans_out_events(monkeypatch) -> Non
         subscriptions=watches,
         cursors={
             repository.repository_id: {
-                scan.REPOSITORY_RELEASE_CHECKPOINT_KEY: "2026-08-30T12:00:00+00:00",
-                scan.REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY: "2026-08-30T12:00:00+00:00",
+                REPOSITORY_RELEASE_CHECKPOINT_KEY: "2026-08-30T12:00:00+00:00",
+                REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY: "2026-08-30T12:00:00+00:00",
             }
         },
         events=events,
@@ -252,8 +255,8 @@ def test_scan_persists_baseline_events_cursors_and_health_facts(tmp_path, monkey
     )
     assert len(monitor.calls) == 1
     assert set(baseline_cursors) == {
-        scan.REPOSITORY_RELEASE_CHECKPOINT_KEY,
-        scan.REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
+        REPOSITORY_RELEASE_CHECKPOINT_KEY,
+        REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
     }
 
     published_at = datetime.now(UTC) + timedelta(minutes=1)
@@ -271,7 +274,7 @@ def test_scan_persists_baseline_events_cursors_and_health_facts(tmp_path, monkey
         checks = session.scalars(select(RepositoryMonitoringCheckRecordModel)).all()
 
     assert [event.subscription_id for event in events] == [subscription.subscription_id]
-    assert cursors[scan.REPOSITORY_RELEASE_CHECKPOINT_KEY] == published_at.isoformat()
+    assert cursors[REPOSITORY_RELEASE_CHECKPOINT_KEY] == published_at.isoformat()
     assert len(runs) == 2
     assert {run.status for run in runs} == {"succeeded"}
     assert len(checks) == 2
@@ -347,8 +350,8 @@ def _signal(item_id: str, published_at: datetime) -> Signal:
 
 def _cursors() -> dict[str, str]:
     return {
-        scan.REPOSITORY_RELEASE_CHECKPOINT_KEY: "2026-08-30T12:00:00+00:00",
-        scan.REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY: "2026-08-30T12:00:00+00:00",
+        REPOSITORY_RELEASE_CHECKPOINT_KEY: "2026-08-30T12:00:00+00:00",
+        REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY: "2026-08-30T12:00:00+00:00",
     }
 
 
@@ -413,8 +416,8 @@ def test_incomplete_scan_retains_each_checkpoint_and_retries_without_duplicates(
     from app.storage.feed import mark_feed_event_read_for_user
     mark_feed_event_read_for_user(user.user_id, first_events[0].event_id, database_url=database_url)
     partial_cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
-    for key, complete in ((scan.REPOSITORY_RELEASE_CHECKPOINT_KEY, releases_complete),
-                          (scan.REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY, commits_complete)):
+    for key, complete in ((REPOSITORY_RELEASE_CHECKPOINT_KEY, releases_complete),
+                          (REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY, commits_complete)):
         assert partial_cursors[key] == (published_at.isoformat() if complete else baseline[key])
     scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
     assert get_repository_monitoring_cursors(repository.repository_id, database_url=database_url) == partial_cursors
@@ -487,8 +490,8 @@ def test_paginated_releases_recover_after_page_failure_without_duplicates(tmp_pa
     initial_events = list_feed_events_for_user(user.user_id, database_url=database_url)
     assert len(initial_events) == 100
     cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
-    assert scan.REPOSITORY_RELEASE_CHECKPOINT_KEY not in cursors
-    assert scan.REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY in cursors
+    assert REPOSITORY_RELEASE_CHECKPOINT_KEY not in cursors
+    assert REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY in cursors
     mark_feed_event_read_for_user(user.user_id, initial_events[0].event_id, database_url=database_url)
     fail_page = False
     scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
@@ -498,7 +501,7 @@ def test_paginated_releases_recover_after_page_failure_without_duplicates(tmp_pa
     assert len({event.event_id for event in events}) == 125
     assert next(event for event in events if event.event_id == initial_events[0].event_id).read_at is not None
     cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
-    assert cursors[scan.REPOSITORY_RELEASE_CHECKPOINT_KEY] == published_at.isoformat()
+    assert cursors[REPOSITORY_RELEASE_CHECKPOINT_KEY] == published_at.isoformat()
     with session_scope(database_url) as session:
         runs = session.scalars(select(MonitoringRunRecordModel)).all()
     assert sorted(run.status for run in runs) == ["partial", "succeeded", "succeeded"]
@@ -508,7 +511,6 @@ def test_paginated_releases_recover_after_page_failure_without_duplicates(tmp_pa
 @pytest.mark.parametrize("partial_first", [False, True])
 def test_sha_checkpoint_preserves_backdated_commits_and_retries(tmp_path, monkeypatch, provider, partial_first):
     from dataclasses import replace
-    from app.models.monitoring import REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY
     github = make_repository_monitor("github")
     gitlab = make_repository_monitor("gitlab")
     from app.storage.feed import mark_feed_event_read_for_user
@@ -549,7 +551,7 @@ def test_sha_checkpoint_preserves_backdated_commits_and_retries(tmp_path, monkey
     assert {event.published_at.year for event in events} == {2010}
     cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
     assert cursors[REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY] == "new-head"
-    assert cursors[scan.REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY] == baseline[scan.REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY]
+    assert cursors[REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY] == baseline[REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY]
     mark_feed_event_read_for_user(user.user_id, events[0].event_id, database_url=database_url)
     scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
     repeated = list_feed_events_for_user(user.user_id, database_url=database_url)
@@ -645,5 +647,5 @@ def test_scan_rolls_back_events_and_checkpoints_then_retries(tmp_path, monkeypat
     assert updated.title == "Updated title"
     assert updated.read_at == marked.read_at
     cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
-    assert cursors[scan.REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY] == "new-head"
-    assert cursors[scan.REPOSITORY_RELEASE_CHECKPOINT_KEY] == signals[1].published_at.isoformat()
+    assert cursors[REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY] == "new-head"
+    assert cursors[REPOSITORY_RELEASE_CHECKPOINT_KEY] == signals[1].published_at.isoformat()

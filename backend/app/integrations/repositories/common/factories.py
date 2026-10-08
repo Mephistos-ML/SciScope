@@ -17,8 +17,6 @@ from app.integrations.repositories.common.models import (
 )
 
 
-REPOSITORY_RELEASE_CHECKPOINT_KEY = "latest_release_published_at"
-REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY = "latest_main_commit_published_at"
 MAX_PROVIDER_EVENT_BODY_BYTES = 32 * 1024
 
 

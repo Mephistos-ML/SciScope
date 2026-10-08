@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Protocol
 
-from app.models.repository import Repository
 from app.models.signal import Signal
 
 
@@ -19,17 +17,6 @@ class JsonResponse:
 
 
 @dataclass(frozen=True)
-class RepositoryActivity:
-    """Repository events returned by one provider scan."""
-
-    signals: tuple[Signal, ...]
-    releases_complete: bool
-    commits_complete: bool
-    commit_head_sha: str | None = None
-    redirected: bool = False
-
-
-@dataclass(frozen=True)
 class RepositoryActivityBatch:
     """Mapped events and completeness of one provider activity stream."""
 
@@ -37,21 +24,6 @@ class RepositoryActivityBatch:
     complete: bool
     head_sha: str | None = None
     redirected: bool = False
-
-
-class RepositoryMonitor(Protocol):
-    """Source adapter contract for repository monitoring."""
-
-    def load_repository_activity(
-        self,
-        repository: Repository,
-        *,
-        release_started_after: datetime | None,
-        commit_started_after: datetime | None,
-        commit_after_sha: str | None = None,
-    ) -> RepositoryActivity: ...
-
-    def refresh_repository_profile(self, repository: Repository) -> Repository: ...
 
 
 @dataclass(frozen=True)

@@ -7,10 +7,10 @@ from datetime import UTC, datetime
 from json import JSONDecodeError
 from urllib.parse import quote, quote_plus, urlencode
 
+from app.models.monitoring import RepositoryActivity
 from app.models.repository import Repository
 from app.models.signal import Signal
 from app.integrations.repositories.common.models import (
-    RepositoryActivity,
     RepositoryCommit,
     RepositoryRelease,
 )

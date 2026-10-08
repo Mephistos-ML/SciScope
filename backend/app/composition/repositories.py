@@ -7,7 +7,7 @@ from types import MappingProxyType
 
 from app import config
 from app.models.repository import Repository, parse_repository_id
-from app.integrations.repositories.common.models import RepositoryMonitor
+from app.services.monitoring.capabilities import RepositoryMonitor
 from app.integrations.repositories.github.auth import GitHubAppAuth
 from app.integrations.repositories.github.client import GitHubClient
 from app.integrations.repositories.github.monitor import GitHubRepositoryMonitor
