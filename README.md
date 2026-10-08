@@ -72,12 +72,13 @@ Main backend areas:
 - `backend/app/services/search/`: retrieval, admission, ranking, async jobs, and observability
 - `backend/app/services/subscriptions/`: repository subscriptions
 - `backend/app/services/monitoring/`: repository monitoring and Feed creation
-- `backend/app/sources/`: GitHub and GitLab provider adapters
+- `backend/app/integrations/repositories/`: repository provider adapters and shared repository integration helpers
+- `backend/app/integrations/ai/`: AI provider adapters
 - `backend/app/storage/`: persistence contracts
 - `backend/app/database/records/`: SQLAlchemy records used only by storage
 - `backend/alembic/`: database migrations
 
-The core dependency direction is `api -> services -> sources/storage -> database`. Details are recorded in [AGENTS.md](AGENTS.md) and [docs/architecture.md](docs/architecture.md).
+The core dependency direction is `api -> services -> integrations/storage -> database`. Details are recorded in [AGENTS.md](AGENTS.md) and [docs/architecture.md](docs/architecture.md).
 
 ## API Surfaces
 

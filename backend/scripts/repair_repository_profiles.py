@@ -9,7 +9,7 @@ import json
 
 from app.config import DATABASE_URL
 from app.services.repositories import repair_repository_profiles
-from app.sources.registry import load_repository_profile
+from app.integrations.repositories.registry import load_repository_profile
 
 
 def main() -> int:
