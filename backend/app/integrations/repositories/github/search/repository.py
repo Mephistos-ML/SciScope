@@ -11,13 +11,14 @@ from app.integrations.repositories.common.models import RepositoryCandidate
 from app.integrations.repositories.common.factories import build_repository_candidate_signal
 from app.integrations.repositories.common.deadlines import raise_source_timeout_error
 from app.integrations.repositories.common.source_status import RepositorySourceError
-from app.integrations.repositories.github.client import GITHUB_API_BASE, fetch_json
+from app.integrations.repositories.github.client import GitHubClient
 from app.integrations.repositories.github.repository import map_repository_profile
 
 
 def discover_repository_candidates(
     queries: Sequence[str],
     *,
+    client: GitHubClient,
     deadline_monotonic: float | None = None,
     per_query_limit: int = 50,
 ) -> list[Signal]:
@@ -28,12 +29,12 @@ def discover_repository_candidates(
         if deadline_monotonic is not None and monotonic() >= deadline_monotonic:
             raise_source_timeout_error(source="github", operation="repository search")
         search_url = _build_repository_search_url(
-            query, per_query_limit=per_query_limit
+            query, per_query_limit=per_query_limit, client=client,
         )
         if deadline_monotonic is None:
-            response = fetch_json(search_url)
+            response = client.fetch_json(search_url)
         else:
-            response = fetch_json(
+            response = client.fetch_json(
                 search_url,
                 deadline_monotonic=deadline_monotonic,
             )
@@ -77,27 +78,9 @@ def discover_repository_candidates(
     return signals
 
 
-def _build_repository_search_url(query: str, *, per_query_limit: int) -> str:
+def _build_repository_search_url(query: str, *, client: GitHubClient, per_query_limit: int) -> str:
     encoded_query = quote_plus(query)
     return (
-        f"{GITHUB_API_BASE}/search/repositories"
+        f"{client.api_base}/search/repositories"
         f"?q={encoded_query}&sort=updated&order=desc&per_page={per_query_limit}"
     )
-
-
-def _dedupe_repository_candidates(
-    candidates: list[Signal],
-) -> dict[str, Signal]:
-    deduped: dict[str, Signal] = {}
-    for signal in candidates:
-        existing = deduped.get(signal.item_id)
-        if existing is None:
-            deduped[signal.item_id] = signal
-            continue
-
-        existing_query = str(existing.payload.get("query") or "")
-        incoming_query = str(signal.payload.get("query") or "")
-        if len(incoming_query) > len(existing_query):
-            deduped[signal.item_id] = signal
-
-    return deduped

@@ -13,7 +13,7 @@ from app.integrations.repositories.common.models import RepositoryCandidate
 from app.integrations.repositories.common.factories import build_repository_candidate_signal
 from app.integrations.repositories.common.deadlines import raise_source_timeout_error
 from app.integrations.repositories.common.source_status import RepositorySourceError
-from app.integrations.repositories.github.client import GITHUB_API_BASE, fetch_json
+from app.integrations.repositories.github.client import GitHubClient
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 def discover_repository_candidates_from_code(
     queries: Sequence[str],
     *,
+    client: GitHubClient,
     deadline_monotonic: float | None = None,
     per_query_limit: int = 100,
     max_pages: int = 2,
@@ -37,12 +38,13 @@ def discover_repository_candidates_from_code(
                 query,
                 per_query_limit=per_query_limit,
                 page=page,
+                client=client,
             )
             try:
                 if deadline_monotonic is None:
-                    response = fetch_json(search_url)
+                    response = client.fetch_json(search_url)
                 else:
-                    response = fetch_json(
+                    response = client.fetch_json(
                         search_url,
                         deadline_monotonic=deadline_monotonic,
                     )
@@ -113,9 +115,9 @@ def discover_repository_candidates_from_code(
     return signals
 
 
-def _build_code_search_url(query: str, *, per_query_limit: int, page: int) -> str:
+def _build_code_search_url(query: str, *, client: GitHubClient, per_query_limit: int, page: int) -> str:
     encoded_query = quote_plus(query)
     return (
-        f"{GITHUB_API_BASE}/search/code"
+        f"{client.api_base}/search/code"
         f"?q={encoded_query}&per_page={per_query_limit}&page={page}"
     )

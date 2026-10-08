@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from tests.fixtures.repository_clients import make_repository_monitor
+from importlib import import_module
+
 from datetime import UTC, datetime
 
-from app.integrations.repositories.github import monitor as github_monitor
+github_monitor = make_repository_monitor("github")
 from app.integrations.repositories.common.models import JsonResponse
 from app.models.repository import Repository
 
@@ -33,7 +36,7 @@ def test_load_repo_activity_builds_release_signals(monkeypatch) -> None:
 
         raise AssertionError(f"Unexpected URL: {url}")
 
-    monkeypatch.setattr(github_monitor, "fetch_json", fake_fetch_json)
+    monkeypatch.setattr(github_monitor.client, "fetch_json", fake_fetch_json)
 
     activity = github_monitor.load_repository_activity(
         _repository(),
@@ -72,7 +75,7 @@ def test_load_repo_activity_ignores_events_before_start(monkeypatch) -> None:
 
         raise AssertionError(f"Unexpected URL: {url}")
 
-    monkeypatch.setattr(github_monitor, "fetch_json", fake_fetch_json)
+    monkeypatch.setattr(github_monitor.client, "fetch_json", fake_fetch_json)
 
     activity = github_monitor.load_repository_activity(
         _repository(),
@@ -98,7 +101,7 @@ def test_load_repo_activity_reports_provider_redirect(monkeypatch) -> None:
             return JsonResponse(payload=[], url=new_url)
         raise AssertionError(f"Unexpected URL: {url}")
 
-    monkeypatch.setattr(github_monitor, "fetch_json", fake_fetch_json)
+    monkeypatch.setattr(github_monitor.client, "fetch_json", fake_fetch_json)
 
     activity = github_monitor.load_repository_activity(
         _repository(),

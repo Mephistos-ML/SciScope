@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from tests.fixtures.repository_clients import make_repository_monitor
+from importlib import import_module
+
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
@@ -451,8 +454,8 @@ def test_paginated_releases_recover_after_page_failure_without_duplicates(tmp_pa
     from dataclasses import replace
     from urllib.parse import parse_qs, urlsplit
     from app.integrations.repositories.common.models import JsonResponse
-    from app.integrations.repositories.github import monitor as github
-    from app.integrations.repositories.gitlab import monitor as gitlab
+    github = make_repository_monitor("github")
+    gitlab = make_repository_monitor("gitlab")
     from app.storage.feed import mark_feed_event_read_for_user
 
     adapter = github if provider == "github" else gitlab
@@ -478,7 +481,7 @@ def test_paginated_releases_recover_after_page_failure_without_duplicates(tmp_pa
         return JsonResponse(payload=[{"id": n, "tag_name": f"v{n}", "name": f"Release {n}",
                                      "published_at": published_at.isoformat(), "released_at": published_at.isoformat()}
                                     for n in ids], url=url)
-    monkeypatch.setattr(adapter, "fetch_json", fetch)
+    monkeypatch.setattr(adapter.client, "fetch_json", fetch)
     resolve_monitor = lambda _source: adapter
     scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
     initial_events = list_feed_events_for_user(user.user_id, database_url=database_url)
@@ -506,8 +509,8 @@ def test_paginated_releases_recover_after_page_failure_without_duplicates(tmp_pa
 def test_sha_checkpoint_preserves_backdated_commits_and_retries(tmp_path, monkeypatch, provider, partial_first):
     from dataclasses import replace
     from app.models.monitoring import REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY
-    from app.integrations.repositories.github import monitor as github
-    from app.integrations.repositories.gitlab import monitor as gitlab
+    github = make_repository_monitor("github")
+    gitlab = make_repository_monitor("gitlab")
     from app.storage.feed import mark_feed_event_read_for_user
     from tests.fixtures.repository_monitoring import commit, fake_provider
 
@@ -524,7 +527,7 @@ def test_sha_checkpoint_preserves_backdated_commits_and_retries(tmp_path, monkey
     def release_batch(*args, **kwargs):
         from app.integrations.repositories.common.models import RepositoryActivityBatch
         return RepositoryActivityBatch(signals=(), complete=True)
-    monkeypatch.setattr(adapter, "_load_release_signals", release_batch)
+    monkeypatch.setattr(type(adapter), "_load_release_signals", release_batch)
     resolve_monitor = lambda _source: adapter
     fake_provider(adapter, monkeypatch, [], head="old-head")
     scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
@@ -533,13 +536,13 @@ def test_sha_checkpoint_preserves_backdated_commits_and_retries(tmp_path, monkey
     items = [commit("new-head"), *[commit(f"merged-{n}") for n in range(124)]]
     fake_provider(adapter, monkeypatch, items)
     if partial_first:
-        monkeypatch.setattr(adapter, "MAX_COMMIT_PAGES", 1)
+        monkeypatch.setattr(import_module(type(adapter).__module__), "MAX_COMMIT_PAGES", 1)
         scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
         assert len(list_feed_events_for_user(user.user_id, database_url=database_url)) == 100
         assert get_repository_monitoring_cursors(repository.repository_id, database_url=database_url) == baseline
         scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
         assert len(list_feed_events_for_user(user.user_id, database_url=database_url)) == 100
-        monkeypatch.setattr(adapter, "MAX_COMMIT_PAGES", 10)
+        monkeypatch.setattr(import_module(type(adapter).__module__), "MAX_COMMIT_PAGES", 10)
     scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
     events = list_feed_events_for_user(user.user_id, database_url=database_url)
     assert len(events) == 125

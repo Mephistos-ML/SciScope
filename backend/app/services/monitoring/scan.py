@@ -9,7 +9,6 @@ from datetime import UTC, datetime
 import logging
 from uuid import uuid4
 
-from app.config import DATABASE_URL
 from app.models.monitoring import (
     MonitoringRun, RepositoryMonitoringCheck, REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY,
 )
@@ -45,7 +44,7 @@ logger = logging.getLogger(__name__)
 def run_repository_monitoring_scan(
     *,
     resolve_monitor: Callable[[str], RepositoryMonitor | None],
-    database_url: str = DATABASE_URL,
+    database_url: str,
 ) -> None:
     """Scan every uniquely watched repository and fan out new events."""
 

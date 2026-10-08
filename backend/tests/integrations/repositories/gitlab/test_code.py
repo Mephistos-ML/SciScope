@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import pytest
+from tests.fixtures.repository_clients import make_repository_client
+
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.integrations.repositories.common.models import JsonResponse
 from app.integrations.repositories.gitlab.search import code as gitlab_code_search
 
 
 def test_discover_repository_candidates_from_code_builds_repository_signal(
-    monkeypatch,
+    monkeypatch, repository_client,
 ) -> None:
     def fake_fetch_json(url: str) -> JsonResponse:
         if "scope=blobs" in url:
@@ -31,9 +34,9 @@ def test_discover_repository_candidates_from_code_builds_repository_signal(
             "last_activity_at": "2026-09-03T12:30:00Z",
         }, url=url)
 
-    monkeypatch.setattr(gitlab_code_search, "fetch_json", fake_fetch_json)
+    monkeypatch.setattr(repository_client, "fetch_json", fake_fetch_json)
 
-    signals = gitlab_code_search.discover_repository_candidates_from_code(
+    signals = gitlab_code_search.discover_repository_candidates_from_code(client=repository_client, queries=
         ["orca python package"],
         per_query_limit=5,
     )
@@ -50,7 +53,7 @@ def test_discover_repository_candidates_from_code_builds_repository_signal(
 
 
 def test_discover_repository_candidates_from_code_skips_project_when_metadata_fails(
-    monkeypatch,
+    monkeypatch, repository_client,
 ) -> None:
     def fake_fetch_json(url: str) -> JsonResponse:
         if "scope=blobs" in url:
@@ -83,9 +86,9 @@ def test_discover_repository_candidates_from_code_skips_project_when_metadata_fa
             "star_count": 7,
         }, url=url)
 
-    monkeypatch.setattr(gitlab_code_search, "fetch_json", fake_fetch_json)
+    monkeypatch.setattr(repository_client, "fetch_json", fake_fetch_json)
 
-    signals = gitlab_code_search.discover_repository_candidates_from_code(
+    signals = gitlab_code_search.discover_repository_candidates_from_code(client=repository_client, queries=
         ["feynman hibbs lammps"],
         per_query_limit=5,
     )
@@ -94,3 +97,8 @@ def test_discover_repository_candidates_from_code_skips_project_when_metadata_fa
     signal = signals[0]
     assert signal.item_id == "gitlab:repo:43"
     assert signal.payload["query"] == "feynman hibbs lammps"
+
+
+@pytest.fixture
+def repository_client():
+    return make_repository_client("gitlab")

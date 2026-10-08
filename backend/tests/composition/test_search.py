@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from time import monotonic
 
+from app.composition.repositories import build_repository_adapters
 from app.api.app import app
 from app.composition import search as composition
 from app.jobs.process_search_runs import process_next_search_run_operation
@@ -25,7 +26,7 @@ from app.composition.search import build_explore_dependencies
 
 
 def test_composition_selects_bootstrap_planner() -> None:
-    plan = build_explore_dependencies().planner.build_search_plan(topic_description="Paramagnetic NMR analysis workflows")
+    plan = build_explore_dependencies(repositories=build_repository_adapters()).planner.build_search_plan(topic_description="Paramagnetic NMR analysis workflows")
 
     assert plan.status == "pending"
     assert plan.queries == ()
@@ -48,7 +49,7 @@ def test_composition_selects_openai_planner(
         _build_search_plan,
     )
 
-    plan = build_explore_dependencies().planner.build_search_plan(topic_description="Paramagnetic NMR analysis workflows")
+    plan = build_explore_dependencies(repositories=build_repository_adapters()).planner.build_search_plan(topic_description="Paramagnetic NMR analysis workflows")
 
     assert plan.status == "ready"
     assert plan.queries == (
@@ -65,7 +66,7 @@ def test_composition_selects_openai_planner(
 ])
 def test_composition_registers_supported_provider_channels(monkeypatch, base_url, code_enabled):
     monkeypatch.setattr(config, "GITLAB_BASE_URL", base_url)
-    lanes = build_explore_dependencies().lanes
+    lanes = build_explore_dependencies(repositories=build_repository_adapters()).lanes
     expected = {
         ("github", "repository_search"), ("github", "code_search"),
         ("gitlab", "repository_search"),
@@ -78,14 +79,14 @@ def test_composition_registers_supported_provider_channels(monkeypatch, base_url
 def test_unknown_planner_mode_fails_at_composition(monkeypatch):
     monkeypatch.setattr(config, "AI_PLANNER_MODE", "unsupported")
     with pytest.raises(ValueError, match="Unsupported AI planner mode"):
-        build_explore_dependencies()
+        build_explore_dependencies(repositories=build_repository_adapters())
 
 
 def test_selected_openai_settings_remain_bound_after_configuration_changes(monkeypatch):
     monkeypatch.setattr(config, "AI_PLANNER_MODE", "openai")
     monkeypatch.setattr(config, "OPENAI_MODEL", "selected-model")
     monkeypatch.setattr(config, "OPENAI_REASONING_EFFORT", "low")
-    dependencies = build_explore_dependencies()
+    dependencies = build_explore_dependencies(repositories=build_repository_adapters())
     monkeypatch.setattr(config, "AI_PLANNER_MODE", "bootstrap")
     monkeypatch.setattr(config, "OPENAI_MODEL", "other-model")
     monkeypatch.setattr(config, "OPENAI_REASONING_EFFORT", "high")
@@ -106,14 +107,14 @@ def test_selected_openai_settings_remain_bound_after_configuration_changes(monke
 def test_registered_lanes_receive_deadlines_through_real_orchestration(monkeypatch):
     calls = []
 
-    def discover(queries, *, deadline_monotonic):
+    def discover(queries, *, deadline_monotonic, client):
         calls.append((tuple(queries), deadline_monotonic))
         return []
 
     for name in ("github_repositories", "github_code", "gitlab_repositories", "gitlab_code"):
         monkeypatch.setattr(composition, name, discover)
     monkeypatch.setattr(config, "GITLAB_BASE_URL", "https://gitlab.example.org")
-    dependencies = build_explore_dependencies()
+    dependencies = build_explore_dependencies(repositories=build_repository_adapters())
     deadline = monotonic() + 30
     result = run_external_repository_retrieval(
         ("scientific query",), lanes=dependencies.lanes, hard_deadline_monotonic=deadline,
@@ -197,7 +198,7 @@ def test_ai_adapter_failure_finishes_queued_run_without_provider_retrieval(tmp_p
     migrate_test_database(url)
     monkeypatch.setattr(config, "AI_PLANNER_MODE", "openai")
     monkeypatch.setattr(config, "OPENAI_API_KEY", "test-key")
-    dependencies = build_explore_dependencies()
+    dependencies = build_explore_dependencies(repositories=build_repository_adapters())
 
     def post(*args, **kwargs):
         if failure_kind == "timeout":

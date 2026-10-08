@@ -11,13 +11,14 @@ from app.integrations.repositories.common.models import RepositoryCandidate
 from app.integrations.repositories.common.factories import build_repository_candidate_signal
 from app.integrations.repositories.common.deadlines import raise_source_timeout_error
 from app.integrations.repositories.common.source_status import RepositorySourceError
-from app.integrations.repositories.gitlab.client import GITLAB_API_BASE, fetch_json
+from app.integrations.repositories.gitlab.client import GitLabClient
 from app.integrations.repositories.gitlab.repository import map_repository_profile
 
 
 def discover_repository_candidates(
     queries: Sequence[str],
     *,
+    client: GitLabClient,
     deadline_monotonic: float | None = None,
     per_query_limit: int = 30,
 ) -> list[Signal]:
@@ -27,11 +28,11 @@ def discover_repository_candidates(
     for query in queries:
         if deadline_monotonic is not None and monotonic() >= deadline_monotonic:
             raise_source_timeout_error(source="gitlab", operation="repository search")
-        search_url = _build_repository_search_url(query, per_query_limit=per_query_limit)
+        search_url = _build_repository_search_url(query, per_query_limit=per_query_limit, client=client)
         if deadline_monotonic is None:
-            response = fetch_json(search_url)
+            response = client.fetch_json(search_url)
         else:
-            response = fetch_json(
+            response = client.fetch_json(
                 search_url,
                 deadline_monotonic=deadline_monotonic,
             )
@@ -49,7 +50,7 @@ def discover_repository_candidates(
                 continue
 
             try:
-                profile = map_repository_profile(item)
+                profile = map_repository_profile(item, base_url=client.base_url)
             except RepositorySourceError:
                 continue
 
@@ -71,27 +72,9 @@ def discover_repository_candidates(
     return signals
 
 
-def _build_repository_search_url(query: str, *, per_query_limit: int) -> str:
+def _build_repository_search_url(query: str, *, client: GitLabClient, per_query_limit: int) -> str:
     encoded_query = quote_plus(query)
     return (
-        f"{GITLAB_API_BASE}/search"
+        f"{client.api_base}/search"
         f"?scope=projects&search={encoded_query}&per_page={per_query_limit}"
     )
-
-
-def _dedupe_repository_candidates(
-    candidates: list[Signal],
-) -> dict[str, Signal]:
-    deduped: dict[str, Signal] = {}
-    for signal in candidates:
-        existing = deduped.get(signal.item_id)
-        if existing is None:
-            deduped[signal.item_id] = signal
-            continue
-
-        existing_query = str(existing.payload.get("query") or "")
-        incoming_query = str(signal.payload.get("query") or "")
-        if len(incoming_query) > len(existing_query):
-            deduped[signal.item_id] = signal
-
-    return deduped

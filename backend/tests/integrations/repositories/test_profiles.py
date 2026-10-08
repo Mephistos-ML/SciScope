@@ -10,7 +10,7 @@ from app.integrations.repositories.common.models import JsonResponse
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.integrations.repositories.github import repository as github
 from app.integrations.repositories.gitlab import repository as gitlab
-from app.integrations.repositories.registry import load_repository_profile
+from tests.fixtures.repository_clients import make_repository_client
 
 
 def _payload(source, provider_id=123):
@@ -33,8 +33,9 @@ def test_lookup_uses_provider_id_and_maps_profile(source, module, monkeypatch):
     def fetch(url):
         requests.append(url)
         return JsonResponse({"Python": 90.0, "Shell": 10.0} if url.endswith("/languages") else _payload(source), url)
-    monkeypatch.setattr(module, "fetch_json", fetch)
-    profile = load_repository_profile(f"{source}:repo:123")
+    client = make_repository_client(source)
+    monkeypatch.setattr(client, "fetch_json", fetch)
+    profile = module.load_repository_profile("123", client=client)
     assert requests[0].endswith("/repositories/123" if source == "github" else "/projects/123")
     assert profile.provider_repository_id == "123"
     assert profile.repository_id == f"{source}:repo:123"
@@ -49,26 +50,29 @@ def test_lookup_uses_provider_id_and_maps_profile(source, module, monkeypatch):
 
 @pytest.mark.parametrize("source,module", [("github", github), ("gitlab", gitlab)])
 def test_mismatched_provider_id_is_rejected(source, module, monkeypatch):
-    monkeypatch.setattr(module, "fetch_json", lambda url: JsonResponse(_payload(source, 456), url))
+    client = make_repository_client(source)
+    monkeypatch.setattr(client, "fetch_json", lambda url: JsonResponse(_payload(source, 456), url))
     with pytest.raises(RepositorySourceError, match="invalid repository profile"):
-        load_repository_profile(f"{source}:repo:123")
+        module.load_repository_profile("123", client=client)
 
 
 @pytest.mark.parametrize("source,module", [("github", github), ("gitlab", gitlab)])
 @pytest.mark.parametrize("invalid", [None, [], {}, {"id": 123}, {"id": "owner/tool"}])
 def test_invalid_payloads_are_classified_as_source_errors(source, module, invalid, monkeypatch):
-    monkeypatch.setattr(module, "fetch_json", lambda url: JsonResponse(invalid, url))
+    client = make_repository_client(source)
+    monkeypatch.setattr(client, "fetch_json", lambda url: JsonResponse(invalid, url))
     with pytest.raises(RepositorySourceError):
-        load_repository_profile(f"{source}:repo:123")
+        module.load_repository_profile("123", client=client)
 
 
 @pytest.mark.parametrize("source,module", [("github", github), ("gitlab", gitlab)])
 def test_profile_url_must_belong_to_repository_host(source, module, monkeypatch):
     payload = _payload(source)
     payload["html_url" if source == "github" else "web_url"] = "https://example.com/science/tool"
-    monkeypatch.setattr(module, "fetch_json", lambda url: JsonResponse(payload, url))
+    client = make_repository_client(source)
+    monkeypatch.setattr(client, "fetch_json", lambda url: JsonResponse(payload, url))
     with pytest.raises(RepositorySourceError):
-        load_repository_profile(f"{source}:repo:123")
+        module.load_repository_profile("123", client=client)
 
 
 @pytest.mark.parametrize("source,module", [("github", github), ("gitlab", gitlab)])
@@ -76,6 +80,7 @@ def test_invalid_json_is_a_provider_error(source, module, monkeypatch):
     from json import JSONDecodeError
     def fetch(url):
         raise JSONDecodeError("Invalid provider JSON", "broken", 0)
-    monkeypatch.setattr(module, "fetch_json", fetch)
+    client = make_repository_client(source)
+    monkeypatch.setattr(client, "fetch_json", fetch)
     with pytest.raises(RepositorySourceError):
-        load_repository_profile(f"{source}:repo:123")
+        module.load_repository_profile("123", client=client)

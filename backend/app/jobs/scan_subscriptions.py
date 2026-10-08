@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from app.config import DATABASE_URL
 from app.services.monitoring.scan import run_repository_monitoring_scan
-from app.integrations.repositories.registry import get_repository_monitor
+from app.composition.repositories import build_repository_adapters
 
 
 def main() -> None:
     """Execute one complete scan using the configured durable database."""
 
     run_repository_monitoring_scan(
-        resolve_monitor=get_repository_monitor, database_url=DATABASE_URL,
+        resolve_monitor=build_repository_adapters().monitors.get, database_url=DATABASE_URL,
     )
 
 

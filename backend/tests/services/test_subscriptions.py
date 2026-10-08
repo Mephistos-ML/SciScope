@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from dataclasses import replace
 from datetime import UTC, datetime
 from unittest.mock import Mock
@@ -17,6 +19,8 @@ from app.services.auth.service import create_authenticated_session
 from app.services.repositories import repair_repository_profiles
 from app.services.subscriptions.service import (
     create_subscription_payload,
+    list_subscription_payloads,
+    delete_subscription_payload,
 )
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.storage.auth.users import create_user
@@ -246,7 +250,7 @@ def test_repair_command_previews_by_default_and_accepts_explicit_apply(database_
     import sys
     upsert_repositories((_damaged(),), database_url=database_url)
     monkeypatch.setattr(command, "DATABASE_URL", database_url)
-    monkeypatch.setattr(command, "load_repository_profile", Mock(return_value=_profile()))
+    monkeypatch.setattr(command, "build_repository_adapters", lambda: SimpleNamespace(load_repository_profile=Mock(return_value=_profile())))
     monkeypatch.setattr(sys, "argv", ["repair_repository_profiles", "--limit", "1"])
     assert command.main() == 0
     report = json.loads(capsys.readouterr().out)
@@ -257,3 +261,18 @@ def test_repair_command_previews_by_default_and_accepts_explicit_apply(database_
     assert command.main() == 0
     assert json.loads(capsys.readouterr().out)["profiles"][0]["status"] == "updated"
     assert get_repository("github:repo:123", database_url=database_url).stars == 500
+
+
+def test_subscription_operations_use_only_the_explicit_database(tmp_path, monkeypatch):
+    from app import config
+    urls = [build_test_database_url(tmp_path / name) for name in ("first.sqlite3", "second.sqlite3")]
+    for url in urls:
+        migrate_test_database(url)
+        create_user(user_id="same-user", email="same@example.com", display_name="Same", database_url=url)
+    viewer = User("same-user", "same@example.com", "Same")
+    monkeypatch.setattr(config, "DATABASE_URL", "invalid-configured-database")
+    saved = _subscribe(viewer, urls[0], lambda _: _profile())
+    assert [item["subscriptionId"] for item in list_subscription_payloads(viewer, database_url=urls[0])["items"]] == [saved["subscriptionId"]]
+    assert list_subscription_payloads(viewer, database_url=urls[1])["items"] == []
+    assert delete_subscription_payload(viewer, saved["subscriptionId"], database_url=urls[1]) is False
+    assert delete_subscription_payload(viewer, saved["subscriptionId"], database_url=urls[0]) is True

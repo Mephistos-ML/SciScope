@@ -1,5 +1,8 @@
 """Release monitoring pagination, partial reads, and timestamp boundaries."""
 
+from tests.fixtures.repository_clients import make_repository_monitor
+from importlib import import_module
+
 from datetime import UTC, datetime
 from json import JSONDecodeError
 from urllib.parse import parse_qs, urlsplit
@@ -9,8 +12,8 @@ import pytest
 from app.models.repository import Repository
 from app.integrations.repositories.common.models import JsonResponse
 from app.integrations.repositories.common.source_status import RepositorySourceError
-from app.integrations.repositories.github import monitor as github
-from app.integrations.repositories.gitlab import monitor as gitlab
+github = make_repository_monitor("github")
+gitlab = make_repository_monitor("gitlab")
 
 CUTOFF = datetime(2026, 10, 7, 10, tzinfo=UTC)
 
@@ -47,7 +50,7 @@ def test_reads_releases_across_pages_and_deduplicates_overlap(adapter, monkeypat
             assert query["order_by"] == ["released_at"]
             assert query["sort"] == ["desc"]
         return JsonResponse(payload=pages[page], url=url)
-    monkeypatch.setattr(adapter, "fetch_json", fetch)
+    monkeypatch.setattr(adapter.client, "fetch_json", fetch)
     activity = _load(adapter)
     assert calls == [1, 2]
     assert len(activity.signals) == 125
@@ -68,20 +71,20 @@ def test_next_page_failure_retains_first_page_and_blocks_checkpoint(adapter, mon
         if failure == "json":
             raise JSONDecodeError("Malformed JSON", "broken", 0)
         return JsonResponse(payload={} if failure == "non-list" else [None], url=url)
-    monkeypatch.setattr(adapter, "fetch_json", fetch)
+    monkeypatch.setattr(adapter.client, "fetch_json", fetch)
     activity = _load(adapter)
     assert len(activity.signals) == 100
     assert activity.releases_complete is False
 
 
 def test_page_limit_keeps_partial_results(adapter, monkeypatch):
-    monkeypatch.setattr(adapter, "MAX_RELEASE_PAGES", 2)
+    monkeypatch.setattr(import_module(type(adapter).__module__), "MAX_RELEASE_PAGES", 2)
     calls = []
     def fetch(url):
         page = int(parse_qs(urlsplit(url).query)["page"][0])
         calls.append(page)
         return JsonResponse(payload=[_release(n) for n in range(page * 100, (page + 1) * 100)], url=url)
-    monkeypatch.setattr(adapter, "fetch_json", fetch)
+    monkeypatch.setattr(adapter.client, "fetch_json", fetch)
     activity = _load(adapter)
     assert calls == [1, 2]
     assert len(activity.signals) == 200
@@ -94,7 +97,7 @@ def test_full_final_page_requires_reading_empty_next_page(adapter, monkeypatch):
         page = int(parse_qs(urlsplit(url).query)["page"][0])
         calls.append(page)
         return JsonResponse(payload=[_release(n) for n in range(1, 101)] if page == 1 else [], url=url)
-    monkeypatch.setattr(adapter, "fetch_json", fetch)
+    monkeypatch.setattr(adapter.client, "fetch_json", fetch)
     assert _load(adapter).releases_complete is True
     assert calls == [1, 2]
 
@@ -107,7 +110,7 @@ def test_equal_checkpoint_timestamps_are_read_across_pages(adapter, monkeypatch)
         page = int(parse_qs(urlsplit(url).query)["page"][0])
         calls.append(page)
         return JsonResponse(payload=pages[page], url=url)
-    monkeypatch.setattr(adapter, "fetch_json", fetch)
+    monkeypatch.setattr(adapter.client, "fetch_json", fetch)
     activity = _load(adapter)
     assert calls == [1, 2]
     assert len(activity.signals) == 101
@@ -117,7 +120,7 @@ def test_equal_checkpoint_timestamps_are_read_across_pages(adapter, monkeypatch)
 def test_github_reads_past_old_publication_dates(monkeypatch):
     pages = {1: [_release(n, "2026-10-07T09:00:00Z") for n in range(1, 101)],
              2: [_release(101)]}
-    monkeypatch.setattr(github, "fetch_json", lambda url: JsonResponse(
+    monkeypatch.setattr(github.client, "fetch_json", lambda url: JsonResponse(
         payload=pages[int(parse_qs(urlsplit(url).query)["page"][0])], url=url))
     activity = _load(github)
     assert [signal.item_id for signal in activity.signals] == ["science/example:release:101"]
@@ -129,7 +132,7 @@ def test_gitlab_stops_only_after_strictly_older_release(monkeypatch):
     def fetch(url):
         calls.append(url)
         return JsonResponse(payload=[_release(n, "2026-10-07T09:00:00Z") for n in range(1, 101)], url=url)
-    monkeypatch.setattr(gitlab, "fetch_json", fetch)
+    monkeypatch.setattr(gitlab.client, "fetch_json", fetch)
     activity = _load(gitlab)
     assert activity.signals == ()
     assert activity.releases_complete is True
@@ -139,7 +142,7 @@ def test_gitlab_stops_only_after_strictly_older_release(monkeypatch):
 def test_invalid_gitlab_release_date_does_not_use_created_date_as_boundary(monkeypatch):
     item = _release(1)
     item.update(released_at=None, created_at="2026-10-07T09:00:00Z")
-    monkeypatch.setattr(gitlab, "fetch_json", lambda url: JsonResponse(payload=[item], url=url))
+    monkeypatch.setattr(gitlab.client, "fetch_json", lambda url: JsonResponse(payload=[item], url=url))
     assert _load(gitlab).releases_complete is False
 
 
@@ -148,7 +151,7 @@ def test_redirect_on_later_page_is_retained(adapter, monkeypatch):
         page = int(parse_qs(urlsplit(url).query)["page"][0])
         return JsonResponse(payload=[_release(n) for n in range(1, 101)] if page == 1 else [],
                             url=url if page == 1 else url.replace("example", "renamed"))
-    monkeypatch.setattr(adapter, "fetch_json", fetch)
+    monkeypatch.setattr(adapter.client, "fetch_json", fetch)
     activity = _load(adapter)
     assert activity.releases_complete is True
     assert activity.redirected is True
@@ -163,7 +166,7 @@ def test_one_stream_failure_preserves_other_stream(adapter, monkeypatch, failed_
             raise RepositorySourceError(source="github" if adapter is github else "gitlab",
                                         status="timed_out", public_message="Timed out")
         return JsonResponse(payload=[_release(1)] if "/releases?" in url else [], url=url)
-    monkeypatch.setattr(adapter, "fetch_json", fetch)
+    monkeypatch.setattr(adapter.client, "fetch_json", fetch)
     repository = Repository(repository_id="repo", source="github" if adapter is github else "gitlab",
                             full_name="science/example", url="https://example.com", provider_repository_id="123")
     activity = adapter.load_repository_activity(repository, release_started_after=CUTOFF, commit_started_after=CUTOFF)

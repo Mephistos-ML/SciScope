@@ -6,13 +6,13 @@ from urllib.parse import quote, unquote, urlsplit
 
 from app.models.repository import Repository, build_repository_id, parse_provider_updated_at
 from app.integrations.repositories.common.source_status import RepositorySourceError
-from app.integrations.repositories.github.client import GITHUB_API_BASE, fetch_json
+from app.integrations.repositories.github.client import GitHubClient
 
 
-def load_repository_profile(provider_repository_id: str) -> Repository:
+def load_repository_profile(provider_repository_id: str, *, client: GitHubClient) -> Repository:
     try:
-        response = fetch_json(
-            f"{GITHUB_API_BASE}/repositories/{quote(provider_repository_id, safe='')}"
+        response = client.fetch_json(
+            f"{client.api_base}/repositories/{quote(provider_repository_id, safe='')}"
         )
     except ValueError as exc:
         raise _invalid_profile() from exc

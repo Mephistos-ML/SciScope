@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import pytest
+from tests.fixtures.repository_clients import make_repository_client
+
 from app.integrations.repositories.github.search import repository as github_repository_search
 from app.integrations.repositories.common.models import JsonResponse
 
 
-def test_discover_repository_candidates_builds_raw_signals(monkeypatch) -> None:
+def test_discover_repository_candidates_builds_raw_signals(monkeypatch, repository_client) -> None:
     def fake_fetch_json(url: str) -> JsonResponse:
         assert "/search/repositories" in url
         return JsonResponse(payload={
@@ -25,9 +28,9 @@ def test_discover_repository_candidates_builds_raw_signals(monkeypatch) -> None:
             ]
         }, url=url)
 
-    monkeypatch.setattr(github_repository_search, "fetch_json", fake_fetch_json)
+    monkeypatch.setattr(repository_client, "fetch_json", fake_fetch_json)
 
-    signals = github_repository_search.discover_repository_candidates(
+    signals = github_repository_search.discover_repository_candidates(client=repository_client, queries=
         ["paramagnetic NMR software"],
         per_query_limit=3,
     )
@@ -40,3 +43,8 @@ def test_discover_repository_candidates_builds_raw_signals(monkeypatch) -> None:
     assert signal.payload["stars"] == 14
     assert signal.payload["provider_updated_at"] == "2026-09-03T12:30:00+00:00"
     assert "Paramagnetic NMR tooling" in signal.raw_text
+
+
+@pytest.fixture
+def repository_client():
+    return make_repository_client("github")

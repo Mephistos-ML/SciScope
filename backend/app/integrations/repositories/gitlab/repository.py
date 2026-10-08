@@ -5,25 +5,24 @@ from __future__ import annotations
 from dataclasses import replace
 from urllib.parse import quote, unquote, urlsplit
 
-from app.config import GITLAB_BASE_URL
 from app.models.repository import Repository, build_repository_id, parse_provider_updated_at
 from app.integrations.repositories.common.source_status import RepositorySourceError
-from app.integrations.repositories.gitlab.client import GITLAB_API_BASE, fetch_json
+from app.integrations.repositories.gitlab.client import GitLabClient
 
 
-def load_repository_profile(provider_repository_id: str) -> Repository:
+def load_repository_profile(provider_repository_id: str, *, client: GitLabClient) -> Repository:
     try:
-        response = fetch_json(
-            f"{GITLAB_API_BASE}/projects/{quote(provider_repository_id, safe='')}"
+        response = client.fetch_json(
+            f"{client.api_base}/projects/{quote(provider_repository_id, safe='')}"
         )
     except ValueError as exc:
         raise _invalid_profile() from exc
-    repository = map_repository_profile(response.payload)
+    repository = map_repository_profile(response.payload, base_url=client.base_url)
     if repository.provider_repository_id != provider_repository_id:
         raise _invalid_profile()
     try:
-        languages = fetch_json(
-            f"{GITLAB_API_BASE}/projects/{quote(provider_repository_id, safe='')}/languages"
+        languages = client.fetch_json(
+            f"{client.api_base}/projects/{quote(provider_repository_id, safe='')}/languages"
         ).payload
     except ValueError as exc:
         raise _invalid_profile() from exc
@@ -34,13 +33,13 @@ def load_repository_profile(provider_repository_id: str) -> Repository:
     return replace(repository, language=max(languages, key=languages.get) if languages else "")
 
 
-def map_repository_profile(payload: object) -> Repository:
+def map_repository_profile(payload: object, *, base_url: str) -> Repository:
     if not isinstance(payload, dict):
         raise _invalid_profile()
     provider_id = str(payload.get("id") or "")
     full_name = str(payload.get("path_with_namespace") or "").strip()
     url = str(payload.get("web_url") or "").strip()
-    base = urlsplit(GITLAB_BASE_URL)
+    base = urlsplit(base_url)
     if (
         not provider_id.isascii() or not provider_id.isdecimal() or int(provider_id) <= 0
         or not full_name or urlsplit(url).scheme != base.scheme

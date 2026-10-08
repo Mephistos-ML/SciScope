@@ -21,11 +21,11 @@ from app.api.routes import run_reports as run_reports_routes
 from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS, DATABASE_URL
 from app.composition.auth import build_google_oauth
+from app.composition.repositories import build_repository_adapters
 from app.composition.security import build_turnstile_verifier
 from app.composition.search import build_explore_dependencies
 from app.database.session import check_database_connection
 from app.logging import configure_logging
-from app.integrations.repositories.registry import load_repository_profile
 from app.models.auth import AuthConfigurationError
 from app.models.persistence import PersistenceError, PersistenceConflictError, PersistenceUnavailableError
 from app.models.explore_access import ExploreLimitCode
@@ -70,8 +70,9 @@ app = FastAPI(title="SciScope API", version=__version__, lifespan=lifespan)
 app.state.database_url = DATABASE_URL
 app.state.google_oauth = build_google_oauth()
 app.state.verify_turnstile_token = build_turnstile_verifier()
-app.state.explore_dependencies = build_explore_dependencies()
-app.state.load_repository_profile = load_repository_profile
+repository_adapters = build_repository_adapters()
+app.state.explore_dependencies = build_explore_dependencies(repositories=repository_adapters)
+app.state.load_repository_profile = repository_adapters.load_repository_profile
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(CORS_ORIGINS),

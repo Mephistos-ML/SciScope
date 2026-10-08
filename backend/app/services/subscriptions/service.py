@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from app.config import DATABASE_URL
 from app.models.repository import Repository, parse_repository_id
 from app.models.auth import User
 from app.integrations.repositories.common.source_status import RepositorySourceError
@@ -23,7 +22,7 @@ class SubscriptionRepositoryUnavailableError(RuntimeError):
 def list_subscription_payloads(
     user: User,
     *,
-    database_url: str = DATABASE_URL,
+    database_url: str,
 ) -> dict[str, object]:
     """Return serialized subscriptions for the current user."""
 
@@ -56,7 +55,7 @@ def create_subscription_payload(
     repository_item_id: str,
     load_repository_profile: Callable[[str], Repository],
     selected_query: str | None,
-    database_url: str = DATABASE_URL,
+    database_url: str,
 ) -> dict[str, object]:
     """Persist and serialize one direct repository watch."""
 
@@ -104,7 +103,7 @@ def delete_subscription_payload(
     user: User,
     subscription_id: str,
     *,
-    database_url: str = DATABASE_URL,
+    database_url: str,
 ) -> bool:
     """Delete one repository watch and its monitoring cursor."""
 

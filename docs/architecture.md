@@ -40,7 +40,8 @@ payload mapping stays in repository integrations, and insert-if-absent stays in 
 Ownership:
 
 - `services/subscriptions/`: subscription lifecycle and canonical profile resolution
-- `jobs/scan_subscriptions.py`: monitoring adapter registry wiring
+- `composition/repositories.py`: provider client construction and monitoring/profile registration
+- `jobs/scan_subscriptions.py`: monitoring process entrypoint
 - `services/monitoring/`: scanning through an injected monitoring capability
 - `services/feed/`: Feed-event assembly
 - `storage/`: catalog repository profiles, retrieval evidence, checkpoints, subscriptions, and Feed persistence
@@ -50,14 +51,22 @@ Ownership:
 
 ### Composition
 
-`app/composition/search.py` selects the configured query planner and registers
-supported GitHub/GitLab search lanes. The API and worker entrypoints each assemble
+`app/composition/repositories.py` constructs clients with explicit credentials and
+GitLab deployment URL, then registers bound profile and monitoring capabilities.
+`app/composition/search.py` receives those clients, selects the configured query
+planner and registers supported GitHub/GitLab search lanes. The API and worker entrypoints each assemble
 an immutable `ExploreDependencies` value and pass it into search use cases.
 Services invoke the supplied capabilities without discovering implementations or
 falling back to a default provider registry. All retrieval lanes accept an explicit
 monotonic deadline. Planner identity travels with the executable capability;
 initial worker execution records that identity under its lease, and expansions
 retain the identity of their already committed plan.
+
+Each configured GitHub authentication instance owns its installation token cache
+and refresh lock. There is no shared module-level token cache. Services require
+an explicit database URL for persistence operations. See the
+[runtime dependency contract](contracts/runtime-dependencies.md) for entrypoint
+lifetimes and cache recovery.
 
 ### API
 
@@ -85,7 +94,7 @@ Owns topic-driven Explore behavior: retrieval orchestration, candidate merge, ad
 
 Own provider-specific external IO: authentication, repository retrieval, supported code retrieval, release and commit monitoring, and checkpoint resolution. Turnstile HTTP verification lives in `integrations/security/cloudflare/`; `services/security/` owns enablement and token limits. Composition binds credentials and timeout, and HTTP routes use the supplied capability. Malformed or oversized provider responses are unavailable verification outcomes, never successful proofs.
 
-Repository integrations share protocol helpers under `integrations/repositories/common/`. Repository helper and provider packages keep marker-only entrypoints; callers import the owning concrete module. The monitoring registry registers each provider’s `monitor` module directly. AI adapters live separately under `integrations/ai/` and do not depend on those helpers. Integrations do not apply admission or ranking policy.
+Repository integrations share protocol helpers under `integrations/repositories/common/`. Repository helper and provider packages keep marker-only entrypoints; callers import the owning concrete module. Composition registers configured monitoring instances, profile loaders and search lanes; provider integrations receive explicit clients. AI adapters live separately under `integrations/ai/` and do not depend on those helpers. Integrations do not apply admission or ranking policy.
 
 ### Storage
 

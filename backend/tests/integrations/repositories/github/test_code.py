@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import pytest
+from tests.fixtures.repository_clients import make_repository_client
+
 from app.integrations.repositories.github.search import code as github_code_search
 from app.integrations.repositories.common.models import JsonResponse
 
 
 def test_discover_repository_candidates_from_code_builds_repository_signal(
-    monkeypatch,
+    monkeypatch, repository_client,
 ) -> None:
     def fake_fetch_json(url: str) -> JsonResponse:
         if "/search/code" in url:
@@ -31,9 +34,9 @@ def test_discover_repository_candidates_from_code_builds_repository_signal(
 
         raise AssertionError(f"Unexpected URL: {url}")
 
-    monkeypatch.setattr(github_code_search, "fetch_json", fake_fetch_json)
+    monkeypatch.setattr(repository_client, "fetch_json", fake_fetch_json)
 
-    signals = github_code_search.discover_repository_candidates_from_code(
+    signals = github_code_search.discover_repository_candidates_from_code(client=repository_client, queries=
         ["orca python package"],
         per_query_limit=5,
     )
@@ -48,7 +51,7 @@ def test_discover_repository_candidates_from_code_builds_repository_signal(
 
 
 def test_discover_repository_candidates_from_code_reads_second_page(
-    monkeypatch,
+    monkeypatch, repository_client,
 ) -> None:
     requested_urls: list[str] = []
 
@@ -86,9 +89,9 @@ def test_discover_repository_candidates_from_code_reads_second_page(
             }, url=url)
         raise AssertionError(f"Unexpected URL: {url}")
 
-    monkeypatch.setattr(github_code_search, "fetch_json", fake_fetch_json)
+    monkeypatch.setattr(repository_client, "fetch_json", fake_fetch_json)
 
-    signals = github_code_search.discover_repository_candidates_from_code(
+    signals = github_code_search.discover_repository_candidates_from_code(client=repository_client, queries=
         ["orca python package"],
         per_query_limit=1,
         max_pages=2,
@@ -96,3 +99,8 @@ def test_discover_repository_candidates_from_code_reads_second_page(
 
     assert len(signals) == 2
     assert any("page=2" in url for url in requested_urls)
+
+
+@pytest.fixture
+def repository_client():
+    return make_repository_client("github")

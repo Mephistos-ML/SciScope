@@ -2,21 +2,20 @@
 
 from __future__ import annotations
 
-from app.config import GITLAB_AUTH_MODE, GITLAB_SERVICE_ACCOUNT_TOKEN
 from app.integrations.repositories.common.source_status import RepositorySourceError
 
 
-def build_auth_headers() -> dict[str, str]:
+def build_auth_headers(*, mode: str, token: str) -> dict[str, str]:
     """Build required authentication headers for GitLab API requests."""
 
-    if GITLAB_AUTH_MODE == "disabled":
+    if mode == "disabled":
         raise RepositorySourceError(
             source="gitlab",
             status="disabled",
             public_message="GitLab repository search is disabled in this environment.",
         )
 
-    if GITLAB_AUTH_MODE != "service_account":
+    if mode != "service_account":
         raise RepositorySourceError(
             source="gitlab",
             status="misconfigured",
@@ -26,7 +25,6 @@ def build_auth_headers() -> dict[str, str]:
             ),
         )
 
-    token = GITLAB_SERVICE_ACCOUNT_TOKEN
     if not token:
         raise RepositorySourceError(
             source="gitlab",

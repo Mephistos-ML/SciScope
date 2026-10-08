@@ -15,6 +15,7 @@ from app.config import (
     SEARCH_RUN_WORKER_POLL_SECONDS,
 )
 from app.logging import configure_logging
+from app.composition.repositories import build_repository_adapters
 from app.composition.search import build_explore_dependencies
 from app.services.search.explore.dependencies import ExploreDependencies
 from app.models.search_run import SearchRunOperation
@@ -88,7 +89,7 @@ def run_search_run_worker(*, database_url: str = DATABASE_URL) -> None:
     """Continuously process database-backed Explore operations."""
 
     configure_logging()
-    dependencies = build_explore_dependencies()
+    dependencies = build_explore_dependencies(repositories=build_repository_adapters())
     worker_id = _build_worker_id()
     logger.info("Explore search worker started: %s", worker_id)
     while True:

@@ -1,13 +1,16 @@
 """Provider monitoring must distinguish complete and truncated activity reads."""
 
+from tests.fixtures.repository_clients import make_repository_monitor
+from importlib import import_module
+
 from datetime import UTC, datetime
 
 import pytest
 
 from app.models.repository import Repository
 from app.integrations.repositories.common.models import JsonResponse
-from app.integrations.repositories.github import monitor as github
-from app.integrations.repositories.gitlab import monitor as gitlab
+github = make_repository_monitor("github")
+gitlab = make_repository_monitor("gitlab")
 
 
 @pytest.mark.parametrize("provider", ["github", "gitlab"])
@@ -27,7 +30,7 @@ def test_provider_reports_stream_completeness(monkeypatch, provider, stream, res
     if response_kind == "bad-id":
         for key in ("id", "sha", "tag_name"):
             item.pop(key)
-    page_size = adapter.RELEASE_PAGE_SIZE if stream == "releases" else adapter.COMMIT_PAGE_SIZE
+    page_size = import_module(type(adapter).__module__).RELEASE_PAGE_SIZE if stream == "releases" else import_module(type(adapter).__module__).COMMIT_PAGE_SIZE
     payload = [] if response_kind == "empty" else (
         [dict(item, id=str(n), sha=str(n), tag_name=f"v{n}") for n in range(page_size)] if response_kind == "full" else
         {"error": "invalid response"} if response_kind == "non-list" else
@@ -44,7 +47,7 @@ def test_provider_reports_stream_completeness(monkeypatch, provider, stream, res
         ):
             return JsonResponse(payload={"error": "next page unavailable"}, url=url)
         return JsonResponse(payload=payload if f"/{stream}?" in url else [], url=url)
-    monkeypatch.setattr(adapter, "fetch_json", fetch)
+    monkeypatch.setattr(adapter.client, "fetch_json", fetch)
     repository = Repository(repository_id=f"{provider}:repo:123", source=provider,
                             full_name="science/example", url=f"https://{provider}.com/science/example",
                             provider_repository_id="123")

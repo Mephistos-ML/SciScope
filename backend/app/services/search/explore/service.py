@@ -84,7 +84,7 @@ def run_explore_search(
     execution_callback: ExploreSearchExecutionCallback | None = None,
     stage_report_callback: ExploreSearchStageReportCallback | None = None,
     log_context: SearchLogContext | None = None,
-    database_url: str = config.DATABASE_URL,
+    database_url: str,
 ) -> dict[str, object]:
     """Run a read-only repository search from one topic description."""
 
@@ -334,7 +334,7 @@ def expand_explore_search(
     execution_callback: ExploreSearchExecutionCallback | None = None,
     stage_report_callback: ExploreSearchStageReportCallback | None = None,
     log_context: SearchLogContext | None = None,
-    database_url: str = config.DATABASE_URL,
+    database_url: str,
 ) -> dict[str, object]:
     """Run exactly one pending query and rerank the accumulated candidate pool."""
 

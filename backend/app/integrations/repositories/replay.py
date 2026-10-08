@@ -7,11 +7,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from app.config import REPLAY_FIXTURES_PATH
 from app.models.signal import Signal
 
 
-def load_replay_signals(fixtures_path: Path = REPLAY_FIXTURES_PATH) -> list[Signal]:
+def load_replay_signals(fixtures_path: Path) -> list[Signal]:
     """Load replay signals from a local JSON file.
 
     The fixtures file is the intended place for manually curated relevant and

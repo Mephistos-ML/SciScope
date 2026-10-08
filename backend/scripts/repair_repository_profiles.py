@@ -9,7 +9,7 @@ import json
 
 from app.config import DATABASE_URL
 from app.services.repositories import repair_repository_profiles
-from app.integrations.repositories.registry import load_repository_profile
+from app.composition.repositories import build_repository_adapters
 
 
 def main() -> int:
@@ -23,7 +23,7 @@ def main() -> int:
     if args.limit <= 0:
         parser.error("--limit must be positive")
     reports = repair_repository_profiles(
-        load_repository_profile=load_repository_profile,
+        load_repository_profile=build_repository_adapters().load_repository_profile,
         database_url=DATABASE_URL,
         apply=args.apply,
         repository_ids=args.repository_id,

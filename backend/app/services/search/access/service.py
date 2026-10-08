@@ -6,7 +6,6 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 import hashlib
 
-from app.config import DATABASE_URL
 from app.config import (
     EXPLORE_SUSPICIOUS_BLOCK_THRESHOLD,
     EXPLORE_SUSPICIOUS_WINDOW_SECONDS,
@@ -55,7 +54,7 @@ def resolve_explore_actor(
     *,
     client_ip: str | None,
     now: datetime | None = None,
-    database_url: str = DATABASE_URL,
+    database_url: str,
 ) -> ExploreActor:
     """Resolve the Explore actor from an authenticated user and explicit client address."""
 
@@ -141,7 +140,7 @@ def record_allowed_explore_attempt(
     topic_hash: str,
     quota_bypassed: bool = False,
     created_at: datetime | None = None,
-    database_url: str = DATABASE_URL,
+    database_url: str,
 ) -> None:
     """Persist one allowed explore attempt."""
 
@@ -167,7 +166,7 @@ def record_blocked_explore_attempt(
     *,
     topic_hash: str,
     created_at: datetime | None = None,
-    database_url: str = DATABASE_URL,
+    database_url: str,
 ) -> None:
     """Persist one blocked explore attempt."""
 
@@ -195,7 +194,7 @@ def _resolve_guest_tier(
     ip_hash: str,
     *,
     now: datetime | None = None,
-    database_url: str = DATABASE_URL,
+    database_url: str,
 ) -> ExploreTier:
     if not TURNSTILE_ENABLED:
         return ExploreTier.GUEST

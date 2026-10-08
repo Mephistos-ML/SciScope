@@ -12,10 +12,10 @@ from app.integrations.repositories.gitlab import client as gitlab_client
 
 
 def test_build_auth_headers_fails_when_gitlab_source_is_disabled(monkeypatch) -> None:
-    monkeypatch.setattr(gitlab_auth, "GITLAB_AUTH_MODE", "disabled")
+
 
     with pytest.raises(RepositorySourceError) as exc_info:
-        gitlab_auth.build_auth_headers()
+        gitlab_auth.build_auth_headers(mode="disabled", token="")
 
     assert exc_info.value.status == "disabled"
 
@@ -23,21 +23,21 @@ def test_build_auth_headers_fails_when_gitlab_source_is_disabled(monkeypatch) ->
 def test_build_auth_headers_fails_when_gitlab_service_token_is_missing(
     monkeypatch,
 ) -> None:
-    monkeypatch.setattr(gitlab_auth, "GITLAB_AUTH_MODE", "service_account")
-    monkeypatch.setattr(gitlab_auth, "GITLAB_SERVICE_ACCOUNT_TOKEN", "")
+
+
 
     with pytest.raises(RepositorySourceError) as exc_info:
-        gitlab_auth.build_auth_headers()
+        gitlab_auth.build_auth_headers(mode="service_account", token="")
 
     assert exc_info.value.status == "misconfigured"
     assert "GITLAB_SERVICE_ACCOUNT_TOKEN" in exc_info.value.public_message
 
 
 def test_build_auth_headers_uses_private_token_header(monkeypatch) -> None:
-    monkeypatch.setattr(gitlab_auth, "GITLAB_AUTH_MODE", "service_account")
-    monkeypatch.setattr(gitlab_auth, "GITLAB_SERVICE_ACCOUNT_TOKEN", "test-token")
 
-    assert gitlab_auth.build_auth_headers() == {
+
+
+    assert gitlab_auth.build_auth_headers(mode="service_account", token="test-token") == {
         "PRIVATE-TOKEN": "test-token"
     }
 
@@ -61,13 +61,9 @@ def test_fetch_json_includes_auth_headers(monkeypatch) -> None:
         return _FakeResponse()
 
     monkeypatch.setattr(gitlab_client, "urlopen", fake_urlopen)
-    monkeypatch.setattr(
-        gitlab_client,
-        "build_auth_headers",
-        lambda: {"PRIVATE-TOKEN": "test-token"},
-    )
+    client = gitlab_client.GitLabClient("https://gitlab.com", lambda: {"PRIVATE-TOKEN": "test-token"})
 
-    response = gitlab_client.fetch_json("https://gitlab.com/api/v4/test")
+    response = client.fetch_json("https://gitlab.com/api/v4/test")
 
     assert response.payload == {"ok": True}
     assert response.url == "https://gitlab.com/api/v4/test"
@@ -76,7 +72,7 @@ def test_fetch_json_includes_auth_headers(monkeypatch) -> None:
 
 
 def test_fetch_json_classifies_unauthorized_gitlab_requests(monkeypatch) -> None:
-    monkeypatch.setattr(gitlab_client, "build_auth_headers", lambda: {"PRIVATE-TOKEN": "test-token"})
+    client = gitlab_client.GitLabClient("https://gitlab.com", lambda: {"PRIVATE-TOKEN": "test-token"})
 
     def fake_urlopen(_request, timeout):  # type: ignore[no-untyped-def]
         del timeout
@@ -91,17 +87,13 @@ def test_fetch_json_classifies_unauthorized_gitlab_requests(monkeypatch) -> None
     monkeypatch.setattr(gitlab_client, "urlopen", fake_urlopen)
 
     with pytest.raises(RepositorySourceError) as exc_info:
-        gitlab_client.fetch_json("https://gitlab.com/api/v4/test")
+        client.fetch_json("https://gitlab.com/api/v4/test")
 
     assert exc_info.value.status == "unauthorized"
 
 
 def test_fetch_json_classifies_transport_timeouts(monkeypatch) -> None:
-    monkeypatch.setattr(
-        gitlab_client,
-        "build_auth_headers",
-        lambda: {"PRIVATE-TOKEN": "test-token"},
-    )
+    client = gitlab_client.GitLabClient("https://gitlab.com", lambda: {"PRIVATE-TOKEN": "test-token"})
 
     def fake_urlopen(_request, timeout):  # type: ignore[no-untyped-def]
         del timeout
@@ -110,6 +102,6 @@ def test_fetch_json_classifies_transport_timeouts(monkeypatch) -> None:
     monkeypatch.setattr(gitlab_client, "urlopen", fake_urlopen)
 
     with pytest.raises(RepositorySourceError) as exc_info:
-        gitlab_client.fetch_json("https://gitlab.com/api/v4/test")
+        client.fetch_json("https://gitlab.com/api/v4/test")
 
     assert exc_info.value.status == "timed_out"

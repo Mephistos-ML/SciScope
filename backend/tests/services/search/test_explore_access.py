@@ -92,6 +92,7 @@ def test_record_allowed_explore_attempt_marks_internal_quota_bypass(monkeypatch)
         actor,
         topic_hash="topic_hash",
         quota_bypassed=True,
+        database_url="unused",
     )
 
     assert recorded["outcome"] == str(ExploreAccessOutcome.ALLOWED_INTERNAL)

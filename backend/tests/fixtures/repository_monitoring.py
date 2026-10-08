@@ -1,10 +1,11 @@
 """Provider HTTP fixtures shared by commit adapter and monitoring integration tests."""
 
+
 from urllib.parse import parse_qs, urlsplit
 
 from app.integrations.repositories.common.models import JsonResponse
 from app.integrations.repositories.common.source_status import RepositorySourceError
-from app.integrations.repositories.github import monitor as github
+from app.integrations.repositories.github.monitor import GitHubRepositoryMonitor
 
 OLD_DATE = "2010-01-01T00:00:00Z"
 
@@ -27,7 +28,7 @@ def fake_provider(adapter, monkeypatch, items, *, head="new-head", fail_page=Non
             return JsonResponse(payload={"default_branch": "main"}, url=url)
         page = int(query.get("page", ["1"])[0])
         if page == fail_page:
-            raise RepositorySourceError(source="github" if adapter is github else "gitlab",
+            raise RepositorySourceError(source="github" if isinstance(adapter, GitHubRepositoryMonitor) else "gitlab",
                                         status="timed_out", public_message="Timed out")
         if "/compare/" in url:
             payload = {"status": "diverged" if diverged else "ahead", "merge_base_commit": {"sha": "old-head"},
@@ -43,6 +44,6 @@ def fake_provider(adapter, monkeypatch, items, *, head="new-head", fail_page=Non
             assert "since" in query
             payload = items[(page-1)*100:page*100]
         return JsonResponse(payload=payload, url=url)
-    monkeypatch.setattr(adapter, "fetch_json", fetch)
+    monkeypatch.setattr(adapter.client, "fetch_json", fetch)
     return calls
 

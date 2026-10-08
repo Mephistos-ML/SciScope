@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.composition.repositories import build_repository_adapters
 from app.composition.search import build_explore_dependencies
 
 from app.database.records.search_runs import SearchRunRecordModel
@@ -62,7 +63,7 @@ def test_callbacks_do_not_advance_durable_progress_before_commit(work, monkeypat
         operation,
         ensure_lease=lambda: None,
         database_url=url,
-        dependencies=build_explore_dependencies(),
+        dependencies=build_explore_dependencies(repositories=build_repository_adapters()),
     )
     stored = storage.get_search_run(run_id, database_url=url)
     assert stored.status == "completed"
@@ -101,7 +102,7 @@ def test_crashed_expansion_replays_same_query_and_stage(work, monkeypatch):
             first_attempt,
             ensure_lease=lambda: None,
             database_url=url,
-            dependencies=build_explore_dependencies(),
+            dependencies=build_explore_dependencies(repositories=build_repository_adapters()),
         )
     baseline = storage.get_search_run(run_id, database_url=url)
     assert baseline.execution_state == serialize_execution(execution(("first",)))
@@ -113,7 +114,7 @@ def test_crashed_expansion_replays_same_query_and_stage(work, monkeypatch):
         retry,
         ensure_lease=lambda: None,
         database_url=url,
-        dependencies=build_explore_dependencies(),
+        dependencies=build_explore_dependencies(repositories=build_repository_adapters()),
     )
     assert attempts == ["second", "second"]
     assert storage.count_search_run_stages(run_id, database_url=url) == 2
@@ -147,7 +148,7 @@ def test_delayed_old_worker_cannot_overwrite_completed_takeover(work, monkeypatc
             old,
             ensure_lease=lambda: None,
             database_url=url,
-            dependencies=build_explore_dependencies(),
+            dependencies=build_explore_dependencies(repositories=build_repository_adapters()),
         )
         try:
             assert entered.wait(10)
@@ -157,7 +158,7 @@ def test_delayed_old_worker_cannot_overwrite_completed_takeover(work, monkeypatc
                 replacement,
                 ensure_lease=lambda: None,
                 database_url=url,
-                dependencies=build_explore_dependencies(),
+                dependencies=build_explore_dependencies(repositories=build_repository_adapters()),
             )
         finally:
             resumed.set()
@@ -206,7 +207,7 @@ def test_worker_discards_cancelled_attempt_without_marking_failed(work, monkeypa
     assert worker.process_next_search_run_operation(
         worker_id="worker",
         database_url=url,
-        dependencies=build_explore_dependencies(),
+        dependencies=build_explore_dependencies(repositories=build_repository_adapters()),
     )
     assert storage.get_search_run(run_id, database_url=url).status == "queued"
     retry = claim(url)
@@ -252,7 +253,7 @@ def test_worker_reports_invalid_replay_state_without_external_work_or_data_loss(
         operation,
         ensure_lease=lambda: None,
         database_url=url,
-        dependencies=build_explore_dependencies(),
+        dependencies=build_explore_dependencies(repositories=build_repository_adapters()),
     )
     run = storage.get_search_run(run_id, database_url=url)
     assert run.status == "failed" and run.error_code == code
@@ -279,7 +280,7 @@ def test_invalid_generated_progress_is_failed_without_publishing_it(work, monkey
         operation,
         ensure_lease=lambda: None,
         database_url=url,
-        dependencies=build_explore_dependencies(),
+        dependencies=build_explore_dependencies(repositories=build_repository_adapters()),
     )
     stored = storage.get_search_run(run_id, database_url=url)
     assert stored.status == "failed" and stored.error_code == "execution_state_invalid"
@@ -296,12 +297,12 @@ def test_required_persistence_outage_preserves_work_for_retry(work, monkeypatch)
         raise PersistenceUnavailableError("Persistence is temporarily unavailable.")
     monkeypatch.setattr(jobs, "run_explore_search", unavailable)
     with pytest.raises(PersistenceUnavailableError):
-        jobs.execute_search_run_operation(operation, ensure_lease=lambda: None, database_url=url, dependencies=build_explore_dependencies())
+        jobs.execute_search_run_operation(operation, ensure_lease=lambda: None, database_url=url, dependencies=build_explore_dependencies(repositories=build_repository_adapters()))
     stored = storage.get_search_run(run_id, database_url=url)
     assert stored.status == "running"
     assert stored.error_code is None
     assert stored.execution_state is None
     assert storage.count_search_run_stages(run_id, database_url=url) == 0
     monkeypatch.setattr(jobs, "run_explore_search", lambda **kwargs: {"items": []})
-    jobs.execute_search_run_operation(operation, ensure_lease=lambda: None, database_url=url, dependencies=build_explore_dependencies())
+    jobs.execute_search_run_operation(operation, ensure_lease=lambda: None, database_url=url, dependencies=build_explore_dependencies(repositories=build_repository_adapters()))
     assert storage.get_search_run(run_id, database_url=url).status == "completed"

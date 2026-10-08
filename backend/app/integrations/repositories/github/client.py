@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import ClassVar
 import json
 import logging
 from math import ceil
@@ -14,7 +17,6 @@ from app.__version__ import __version__
 from app.integrations.repositories.common.models import JsonResponse
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.integrations.repositories.common.deadlines import read_remaining_timeout_seconds
-from app.integrations.repositories.github.auth import build_auth_headers
 
 logger = logging.getLogger(__name__)
 
@@ -30,41 +32,60 @@ def build_user_agent() -> str:
     return f"SciScope/{__version__}"
 
 
-def fetch_json(
-    url: str,
-    *,
-    deadline_monotonic: float | None = None,
-) -> JsonResponse:
-    """Fetch JSON and the provider URL after any HTTP redirect."""
+@dataclass(frozen=True)
+class GitHubClient:
+    auth_headers: Callable[[], dict[str, str]] = field(repr=False)
+    api_base: ClassVar[str] = GITHUB_API_BASE
 
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "User-Agent": build_user_agent(),
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
-    headers.update(build_auth_headers())
+    def fetch_json(
+        self,
+        url: str,
+        *,
+        deadline_monotonic: float | None = None,
+    ) -> JsonResponse:
+        """Fetch JSON and the provider URL after any HTTP redirect."""
 
-    request = Request(
-        url,
-        headers=headers,
-    )
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": build_user_agent(),
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+        headers.update(self.auth_headers())
 
-    last_error: Exception | None = None
-    for attempt in range(1, GITHUB_REQUEST_RETRIES + 1):
-        try:
-            request_timeout_seconds = read_remaining_timeout_seconds(
-                deadline_monotonic=deadline_monotonic,
-                fallback_seconds=GITHUB_REQUEST_TIMEOUT_SECONDS,
-            )
-            with urlopen(request, timeout=request_timeout_seconds) as response:
-                final_url = getattr(response, "geturl", lambda: url)()
-                return JsonResponse(payload=json.load(response), url=str(final_url))
-        except HTTPError as exc:
-            message = _read_error_message(exc)
-            if attempt < GITHUB_REQUEST_RETRIES and 500 <= exc.code < 600:
+        request = Request(
+            url,
+            headers=headers,
+        )
+
+        last_error: Exception | None = None
+        for attempt in range(1, GITHUB_REQUEST_RETRIES + 1):
+            try:
+                request_timeout_seconds = read_remaining_timeout_seconds(
+                    deadline_monotonic=deadline_monotonic,
+                    fallback_seconds=GITHUB_REQUEST_TIMEOUT_SECONDS,
+                )
+                with urlopen(request, timeout=request_timeout_seconds) as response:
+                    final_url = getattr(response, "geturl", lambda: url)()
+                    return JsonResponse(payload=json.load(response), url=str(final_url))
+            except HTTPError as exc:
+                message = _read_error_message(exc)
+                if attempt < GITHUB_REQUEST_RETRIES and 500 <= exc.code < 600:
+                    logger.warning(
+                        (
+                            "GitHub API request returned retryable HTTP error "
+                            "url=%s attempt=%s/%s status=%s message=%r"
+                        ),
+                        url,
+                        attempt,
+                        GITHUB_REQUEST_RETRIES,
+                        exc.code,
+                        message,
+                    )
+                    time.sleep(GITHUB_RETRY_BACKOFF_SECONDS * attempt)
+                    continue
                 logger.warning(
                     (
-                        "GitHub API request returned retryable HTTP error "
+                        "GitHub API request failed "
                         "url=%s attempt=%s/%s status=%s message=%r"
                     ),
                     url,
@@ -73,43 +94,30 @@ def fetch_json(
                     exc.code,
                     message,
                 )
+                raise _build_source_error(exc) from exc
+            except (TimeoutError, URLError, OSError) as exc:
+                last_error = exc
+                logger.warning(
+                    (
+                        "GitHub API request transport error "
+                        "url=%s attempt=%s/%s error_type=%s error=%r"
+                    ),
+                    url,
+                    attempt,
+                    GITHUB_REQUEST_RETRIES,
+                    type(exc).__name__,
+                    exc,
+                )
+                if attempt == GITHUB_REQUEST_RETRIES:
+                    break
+                if deadline_monotonic is not None and monotonic() >= deadline_monotonic:
+                    break
                 time.sleep(GITHUB_RETRY_BACKOFF_SECONDS * attempt)
-                continue
-            logger.warning(
-                (
-                    "GitHub API request failed "
-                    "url=%s attempt=%s/%s status=%s message=%r"
-                ),
-                url,
-                attempt,
-                GITHUB_REQUEST_RETRIES,
-                exc.code,
-                message,
-            )
-            raise _build_source_error(exc) from exc
-        except (TimeoutError, URLError, OSError) as exc:
-            last_error = exc
-            logger.warning(
-                (
-                    "GitHub API request transport error "
-                    "url=%s attempt=%s/%s error_type=%s error=%r"
-                ),
-                url,
-                attempt,
-                GITHUB_REQUEST_RETRIES,
-                type(exc).__name__,
-                exc,
-            )
-            if attempt == GITHUB_REQUEST_RETRIES:
-                break
-            if deadline_monotonic is not None and monotonic() >= deadline_monotonic:
-                break
-            time.sleep(GITHUB_RETRY_BACKOFF_SECONDS * attempt)
 
-    if last_error is not None:
-        raise _build_transport_source_error(last_error) from last_error
+        if last_error is not None:
+            raise _build_transport_source_error(last_error) from last_error
 
-    raise RuntimeError("GitHub fetch failed without a captured error.")
+        raise RuntimeError("GitHub fetch failed without a captured error.")
 
 
 def _build_source_error(exc: HTTPError) -> RepositorySourceError:

@@ -31,12 +31,14 @@ The direct search endpoint also executes the search pipeline in the API process.
 
 Authentication and access boundaries are defined in the
 [authentication contract](../docs/contracts/authentication-boundaries.md).
+Repository client lifetimes, token caching and explicit persistence connections
+are defined in the [runtime dependency contract](../docs/contracts/runtime-dependencies.md).
 
 ## Module Map
 
 | Package | Responsibility |
 | --- | --- |
-| `app/composition/` | Selects the planner, optional embedding provider, search provider capabilities, and anti-abuse verification for API and worker entrypoints |
+| `app/composition/` | Binds provider credentials and client lifetimes, registers repository capabilities, and selects AI and anti-abuse adapters |
 | `app/api/` | HTTP routes, request parsing, and response/error mapping |
 | `app/services/auth/` | Authentication and session use cases through explicit credentials and provider capabilities |
 | `app/services/search/` | Search access, planning orchestration, retrieval, admission, ranking, and run lifecycle |
@@ -52,7 +54,6 @@ Authentication and access boundaries are defined in the
 | `app/storage/` | Persistence operations, transaction boundaries, and driver-error translation |
 | `app/database/` | SQLAlchemy records and engine/session plumbing |
 | `app/models/` | Application data structures |
-| `app/runtime/` | Process-local state |
 | `app/jobs/` | Background entrypoints |
 | `app/config.py` | Deployment configuration |
 

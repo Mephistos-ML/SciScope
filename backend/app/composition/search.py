@@ -1,9 +1,11 @@
 """Select concrete search implementations at application startup."""
 
 import logging
+from functools import partial
 from urllib.parse import urlparse
 
 from app import config
+from app.composition.repositories import RepositoryAdapters
 from app.models.ai import AiPlannerIdentity
 from app.integrations.ai.openai.planner import OpenAiSearchPlanner
 from app.integrations.ai.openai.embeddings import OpenAiTextEmbedder
@@ -20,7 +22,7 @@ from app.integrations.repositories.gitlab.search.code import discover_repository
 logger = logging.getLogger(__name__)
 
 
-def build_explore_dependencies() -> ExploreDependencies:
+def build_explore_dependencies(*, repositories: RepositoryAdapters) -> ExploreDependencies:
     """Wire one process's planner and supported provider lanes from its config."""
     if config.AI_PLANNER_MODE == "openai":
         implementation = OpenAiSearchPlanner(
@@ -44,13 +46,13 @@ def build_explore_dependencies() -> ExploreDependencies:
         raise ValueError("Unsupported AI planner mode.")
 
     lanes = [
-        RetrievalLane("github", "repository_search", github_repositories),
-        RetrievalLane("github", "code_search", github_code),
-        RetrievalLane("gitlab", "repository_search", gitlab_repositories),
+        RetrievalLane("github", "repository_search", partial(github_repositories, client=repositories.github)),
+        RetrievalLane("github", "code_search", partial(github_code, client=repositories.github)),
+        RetrievalLane("gitlab", "repository_search", partial(gitlab_repositories, client=repositories.gitlab)),
     ]
-    hostname = (urlparse(config.GITLAB_BASE_URL).hostname or "").casefold()
+    hostname = (urlparse(repositories.gitlab.base_url).hostname or "").casefold()
     if hostname not in {"gitlab.com", "www.gitlab.com"}:
-        lanes.append(RetrievalLane("gitlab", "code_search", gitlab_code))
+        lanes.append(RetrievalLane("gitlab", "code_search", partial(gitlab_code, client=repositories.gitlab)))
     else:
         logger.info("GitLab global code-search lane is unavailable for configured host=%s", hostname)
     embeddings = build_embedding_provider() if config.SEMANTIC_CATALOG_ENABLED else None

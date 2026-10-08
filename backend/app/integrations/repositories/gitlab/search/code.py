@@ -13,7 +13,7 @@ from app.integrations.repositories.common.models import RepositoryCandidate
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.integrations.repositories.common.factories import build_repository_candidate_signal
 from app.integrations.repositories.common.deadlines import raise_source_timeout_error
-from app.integrations.repositories.gitlab.client import GITLAB_API_BASE, fetch_json
+from app.integrations.repositories.gitlab.client import GitLabClient
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 def discover_repository_candidates_from_code(
     queries: Sequence[str],
     *,
+    client: GitLabClient,
     deadline_monotonic: float | None = None,
     per_query_limit: int = 50,
 ) -> list[Signal]:
@@ -32,12 +33,12 @@ def discover_repository_candidates_from_code(
     for query in queries:
         if deadline_monotonic is not None and monotonic() >= deadline_monotonic:
             raise_source_timeout_error(source="gitlab", operation="code search")
-        search_url = _build_blob_search_url(query, per_query_limit=per_query_limit)
+        search_url = _build_blob_search_url(query, per_query_limit=per_query_limit, client=client)
         try:
             if deadline_monotonic is None:
-                response = fetch_json(search_url)
+                response = client.fetch_json(search_url)
             else:
-                response = fetch_json(
+                response = client.fetch_json(
                     search_url,
                     deadline_monotonic=deadline_monotonic,
                 )
@@ -74,6 +75,7 @@ def discover_repository_candidates_from_code(
                     project = _load_project_metadata(
                         project_id,
                         deadline_monotonic=deadline_monotonic,
+                        client=client,
                     )
                 except RepositorySourceError:
                     logger.warning(
@@ -124,10 +126,10 @@ def discover_repository_candidates_from_code(
     return signals
 
 
-def _build_blob_search_url(query: str, *, per_query_limit: int) -> str:
+def _build_blob_search_url(query: str, *, client: GitLabClient, per_query_limit: int) -> str:
     encoded_query = quote_plus(query)
     return (
-        f"{GITLAB_API_BASE}/search"
+        f"{client.api_base}/search"
         f"?scope=blobs&search={encoded_query}&per_page={per_query_limit}"
     )
 
@@ -135,13 +137,14 @@ def _build_blob_search_url(query: str, *, per_query_limit: int) -> str:
 def _load_project_metadata(
     project_id: int,
     *,
+    client: GitLabClient,
     deadline_monotonic: float | None = None,
 ) -> dict[str, object] | None:
     if deadline_monotonic is None:
-        response = fetch_json(f"{GITLAB_API_BASE}/projects/{project_id}")
+        response = client.fetch_json(f"{client.api_base}/projects/{project_id}")
     else:
-        response = fetch_json(
-            f"{GITLAB_API_BASE}/projects/{project_id}",
+        response = client.fetch_json(
+            f"{client.api_base}/projects/{project_id}",
             deadline_monotonic=deadline_monotonic,
         )
     payload = response.payload
