@@ -240,7 +240,7 @@ def test_expansion_requires_and_verifies_turnstile(database_url, monkeypatch, to
     from app.api.routes import explore
     from app.models.explore_access import ExploreActor, ExploreTier
     from app.services.search.access import policy
-    from app.services.security.turnstile import TurnstileVerificationResult
+    from app.models.security import TurnstileVerificationResult
 
     monkeypatch.setattr(policy, "TURNSTILE_ENABLED", True)
     monkeypatch.setattr(explore, "resolve_explore_actor", lambda *args, **kwargs: ExploreActor(
@@ -249,7 +249,7 @@ def test_expansion_requires_and_verifies_turnstile(database_url, monkeypatch, to
     def verify(value, **kwargs):
         verified.append(value)
         return TurnstileVerificationResult(success=value == "valid")
-    monkeypatch.setattr(explore, "verify_turnstile_token", verify)
+    monkeypatch.setattr(app.state, "verify_turnstile_token", verify)
     created = _completed_run(database_url)
     with TestClient(app) as client:
         response = client.post(f"/api/explore/search-runs/{created['runId']}/expand",

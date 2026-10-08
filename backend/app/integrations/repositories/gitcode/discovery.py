@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from app.models.signal import Signal
-from app.integrations.repositories.common import RepositorySourceError
+from app.integrations.repositories.common.source_status import RepositorySourceError
 
 
 def discover_repository_candidates(

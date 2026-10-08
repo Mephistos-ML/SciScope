@@ -5,8 +5,9 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from app.models.repository import Repository, parse_repository_id
-from app.integrations.repositories import github, gitlab
-from app.integrations.repositories.common import RepositoryMonitor
+from app.integrations.repositories.github import monitor as github
+from app.integrations.repositories.gitlab import monitor as gitlab
+from app.integrations.repositories.common.models import RepositoryMonitor
 from app.integrations.repositories.github.repository import load_repository_profile as load_github_profile
 from app.integrations.repositories.gitlab.repository import load_repository_profile as load_gitlab_profile
 

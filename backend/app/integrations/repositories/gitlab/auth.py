@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.config import GITLAB_AUTH_MODE, GITLAB_SERVICE_ACCOUNT_TOKEN
-from app.integrations.repositories.common import RepositorySourceError
+from app.integrations.repositories.common.source_status import RepositorySourceError
 
 
 def build_auth_headers() -> dict[str, str]:

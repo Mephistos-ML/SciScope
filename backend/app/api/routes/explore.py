@@ -7,7 +7,6 @@ from fastapi import HTTPException, status
 
 from app.models.explore_access import ExploreAdmission, ExploreTier
 from app.services.auth.service import get_current_user
-from app.services.security.turnstile import verify_turnstile_token
 from app.services.search.access.errors import ExploreAccessDeniedError
 from app.services.search.access.policy import has_search_quota_bypass
 from app.services.search.access.service import (
@@ -143,7 +142,7 @@ def _prepare_explore_search_request(
     quota_bypassed = has_search_quota_bypass(user.email if user else None)
 
     if actor.tier is ExploreTier.SUSPICIOUS and turnstile_token:
-        verification = verify_turnstile_token(
+        verification = request.app.state.verify_turnstile_token(
             turnstile_token,
             remote_ip=read_explore_client_ip(request),
         )

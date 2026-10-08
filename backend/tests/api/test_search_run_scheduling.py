@@ -21,7 +21,7 @@ from app.models.explore_access import ExploreActor, ExploreTier
 from app.services.auth.service import create_authenticated_session
 from app.services.search.access import policy
 from app.services.search.explore import jobs
-from app.services.security.turnstile import TurnstileVerificationResult
+from app.models.security import TurnstileVerificationResult
 from app.storage.auth.users import create_user
 from app.storage.search_runs import get_search_run
 from tests.conftest import build_test_database_url, migrate_test_database
@@ -187,7 +187,7 @@ def test_initial_turnstile_verification_precedes_transaction_and_scheduling(data
         observed.append("verification")
         return TurnstileVerificationResult(success=token == "valid")
 
-    monkeypatch.setattr(explore, "verify_turnstile_token", verify)
+    monkeypatch.setattr(app.state, "verify_turnstile_token", verify)
     engine = get_engine(database_url)
     event.listen(engine, "before_cursor_execute", record_lock)
     try:

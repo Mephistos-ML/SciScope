@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from app.integrations.repositories.common import RepositorySourceError
-from app.integrations.repositories.common import JsonResponse
+from app.integrations.repositories.common.source_status import RepositorySourceError
+from app.integrations.repositories.common.models import JsonResponse
 from app.integrations.repositories.gitlab.search import code as gitlab_code_search
 
 

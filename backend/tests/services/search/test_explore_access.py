@@ -9,7 +9,6 @@ from app.models.explore_access import ExploreAccessOutcome, ExploreActor, Explor
 from app.services.search.access import service as access_service
 from app.services.search.access import policy as access_policy
 from app.services.search.access.policy import should_require_turnstile
-from app.services.security import turnstile as turnstile_service
 
 
 def _build_request() -> Request:
@@ -118,17 +117,6 @@ def test_has_search_quota_bypass_matches_normalized_email(monkeypatch) -> None:
 
     assert access_policy.has_search_quota_bypass(" Internal@Example.com ") is True
     assert access_policy.has_search_quota_bypass("other@example.com") is False
-
-
-def test_verify_turnstile_token_rejects_empty_response_when_enabled(
-    monkeypatch,
-) -> None:
-    monkeypatch.setattr(turnstile_service, "TURNSTILE_ENABLED", True)
-
-    result = turnstile_service.verify_turnstile_token("")
-
-    assert result.success is False
-    assert result.error_codes == ("missing-input-response",)
 
 
 @pytest.mark.parametrize("shared_actor", [True, False])

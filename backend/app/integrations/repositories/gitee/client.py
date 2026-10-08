@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.__version__ import __version__
-from app.integrations.repositories.common import RepositorySourceError
+from app.integrations.repositories.common.source_status import RepositorySourceError
 
 
 GITEE_API_BASE = "https://gitee.com/api/v5"

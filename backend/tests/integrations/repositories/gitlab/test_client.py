@@ -6,7 +6,7 @@ from urllib.error import HTTPError, URLError
 
 import pytest
 
-from app.integrations.repositories.common import RepositorySourceError
+from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.integrations.repositories.gitlab import auth as gitlab_auth
 from app.integrations.repositories.gitlab import client as gitlab_client
 

@@ -5,16 +5,18 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.models.repository import Repository
-from app.integrations.repositories.common import (
+from app.integrations.repositories.common.factories import (
     MAX_PROVIDER_EVENT_BODY_BYTES,
-    RepositoryCandidate,
-    RepositoryCommit,
-    RepositoryRelease,
     build_repository_candidate_signal,
     build_repository_entity,
     build_repository_main_commit_signal,
     build_repository_release_signal,
     read_repository_name,
+)
+from app.integrations.repositories.common.models import (
+    RepositoryCandidate,
+    RepositoryCommit,
+    RepositoryRelease,
 )
 
 

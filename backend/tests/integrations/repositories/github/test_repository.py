@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.integrations.repositories.github.search import repository as github_repository_search
-from app.integrations.repositories.common import JsonResponse
+from app.integrations.repositories.common.models import JsonResponse
 
 
 def test_discover_repository_candidates_builds_raw_signals(monkeypatch) -> None:

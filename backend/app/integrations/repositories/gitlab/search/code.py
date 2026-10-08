@@ -9,12 +9,10 @@ from urllib.parse import quote_plus
 
 from app.models.repository import parse_provider_updated_at
 from app.models.signal import Signal
-from app.integrations.repositories.common import (
-    RepositoryCandidate,
-    RepositorySourceError,
-    build_repository_candidate_signal,
-    raise_source_timeout_error,
-)
+from app.integrations.repositories.common.models import RepositoryCandidate
+from app.integrations.repositories.common.source_status import RepositorySourceError
+from app.integrations.repositories.common.factories import build_repository_candidate_signal
+from app.integrations.repositories.common.deadlines import raise_source_timeout_error
 from app.integrations.repositories.gitlab.client import GITLAB_API_BASE, fetch_json
 
 logger = logging.getLogger(__name__)

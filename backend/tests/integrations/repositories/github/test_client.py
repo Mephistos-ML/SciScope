@@ -6,7 +6,7 @@ from urllib.error import HTTPError, URLError
 
 import pytest
 
-from app.integrations.repositories.common import RepositorySourceError
+from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.integrations.repositories.github import auth as github_auth
 from app.integrations.repositories.github import client as github_client
 

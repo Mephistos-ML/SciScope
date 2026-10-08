@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.integrations.repositories.github import monitor as github_monitor
-from app.integrations.repositories.common import JsonResponse
+from app.integrations.repositories.common.models import JsonResponse
 from app.models.repository import Repository
 
 

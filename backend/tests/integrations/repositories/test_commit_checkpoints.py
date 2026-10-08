@@ -5,7 +5,8 @@ from datetime import UTC, datetime
 import pytest
 
 from app.models.repository import Repository
-from app.integrations.repositories.common import JsonResponse, RepositorySourceError
+from app.integrations.repositories.common.models import JsonResponse
+from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.integrations.repositories.github import monitor as github
 from app.integrations.repositories.gitlab import monitor as gitlab
 from tests.fixtures.repository_monitoring import commit, fake_provider

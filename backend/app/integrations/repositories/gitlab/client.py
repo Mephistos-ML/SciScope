@@ -11,7 +11,9 @@ from urllib.request import Request, urlopen
 
 from app.__version__ import __version__
 from app.config import GITLAB_BASE_URL
-from app.integrations.repositories.common import JsonResponse, RepositorySourceError, read_remaining_timeout_seconds
+from app.integrations.repositories.common.models import JsonResponse
+from app.integrations.repositories.common.source_status import RepositorySourceError
+from app.integrations.repositories.common.deadlines import read_remaining_timeout_seconds
 from app.integrations.repositories.gitlab.auth import build_auth_headers
 
 logger = logging.getLogger(__name__)

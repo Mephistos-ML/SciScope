@@ -7,12 +7,10 @@ from time import monotonic
 from urllib.parse import quote_plus
 
 from app.models.signal import Signal
-from app.integrations.repositories.common import (
-    RepositoryCandidate,
-    build_repository_candidate_signal,
-    raise_source_timeout_error,
-    RepositorySourceError,
-)
+from app.integrations.repositories.common.models import RepositoryCandidate
+from app.integrations.repositories.common.factories import build_repository_candidate_signal
+from app.integrations.repositories.common.deadlines import raise_source_timeout_error
+from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.integrations.repositories.gitlab.client import GITLAB_API_BASE, fetch_json
 from app.integrations.repositories.gitlab.repository import map_repository_profile
 

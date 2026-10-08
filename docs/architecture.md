@@ -73,7 +73,9 @@ Owns topic-driven Explore behavior: retrieval orchestration, candidate merge, ad
 
 ### Integrations
 
-Own provider-specific external IO: authentication, repository retrieval, supported code retrieval, release and commit monitoring, and checkpoint resolution. Repository integrations share protocol helpers under `integrations/repositories/common/`. AI adapters live separately under `integrations/ai/` and do not depend on those helpers. Integrations do not apply admission or ranking policy.
+Own provider-specific external IO: authentication, repository retrieval, supported code retrieval, release and commit monitoring, and checkpoint resolution. Turnstile HTTP verification lives in `integrations/security/cloudflare/`; `services/security/` owns enablement and token limits. Composition binds credentials and timeout, and HTTP routes use the supplied capability. Malformed or oversized provider responses are unavailable verification outcomes, never successful proofs.
+
+Repository integrations share protocol helpers under `integrations/repositories/common/`. Repository helper and provider packages keep marker-only entrypoints; callers import the owning concrete module. The monitoring registry registers each provider’s `monitor` module directly. AI adapters live separately under `integrations/ai/` and do not depend on those helpers. Integrations do not apply admission or ranking policy.
 
 ### Storage
 

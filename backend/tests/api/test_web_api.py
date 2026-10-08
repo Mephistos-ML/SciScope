@@ -21,7 +21,7 @@ from app.models.repository import Repository
 from app.models.signal import Signal
 from app.services.auth import service as auth_service
 from app.services.auth.service import create_authenticated_session
-from app.services.security.turnstile import TurnstileVerificationResult
+from app.models.security import TurnstileVerificationResult
 from app.services.search.retrieval.models import (
     CandidateProvenance,
     RepositoryCandidate,
@@ -1387,7 +1387,7 @@ def test_explore_search_accepts_verified_turnstile_token_for_suspicious_guest(
         lambda request: "203.0.113.10",
     )
     monkeypatch.setattr(
-        "app.api.routes.explore.verify_turnstile_token",
+        app.state, "verify_turnstile_token",
         lambda token, *, remote_ip=None: TurnstileVerificationResult(success=True),
     )
 

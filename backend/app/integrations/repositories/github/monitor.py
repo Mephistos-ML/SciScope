@@ -9,11 +9,13 @@ from urllib.parse import quote, urlencode
 
 from app.models.repository import Repository
 from app.models.signal import Signal
-from app.integrations.repositories.common import (
+from app.integrations.repositories.common.models import (
     RepositoryActivity,
     RepositoryCommit,
     RepositoryRelease,
-    RepositorySourceError,
+)
+from app.integrations.repositories.common.source_status import RepositorySourceError
+from app.integrations.repositories.common.factories import (
     build_repository_main_commit_signal,
     build_repository_release_signal,
     read_repository_name,

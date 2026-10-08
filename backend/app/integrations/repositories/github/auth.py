@@ -18,7 +18,7 @@ from app.config import (
     GITHUB_APP_PRIVATE_KEY,
     GITHUB_AUTH_MODE,
 )
-from app.integrations.repositories.common import RepositorySourceError
+from app.integrations.repositories.common.source_status import RepositorySourceError
 
 
 GITHUB_API_BASE = "https://api.github.com"
