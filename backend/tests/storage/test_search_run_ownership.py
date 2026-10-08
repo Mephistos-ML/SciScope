@@ -1,8 +1,6 @@
 """Lease fencing and atomic recovery against the real persistence adapter."""
 
-from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
-from threading import Event
 
 import pytest
 from sqlalchemy import event
@@ -29,43 +27,6 @@ def work(tmp_path, monkeypatch):
 def operation_record(operation, url):
     with session_scope(url) as session:
         return session.get(SearchRunOperationRecordModel, operation.operation_id)
-
-
-@pytest.mark.parametrize("holder", ["worker", "replacement"])
-@pytest.mark.parametrize("write", ["start", "success", "partial", "failure"])
-def test_superseded_claim_cannot_write_or_release_replacement(work, holder, write):
-    url, clock, run_id, old = work
-    storage.start_search_run_operation(old, database_url=url)
-    clock[0] += timedelta(seconds=60)
-    replacement = storage.claim_next_search_run_operation(holder_id=holder, lease_seconds=60, database_url=url)
-    assert replacement.lease_token != old.lease_token
-    assert not storage.renew_search_run_operation_lease(old, lease_seconds=60, database_url=url)
-    with pytest.raises(storage.SearchRunLeaseLostError):
-        if write == "start":
-            storage.start_search_run_operation(old, database_url=url)
-        else:
-            storage.finish_search_run_operation(
-                old, status={"success": "completed", "partial": "completed_partial", "failure": "failed"}[write],
-                response_payload={"items": ["stale"]}, execution_state={"queries": ["stale"]},
-                stage_report=build_stage_report(), error_message="stale failure", database_url=url,
-            )
-    storage.release_search_run_operation_lease(old, database_url=url)
-    assert operation_record(old, url).lease_token == replacement.lease_token
-    assert storage.get_search_run(run_id, database_url=url).status == "running"
-    assert storage.count_search_run_stages(run_id, database_url=url) == 0
-    storage.finish_search_run_operation(
-        replacement, status="completed", response_payload={"items": ["current"]},
-        execution_state={"queries": ["current"]}, stage_report=build_stage_report(), database_url=url,
-    )
-    result = storage.get_search_run(run_id, database_url=url)
-    assert result.response_payload == {"items": ["current"]}
-    assert result.execution_state == {"queries": ["current"]}
-    assert storage.count_search_run_stages(run_id, database_url=url) == 1
-    assert storage.count_search_run_provider_outcomes(run_id, database_url=url) == 1
-    assert storage.count_search_run_ranking_candidates(run_id, database_url=url) == 1
-    storage.release_search_run_operation_lease(replacement, database_url=url)
-    assert operation_record(old, url).lease_token is None
-    assert storage.claim_next_search_run_operation(holder_id="third", lease_seconds=60, database_url=url) is None
 
 
 def test_expired_owner_cannot_renew_or_finish_even_without_takeover(work):
@@ -115,25 +76,6 @@ def test_completion_rolls_back_all_facts_and_lifecycle(work, failure):
     storage.finish_search_run_operation(retry, status="completed", stage_report=build_stage_report(), database_url=url)
     assert storage.get_search_run_stage(run_id, 1, database_url=url) is not None
     assert storage.count_search_run_stages(run_id, database_url=url) == 1
-
-
-def test_racing_claims_have_only_one_owner(work):
-    url, clock, run_id, operation = work
-    clock[0] += timedelta(seconds=60)
-    ready = Event()
-
-    def claim(index):
-        ready.wait(5)
-        return storage.claim_next_search_run_operation(holder_id=f"worker-{index}", lease_seconds=60, database_url=url)
-
-    with ThreadPoolExecutor(max_workers=6) as executor:
-        futures = [executor.submit(claim, index) for index in range(6)]
-        ready.set()
-        claims = [future.result(timeout=10) for future in futures]
-    winners = [claim for claim in claims if claim is not None]
-    assert len(winners) == 1
-    assert winners[0].lease_token != operation.lease_token
-    assert operation_record(operation, url).lease_token == winners[0].lease_token
 
 
 def test_database_clock_is_aware_and_tracks_wall_time(work, monkeypatch):

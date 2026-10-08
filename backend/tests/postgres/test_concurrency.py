@@ -1,7 +1,7 @@
 """Admission and queue invariants across independent PostgreSQL connections."""
 
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import json
 from threading import Barrier, Event
 from types import SimpleNamespace
@@ -158,17 +158,30 @@ def test_parallel_expansions_queue_exactly_one_operation(postgres_url):
     assert search_runs.get_search_run(run_id, database_url=postgres_url).execution_state == state
 
 
-def test_parallel_workers_claim_distinct_work_without_duplicate_owners(postgres_url):
-    seeded = [seed_search_run(topic_description=f"Research {n}", database_url=postgres_url) for n in range(6)]
+@pytest.mark.parametrize("state", ["queued", "expired"])
+def test_parallel_workers_claim_work_without_duplicate_owners(postgres_url, state):
+    count = 6 if state == "queued" else 1
+    seeded = [seed_search_run(topic_description=f"Research {n}", database_url=postgres_url) for n in range(count)]
+    old = None
+    if state == "expired":
+        old = search_runs.claim_next_search_run_operation(holder_id="old", lease_seconds=60, database_url=postgres_url)
+        with session_scope(postgres_url) as session:
+            session.execute(update(SearchRunOperationRecordModel).where(
+                SearchRunOperationRecordModel.operation_id == old.operation_id,
+            ).values(lease_expires_at=search_runs._database_now(session) - timedelta(seconds=1)))
     ready = Barrier(6)
     def claim(index):
         ready.wait(timeout=10)
         return search_runs.claim_next_search_run_operation(holder_id=f"worker-{index}", lease_seconds=60, database_url=postgres_url)
     with ThreadPoolExecutor(max_workers=6) as pool:
-        claimed = list(pool.map(claim, range(6)))
-    assert all(operation is not None for operation in claimed)
+        claimed = [operation for operation in pool.map(claim, range(6)) if operation is not None]
+    assert len(claimed) == count
     assert {operation.run_id for operation in claimed} == {run["runId"] for run in seeded}
-    assert len({operation.lease_token for operation in claimed}) == 6
+    assert len({operation.lease_token for operation in claimed}) == count
+    if old is not None:
+        assert claimed[0].lease_token != old.lease_token
+        with session_scope(postgres_url) as session:
+            assert session.get(SearchRunOperationRecordModel, old.operation_id).lease_token == claimed[0].lease_token
     assert search_runs.claim_next_search_run_operation(holder_id="extra", lease_seconds=60, database_url=postgres_url) is None
 
 

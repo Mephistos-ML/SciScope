@@ -45,13 +45,21 @@ def test_superseded_owner_cannot_mutate_any_authoritative_result(postgres_url, h
                 execution_state={"stale": True}, stage_report=build_stage_report(), database_url=postgres_url)
     search_runs.release_search_run_operation_lease(old, database_url=postgres_url)
     assert operation_record(old, postgres_url).lease_token == current.lease_token
+    assert search_runs.get_search_run(run_id, database_url=postgres_url).status == "running"
     assert search_runs.count_search_run_stages(run_id, database_url=postgres_url) == 0
     search_runs.finish_search_run_operation(current, status="completed", response_payload={"items": ["current"]},
         execution_state={"progress": "current"}, stage_report=build_stage_report(), database_url=postgres_url)
-    assert search_runs.get_search_run(run_id, database_url=postgres_url).response_payload == {"items": ["current"]}
+    result = search_runs.get_search_run(run_id, database_url=postgres_url)
+    assert result.response_payload == {"items": ["current"]}
+    assert result.execution_state == {"progress": "current"}
     assert search_runs.count_search_run_stages(run_id, database_url=postgres_url) == 1
     assert search_runs.count_search_run_provider_outcomes(run_id, database_url=postgres_url) == 1
     assert search_runs.count_search_run_ranking_candidates(run_id, database_url=postgres_url) == 1
+    search_runs.release_search_run_operation_lease(current, database_url=postgres_url)
+    assert operation_record(current, postgres_url).lease_token is None
+    assert search_runs.claim_next_search_run_operation(
+        holder_id="third", lease_seconds=60, database_url=postgres_url,
+    ) is None
 
 
 def test_expired_owner_is_rejected_after_waiting_for_operation_lock(postgres_url):

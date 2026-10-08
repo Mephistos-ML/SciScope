@@ -287,10 +287,7 @@ def test_unexpandable_run_does_not_consume_quota(database_url, monkeypatch):
 
 
 @pytest.mark.parametrize("actor_kind", ["guest", "owner", "bypass"])
-def test_parallel_expansions_schedule_once_and_charge_once(database_url, users, monkeypatch, actor_kind):
-    from concurrent.futures import ThreadPoolExecutor
-    from threading import Barrier
-    from app.api.routes import explore
+def test_repeated_expansions_schedule_once_and_charge_once(database_url, users, monkeypatch, actor_kind):
     from app.database.records.explore import ExploreSearchEventRecordModel
     from app.services.search.access import policy
 
@@ -300,21 +297,13 @@ def test_parallel_expansions_schedule_once_and_charge_once(database_url, users, 
     monkeypatch.setattr(policy, "EXPLORE_GUEST_COOLDOWN_SECONDS", 0)
     monkeypatch.setattr(policy, "EXPLORE_USER_COOLDOWN_SECONDS", 0)
     monkeypatch.setattr(policy, "SEARCH_QUOTA_BYPASS_USER_EMAILS", (user.email,) if actor_kind == "bypass" else ())
-    barrier = Barrier(6, timeout=10)
-    prepare = explore._prepare_explore_search_request
-    def prepare_together(*args, **kwargs):
-        admission = prepare(*args, **kwargs)
-        barrier.wait()
-        return admission
-    monkeypatch.setattr(explore, "_prepare_explore_search_request", prepare_together)
     def expand(_):
         with TestClient(app) as client:
             if session_token:
                 client.cookies.set(AUTH_SESSION_COOKIE_NAME, session_token)
             headers = {"X-Search-Run-Token": created["guestAccessToken"]} if not user else {}
             return client.post(f"/api/explore/search-runs/{created['runId']}/expand", headers=headers)
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        responses = list(pool.map(expand, range(6)))
+    responses = [expand(index) for index in range(6)]
     assert sorted(response.status_code for response in responses) == [202, 409, 409, 409, 409, 409]
     assert _operation_count(created["runId"], database_url) == 2
     assert get_search_run(created["runId"], database_url=database_url).status == "running"

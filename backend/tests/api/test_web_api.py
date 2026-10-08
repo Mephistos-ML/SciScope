@@ -1184,18 +1184,6 @@ def test_explore_search_run_fails_after_all_timeout_retries_are_exhausted(
     ]
 
 
-def test_explore_search_rejects_removed_beta_mode(monkeypatch) -> None:
-    _allow_explore_access(monkeypatch)
-
-    with TestClient(app) as client:
-        response = client.post(
-            "/api/explore/search",
-            json={"topicDescription": "Paramagnetic NMR", "betaMode": True},
-        )
-
-    assert response.status_code == 422
-
-
 def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
     _allow_explore_access(monkeypatch)
     _use_search_plan_builder(

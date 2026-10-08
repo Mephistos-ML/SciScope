@@ -1,3 +1,5 @@
+import pytest
+
 from app.models.signal import Signal
 from app.services.search.ranking.models import RankingFeatures
 from app.services.search.ranking import rank_repository_candidates
@@ -48,54 +50,22 @@ def test_ranking_rewards_independent_query_matches_with_a_capped_bonus() -> None
     assert three_matches - one_match <= 20.0
 
 
-def test_ranking_weights_name_match_more_than_description_match() -> None:
-    name_match = calculate_relevance_score(
-        RankingFeatures(
-            matched_query_count=1,
-            total_query_count=3,
-            hit_count=1,
-            evidence_count=1,
-            strongest_match_quality=1.0,
-            corroboration_quality=0.0,
+@pytest.mark.parametrize("stronger,weaker", [("name", "description"), ("readme", "code")])
+def test_ranking_prefers_stronger_evidence_locations(stronger, weaker) -> None:
+    query = "scientific software"
+    candidates = tuple(
+        _build_candidate(
+            item_id=f"github:repo:{location}", source="github",
+            raw_text="Scientific software.", matched_queries=(query,),
+            match_evidence=(RetrievalMatchEvidence(query=query, location=location),),
         )
+        for location in (weaker, stronger)
     )
-    description_match = calculate_relevance_score(
-        RankingFeatures(
-            matched_query_count=1,
-            total_query_count=3,
-            hit_count=1,
-            evidence_count=1,
-            strongest_match_quality=0.85,
-            corroboration_quality=0.0,
-        )
-    )
-
-    assert name_match > description_match
-
-
-def test_ranking_weights_readme_match_more_than_code_match() -> None:
-    readme_match = calculate_relevance_score(
-        RankingFeatures(
-            matched_query_count=1,
-            total_query_count=3,
-            hit_count=1,
-            evidence_count=1,
-            strongest_match_quality=0.65,
-            corroboration_quality=0.0,
-        )
-    )
-    code_match = calculate_relevance_score(
-        RankingFeatures(
-            matched_query_count=1,
-            total_query_count=3,
-            hit_count=1,
-            evidence_count=1,
-            strongest_match_quality=0.40,
-            corroboration_quality=0.0,
-        )
-    )
-
-    assert readme_match > code_match
+    result = rank_repository_candidates(candidates, queries=(query,), relevance_cutoff=0.0)
+    assert [item.candidate.repository_id for item in result.ranked_candidates] == [
+        f"github:repo:{stronger}", f"github:repo:{weaker}",
+    ]
+    assert result.ranked_candidates[0].score > result.ranked_candidates[1].score
 
 
 def test_ranking_discounts_semantic_evidence_without_using_its_origin() -> None:

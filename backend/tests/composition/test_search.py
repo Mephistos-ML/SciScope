@@ -143,8 +143,12 @@ def test_async_api_and_worker_use_injected_capabilities_and_actual_planner_prove
         retrieved.extend(queries)
         return []
 
+    monkeypatch.setattr(config, "AI_PLANNER_MODE", "openai")
+    monkeypatch.setattr(config, "OPENAI_MODEL", "api-model")
+    monkeypatch.setattr(config, "OPENAI_REASONING_EFFORT", "high")
+    selected = build_explore_dependencies(repositories=build_repository_adapters())
     api_dependencies = ExploreDependencies(
-        AiSearchPlanner(api_plan, AiPlannerIdentity("openai", "api-model", "high")), (), None,
+        AiSearchPlanner(api_plan, selected.planner.identity), (), None,
     )
     worker_dependencies = ExploreDependencies(
         AiSearchPlanner(worker_plan, AiPlannerIdentity("openai", "worker-model", "low")),
@@ -161,6 +165,7 @@ def test_async_api_and_worker_use_injected_capabilities_and_actual_planner_prove
         created = response.json()
         before = get_search_run(created["runId"], database_url=url)
         assert before.planner_model == "api-model"
+        assert before.planner_reasoning_effort == "high"
         monkeypatch.setattr(config, "AI_PLANNER_MODE", "bootstrap")
         assert process_next_search_run_operation(
             worker_id="test-worker", database_url=url, dependencies=worker_dependencies,

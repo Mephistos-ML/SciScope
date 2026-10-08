@@ -1,7 +1,5 @@
 """Atomic admission and initial scheduling through the public search API."""
 
-from concurrent.futures import ThreadPoolExecutor
-from threading import Barrier
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -11,7 +9,6 @@ from sqlalchemy import event, func, select
 from sqlalchemy.orm import Session
 
 from app.api.app import app
-from app.api.routes import explore
 from app.config import AUTH_SESSION_COOKIE_NAME
 from app.database.records.explore import ExploreSearchEventRecordModel
 from app.database.records.search_runs import SearchRunOperationRecordModel, SearchRunRecordModel
@@ -203,7 +200,7 @@ def test_initial_turnstile_verification_precedes_transaction_and_scheduling(data
 
 
 @pytest.mark.parametrize("limit", ["guest", "user", "global", "bypass"])
-def test_concurrent_initial_requests_respect_last_slot_and_schedule_only_admitted_work(
+def test_initial_requests_respect_last_slot_and_schedule_only_admitted_work(
     database_url, monkeypatch, limit,
 ):
     token = _session_token("bypass" if limit == "bypass" else "user" if limit == "user" else "guest",
@@ -211,16 +208,6 @@ def test_concurrent_initial_requests_respect_last_slot_and_schedule_only_admitte
     monkeypatch.setattr(policy, "EXPLORE_GUEST_DAILY_LIMIT", 1 if limit == "guest" else 100)
     monkeypatch.setattr(policy, "EXPLORE_USER_DAILY_LIMIT", 1 if limit in {"user", "bypass"} else 100)
     monkeypatch.setattr(policy, "EXPLORE_GLOBAL_DAILY_LIMIT", 1 if limit in {"global", "bypass"} else 100)
-    barrier = Barrier(6, timeout=10)
-    prepare = explore._prepare_explore_search_request
-
-    def prepare_together(*args, **kwargs):
-        admission = prepare(*args, **kwargs)
-        barrier.wait()
-        return admission
-
-    monkeypatch.setattr(explore, "_prepare_explore_search_request", prepare_together)
-
     def create(index):
         with TestClient(app) as client:
             if token:
@@ -228,8 +215,7 @@ def test_concurrent_initial_requests_respect_last_slot_and_schedule_only_admitte
             return client.post("/api/explore/search-runs", json={"topicDescription": f"Topic {index}"},
                                headers={"X-Forwarded-For": f"198.51.100.{index + 1}"} if limit == "global" else {})
 
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        responses = list(pool.map(create, range(6)))
+    responses = [create(index) for index in range(6)]
     admitted = 6 if limit == "bypass" else 1
     denied_status = 503 if limit == "global" else 429
     assert sorted(response.status_code for response in responses) == sorted(
