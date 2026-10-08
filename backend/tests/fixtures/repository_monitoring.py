@@ -46,4 +46,3 @@ def fake_provider(adapter, monkeypatch, items, *, head="new-head", fail_page=Non
         return JsonResponse(payload=payload, url=url)
     monkeypatch.setattr(adapter.client, "fetch_json", fetch)
     return calls
-
