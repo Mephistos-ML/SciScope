@@ -40,3 +40,37 @@ def test_cosine_retrieval_honors_threshold_model_and_updated_vectors(postgres_ur
     semantic.upsert_profile_embeddings({"near": ("new-hash", orthogonal)},
                                        embedding_model="model-a", database_url=postgres_url)
     assert retrieve() == []
+
+
+def test_injected_semantic_capability_ingests_and_retrieves_after_global_disable(postgres_url, monkeypatch):
+    from app import config
+    from app.composition.repositories import build_repository_adapters
+    from app.composition.search import build_explore_dependencies
+    from app.integrations.ai.openai.embeddings import OpenAiTextEmbedder
+    from app.models.repository import Repository
+    from app.services.search import semantic as application
+    from app.storage.repositories.repositories import upsert_repositories
+
+    calls = []
+    def embed(self, inputs):
+        calls.append(tuple(inputs))
+        return tuple((1.0, *([0.0] * 1535)) for _ in inputs)
+    monkeypatch.setattr(OpenAiTextEmbedder, "__call__", embed)
+    monkeypatch.setattr(config, "SEMANTIC_CATALOG_ENABLED", True)
+    selected = build_explore_dependencies(repositories=build_repository_adapters()).embeddings
+    assert selected is not None
+    monkeypatch.setattr(config, "SEMANTIC_CATALOG_ENABLED", False)
+    repository = Repository("github:repo:123", "github", "science/tool", "https://github.com/science/tool", {})
+    upsert_repositories((repository,), database_url=postgres_url)
+    application.persist_semantic_catalog_documents((repository,), ("Scientific query",),
+        embeddings=selected, database_url=postgres_url)
+    assert len(calls) == 2
+    application.persist_semantic_catalog_documents((repository,), ("Scientific query",),
+        embeddings=selected, database_url=postgres_url)
+    assert len(calls) == 2
+    candidates = application.retrieve_semantic_catalog_candidates(("Scientific query",),
+        embeddings=selected, database_url=postgres_url)
+    assert len(calls) == 3
+    assert [candidate.repository_id for candidate in candidates] == [repository.repository_id]
+    assert candidates[0].provenance.matched_queries == ("scientific query",)
+    assert candidates[0].provenance.match_evidence[0].alignment == pytest.approx(1.0)

@@ -192,7 +192,7 @@ acceptable data-loss window. See [execution-state migration](../contracts/explor
 [Catalog repair](catalog-repair.md) previews bounded provider-backed refreshes
 before apply. Preview does not write profiles, but still makes provider requests.
 
-`python -m scripts.backfill_semantic_catalog` force-refreshes the current catalog,
+`python -m scripts.backfill_semantic_catalog` embeds missing or changed catalog documents,
 makes paid embedding calls and writes vector batches. There is no dry-run/per-ID
 CLI option; a later failure can leave earlier batches committed. Run deliberately
 when semantic retrieval is enabled, verify completion and semantic search, and

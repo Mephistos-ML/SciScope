@@ -11,7 +11,6 @@ import pytest
 
 
 def test_semantic_retrieval_maps_historical_evidence_to_the_current_query(monkeypatch) -> None:
-    monkeypatch.setattr(config, "SEMANTIC_CATALOG_ENABLED", True)
     monkeypatch.setattr(semantic, "semantic_catalog_is_available", lambda **_: True)
     monkeypatch.setattr(
         semantic,
@@ -104,7 +103,6 @@ def test_document_batches_respect_item_and_character_limits(monkeypatch) -> None
 def test_unavailable_embeddings_preserve_lexical_catalog_results(monkeypatch):
     from app.services.search import catalog
     from app.models.repository import CatalogRepositoryMatch
-    monkeypatch.setattr(config, "SEMANTIC_CATALOG_ENABLED", True)
     monkeypatch.setattr(semantic, "semantic_catalog_is_available", lambda **_: True)
     repository = Repository("github:repo:123", "github", "owner/science", "https://example.test/science")
     monkeypatch.setattr(catalog, "find_catalog_repository_matches", lambda *args, **kwargs: (
@@ -138,8 +136,20 @@ def test_failed_embedding_batch_does_not_write_partial_vectors(monkeypatch):
 
     with pytest.raises(AiDependencyError):
         semantic.persist_semantic_catalog_documents(
-            (), ("first", "second"), database_url="unused", force=True, raise_on_error=True,
+            (), ("first", "second"), database_url="unused", raise_on_error=True,
             embeddings=EmbeddingProvider("test-model", embed),
         )
     assert len(calls) == 2
     assert writes == []
+
+
+@pytest.mark.parametrize("operation", ["persist", "retrieve"])
+def test_absent_capability_skips_embedding_and_database_io(monkeypatch, operation):
+    monkeypatch.setattr(config, "SEMANTIC_CATALOG_ENABLED", True)
+    def unexpected(**kwargs):
+        pytest.fail("Disabled semantic operations must not access persistence")
+    monkeypatch.setattr(semantic, "semantic_catalog_is_available", unexpected)
+    if operation == "persist":
+        semantic.persist_semantic_catalog_documents((), ("query",), database_url="unused", embeddings=None)
+    else:
+        assert semantic.retrieve_semantic_catalog_candidates(("query",), database_url="unused", embeddings=None) == ()

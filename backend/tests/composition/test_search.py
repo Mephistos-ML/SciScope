@@ -237,3 +237,13 @@ def test_ai_adapter_failure_finishes_queued_run_without_provider_retrieval(tmp_p
         assert snapshot["status"] == "failed"
         assert not snapshot["canExpand"]
         assert "private provider diagnostics" not in str(snapshot)
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_semantic_capability_selection_remains_bound_after_configuration_changes(monkeypatch, enabled):
+    monkeypatch.setattr(config, "SEMANTIC_CATALOG_ENABLED", enabled)
+    selected = build_explore_dependencies(repositories=build_repository_adapters())
+    monkeypatch.setattr(config, "SEMANTIC_CATALOG_ENABLED", not enabled)
+    assert (selected.embeddings is not None) == enabled
+    if selected.embeddings is not None:
+        assert selected.embeddings.model == config.SEMANTIC_EMBEDDING_MODEL

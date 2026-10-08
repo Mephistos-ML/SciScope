@@ -40,14 +40,11 @@ def persist_semantic_catalog_documents(
     *,
     database_url: str,
     embeddings: EmbeddingProvider | None,
-    force: bool = False,
     raise_on_error: bool = False,
 ) -> None:
     """Embed changed catalog documents after their canonical records are persisted."""
 
     if embeddings is None:
-        return
-    if not force and not _enabled(database_url=database_url):
         return
     if not semantic_catalog_is_available(database_url=database_url):
         return
@@ -92,7 +89,6 @@ def backfill_semantic_catalog(*, database_url: str, embeddings: EmbeddingProvide
         tuple(item.query_normalized for item in evidence),
         database_url=database_url,
         embeddings=embeddings,
-        force=True,
         raise_on_error=True,
     )
     return len(repositories), len({item.query_normalized for item in evidence})
@@ -106,7 +102,7 @@ def retrieve_semantic_catalog_candidates(
 ) -> tuple[RepositoryCandidate, ...]:
     """Retrieve catalog candidates by query and profile semantic similarity."""
 
-    if embeddings is None or not _enabled(database_url=database_url):
+    if embeddings is None or not semantic_catalog_is_available(database_url=database_url):
         return ()
     normalized_queries = tuple(dict.fromkeys(_normalize(query) for query in queries if _normalize(query)))
     if not normalized_queries:
@@ -291,12 +287,6 @@ def _append_match(
     )
     if item not in evidence_by_repository[repository_id]:
         evidence_by_repository[repository_id].append(item)
-
-
-def _enabled(*, database_url: str) -> bool:
-    return config.SEMANTIC_CATALOG_ENABLED and semantic_catalog_is_available(
-        database_url=database_url
-    )
 
 
 def _normalize(query: str) -> str:

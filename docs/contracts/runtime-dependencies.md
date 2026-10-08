@@ -25,6 +25,12 @@ configuration does not retarget a client that has already been constructed. A
 configuration change takes effect when the entrypoint constructs a new set,
 normally after restarting the process.
 
+Search composition selects an embedding capability when semantic retrieval is
+enabled, or `None` when disabled. Catalog services use that explicit capability
+without rereading the enable flag. They skip semantic IO without a capability or
+when the selected database lacks vector support; lexical retrieval remains
+available. The backfill entrypoint explicitly constructs its embedding capability.
+
 Repository integrations do not read deployment configuration.
 
 ## GitHub installation token cache
