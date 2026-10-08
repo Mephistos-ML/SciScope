@@ -14,6 +14,7 @@ from app.models.repository import (
     parse_provider_updated_at,
 )
 from app.models.signal import Signal
+from app.services.ai.embeddings import EmbeddingProvider
 from app.services.search.retrieval import (
     CandidateProvenance,
     RepositoryCandidate,
@@ -37,6 +38,7 @@ def retrieve_catalog_candidates(
     queries: Sequence[str],
     *,
     database_url: str,
+    embeddings: EmbeddingProvider | None,
 ) -> tuple[RepositoryCandidate, ...]:
     """Map locally indexed catalog records into the standard retrieval contract."""
 
@@ -131,6 +133,7 @@ def retrieve_catalog_candidates(
         )
     semantic_candidates = retrieve_semantic_catalog_candidates(
         queries,
+        embeddings=embeddings,
         database_url=database_url,
     )
     return merge_repository_candidates(tuple((*candidates, *semantic_candidates)))
@@ -140,6 +143,7 @@ def persist_catalog_candidates(
     candidates: Sequence[RepositoryCandidate],
     *,
     database_url: str,
+    embeddings: EmbeddingProvider | None,
 ) -> None:
     """Persist admitted external candidates and their retrieval evidence."""
 
@@ -159,6 +163,7 @@ def persist_catalog_candidates(
         persist_semantic_catalog_documents(
             repositories,
             tuple(item.query_normalized for item in evidence),
+            embeddings=embeddings,
             database_url=database_url,
         )
     except (DBAPIError, ValueError):

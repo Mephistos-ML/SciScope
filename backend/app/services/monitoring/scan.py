@@ -16,12 +16,12 @@ from app.models.monitoring import (
 from app.models.repository import Repository
 from app.models.signal import Signal
 from app.services.feed.service import build_feed_event
-from app.sources.common.factories import (
+from app.integrations.repositories.common.factories import (
     REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
     REPOSITORY_RELEASE_CHECKPOINT_KEY,
 )
-from app.sources.common.source_status import RepositorySourceError
-from app.sources.common.models import RepositoryMonitor
+from app.integrations.repositories.common.source_status import RepositorySourceError
+from app.integrations.repositories.common.models import RepositoryMonitor
 from app.storage.monitoring.state import (
     acquire_monitoring_job_lease,
     create_monitoring_run,

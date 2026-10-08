@@ -17,7 +17,7 @@ Ownership:
 - `services/ai/`: builds a concise query plan from one topic description
 - `services/search/catalog.py`: maps catalog records into standard retrieval candidates and persists admitted external discoveries
 - `services/search/retrieval/`: coordinates source lanes, deadlines, merging, evidence, and partial coverage
-- `sources/github/search/` and `sources/gitlab/search/`: perform provider-specific repository retrieval and supported code retrieval
+- `integrations/repositories/github/search/` and `integrations/repositories/gitlab/search/`: perform provider-specific repository retrieval and supported code retrieval
 - `services/search/admission/`: applies repository-name gates and conservative candidate checks
 - `services/search/ranking/`: builds source-independent features and explainable heuristic scores
 - `services/search/explore/`: owns job lifecycle and Explore response assembly
@@ -31,7 +31,7 @@ Explore is read-only and does not create subscriptions.
 The subscription is an explicit user decision to monitor one repository. Browser
 names and URLs never replace global profiles. The API composition boundary injects
 the registered profile-loading capability into the subscription service; provider
-payload mapping stays in sources, and insert-if-absent stays in storage.
+payload mapping stays in repository integrations, and insert-if-absent stays in storage.
 
 ### Monitoring
 
@@ -44,7 +44,7 @@ Ownership:
 - `services/monitoring/`: scanning through an injected monitoring capability
 - `services/feed/`: Feed-event assembly
 - `storage/`: catalog repository profiles, retrieval evidence, checkpoints, subscriptions, and Feed persistence
-- `sources/github/` and `sources/gitlab/`: provider monitoring adapters
+- `integrations/repositories/github/` and `integrations/repositories/gitlab/`: provider monitoring adapters
 
 ## Stable Boundaries
 
@@ -65,15 +65,15 @@ Owns FastAPI transport, authentication boundaries, payload validation, and respo
 
 ### AI Planning
 
-Owns generation of a search query plan from a topic description. It does not retrieve repositories, create subscriptions, or persist search candidates.
+Application AI modules own planner/embedding capability contracts and search-plan helpers. Shared AI models own stable dependency errors. `integrations/ai/openai/` owns Responses and embeddings HTTP calls, provider payload validation, and mapping into those contracts. Composition binds credentials, endpoint, timeout, model, and vector dimensions. Provider failures become safe application errors; planning fails explicitly, while optional semantic retrieval preserves lexical results. Embedding vectors are matched by input index and must contain finite numbers of the configured dimension. Planner output requires exactly three distinct, nonempty string queries, each bounded to 500 characters. No layer retries AI calls automatically.
 
 ### Search
 
 Owns topic-driven Explore behavior: retrieval orchestration, candidate merge, admission, ranking, asynchronous jobs, partial coverage, and response assembly. It does not persist subscriptions.
 
-### Sources
+### Integrations
 
-Own provider-specific external IO: authentication, repository retrieval, supported code retrieval, release and commit monitoring, and checkpoint resolution. Sources do not apply admission or ranking policy.
+Own provider-specific external IO: authentication, repository retrieval, supported code retrieval, release and commit monitoring, and checkpoint resolution. Repository integrations share protocol helpers under `integrations/repositories/common/`. AI adapters live separately under `integrations/ai/` and do not depend on those helpers. Integrations do not apply admission or ranking policy.
 
 ### Storage
 
@@ -117,7 +117,7 @@ Gitee, GitCode, and GitVerse remain unavailable source modules.
 
 ## Dependency Direction
 
-`api -> services -> sources/storage -> database`
+`api -> services -> integrations/storage -> database`
 
 `models` and `config` are shared layers. The complete change contract is maintained in [AGENTS.md](../AGENTS.md).
 

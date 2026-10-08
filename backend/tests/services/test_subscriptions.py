@@ -18,7 +18,7 @@ from app.services.repositories import repair_repository_profiles
 from app.services.subscriptions.service import (
     create_subscription_payload,
 )
-from app.sources.common.source_status import RepositorySourceError
+from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.storage.auth.users import create_user
 from app.storage.repositories.repositories import get_repository, upsert_repositories
 from app.storage.subscriptions.subscriptions import list_subscriptions_for_user

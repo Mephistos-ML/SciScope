@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from app.config import DATABASE_URL
+from app.composition.search import build_embedding_provider
 from app.services.search.semantic import backfill_semantic_catalog
 
 
 if __name__ == "__main__":
-    repository_count, query_count = backfill_semantic_catalog(database_url=DATABASE_URL)
+    repository_count, query_count = backfill_semantic_catalog(database_url=DATABASE_URL, embeddings=build_embedding_provider())
     print(
         "Semantic catalog backfill completed: "
         f"{repository_count} repository profiles, {query_count} unique queries."

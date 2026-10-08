@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from app.models.repository import Repository, parse_repository_id
-from app.sources.common.source_status import RepositorySourceError
+from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.storage.repositories.repositories import (
     list_repository_profile_snapshots,
     replace_repository_profile_if_unchanged,

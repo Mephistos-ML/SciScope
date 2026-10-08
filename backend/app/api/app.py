@@ -22,7 +22,7 @@ from app.config import CORS_ORIGINS, DATABASE_URL
 from app.composition.search import build_explore_dependencies
 from app.database.session import check_database_connection
 from app.logging import configure_logging
-from app.sources.registry import load_repository_profile
+from app.integrations.repositories.registry import load_repository_profile
 from app.models.explore_access import ExploreLimitCode
 from app.services.auth.service import get_current_user
 from app.services.search.access.errors import ExploreAccessDeniedError

@@ -25,7 +25,7 @@ from app.services.search.retrieval.models import (
     RetrievalLaneOutcome,
 )
 from app.services.search.retrieval.timeouts import is_deadline_reached
-from app.sources.common import RepositorySourceError, build_source_status
+from app.integrations.repositories.common import RepositorySourceError, build_source_status
 
 logger = logging.getLogger(__name__)
 

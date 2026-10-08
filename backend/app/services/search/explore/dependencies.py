@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from app.services.ai.embeddings import EmbeddingProvider
 from app.services.ai.planner import AiSearchPlanner
 from app.services.search.retrieval.models import RetrievalLane
 
@@ -10,3 +11,4 @@ from app.services.search.retrieval.models import RetrievalLane
 class ExploreDependencies:
     planner: AiSearchPlanner
     lanes: tuple[RetrievalLane, ...]
+    embeddings: EmbeddingProvider | None

@@ -65,10 +65,10 @@ def test_catalog_retrieval_keeps_query_specific_evidence(tmp_path) -> None:
             ),
         ),
     )
-    persist_catalog_candidates((candidate,), database_url=database_url)
+    persist_catalog_candidates((candidate,), database_url=database_url, embeddings=None)
 
-    pnmr = retrieve_catalog_candidates(("paramagnetic nmr",), database_url=database_url)
-    relaxation = retrieve_catalog_candidates(("relaxation",), database_url=database_url)
+    pnmr = retrieve_catalog_candidates(("paramagnetic nmr",), database_url=database_url, embeddings=None)
+    relaxation = retrieve_catalog_candidates(("relaxation",), database_url=database_url, embeddings=None)
 
     assert pnmr[0].repository_id == "github:repo:123"
     assert pnmr[0].signal.payload["query"] == "paramagnetic nmr"
@@ -120,11 +120,12 @@ def test_catalog_evidence_keeps_its_location_for_a_case_variant_current_query(tm
             ),
         ),
     )
-    persist_catalog_candidates((candidate,), database_url=database_url)
+    persist_catalog_candidates((candidate,), database_url=database_url, embeddings=None)
 
     local_candidates = retrieve_catalog_candidates(
         ("Paramagnetic NMR",),
         database_url=database_url,
+        embeddings=None,
     )
     ranked = rank_repository_candidates(
         local_candidates,

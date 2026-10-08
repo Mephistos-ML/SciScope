@@ -44,7 +44,7 @@ def test_composition_selects_openai_planner(
         )
 
     monkeypatch.setattr(
-        "app.services.ai.openai.planner.OpenAiSearchPlanner.build_search_plan",
+        "app.integrations.ai.openai.planner.OpenAiSearchPlanner.build_search_plan",
         _build_search_plan,
     )
 
@@ -95,7 +95,7 @@ def test_selected_openai_settings_remain_bound_after_configuration_changes(monke
         captured.update(kwargs)
         return {"queries": ["first query", "second query", "third query"]}
 
-    monkeypatch.setattr("app.services.ai.openai.planner.build_openai_json_response", generate)
+    monkeypatch.setattr("app.integrations.ai.openai.planner.build_openai_json_response", generate)
     plan = dependencies.planner.build_search_plan(topic_description="Research topic")
     assert plan.queries == ("first query", "second query", "third query")
     assert captured["model"] == dependencies.planner.identity.model == "selected-model"
@@ -143,11 +143,11 @@ def test_async_api_and_worker_use_injected_capabilities_and_actual_planner_prove
         return []
 
     api_dependencies = ExploreDependencies(
-        AiSearchPlanner(api_plan, AiPlannerIdentity("openai", "api-model", "high")), (),
+        AiSearchPlanner(api_plan, AiPlannerIdentity("openai", "api-model", "high")), (), None,
     )
     worker_dependencies = ExploreDependencies(
         AiSearchPlanner(worker_plan, AiPlannerIdentity("openai", "worker-model", "low")),
-        (RetrievalLane("github", "repository_search", provider),),
+        (RetrievalLane("github", "repository_search", provider),), None,
     )
     monkeypatch.setattr(app.state, "database_url", url)
     monkeypatch.setattr(app.state, "explore_dependencies", api_dependencies)
@@ -180,7 +180,7 @@ def test_async_api_and_worker_use_injected_capabilities_and_actual_planner_prove
             "X-Search-Run-Token": created["guestAccessToken"],
         }).status_code == 202
         expansion_dependencies = ExploreDependencies(
-            planner=api_dependencies.planner, lanes=worker_dependencies.lanes,
+            planner=api_dependencies.planner, lanes=worker_dependencies.lanes, embeddings=None,
         )
         assert process_next_search_run_operation(
             worker_id="test-worker", database_url=url, dependencies=expansion_dependencies,
@@ -188,3 +188,46 @@ def test_async_api_and_worker_use_injected_capabilities_and_actual_planner_prove
         assert planned == ["Scientific research"]
         assert retrieved == ["first query", "second query"]
         assert get_search_run(created["runId"], database_url=url).planner_model == "worker-model"
+
+
+@pytest.mark.parametrize("failure_kind", ["timeout", "invalid_plan"])
+def test_ai_adapter_failure_finishes_queued_run_without_provider_retrieval(tmp_path, monkeypatch, failure_kind):
+    import httpx2 as httpx
+    url = build_test_database_url(tmp_path / "ai-failure.sqlite3")
+    migrate_test_database(url)
+    monkeypatch.setattr(config, "AI_PLANNER_MODE", "openai")
+    monkeypatch.setattr(config, "OPENAI_API_KEY", "test-key")
+    dependencies = build_explore_dependencies()
+
+    def post(*args, **kwargs):
+        if failure_kind == "timeout":
+            raise httpx.ReadTimeout("private provider diagnostics")
+        return httpx.Response(200, json={"output_text": '{"queries":[1,"second","third"]}'},
+                              request=httpx.Request("POST", "https://example.test/responses"))
+
+    def retrieve(*args, **kwargs):
+        pytest.fail("An invalid or unavailable plan must not trigger provider retrieval")
+
+    dependencies = ExploreDependencies(dependencies.planner, (RetrievalLane("github", "repository_search", retrieve),), None)
+    monkeypatch.setattr(app.state, "database_url", url)
+    monkeypatch.setattr(app.state, "explore_dependencies", dependencies)
+    monkeypatch.setattr("app.api.routes.explore._prepare_explore_search_request", lambda *args: ExploreAdmission(
+        ExploreActor(ExploreTier.GUEST, "guest_ip", "ai-failure"), bypass_quota=True,
+    ))
+    with TestClient(app) as client:
+        response = client.post("/api/explore/search-runs", json={"topicDescription": "Scientific research"})
+        assert response.status_code == 202
+        created = response.json()
+        with monkeypatch.context() as provider_patch:
+            provider_patch.setattr(httpx.Client, "post", post)
+            assert process_next_search_run_operation(worker_id="test", database_url=url, dependencies=dependencies)
+        run = get_search_run(created["runId"], database_url=url)
+        assert run.status == "failed"
+        assert run.execution_state is None
+        assert run.error_message == "AI search planning is temporarily unavailable."
+        snapshot = client.get(f"/api/explore/search-runs/{created['runId']}", headers={
+            "X-Search-Run-Token": created["guestAccessToken"],
+        }).json()
+        assert snapshot["status"] == "failed"
+        assert not snapshot["canExpand"]
+        assert "private provider diagnostics" not in str(snapshot)

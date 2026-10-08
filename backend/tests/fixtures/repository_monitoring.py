@@ -2,8 +2,8 @@
 
 from urllib.parse import parse_qs, urlsplit
 
-from app.sources.common import JsonResponse, RepositorySourceError
-from app.sources.github import monitor as github
+from app.integrations.repositories.common import JsonResponse, RepositorySourceError
+from app.integrations.repositories.github import monitor as github
 
 OLD_DATE = "2010-01-01T00:00:00Z"
 

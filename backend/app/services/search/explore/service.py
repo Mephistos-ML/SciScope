@@ -14,10 +14,8 @@ from app.models.search_run import (
     SearchProviderOutcomeReport,
     SearchStageReport,
 )
-from app.services.ai.openai.client import (
-    OpenAIClientConfigurationError,
-    OpenAIResponseError,
-)
+from app.services.ai.embeddings import EmbeddingProvider
+from app.models.ai import AiDependencyError
 from app.services.ai.planner import AiSearchPlanner
 from app.services.search.explore.dependencies import ExploreDependencies
 from app.services.search.retrieval.models import RetrievalLane
@@ -156,6 +154,7 @@ def run_explore_search(
         current_stage = "external_retrieval"
         retrieval_sequence = _retrieve_planned_queries(
             lanes=dependencies.lanes,
+            embeddings=dependencies.embeddings,
             queries=planned_queries,
             topic_description=topic_description,
             ai_search_plan_payload=ai_search_plan_payload,
@@ -183,6 +182,7 @@ def run_explore_search(
                 for candidate in retrieval_sequence.external_candidates
                 if candidate.repository_id in admitted_repository_ids
             ),
+            embeddings=dependencies.embeddings,
             database_url=database_url,
         )
         repository_persistence_duration_ms = build_duration_ms(persistence_started_at)
@@ -347,6 +347,7 @@ def expand_explore_search(
     retrieval_started_at = monotonic()
     retrieval_sequence = _retrieve_planned_queries(
         lanes=dependencies.lanes,
+        embeddings=dependencies.embeddings,
         queries=next_queries,
         topic_description=topic_description,
         ai_search_plan_payload=ai_search_plan_payload,
@@ -375,6 +376,7 @@ def expand_explore_search(
                 for candidate in retrieval_sequence.external_candidates
             if candidate.repository_id in admitted_repository_ids
         ),
+        embeddings=dependencies.embeddings,
         database_url=database_url,
     )
     repository_persistence_duration_ms = build_duration_ms(persistence_started_at)
@@ -547,6 +549,7 @@ def _build_ranking_candidate_reports(
 def _retrieve_planned_queries(
     *,
     lanes: tuple[RetrievalLane, ...],
+    embeddings: EmbeddingProvider | None,
     queries: tuple[str, ...],
     topic_description: str,
     ai_search_plan_payload: dict[str, object],
@@ -574,6 +577,7 @@ def _retrieve_planned_queries(
         ) = (
             _retrieve_query_with_timeout_retries(
                 lanes=lanes,
+                embeddings=embeddings,
                 query=query,
                 topic_description=topic_description,
                 ai_search_plan_payload=ai_search_plan_payload,
@@ -608,6 +612,7 @@ def _retrieve_planned_queries(
 def _retrieve_query_with_timeout_retries(
     *,
     lanes: tuple[RetrievalLane, ...],
+    embeddings: EmbeddingProvider | None,
     query: str,
     topic_description: str,
     ai_search_plan_payload: dict[str, object],
@@ -625,7 +630,7 @@ def _retrieve_query_with_timeout_retries(
     for attempt_number in range(1, MAX_TIMEOUT_ATTEMPTS_PER_QUERY + 1):
         attempt_started_at = monotonic()
         catalog_retrieval_started_at = monotonic()
-        local_candidates = retrieve_catalog_candidates((query,), database_url=database_url)
+        local_candidates = retrieve_catalog_candidates((query,), database_url=database_url, embeddings=embeddings)
         catalog_retrieval_duration_ms += build_duration_ms(catalog_retrieval_started_at)
         external_retrieved = _run_external_retrieval(
             (query,),
@@ -712,7 +717,7 @@ def _query_attempt_timed_out(retrieved: RetrievedCandidates) -> bool:
 def _plan_explore_search(*, topic_description: str, planner: AiSearchPlanner) -> AiSearchPlan:
     try:
         return planner.build_search_plan(topic_description=topic_description)
-    except (OpenAIClientConfigurationError, OpenAIResponseError, RuntimeError) as exc:
+    except AiDependencyError as exc:
         logger.exception(
             "AI search planning failed for topic=%r: %s",
             topic_description[:200],

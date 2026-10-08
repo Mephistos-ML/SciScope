@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from app.config import DATABASE_URL
 from app.services.monitoring.scan import run_repository_monitoring_scan
-from app.sources.registry import get_repository_monitor
+from app.integrations.repositories.registry import get_repository_monitor
 
 
 def main() -> None:

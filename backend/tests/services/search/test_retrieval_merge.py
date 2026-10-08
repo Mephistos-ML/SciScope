@@ -9,7 +9,7 @@ from app.models.signal import Signal
 from app.services.search.retrieval.models import RetrievalLane
 from app.services.search.retrieval.merge import merge_retrieval_hits
 from app.services.search.retrieval.service import run_external_repository_retrieval
-from app.sources.common import RepositorySourceError
+from app.integrations.repositories.common import RepositorySourceError
 
 
 def _build_repository_signal(

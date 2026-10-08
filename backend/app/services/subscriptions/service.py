@@ -7,7 +7,7 @@ from collections.abc import Callable
 from app.config import DATABASE_URL
 from app.models.repository import Repository, parse_repository_id
 from app.services.auth.service import User
-from app.sources.common.source_status import RepositorySourceError
+from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.storage.repositories.repositories import get_repository, get_or_insert_repository
 from app.storage.subscriptions.subscriptions import (
     create_subscription,

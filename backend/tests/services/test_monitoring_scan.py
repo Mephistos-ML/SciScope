@@ -17,8 +17,8 @@ from app.database.session import session_scope
 from app.models.repository import Repository
 from app.models.signal import Signal
 from app.services.monitoring import scan
-from app.sources.common import RepositoryActivity
-from app.sources.common import RepositorySourceError
+from app.integrations.repositories.common import RepositoryActivity
+from app.integrations.repositories.common import RepositorySourceError
 from app.storage import auth as auth_storage
 from app.storage.feed import list_feed_events_for_user
 from app.storage.monitoring.state import (
@@ -450,9 +450,9 @@ def test_provider_error_keeps_checkpoints_for_retry(monkeypatch):
 def test_paginated_releases_recover_after_page_failure_without_duplicates(tmp_path, monkeypatch, provider):
     from dataclasses import replace
     from urllib.parse import parse_qs, urlsplit
-    from app.sources.common import JsonResponse
-    from app.sources.github import monitor as github
-    from app.sources.gitlab import monitor as gitlab
+    from app.integrations.repositories.common import JsonResponse
+    from app.integrations.repositories.github import monitor as github
+    from app.integrations.repositories.gitlab import monitor as gitlab
     from app.storage.feed import mark_feed_event_read_for_user
 
     adapter = github if provider == "github" else gitlab
@@ -506,8 +506,8 @@ def test_paginated_releases_recover_after_page_failure_without_duplicates(tmp_pa
 def test_sha_checkpoint_preserves_backdated_commits_and_retries(tmp_path, monkeypatch, provider, partial_first):
     from dataclasses import replace
     from app.models.monitoring import REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY
-    from app.sources.github import monitor as github
-    from app.sources.gitlab import monitor as gitlab
+    from app.integrations.repositories.github import monitor as github
+    from app.integrations.repositories.gitlab import monitor as gitlab
     from app.storage.feed import mark_feed_event_read_for_user
     from tests.fixtures.repository_monitoring import commit, fake_provider
 
@@ -522,7 +522,7 @@ def test_sha_checkpoint_preserves_backdated_commits_and_retries(tmp_path, monkey
                         selected_query="commits", database_url=database_url)
     # Releases are independently empty; retain the real commit adapter.
     def release_batch(*args, **kwargs):
-        from app.sources.common.models import RepositoryActivityBatch
+        from app.integrations.repositories.common.models import RepositoryActivityBatch
         return RepositoryActivityBatch(signals=(), complete=True)
     monkeypatch.setattr(adapter, "_load_release_signals", release_batch)
     resolve_monitor = lambda _source: adapter
