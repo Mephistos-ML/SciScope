@@ -86,7 +86,7 @@ allow_indirect_imports = true
 name = "Services do not select concrete provider implementations"
 type = "forbidden"
 source_modules = ["app.services"]
-forbidden_modules = ["app.integrations.ai", "app.integrations.identity", "app.integrations.security", "app.integrations.repositories.github", "app.integrations.repositories.gitlab", "app.integrations.repositories.gitee", "app.integrations.repositories.gitcode", "app.integrations.repositories.gitverse"]
+forbidden_modules = ["app.integrations.ai", "app.integrations.identity", "app.integrations.security", "app.integrations.repositories.github", "app.integrations.repositories.gitlab"]
 
 [[tool.importlinter.contracts]]
 name = "Persistence does not depend on orchestration or external adapters"

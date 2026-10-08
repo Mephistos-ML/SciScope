@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-BACKEND_ROOT = PROJECT_ROOT / "backend"
 DEFAULT_EXPLORE_QUOTA_WINDOW_SECONDS = 86400  # 24 hours
 
 
@@ -19,17 +16,6 @@ def _read_required_env(name: str) -> str:
 
 def _read_optional_env(name: str) -> str:
     return os.getenv(name, "").strip()
-
-
-def _read_optional_path_env(name: str, default: Path) -> Path:
-    raw_value = _read_optional_env(name)
-    if not raw_value:
-        return default
-
-    path = Path(raw_value)
-    if path.is_absolute():
-        return path
-    return (PROJECT_ROOT / path).resolve()
 
 
 def _read_required_int_env(name: str) -> int:
@@ -101,10 +87,6 @@ def _read_optional_csv_env(name: str) -> tuple[str, ...]:
     return tuple(item.strip().lower() for item in raw_value.split(",") if item.strip())
 
 
-REPLAY_FIXTURES_PATH = _read_optional_path_env(
-    "REPLAY_FIXTURES_PATH",
-    BACKEND_ROOT / "tests" / "fixtures" / "replay_signals.json",
-)
 APP_ENV = _read_required_env("APP_ENV")
 APP_LOG_LEVEL = (_read_optional_env("APP_LOG_LEVEL") or "INFO").upper()
 SEARCH_DIAGNOSTICS_USER_EMAILS = _read_optional_csv_env(

@@ -20,7 +20,6 @@ _CONFIG_PREFIXES = (
     "AUTH_",
     "CORS_",
     "FRONTEND_",
-    "REPLAY_",
     "SEARCH_",
     "EXPLORE_",
     "TURNSTILE_",

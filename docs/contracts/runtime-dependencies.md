@@ -25,8 +25,7 @@ configuration does not retarget a client that has already been constructed. A
 configuration change takes effect when the entrypoint constructs a new set,
 normally after restarting the process.
 
-Repository integrations do not read deployment configuration. Replay fixture
-loading also requires an explicit path.
+Repository integrations do not read deployment configuration.
 
 ## GitHub installation token cache
 
