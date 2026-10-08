@@ -33,6 +33,7 @@ The direct search endpoint also executes the search pipeline in the API process.
 
 | Package | Responsibility |
 | --- | --- |
+| `app/composition/` | Selects the planner and registers search provider capabilities for API and worker entrypoints |
 | `app/api/` | HTTP routes, request parsing, and response/error mapping |
 | `app/services/auth/` | Authentication and session use cases |
 | `app/services/search/` | Search access, planning orchestration, retrieval, admission, ranking, and run lifecycle |
@@ -85,6 +86,12 @@ and `interrupted`. Clients poll only `queued` and `running`. Signed-in runs belo
 to their owner. Guest creation returns a `guestAccessToken`, supplied later in
 `X-Search-Run-Token`; persistence stores only its hash. Missing and inaccessible
 runs both return 404. Internal diagnostics require separate feature access.
+
+Search entrypoints receive `ExploreDependencies`: the selected planner with its
+provenance and the registered deadline-aware retrieval lanes. Search services
+execute these capabilities without choosing provider implementations. Initial
+worker execution records the actual planner identity; expansions reuse the
+committed plan.
 
 Main owners: `services/search/explore/`, `services/search/access/`,
 `services/search/retrieval/`, `services/search/admission/`, and

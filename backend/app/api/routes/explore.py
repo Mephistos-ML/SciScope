@@ -38,6 +38,7 @@ def search_explore_response(
         payload,
     )
     return run_explore_search(
+        dependencies=request.app.state.explore_dependencies,
         topic_description=topic_description,
         database_url=request.app.state.database_url,
         log_context=SearchLogContext(
@@ -56,6 +57,7 @@ def create_explore_search_run_response(
     topic_description = str(payload.get("topicDescription") or "").strip()
     admission = _prepare_explore_search_request(request, payload)
     return create_explore_search_run(
+        dependencies=request.app.state.explore_dependencies,
         topic_description=topic_description,
         admission=admission,
         database_url=request.app.state.database_url,

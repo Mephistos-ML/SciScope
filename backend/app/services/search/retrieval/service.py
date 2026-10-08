@@ -8,17 +8,15 @@ from time import monotonic
 
 from app.services.search.observability.context import SearchLogContext
 from app.services.search.observability.service import (
-    SearchLogContext,
     build_duration_ms,
     log_search_event,
 )
 from app.services.search.retrieval.discovery import (
     RetrievalProgressCallback,
-    SourceRetriever,
     discover_candidates_across_sources,
 )
 from app.services.search.retrieval.merge import merge_retrieval_hits
-from app.services.search.retrieval.models import RetrievedCandidates
+from app.services.search.retrieval.models import RetrievedCandidates, RetrievalLane
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +24,7 @@ logger = logging.getLogger(__name__)
 def run_external_repository_retrieval(
     queries: Sequence[str],
     *,
-    discoverers: Sequence[SourceRetriever] | None = None,
+    lanes: Sequence[RetrievalLane],
     progress_callback: RetrievalProgressCallback | None = None,
     soft_deadline_monotonic: float | None = None,
     hard_deadline_monotonic: float | None = None,
@@ -37,7 +35,7 @@ def run_external_repository_retrieval(
     retrieval_started_at = monotonic() if log_context is not None else None
     retrieval_state = discover_candidates_across_sources(
         queries,
-        discoverers=discoverers,
+        lanes=lanes,
         progress_callback=progress_callback,
         soft_deadline_monotonic=soft_deadline_monotonic,
         hard_deadline_monotonic=hard_deadline_monotonic,

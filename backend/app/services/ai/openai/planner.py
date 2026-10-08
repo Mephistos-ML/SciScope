@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
-from app import config
 from app.models.ai import AiSearchPlan
 from app.services.ai.openai.client import build_openai_json_response
 from app.services.ai.search_plans import normalize_search_queries
@@ -50,8 +50,12 @@ Use these retrieval angles in this order:
 """
 
 
+@dataclass(frozen=True)
 class OpenAiSearchPlanner:
     """Planner implementation backed by OpenAI."""
+
+    model: str
+    reasoning_effort: str
 
     def build_search_plan(
         self,
@@ -62,8 +66,8 @@ class OpenAiSearchPlanner:
             topic_description=topic_description,
         )
         payload = build_openai_json_response(
-            model=config.OPENAI_MODEL,
-            reasoning_effort=config.OPENAI_REASONING_EFFORT,
+            model=self.model,
+            reasoning_effort=self.reasoning_effort,
             system_prompt=_SYSTEM_PROMPT,
             user_prompt=user_prompt,
             json_schema=_SEARCH_PLAN_JSON_SCHEMA,

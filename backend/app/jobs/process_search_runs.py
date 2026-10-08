@@ -15,6 +15,8 @@ from app.config import (
     SEARCH_RUN_WORKER_POLL_SECONDS,
 )
 from app.logging import configure_logging
+from app.composition.search import build_explore_dependencies
+from app.services.search.explore.dependencies import ExploreDependencies
 from app.models.search_run import SearchRunOperation
 from app.services.search.explore.jobs import execute_search_run_operation
 from app.storage.search_runs import (
@@ -30,6 +32,7 @@ logger = logging.getLogger(__name__)
 def process_next_search_run_operation(
     *,
     worker_id: str,
+    dependencies: ExploreDependencies,
     database_url: str,
     lease_seconds: int = SEARCH_RUN_WORKER_LEASE_SECONDS,
 ) -> bool:
@@ -63,7 +66,12 @@ def process_next_search_run_operation(
 
     heartbeat.start()
     try:
-        execute_search_run_operation(operation, ensure_lease=ensure_lease, database_url=database_url)
+        execute_search_run_operation(
+            operation,
+            dependencies=dependencies,
+            ensure_lease=ensure_lease,
+            database_url=database_url,
+        )
     except SearchRunLeaseLostError:
         logger.warning("Discarded search attempt after lease loss: %s", operation.operation_id)
     finally:
@@ -80,11 +88,13 @@ def run_search_run_worker(*, database_url: str = DATABASE_URL) -> None:
     """Continuously process database-backed Explore operations."""
 
     configure_logging()
+    dependencies = build_explore_dependencies()
     worker_id = _build_worker_id()
     logger.info("Explore search worker started: %s", worker_id)
     while True:
         processed = process_next_search_run_operation(
             worker_id=worker_id,
+            dependencies=dependencies,
             database_url=database_url,
         )
         if not processed:

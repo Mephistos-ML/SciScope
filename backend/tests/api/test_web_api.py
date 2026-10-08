@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 import tempfile
@@ -214,10 +215,18 @@ def _allow_explore_access(monkeypatch) -> None:
     )
 
 
+def _use_search_plan_builder(monkeypatch, build_plan) -> None:
+    dependencies = app.state.explore_dependencies
+    monkeypatch.setattr(app.state, "explore_dependencies", replace(
+        dependencies, planner=replace(dependencies.planner, build_search_plan=build_plan),
+    ))
+
+
 def _process_next_search_run_operation(database_url: str) -> None:
     from app.jobs.process_search_runs import process_next_search_run_operation
 
     assert process_next_search_run_operation(
+        dependencies=app.state.explore_dependencies,
         worker_id="test-worker",
         database_url=database_url,
         lease_seconds=30,
@@ -718,8 +727,8 @@ def test_google_auth_callback_redirects_with_error_when_state_is_invalid(monkeyp
 
 def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatch) -> None:
     _allow_explore_access(monkeypatch)
-    monkeypatch.setattr(
-        "app.services.search.explore.service.build_ai_search_plan",
+    _use_search_plan_builder(
+        monkeypatch,
         lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
     )
     monkeypatch.setattr(
@@ -761,8 +770,8 @@ def test_explore_search_refreshes_external_candidates_after_a_strong_catalog_mat
 ) -> None:
     _allow_explore_access(monkeypatch)
     query = "paramagnetic nmr"
-    monkeypatch.setattr(
-        "app.services.search.explore.service.build_ai_search_plan",
+    _use_search_plan_builder(
+        monkeypatch,
         lambda topic_description: _build_ready_repository_ai_plan(query),
     )
     local_candidates = _build_retrieved_candidates(
@@ -813,8 +822,8 @@ def test_explore_search_keeps_retrieved_candidate_without_literal_query_phrase(
 ) -> None:
     _allow_explore_access(monkeypatch)
     query = "LAMMPS Feynman-Hibbs"
-    monkeypatch.setattr(
-        "app.services.search.explore.service.build_ai_search_plan",
+    _use_search_plan_builder(
+        monkeypatch,
         lambda topic_description: _build_ready_repository_ai_plan(query),
     )
     monkeypatch.setattr(
@@ -875,8 +884,8 @@ def test_explore_search_applies_ranking_order_and_relevance_cutoff(monkeypatch) 
         "lammps pair style mie",
         "semiclassical correction",
     )
-    monkeypatch.setattr(
-        "app.services.search.explore.service.build_ai_search_plan",
+    _use_search_plan_builder(
+        monkeypatch,
         lambda topic_description: _build_ready_repository_ai_plan(*queries),
     )
     top_signal = _build_explore_repository_signal(
@@ -935,8 +944,8 @@ def test_explore_search_enforced_mode_hides_rejected_candidates(monkeypatch) -> 
         "app.services.search.admission.service.EXPLORE_ADMISSION_MODE",
         "enforced",
     )
-    monkeypatch.setattr(
-        "app.services.search.explore.service.build_ai_search_plan",
+    _use_search_plan_builder(
+        monkeypatch,
         lambda topic_description: _build_ready_repository_ai_plan("orca parser"),
     )
     weak_signal = Signal(
@@ -985,8 +994,8 @@ def test_explore_search_enforced_mode_hides_rejected_candidates(monkeypatch) -> 
 
 def test_explore_search_retries_timeouts_before_advancing_to_next_query(monkeypatch) -> None:
     _allow_explore_access(monkeypatch)
-    monkeypatch.setattr(
-        "app.services.search.explore.service.build_ai_search_plan",
+    _use_search_plan_builder(
+        monkeypatch,
         lambda topic_description: _build_ready_repository_ai_plan(
             "primary query",
             "fallback query",
@@ -1052,8 +1061,8 @@ def test_explore_search_retries_timeouts_before_advancing_to_next_query(monkeypa
 
 def test_explore_search_retries_partial_timeouts_and_merges_attempt_results(monkeypatch) -> None:
     _allow_explore_access(monkeypatch)
-    monkeypatch.setattr(
-        "app.services.search.explore.service.build_ai_search_plan",
+    _use_search_plan_builder(
+        monkeypatch,
         lambda topic_description: _build_ready_repository_ai_plan(
             "primary query",
             "fallback query",
@@ -1144,8 +1153,8 @@ def test_explore_search_run_fails_after_all_timeout_retries_are_exhausted(
     monkeypatch, explore_run_database
 ) -> None:
     _allow_explore_access(monkeypatch)
-    monkeypatch.setattr(
-        "app.services.search.explore.service.build_ai_search_plan",
+    _use_search_plan_builder(
+        monkeypatch,
         lambda topic_description: _build_ready_repository_ai_plan(
             "primary query",
             "fallback query",
@@ -1219,8 +1228,8 @@ def test_explore_search_rejects_removed_beta_mode(monkeypatch) -> None:
 
 def test_explore_search_returns_502_when_all_sources_fail(monkeypatch) -> None:
     _allow_explore_access(monkeypatch)
-    monkeypatch.setattr(
-        "app.services.search.explore.service.build_ai_search_plan",
+    _use_search_plan_builder(
+        monkeypatch,
         lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
     )
     monkeypatch.setattr(
@@ -1387,8 +1396,8 @@ def test_explore_search_accepts_verified_turnstile_token_for_suspicious_guest(
         return ExploreAccessDecision(allowed=True)
 
     monkeypatch.setattr("app.api.routes.explore.reserve_explore_access", _check_access)
-    monkeypatch.setattr(
-        "app.services.search.explore.service.build_ai_search_plan",
+    _use_search_plan_builder(
+        monkeypatch,
         lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
     )
     monkeypatch.setattr(
@@ -1423,8 +1432,8 @@ def test_explore_search_run_returns_completed_snapshot(
     monkeypatch, explore_run_database
 ) -> None:
     _allow_explore_access(monkeypatch)
-    monkeypatch.setattr(
-        "app.services.search.explore.service.build_ai_search_plan",
+    _use_search_plan_builder(
+        monkeypatch,
         lambda topic_description: _build_ready_repository_ai_plan(
             "paramagnetic nmr",
             "pcs tensor fitting",
@@ -1505,8 +1514,8 @@ def test_explore_search_run_expands_one_pending_query_and_merges_candidates(
     monkeypatch, explore_run_database
 ) -> None:
     _allow_explore_access(monkeypatch)
-    monkeypatch.setattr(
-        "app.services.search.explore.service.build_ai_search_plan",
+    _use_search_plan_builder(
+        monkeypatch,
         lambda topic_description: _build_ready_repository_ai_plan(
             "paramagnetic nmr",
             "pcs tensor fitting",
@@ -1564,8 +1573,8 @@ def test_explore_search_expansion_preserves_all_previous_results(
     """Incremental expansion may add candidates but must not remove prior ones."""
 
     _allow_explore_access(monkeypatch)
-    monkeypatch.setattr(
-        "app.services.search.explore.service.build_ai_search_plan",
+    _use_search_plan_builder(
+        monkeypatch,
         lambda topic_description: _build_ready_repository_ai_plan(
             "angle one",
             "angle two",
@@ -1645,8 +1654,8 @@ def test_explore_search_run_rejects_expansion_after_plan_is_exhausted(
     monkeypatch, explore_run_database
 ) -> None:
     _allow_explore_access(monkeypatch)
-    monkeypatch.setattr(
-        "app.services.search.explore.service.build_ai_search_plan",
+    _use_search_plan_builder(
+        monkeypatch,
         lambda topic_description: _build_ready_repository_ai_plan("paramagnetic nmr"),
     )
     monkeypatch.setattr(
@@ -1680,8 +1689,8 @@ def test_explore_search_run_returns_failed_snapshot_when_all_sources_fail(
     monkeypatch, explore_run_database
 ) -> None:
     _allow_explore_access(monkeypatch)
-    monkeypatch.setattr(
-        "app.services.search.explore.service.build_ai_search_plan",
+    _use_search_plan_builder(
+        monkeypatch,
         lambda topic_description: _build_ready_repository_ai_plan("orca parser"),
     )
     monkeypatch.setattr(
@@ -1725,8 +1734,8 @@ def test_explore_search_run_returns_completed_partial_snapshot(
     monkeypatch, explore_run_database
 ) -> None:
     _allow_explore_access(monkeypatch)
-    monkeypatch.setattr(
-        "app.services.search.explore.service.build_ai_search_plan",
+    _use_search_plan_builder(
+        monkeypatch,
         lambda topic_description: _build_ready_repository_ai_plan("orca parser"),
     )
     monkeypatch.setattr(

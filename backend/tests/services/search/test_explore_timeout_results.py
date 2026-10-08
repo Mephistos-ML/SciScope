@@ -63,6 +63,7 @@ def test_timeout_fallback_retains_results_and_diagnostics(monkeypatch, next_resu
     monkeypatch.setattr(service, "_run_external_retrieval", retrieve)
     queries = ("first", "second") if next_result == "timeout" else ("first", "second", "unused")
     sequence = service._retrieve_planned_queries(
+        lanes=(),
         queries=queries, topic_description="Scientific tools",
         ai_search_plan_payload={"status": "ready", "queries": list(queries)},
         progress_callback=None, log_context=None, database_url="unused",

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Mapping
+from collections.abc import Sequence
+from typing import Literal, Mapping, Protocol
 
 from app.models.signal import Signal
 
@@ -94,3 +95,18 @@ class RetrievedCandidates:
     partial: bool = False
     warnings: tuple[str, ...] = ()
     lane_outcomes: tuple[RetrievalLaneOutcome, ...] = ()
+
+
+class RepositoryDiscoverer(Protocol):
+    def __call__(
+        self, queries: Sequence[str], *, deadline_monotonic: float | None,
+    ) -> list[Signal]: ...
+
+
+@dataclass(frozen=True)
+class RetrievalLane:
+    """One registered provider capability with its source and channel identity."""
+
+    source: str
+    channel: str
+    discover: RepositoryDiscoverer

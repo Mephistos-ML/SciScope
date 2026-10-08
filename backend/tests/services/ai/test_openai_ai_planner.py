@@ -8,7 +8,7 @@ from app.services.ai.openai.planner import OpenAiSearchPlanner
 
 
 def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
-    planner = OpenAiSearchPlanner()
+    planner = OpenAiSearchPlanner(model="test-model", reasoning_effort="low")
     captured_prompts: dict[str, str] = {}
 
     def _fake_response(**kwargs):
@@ -43,7 +43,7 @@ def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
 
 
 def test_openai_planner_limits_normalized_query_count_to_three(monkeypatch) -> None:
-    planner = OpenAiSearchPlanner()
+    planner = OpenAiSearchPlanner(model="test-model", reasoning_effort="low")
 
     monkeypatch.setattr(
         "app.services.ai.openai.planner.build_openai_json_response",
@@ -69,7 +69,7 @@ def test_openai_planner_limits_normalized_query_count_to_three(monkeypatch) -> N
 def test_openai_planner_raises_when_normalized_queries_are_below_minimum(
     monkeypatch,
 ) -> None:
-    planner = OpenAiSearchPlanner()
+    planner = OpenAiSearchPlanner(model="test-model", reasoning_effort="low")
 
     monkeypatch.setattr(
         "app.services.ai.openai.planner.build_openai_json_response",
@@ -87,7 +87,7 @@ def test_openai_planner_raises_when_normalized_queries_are_below_minimum(
 
 
 def test_openai_planner_raises_for_invalid_payload(monkeypatch) -> None:
-    planner = OpenAiSearchPlanner()
+    planner = OpenAiSearchPlanner(model="test-model", reasoning_effort="low")
 
     monkeypatch.setattr(
         "app.services.ai.openai.planner.build_openai_json_response",

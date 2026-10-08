@@ -21,6 +21,7 @@ from app.database.records.search_runs import (
     SearchRunStageRecordModel,
 )
 from app.database.session import session_scope
+from app.models.ai import AiPlannerIdentity
 from app.models.search_run import (
     SearchRun,
     SearchRunOperation,
@@ -219,6 +220,7 @@ def release_search_run_operation_lease(
 def start_search_run_operation(
     operation: SearchRunOperation,
     *,
+    planner_identity: AiPlannerIdentity | None = None,
     database_url: str,
 ) -> SearchRun:
     """Read the committed replay baseline and publish running state while owned."""
@@ -229,6 +231,10 @@ def start_search_run_operation(
         if record.status in {"queued", "running"}:
             record.status = "running"
             record.started_at = record.started_at or _database_now(session)
+            if planner_identity is not None:
+                record.planner_mode = planner_identity.mode
+                record.planner_model = planner_identity.model
+                record.planner_reasoning_effort = planner_identity.reasoning_effort
         return map_search_run_record(record)
 
 

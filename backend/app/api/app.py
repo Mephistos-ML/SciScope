@@ -19,6 +19,7 @@ from app.api.routes import ranking_labels as ranking_labels_routes
 from app.api.routes import run_reports as run_reports_routes
 from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS, DATABASE_URL
+from app.composition.search import build_explore_dependencies
 from app.database.session import check_database_connection
 from app.logging import configure_logging
 from app.sources.registry import load_repository_profile
@@ -62,6 +63,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="SciScope API", version=__version__, lifespan=lifespan)
 app.state.database_url = DATABASE_URL
+app.state.explore_dependencies = build_explore_dependencies()
 app.state.load_repository_profile = load_repository_profile
 app.add_middleware(
     CORSMiddleware,

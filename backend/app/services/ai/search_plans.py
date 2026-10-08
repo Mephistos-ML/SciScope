@@ -11,7 +11,7 @@ def build_bootstrap_ai_search_plan(
     *,
     topic_description: str,
 ) -> AiSearchPlan:
-    """Build one temporary pending search plan before the real LLM planner lands."""
+    """Return a pending plan for the configured bootstrap mode."""
 
     del topic_description
 

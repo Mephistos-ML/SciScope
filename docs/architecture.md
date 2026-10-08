@@ -2,7 +2,7 @@
 
 ## System Shape
 
-SciScope is a structured monolith with one backend application, one frontend application, one database, and background monitoring inside the backend process.
+SciScope is a structured monolith with one backend application, one frontend application, one PostgreSQL database, a separate Explore worker, and scheduled repository monitoring.
 
 The system centres on topic-driven discovery, repositories, subscriptions, and Feed events.
 
@@ -10,7 +10,7 @@ The system centres on topic-driven discovery, repositories, subscriptions, and F
 
 ### Explore
 
-`topic description -> AI query plan -> local catalog retrieval -> external fallback when coverage is low -> candidate merge -> admission -> ranking -> results`
+`topic description -> AI query plan -> catalog and external retrieval -> candidate merge -> admission -> ranking -> results`
 
 Ownership:
 
@@ -47,6 +47,17 @@ Ownership:
 - `sources/github/` and `sources/gitlab/`: provider monitoring adapters
 
 ## Stable Boundaries
+
+### Composition
+
+`app/composition/search.py` selects the configured query planner and registers
+supported GitHub/GitLab search lanes. The API and worker entrypoints each assemble
+an immutable `ExploreDependencies` value and pass it into search use cases.
+Services invoke the supplied capabilities without discovering implementations or
+falling back to a default provider registry. All retrieval lanes accept an explicit
+monotonic deadline. Planner identity travels with the executable capability;
+initial worker execution records that identity under its lease, and expansions
+retain the identity of their already committed plan.
 
 ### API
 

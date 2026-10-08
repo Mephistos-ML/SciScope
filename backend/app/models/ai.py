@@ -14,3 +14,12 @@ class AiSearchPlan:
 
     status: AiSearchPlanStatus
     queries: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class AiPlannerIdentity:
+    """Planner provenance recorded for the implementation that executes a plan."""
+
+    mode: str
+    model: str | None
+    reasoning_effort: str | None

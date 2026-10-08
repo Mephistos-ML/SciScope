@@ -10,7 +10,6 @@ import logging
 import secrets
 from uuid import uuid4
 
-from app import config
 from app.models.explore_access import ExploreAdmission
 from app.models.search_run import (
     SearchRun,
@@ -21,6 +20,7 @@ from app.models.search_run import (
 from app.services.search.access.service import hash_explore_topic, record_explore_admission
 from app.services.search.access.errors import ExploreAccessDeniedError
 from app.storage.search_admission import explore_admission_transaction
+from app.services.search.explore.dependencies import ExploreDependencies
 from app.services.search.explore.execution import (
     ExploreSearchExecution,
     ExploreExecutionStateError,
@@ -48,6 +48,7 @@ def create_explore_search_run(
     *,
     topic_description: str,
     admission: ExploreAdmission,
+    dependencies: ExploreDependencies,
     database_url: str,
 ) -> dict[str, object]:
     """Atomically admit a logical run and queue its initial operation."""
@@ -61,15 +62,9 @@ def create_explore_search_run(
         topic_description=topic_description,
         topic_hash=hash_explore_topic(topic_description),
         status="queued",
-        planner_mode=config.AI_PLANNER_MODE,
-        planner_model=(
-            config.OPENAI_MODEL if config.AI_PLANNER_MODE == "openai" else None
-        ),
-        planner_reasoning_effort=(
-            config.OPENAI_REASONING_EFFORT
-            if config.AI_PLANNER_MODE == "openai"
-            else None
-        ),
+        planner_mode=dependencies.planner.identity.mode,
+        planner_model=dependencies.planner.identity.model,
+        planner_reasoning_effort=dependencies.planner.identity.reasoning_effort,
         ranking_policy_version="heuristic-v1",
         backend_revision="unknown",
         created_at=now,
@@ -195,12 +190,17 @@ def _require_expandable_run(run: SearchRun) -> None:
 def execute_search_run_operation(
     operation: SearchRunOperation,
     *,
+    dependencies: ExploreDependencies,
     ensure_lease: Callable[[], None],
     database_url: str,
 ) -> None:
     """Replay a leased operation and atomically publish its complete outcome."""
     ensure_lease()
-    run = start_search_run_operation(operation, database_url=database_url)
+    run = start_search_run_operation(
+        operation,
+        planner_identity=dependencies.planner.identity if operation.kind == "initial" else None,
+        database_url=database_url,
+    )
     ensure_lease()
     if run.status in {"completed", "completed_partial", "failed", "interrupted"}:
         finish_search_run_operation(
@@ -235,6 +235,7 @@ def execute_search_run_operation(
     try:
         if operation.kind == "initial":
             payload = run_explore_search(
+                dependencies=dependencies,
                 topic_description=run.topic_description,
                 database_url=database_url,
                 execution_callback=remember_execution,
@@ -244,6 +245,7 @@ def execute_search_run_operation(
         else:
             baseline = deserialize_execution(run.execution_state)
             payload = expand_explore_search(
+                dependencies=dependencies,
                 topic_description=run.topic_description,
                 execution=baseline,
                 database_url=database_url,
