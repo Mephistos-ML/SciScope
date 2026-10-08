@@ -7,7 +7,6 @@ import hashlib
 import json
 
 import pytest
-from fastapi import Request, Response
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
@@ -42,7 +41,7 @@ def users(database_url):
 
 
 def _sign_in(client, user, database_url):
-    token = create_authenticated_session(user.user_id, Response(), database_url=database_url)
+    token = create_authenticated_session(user.user_id, database_url=database_url, ttl_seconds=3600)
     client.cookies.set(AUTH_SESSION_COOKIE_NAME, token)
 
 
@@ -205,8 +204,7 @@ def test_expansion_enforces_existing_limits(database_url, users, monkeypatch, li
         if user:
             _sign_in(client, user, database_url)
         actor = service.resolve_explore_actor(
-            Request({"type": "http", "headers": [], "client": ("testclient", 80)}),
-            user, database_url=database_url,
+            user, client_ip="testclient", database_url=database_url,
         )
         service.record_allowed_explore_attempt(actor, topic_hash="old", database_url=database_url)
         monkeypatch.setattr(policy, "EXPLORE_GUEST_COOLDOWN_SECONDS", 0 if limit != "cooldown" else 60)
@@ -243,7 +241,7 @@ def test_expansion_requires_and_verifies_turnstile(database_url, monkeypatch, to
     from app.models.security import TurnstileVerificationResult
 
     monkeypatch.setattr(policy, "TURNSTILE_ENABLED", True)
-    monkeypatch.setattr(explore, "resolve_explore_actor", lambda *args, **kwargs: ExploreActor(
+    monkeypatch.setattr("app.services.search.access.service.resolve_explore_actor", lambda *args, **kwargs: ExploreActor(
         ExploreTier.SUSPICIOUS, "guest_ip", "suspicious-ip"))
     verified = []
     def verify(value, **kwargs):
@@ -266,7 +264,7 @@ def test_inaccessible_expansion_does_not_check_turnstile_or_reserve_quota(databa
     from app.api.routes import explore
     def unexpected(*args, **kwargs):
         raise AssertionError("Admission ran before ownership check")
-    monkeypatch.setattr(explore, "resolve_explore_actor", unexpected)
+    monkeypatch.setattr("app.services.search.access.service.resolve_explore_actor", unexpected)
     from app.services.search.explore import jobs
     monkeypatch.setattr(jobs, "record_explore_admission", unexpected)
     created = _completed_run(database_url)
@@ -300,7 +298,7 @@ def test_parallel_expansions_schedule_once_and_charge_once(database_url, users, 
 
     user = users["owner"] if actor_kind != "guest" else None
     created = _completed_run(database_url, user.user_id if user else None)
-    session_token = create_authenticated_session(user.user_id, Response(), database_url=database_url) if user else None
+    session_token = create_authenticated_session(user.user_id, database_url=database_url, ttl_seconds=3600) if user else None
     monkeypatch.setattr(policy, "EXPLORE_GUEST_COOLDOWN_SECONDS", 0)
     monkeypatch.setattr(policy, "EXPLORE_USER_COOLDOWN_SECONDS", 0)
     monkeypatch.setattr(policy, "SEARCH_QUOTA_BYPASS_USER_EMAILS", (user.email,) if actor_kind == "bypass" else ())

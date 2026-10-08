@@ -9,7 +9,7 @@ from sqlalchemy.exc import DBAPIError
 from app.api.app import app
 from app.api.routes import subscriptions
 from app.database.session import get_engine
-from app.services.auth.service import User
+from app.models.auth import User
 from tests.conftest import build_test_database_url, migrate_test_database
 
 

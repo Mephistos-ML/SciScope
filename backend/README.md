@@ -29,13 +29,16 @@ The container runs these processes through [Supervisor](infra/supervisord.conf).
 Monitoring is scheduled every two hours by [Supercronic](infra/monitoring.crontab).
 The direct search endpoint also executes the search pipeline in the API process.
 
+Authentication and access boundaries are defined in the
+[authentication contract](../docs/contracts/authentication-boundaries.md).
+
 ## Module Map
 
 | Package | Responsibility |
 | --- | --- |
 | `app/composition/` | Selects the planner, optional embedding provider, search provider capabilities, and anti-abuse verification for API and worker entrypoints |
 | `app/api/` | HTTP routes, request parsing, and response/error mapping |
-| `app/services/auth/` | Authentication and session use cases |
+| `app/services/auth/` | Authentication and session use cases through explicit credentials and provider capabilities |
 | `app/services/search/` | Search access, planning orchestration, retrieval, admission, ranking, and run lifecycle |
 | `app/services/subscriptions/` | Subscription lifecycle and canonical repository resolution |
 | `app/services/monitoring/` | Repository scan orchestration |
@@ -44,6 +47,7 @@ The direct search endpoint also executes the search pipeline in the API process.
 | `app/services/ai/` | AI capability contracts and search-plan helpers |
 | `app/integrations/repositories/` | Repository provider access, payload mapping, and repository-specific `common` helpers |
 | `app/integrations/ai/` | AI provider access and validated planner/embedding responses |
+| `app/integrations/identity/` | Google OAuth exchange and verified identity mapping |
 | `app/integrations/security/` | Cloudflare Turnstile verification protocol and response mapping |
 | `app/storage/` | Persistence operations, transaction boundaries, and driver-error translation |
 | `app/database/` | SQLAlchemy records and engine/session plumbing |

@@ -5,17 +5,14 @@ from __future__ import annotations
 from fastapi import Request
 from fastapi import HTTPException, status
 
-from app.models.explore_access import ExploreAdmission, ExploreTier
-from app.services.auth.service import get_current_user
+from app.models.explore_access import ExploreAdmission
+from app.api.auth import get_current_user
+from app.api.client import read_explore_client_ip
 from app.services.search.access.errors import ExploreAccessDeniedError
-from app.services.search.access.policy import has_search_quota_bypass
 from app.services.search.access.service import (
-    build_turnstile_failure_decision,
+    prepare_explore_admission,
     reserve_explore_access,
     hash_explore_topic,
-    read_explore_client_ip,
-    record_blocked_explore_attempt,
-    resolve_explore_actor,
 )
 from app.services.search.explore.jobs import (
     create_explore_search_run,
@@ -131,34 +128,9 @@ def _prepare_explore_search_request(
     database_url = request.app.state.database_url
     topic_description = str(payload.get("topicDescription") or "").strip()
     turnstile_token = str(payload.get("turnstileToken") or "").strip()
-    topic_hash = hash_explore_topic(topic_description)
-    user = get_current_user(request, database_url=database_url)
-    actor = resolve_explore_actor(
-        request,
-        user,
+    return prepare_explore_admission(
+        user=get_current_user(request, database_url=database_url),
+        client_ip=read_explore_client_ip(request), topic_description=topic_description,
+        turnstile_token=turnstile_token, verify_turnstile_token=request.app.state.verify_turnstile_token,
         database_url=database_url,
-    )
-    turnstile_verified = False
-    quota_bypassed = has_search_quota_bypass(user.email if user else None)
-
-    if actor.tier is ExploreTier.SUSPICIOUS and turnstile_token:
-        verification = request.app.state.verify_turnstile_token(
-            turnstile_token,
-            remote_ip=read_explore_client_ip(request),
-        )
-        if not verification.success:
-            decision = build_turnstile_failure_decision(
-                service_unavailable=verification.service_unavailable
-            )
-            record_blocked_explore_attempt(
-                actor,
-                decision,
-                topic_hash=topic_hash,
-                database_url=database_url,
-            )
-            raise ExploreAccessDeniedError(decision)
-        turnstile_verified = True
-
-    return ExploreAdmission(
-        actor=actor, turnstile_verified=turnstile_verified, bypass_quota=quota_bypassed,
     )

@@ -19,7 +19,10 @@ from app.models.explore_access import ExploreAccessDecision, ExploreActor, Explo
 from app.models.feed import FeedEvent, build_feed_event_id
 from app.models.repository import Repository
 from app.models.signal import Signal
-from app.services.auth import service as auth_service
+from app.api import auth as auth_transport
+from app.models.auth import User, GoogleIdentity
+from app.integrations.identity.google import GoogleOAuthClient
+from jwt import PyJWKClient
 from app.services.auth.service import create_authenticated_session
 from app.models.security import TurnstileVerificationResult
 from app.services.search.retrieval.models import (
@@ -192,8 +195,8 @@ def _allow_explore_access(monkeypatch) -> None:
         lambda request, *, database_url: None,
     )
     monkeypatch.setattr(
-        "app.api.routes.explore.resolve_explore_actor",
-        lambda request, user, *, database_url: ExploreActor(
+        "app.services.search.access.service.resolve_explore_actor",
+        lambda user, *, client_ip, database_url: ExploreActor(
             tier=ExploreTier.GUEST,
             subject_type="guest_ip",
             subject_key="guest_hash",
@@ -276,11 +279,7 @@ def test_feed_endpoints_return_json() -> None:
         with TestClient(app) as client:
             client.app.state.database_url = database_url
             session_response = Response()
-            session_token = create_authenticated_session(
-                user.user_id,
-                session_response,
-                database_url=database_url,
-            )
+            session_token = create_authenticated_session(user.user_id, database_url=database_url, ttl_seconds=3600)
             client.cookies.set(AUTH_SESSION_COOKIE_NAME, session_token)
 
             response = client.get("/api/feed")
@@ -367,11 +366,7 @@ def test_feed_loads_older_events_with_an_opaque_cursor() -> None:
         with TestClient(app) as client:
             client.app.state.database_url = database_url
             session_response = Response()
-            session_token = create_authenticated_session(
-                user.user_id,
-                session_response,
-                database_url=database_url,
-            )
+            session_token = create_authenticated_session(user.user_id, database_url=database_url, ttl_seconds=3600)
             client.cookies.set(AUTH_SESSION_COOKIE_NAME, session_token)
 
             first_response = client.get("/api/feed?limit=20")
@@ -410,11 +405,7 @@ def test_missing_feed_event_returns_404_json() -> None:
         with TestClient(app) as client:
             client.app.state.database_url = database_url
             session_response = Response()
-            session_token = create_authenticated_session(
-                user.user_id,
-                session_response,
-                database_url=database_url,
-            )
+            session_token = create_authenticated_session(user.user_id, database_url=database_url, ttl_seconds=3600)
             client.cookies.set(AUTH_SESSION_COOKIE_NAME, session_token)
             response = client.get("/api/feed/missing")
 
@@ -442,11 +433,7 @@ def test_session_auth_and_subscription_endpoints(monkeypatch) -> None:
                 database_url=database_url,
             )
             session_response = Response()
-            session_token = create_authenticated_session(
-                user.user_id,
-                session_response,
-                database_url=database_url,
-            )
+            session_token = create_authenticated_session(user.user_id, database_url=database_url, ttl_seconds=3600)
             client.cookies.set(AUTH_SESSION_COOKIE_NAME, session_token)
 
             response = client.post(
@@ -485,16 +472,17 @@ def test_session_auth_and_subscription_endpoints(monkeypatch) -> None:
             assert response.json()["items"] == []
 
 
-def test_google_auth_start_redirects_to_google(monkeypatch) -> None:
-    monkeypatch.setattr(auth_service, "GOOGLE_CLIENT_ID", "google-client-id")
-    monkeypatch.setattr(auth_service, "GOOGLE_CLIENT_SECRET", "google-client-secret")
-    monkeypatch.setattr(
-        auth_service,
-        "GOOGLE_OAUTH_REDIRECT_URI",
-        "https://api.sciscope.uk/api/auth/google/callback",
-    )
-    monkeypatch.setattr(auth_service, "FRONTEND_BASE_URL", "https://sciscope.uk")
+def _configure_google_auth(monkeypatch):
+    monkeypatch.setattr(auth_transport, "FRONTEND_BASE_URL", "https://sciscope.uk")
+    monkeypatch.setattr(app.state, "google_oauth", GoogleOAuthClient(
+        "google-client-id", "google-client-secret",
+        "https://api.sciscope.uk/api/auth/google/callback", PyJWKClient("https://example.test/jwks"),
+    ))
 
+
+def test_google_auth_start_redirects_to_google(monkeypatch) -> None:
+
+    _configure_google_auth(monkeypatch)
     with TestClient(app) as client:
         response = client.get("/api/auth/google/start", follow_redirects=False)
 
@@ -505,38 +493,23 @@ def test_google_auth_start_redirects_to_google(monkeypatch) -> None:
 
 
 def test_google_auth_callback_creates_user_session(monkeypatch) -> None:
+    _configure_google_auth(monkeypatch)
     with tempfile.TemporaryDirectory() as temp_dir:
         database_url = build_test_database_url(Path(temp_dir) / "google-auth.sqlite3")
         migrate_test_database(database_url)
-        monkeypatch.setattr(auth_service, "GOOGLE_CLIENT_ID", "google-client-id")
-        monkeypatch.setattr(auth_service, "GOOGLE_CLIENT_SECRET", "google-client-secret")
-        monkeypatch.setattr(
-            auth_service,
-            "GOOGLE_OAUTH_REDIRECT_URI",
-            "https://api.sciscope.uk/api/auth/google/callback",
-        )
-        monkeypatch.setattr(auth_service, "FRONTEND_BASE_URL", "https://sciscope.uk")
+
 
         monkeypatch.setattr(
-            auth_service,
-            "_exchange_google_code_for_tokens",
-            lambda code: {"id_token": "fake-id-token"},
-        )
-        monkeypatch.setattr(
-            auth_service,
-            "_verify_google_identity",
-            lambda id_token, *, expected_nonce: auth_service.GoogleIdentity(
-                subject="google-subject-123",
-                email="scientist@example.com",
-                display_name="Research Scientist",
-                avatar_url="https://example.com/avatar.png",
+            GoogleOAuthClient, "authenticate",
+            lambda self, code, *, expected_nonce: GoogleIdentity(
+                subject="google-subject-123", email="scientist@example.com",
+                display_name="Research Scientist", avatar_url="https://example.com/avatar.png",
             ),
         )
-
         with TestClient(app) as client:
             client.app.state.database_url = database_url
-            client.cookies.set(auth_service.GOOGLE_OAUTH_STATE_COOKIE_NAME, "state-123")
-            client.cookies.set(auth_service.GOOGLE_OAUTH_NONCE_COOKIE_NAME, "nonce-123")
+            client.cookies.set(auth_transport.GOOGLE_OAUTH_STATE_COOKIE_NAME, "state-123", domain="testserver.local")
+            client.cookies.set(auth_transport.GOOGLE_OAUTH_NONCE_COOKIE_NAME, "nonce-123", domain="testserver.local")
 
             callback_response = client.get(
                 "/api/auth/google/callback?state=state-123&code=good-code",
@@ -545,11 +518,17 @@ def test_google_auth_callback_creates_user_session(monkeypatch) -> None:
 
             assert callback_response.status_code == 302
             assert callback_response.headers["location"] == "https://sciscope.uk"
+            session_cookie = next(value for value in callback_response.headers.get_list("set-cookie")
+                                  if value.startswith(AUTH_SESSION_COOKIE_NAME + "="))
+            assert "HttpOnly" in session_cookie and "Path=/" in session_cookie
+            assert "SameSite=" in session_cookie and "Max-Age=" in session_cookie
+            assert auth_transport.GOOGLE_OAUTH_STATE_COOKIE_NAME not in client.cookies
+            assert auth_transport.GOOGLE_OAUTH_NONCE_COOKIE_NAME not in client.cookies
             assert client.get("/api/me").json()["user"]["email"] == "scientist@example.com"
 
 
 def test_get_me_exposes_enabled_search_diagnostics_feature(monkeypatch) -> None:
-    user = auth_service.User(
+    user = User(
         user_id="user_diagnostics",
         email="diagnostics@example.com",
         display_name="Diagnostics User",
@@ -571,7 +550,7 @@ def test_get_me_exposes_enabled_search_diagnostics_feature(monkeypatch) -> None:
 
 
 def test_search_diagnostics_report_requires_feature_access(monkeypatch) -> None:
-    user = auth_service.User(
+    user = User(
         user_id="user_diagnostics",
         email="diagnostics@example.com",
         display_name="Diagnostics User",
@@ -593,7 +572,7 @@ def test_search_diagnostics_report_requires_feature_access(monkeypatch) -> None:
 
 
 def test_search_diagnostics_report_rejects_another_users_run(monkeypatch) -> None:
-    user = auth_service.User(
+    user = User(
         user_id="user_diagnostics",
         email="diagnostics@example.com",
         display_name="Diagnostics User",
@@ -623,7 +602,7 @@ def test_search_diagnostics_report_rejects_another_users_run(monkeypatch) -> Non
 
 
 def test_search_diagnostics_report_returns_owners_run(monkeypatch) -> None:
-    user = auth_service.User(
+    user = User(
         user_id="user_diagnostics",
         email="diagnostics@example.com",
         display_name="Diagnostics User",
@@ -650,7 +629,7 @@ def test_search_diagnostics_report_returns_owners_run(monkeypatch) -> None:
 
 
 def test_explore_search_bypasses_quota_for_internal_email(monkeypatch) -> None:
-    user = auth_service.User(
+    user = User(
         user_id="user_internal",
         email="internal@example.com",
         display_name="Internal User",
@@ -661,8 +640,8 @@ def test_explore_search_bypasses_quota_for_internal_email(monkeypatch) -> None:
         lambda request, *, database_url: user,
     )
     monkeypatch.setattr(
-        "app.api.routes.explore.resolve_explore_actor",
-        lambda request, user, *, database_url: ExploreActor(
+        "app.services.search.access.service.resolve_explore_actor",
+        lambda user, *, client_ip, database_url: ExploreActor(
             tier=ExploreTier.USER,
             subject_type="user",
             subject_key="user_internal",
@@ -700,23 +679,19 @@ def test_explore_search_bypasses_quota_for_internal_email(monkeypatch) -> None:
 
 
 def test_google_auth_callback_redirects_with_error_when_state_is_invalid(monkeypatch) -> None:
-    monkeypatch.setattr(auth_service, "GOOGLE_CLIENT_ID", "google-client-id")
-    monkeypatch.setattr(auth_service, "GOOGLE_CLIENT_SECRET", "google-client-secret")
-    monkeypatch.setattr(
-        auth_service,
-        "GOOGLE_OAUTH_REDIRECT_URI",
-        "https://api.sciscope.uk/api/auth/google/callback",
-    )
-    monkeypatch.setattr(auth_service, "FRONTEND_BASE_URL", "https://sciscope.uk")
 
+    _configure_google_auth(monkeypatch)
     with TestClient(app) as client:
-        client.cookies.set(auth_service.GOOGLE_OAUTH_STATE_COOKIE_NAME, "expected-state")
-        client.cookies.set(auth_service.GOOGLE_OAUTH_NONCE_COOKIE_NAME, "expected-nonce")
+        client.cookies.set(auth_transport.GOOGLE_OAUTH_STATE_COOKIE_NAME, "expected-state", domain="testserver.local")
+        client.cookies.set(auth_transport.GOOGLE_OAUTH_NONCE_COOKIE_NAME, "expected-nonce", domain="testserver.local")
 
         response = client.get(
             "/api/auth/google/callback?state=wrong-state&code=good-code",
             follow_redirects=False,
         )
+        assert auth_transport.GOOGLE_OAUTH_STATE_COOKIE_NAME not in client.cookies
+        assert auth_transport.GOOGLE_OAUTH_NONCE_COOKIE_NAME not in client.cookies
+        assert AUTH_SESSION_COOKIE_NAME not in client.cookies
 
     assert response.status_code == 302
     assert (
@@ -1271,8 +1246,8 @@ def test_explore_search_returns_structured_access_denial_payload(
         lambda request, *, database_url: None,
     )
     monkeypatch.setattr(
-        "app.api.routes.explore.resolve_explore_actor",
-        lambda request, user, *, database_url: ExploreActor(
+        "app.services.search.access.service.resolve_explore_actor",
+        lambda user, *, client_ip, database_url: ExploreActor(
             tier=ExploreTier.GUEST,
             subject_type="guest_ip",
             subject_key="guest_hash",
@@ -1293,7 +1268,7 @@ def test_explore_search_returns_structured_access_denial_payload(
         ),
     )
     monkeypatch.setattr(
-        "app.api.routes.explore.record_blocked_explore_attempt",
+        "app.services.search.access.service.record_blocked_explore_attempt",
         lambda actor, decision, *, topic_hash, database_url: None,
     )
 
@@ -1323,8 +1298,8 @@ def test_explore_search_returns_turnstile_requirement_payload(
         lambda request, *, database_url: None,
     )
     monkeypatch.setattr(
-        "app.api.routes.explore.resolve_explore_actor",
-        lambda request, user, *, database_url: ExploreActor(
+        "app.services.search.access.service.resolve_explore_actor",
+        lambda user, *, client_ip, database_url: ExploreActor(
             tier=ExploreTier.SUSPICIOUS,
             subject_type="guest_ip",
             subject_key="guest_hash",
@@ -1344,7 +1319,7 @@ def test_explore_search_returns_turnstile_requirement_payload(
         ),
     )
     monkeypatch.setattr(
-        "app.api.routes.explore.record_blocked_explore_attempt",
+        "app.services.search.access.service.record_blocked_explore_attempt",
         lambda actor, decision, *, topic_hash, database_url: None,
     )
 
@@ -1371,8 +1346,8 @@ def test_explore_search_accepts_verified_turnstile_token_for_suspicious_guest(
         lambda request, *, database_url: None,
     )
     monkeypatch.setattr(
-        "app.api.routes.explore.resolve_explore_actor",
-        lambda request, user, *, database_url: ExploreActor(
+        "app.services.search.access.service.resolve_explore_actor",
+        lambda user, *, client_ip, database_url: ExploreActor(
             tier=ExploreTier.SUSPICIOUS,
             subject_type="guest_ip",
             subject_key="guest_hash",

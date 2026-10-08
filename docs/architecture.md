@@ -63,6 +63,16 @@ retain the identity of their already committed plan.
 
 Owns FastAPI transport, authentication boundaries, payload validation, and response mapping. It contains no source or persistence logic.
 
+### Authentication and Access
+
+`api/auth.py` owns cookie and redirect representation; `api/client.py` extracts the
+HTTP client address. Auth services receive bearer tokens and callback facts.
+Explore access services classify actors, require proof, audit denials, and apply
+admission policy without request objects. `composition/auth.py` supplies the
+Google capability; `integrations/identity/google.py` owns token/JWKS IO and verified
+claim mapping. The existing public cookie/redirect and ownership contracts are
+preserved. See the [authentication contract](contracts/authentication-boundaries.md).
+
 ### AI Planning
 
 Application AI modules own planner/embedding capability contracts and search-plan helpers. Shared AI models own stable dependency errors. `integrations/ai/openai/` owns Responses and embeddings HTTP calls, provider payload validation, and mapping into those contracts. Composition binds credentials, endpoint, timeout, model, and vector dimensions. Provider failures become safe application errors; planning fails explicitly, while optional semantic retrieval preserves lexical results. Embedding vectors are matched by input index and must contain finite numbers of the configured dimension. Planner output requires exactly three distinct, nonempty string queries, each bounded to 500 characters. No layer retries AI calls automatically.

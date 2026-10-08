@@ -3,22 +3,11 @@
 from __future__ import annotations
 
 import pytest
-from fastapi import Request
 
 from app.models.explore_access import ExploreAccessOutcome, ExploreActor, ExploreTier, ExploreUsage
 from app.services.search.access import service as access_service
 from app.services.search.access import policy as access_policy
 from app.services.search.access.policy import should_require_turnstile
-
-
-def _build_request() -> Request:
-    return Request(
-        {
-            "type": "http",
-            "headers": [(b"x-forwarded-for", b"203.0.113.10")],
-            "client": ("203.0.113.10", 443),
-        }
-    )
 
 
 def test_resolve_explore_actor_marks_guest_as_suspicious_after_block_threshold(
@@ -32,7 +21,7 @@ def test_resolve_explore_actor_marks_guest_as_suspicious_after_block_threshold(
         lambda **kwargs: 3,
     )
 
-    actor = access_service.resolve_explore_actor(_build_request(), None)
+    actor = access_service.resolve_explore_actor(None, client_ip="203.0.113.10", database_url="unused")
 
     assert actor.tier is ExploreTier.SUSPICIOUS
     assert actor.subject_type == "guest_ip"

@@ -7,13 +7,13 @@ from datetime import UTC, datetime
 from unittest.mock import Mock
 
 import pytest
-from fastapi import Response
 from fastapi.testclient import TestClient
 
 from app.api.app import app
 from app.config import AUTH_SESSION_COOKIE_NAME
 from app.models.repository import Repository
-from app.services.auth.service import User, create_authenticated_session
+from app.models.auth import User
+from app.services.auth.service import create_authenticated_session
 from app.services.repositories import repair_repository_profiles
 from app.services.subscriptions.service import (
     create_subscription_payload,
@@ -63,7 +63,7 @@ def test_legacy_payload_cannot_overwrite_catalog_and_repeat_is_idempotent(databa
     loader = Mock(side_effect=AssertionError("An existing profile must not be fetched."))
     monkeypatch.setattr(app.state, "database_url", database_url)
     monkeypatch.setattr(app.state, "load_repository_profile", loader)
-    token = create_authenticated_session(user.user_id, Response(), database_url=database_url)
+    token = create_authenticated_session(user.user_id, database_url=database_url, ttl_seconds=3600)
     with TestClient(app) as client:
         client.cookies.set(AUTH_SESSION_COOKIE_NAME, token)
         first = client.post("/api/subscriptions", json={
@@ -124,7 +124,7 @@ def test_provider_failure_returns_503_and_leaves_no_subscription(database_url, u
     ))
     monkeypatch.setattr(app.state, "database_url", database_url)
     monkeypatch.setattr(app.state, "load_repository_profile", loader)
-    token = create_authenticated_session(user.user_id, Response(), database_url=database_url)
+    token = create_authenticated_session(user.user_id, database_url=database_url, ttl_seconds=3600)
     with TestClient(app) as client:
         client.cookies.set(AUTH_SESSION_COOKIE_NAME, token)
         response = client.post("/api/subscriptions", json={"repository": {"itemId": "github:repo:123"}})
@@ -143,7 +143,7 @@ def test_invalid_api_identity_returns_400_without_provider_access(database_url, 
     loader = Mock()
     monkeypatch.setattr(app.state, "database_url", database_url)
     monkeypatch.setattr(app.state, "load_repository_profile", loader)
-    token = create_authenticated_session(user.user_id, Response(), database_url=database_url)
+    token = create_authenticated_session(user.user_id, database_url=database_url, ttl_seconds=3600)
     with TestClient(app) as client:
         client.cookies.set(AUTH_SESSION_COOKIE_NAME, token)
         response = client.post("/api/subscriptions", json={"repository": payload})

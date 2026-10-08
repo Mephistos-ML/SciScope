@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import Request
 
-from app.services.auth.service import get_current_user
+from app.api.auth import get_current_user
 from app.services.feed.service import (
     get_feed_event_payload,
     get_feed_list_payload,

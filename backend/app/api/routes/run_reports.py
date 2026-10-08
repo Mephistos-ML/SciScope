@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException, Request, status
 
-from app.services.auth.service import get_current_user
+from app.api.auth import get_current_user
 from app.services.features.access import has_feature
 from app.services.search.run_reports import read_search_run_report
 

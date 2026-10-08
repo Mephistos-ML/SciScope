@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException, Request, status
 
-from app.services.auth.service import get_current_user
+from app.api.auth import get_current_user
 from app.services.subscriptions.service import (
     SubscriptionRepositoryUnavailableError,
     create_subscription_payload,

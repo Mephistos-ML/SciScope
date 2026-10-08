@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 import hashlib
-
-from fastapi import Request
 
 from app.config import DATABASE_URL
 from app.config import (
@@ -14,6 +13,7 @@ from app.config import (
     TURNSTILE_ENABLED,
 )
 from app.models.explore_access import (
+    ExploreAdmission,
     ExploreAccessDecision,
     ExploreAccessOutcome,
     ExploreActor,
@@ -21,8 +21,11 @@ from app.models.explore_access import (
     ExploreTier,
     ExploreUsage,
 )
-from app.services.auth.service import User
+from app.models.auth import User
+from app.models.security import TurnstileVerificationResult
+from app.services.search.access.errors import ExploreAccessDeniedError
 from app.services.search.access.policy import (
+    has_search_quota_bypass,
     build_cooldown_decision,
     build_global_capacity_decision,
     build_public_access_disabled_decision,
@@ -48,13 +51,13 @@ SUSPICIOUS_GUEST_OUTCOMES = (
 
 
 def resolve_explore_actor(
-    request: Request,
     user: User | None,
     *,
+    client_ip: str | None,
     now: datetime | None = None,
     database_url: str = DATABASE_URL,
 ) -> ExploreActor:
-    """Resolve the current explore actor from request and optional user."""
+    """Resolve the Explore actor from an authenticated user and explicit client address."""
 
     if user is not None:
         return ExploreActor(
@@ -64,8 +67,7 @@ def resolve_explore_actor(
             user_id=user.user_id,
         )
 
-    raw_ip = read_explore_client_ip(request)
-    ip_hash = _hash_value(raw_ip or "unknown")
+    ip_hash = _hash_value(client_ip or "unknown")
     tier = _resolve_guest_tier(
         ip_hash,
         now=now,
@@ -189,23 +191,6 @@ def hash_explore_topic(topic_description: str) -> str:
     return _hash_value(normalized or "empty")
 
 
-def build_turnstile_failure_decision(
-    *,
-    service_unavailable: bool = False,
-) -> ExploreAccessDecision:
-    """Return one denial decision for an invalid or unavailable Turnstile check."""
-
-    return build_turnstile_verification_failed_decision(
-        service_unavailable=service_unavailable
-    )
-
-
-def read_explore_client_ip(request: Request) -> str | None:
-    """Return the best-effort client IP address for one explore request."""
-
-    return _read_client_ip(request)
-
-
 def _resolve_guest_tier(
     ip_hash: str,
     *,
@@ -249,20 +234,6 @@ def _map_blocked_decision_to_outcome(decision: ExploreAccessDecision) -> str:
     }:
         return str(ExploreAccessOutcome.BLOCKED_TURNSTILE)
     return str(ExploreAccessOutcome.BLOCKED_CAPACITY)
-
-
-def _read_client_ip(request: Request) -> str | None:
-    forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip() or None
-
-    fly_client_ip = request.headers.get("fly-client-ip")
-    if fly_client_ip:
-        return fly_client_ip.strip() or None
-
-    if request.client is not None:
-        return request.client.host
-    return None
 
 
 def _hash_value(value: str) -> str:
@@ -311,3 +282,41 @@ def record_explore_admission(
                        topic_hash=topic_hash, outcome=outcome, created_at=current_time,
                        retry_after_seconds=decision.retry_after_seconds)
     return decision
+
+
+def prepare_explore_admission(
+    *, user: User | None, client_ip: str | None, topic_description: str,
+    turnstile_token: str, verify_turnstile_token: Callable[..., TurnstileVerificationResult],
+    database_url: str,
+) -> ExploreAdmission:
+    """Apply abuse-proof policy and audit denials before the admission transaction."""
+    topic_hash = hash_explore_topic(topic_description)
+    actor = resolve_explore_actor(
+        user,
+        client_ip=client_ip,
+        database_url=database_url,
+    )
+    turnstile_verified = False
+    quota_bypassed = has_search_quota_bypass(user.email if user else None)
+
+    if actor.tier is ExploreTier.SUSPICIOUS and turnstile_token:
+        verification = verify_turnstile_token(
+            turnstile_token,
+            remote_ip=client_ip,
+        )
+        if not verification.success:
+            decision = build_turnstile_verification_failed_decision(
+                service_unavailable=verification.service_unavailable
+            )
+            record_blocked_explore_attempt(
+                actor,
+                decision,
+                topic_hash=topic_hash,
+                database_url=database_url,
+            )
+            raise ExploreAccessDeniedError(decision)
+        turnstile_verified = True
+
+    return ExploreAdmission(
+        actor=actor, turnstile_verified=turnstile_verified, bypass_quota=quota_bypassed,
+    )

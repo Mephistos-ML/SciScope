@@ -20,14 +20,16 @@ from app.api.routes import ranking_labels as ranking_labels_routes
 from app.api.routes import run_reports as run_reports_routes
 from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS, DATABASE_URL
+from app.composition.auth import build_google_oauth
 from app.composition.security import build_turnstile_verifier
 from app.composition.search import build_explore_dependencies
 from app.database.session import check_database_connection
 from app.logging import configure_logging
 from app.integrations.repositories.registry import load_repository_profile
+from app.models.auth import AuthConfigurationError
 from app.models.persistence import PersistenceError, PersistenceConflictError, PersistenceUnavailableError
 from app.models.explore_access import ExploreLimitCode
-from app.services.auth.service import get_current_user
+from app.api.auth import get_current_user
 from app.services.search.access.errors import ExploreAccessDeniedError
 from app.services.search.explore.service import (
     AiSearchPlanningError,
@@ -66,6 +68,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="SciScope API", version=__version__, lifespan=lifespan)
 app.state.database_url = DATABASE_URL
+app.state.google_oauth = build_google_oauth()
 app.state.verify_turnstile_token = build_turnstile_verifier()
 app.state.explore_dependencies = build_explore_dependencies()
 app.state.load_repository_profile = load_repository_profile
@@ -86,6 +89,11 @@ async def handle_http_exception(_request: Request, exc: HTTPException) -> JSONRe
         status_code=exc.status_code,
         content={"error": str(exc.detail)},
     )
+
+
+@app.exception_handler(AuthConfigurationError)
+async def handle_auth_configuration_error(_request: Request, exc: AuthConfigurationError) -> JSONResponse:
+    return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content={"error": str(exc)})
 
 
 @app.exception_handler(PersistenceError)
@@ -187,10 +195,10 @@ def get_me(request: Request) -> dict[str, object]:
 
 
 @app.get("/api/auth/google/start")
-def start_google_auth() -> Response:
+def start_google_auth(request: Request) -> Response:
     """Start Google OAuth for one browser session."""
 
-    return auth_routes.start_google_auth_response()
+    return auth_routes.start_google_auth_response(request)
 
 
 @app.get("/api/auth/google/callback")

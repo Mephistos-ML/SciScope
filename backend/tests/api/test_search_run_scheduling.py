@@ -5,7 +5,6 @@ from threading import Barrier
 from types import SimpleNamespace
 from uuid import uuid4
 
-from fastapi import Response
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy import event, func, select
@@ -49,7 +48,7 @@ def _session_token(actor_kind, database_url, monkeypatch):
     user = create_user(email="owner@example.com", display_name="Owner", database_url=database_url)
     if actor_kind == "bypass":
         monkeypatch.setattr(policy, "SEARCH_QUOTA_BYPASS_USER_EMAILS", (user.email,))
-    return create_authenticated_session(user.user_id, Response(), database_url=database_url)
+    return create_authenticated_session(user.user_id, database_url=database_url, ttl_seconds=3600)
 
 
 def _counts(database_url):
@@ -173,7 +172,7 @@ def test_initial_turnstile_verification_precedes_transaction_and_scheduling(data
     from app.database.session import get_engine
 
     monkeypatch.setattr(policy, "TURNSTILE_ENABLED", True)
-    monkeypatch.setattr(explore, "resolve_explore_actor", lambda *args, **kwargs: ExploreActor(
+    monkeypatch.setattr("app.services.search.access.service.resolve_explore_actor", lambda *args, **kwargs: ExploreActor(
         ExploreTier.SUSPICIOUS, "guest_ip", "suspicious-guest",
     ))
     observed = []
