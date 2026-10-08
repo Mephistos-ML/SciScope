@@ -127,7 +127,7 @@ export function ExplorePage({
       : requiresTurnstile && !turnstileReady
       ? "Complete Verification"
       : "Run Search";
-  const showLoadingResults = searchPending;
+  const showLoadingResults = searchPending && !hasResults;
   const sortedResults = useMemo(
     () => sortExploreResults(results, sortOption),
     [results, sortOption],

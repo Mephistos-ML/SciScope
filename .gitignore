@@ -22,6 +22,8 @@ frontend/node_modules/.package-lock.json
 frontend/node_modules/.vite/
 frontend/.vite/
 frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
 frontend/*.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts

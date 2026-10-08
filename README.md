@@ -106,6 +106,7 @@ Backend setup and operations are documented in [backend/README.md](backend/READM
 - Backend tests: `pytest -q`
 - Backend coverage: `pytest --cov=app --cov-report=term-missing`
 - Frontend checks (from `frontend/`): `npm test`, `npm run build`
+- Guest Explore browser journey: [setup and execution](frontend/e2e/README.md)
 - Backend import boundaries, lint and scoped strict types: [quality gates](docs/contracts/backend-quality-gates.md)
 - Database-specific integration checks: [PostgreSQL correctness](docs/contracts/postgresql-correctness.md)
 - Pull requests are validated through GitHub Actions.

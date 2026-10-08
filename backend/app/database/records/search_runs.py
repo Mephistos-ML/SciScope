@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import JSON
 
 from app.database.base import Base
+from app.database.records.auth import UserRecordModel
 
 
 class SearchRunRecordModel(Base):
@@ -21,7 +22,7 @@ class SearchRunRecordModel(Base):
 
     run_id: Mapped[str] = mapped_column(String, primary_key=True)
     owner_user_id: Mapped[str | None] = mapped_column(
-        ForeignKey("users.user_id", ondelete="SET NULL"),
+        ForeignKey(UserRecordModel.user_id, ondelete="SET NULL"),
         nullable=True,
     )
     guest_access_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -158,7 +159,7 @@ class SearchRunRankingLabelRecordModel(Base):
     )
     repository_id: Mapped[str] = mapped_column(String, primary_key=True)
     user_id: Mapped[str] = mapped_column(
-        ForeignKey("users.user_id", ondelete="CASCADE"),
+        ForeignKey(UserRecordModel.user_id, ondelete="CASCADE"),
         primary_key=True,
     )
     stage_number: Mapped[int] = mapped_column(Integer, nullable=False)
