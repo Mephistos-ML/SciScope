@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 import logging
 
-from sqlalchemy.exc import DBAPIError
+from app.models.persistence import PersistenceUnavailableError, PersistenceConflictError
 
 from app.models.repository import (
     Repository,
@@ -45,7 +45,7 @@ def retrieve_catalog_candidates(
     candidates: list[RepositoryCandidate] = []
     try:
         matches = find_catalog_repository_matches(queries, database_url=database_url)
-    except DBAPIError:
+    except (PersistenceUnavailableError, PersistenceConflictError):
         logger.exception("Catalog retrieval failed; falling back to external providers.")
         return ()
 
@@ -166,7 +166,7 @@ def persist_catalog_candidates(
             embeddings=embeddings,
             database_url=database_url,
         )
-    except (DBAPIError, ValueError):
+    except (PersistenceUnavailableError, PersistenceConflictError):
         logger.exception("Catalog ingestion failed after external retrieval.")
 
 

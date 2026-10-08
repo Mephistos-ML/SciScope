@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy import delete
 
 from app.database.records.feed import FeedEventRecordModel
-from app.database.session import session_scope
+from app.storage.transaction import persistence_session
 
 
 def delete_feed_events_older_than(
@@ -20,7 +20,7 @@ def delete_feed_events_older_than(
     This is intentionally unused for now; it exists as the future retention seam.
     """
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         result = session.execute(
             delete(FeedEventRecordModel).where(
                 FeedEventRecordModel.created_at < cutoff

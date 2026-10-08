@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 
 from app.database.records.auth import OAuthAccountRecordModel
-from app.database.session import session_scope
+from app.storage.transaction import persistence_session
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,7 @@ def create_oauth_account(
         updated_at=now,
     )
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         session.add(record)
 
     return _to_oauth_account_record(record)
@@ -67,7 +67,7 @@ def get_oauth_account_by_provider_subject(
         .where(OAuthAccountRecordModel.provider_subject == provider_subject)
     )
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         row = session.scalar(statement)
 
     if row is None:
@@ -83,7 +83,7 @@ def update_oauth_account(
 ) -> OAuthAccountRecord:
     """Refresh one linked OAuth account."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         row = session.scalar(
             select(OAuthAccountRecordModel).where(
                 OAuthAccountRecordModel.oauth_account_id == oauth_account_id

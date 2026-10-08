@@ -20,7 +20,7 @@ from app.database.records.search_runs import (
     SearchRunRecordModel,
     SearchRunStageRecordModel,
 )
-from app.database.session import session_scope
+from app.storage.transaction import persistence_session
 from app.models.ai import AiPlannerIdentity
 from app.models.search_run import (
     SearchRun,
@@ -108,7 +108,7 @@ def claim_next_search_run_operation(
     """Atomically lease work; every claim receives a new fencing credential."""
     if lease_seconds <= 0:
         raise ValueError("Lease duration must be positive.")
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         now = _database_now(session)
         claimable = or_(
             SearchRunOperationRecordModel.status == "queued",
@@ -161,7 +161,7 @@ def _owned_operation_session(
     database_url: str,
 ) -> Iterator[Session]:
     """Lock ownership before writes; reject expiry again after flushing them."""
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         locked = session.execute(
             update(SearchRunOperationRecordModel)
             .where(
@@ -210,7 +210,7 @@ def release_search_run_operation_lease(
     database_url: str,
 ) -> None:
     """Release this exact claim, including after completion or lease expiry."""
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         session.execute(
             update(SearchRunOperationRecordModel).where(*_ownership_conditions(operation))
             .values(lease_holder_id=None, lease_token=None, lease_expires_at=None)
@@ -435,7 +435,7 @@ def list_search_run_ranking_repository_ids(
 ) -> set[str]:
     """Return candidate identities available for one immutable snapshot."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         return set(
             session.scalars(
                 select(SearchRunRankingCandidateRecordModel.repository_id).where(
@@ -453,7 +453,7 @@ def upsert_search_run_ranking_labels(
 ) -> None:
     """Store human labels without changing the referenced snapshot facts."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         for label in labels:
             record = session.get(
                 SearchRunRankingLabelRecordModel,
@@ -480,7 +480,7 @@ def upsert_search_run_ranking_labels(
 def count_search_run_stages(run_id: str, *, database_url: str) -> int:
     """Return the number of completed run stages persisted so far."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         return int(
             session.scalar(
                 select(func.count())
@@ -494,7 +494,7 @@ def count_search_run_stages(run_id: str, *, database_url: str) -> int:
 def count_search_run_provider_outcomes(run_id: str, *, database_url: str) -> int:
     """Return the number of durable provider outcomes for one run."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         return int(
             session.scalar(
                 select(func.count())
@@ -508,7 +508,7 @@ def count_search_run_provider_outcomes(run_id: str, *, database_url: str) -> int
 def count_search_run_ranking_candidates(run_id: str, *, database_url: str) -> int:
     """Return the number of immutable ranking candidates for one run."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         return int(
             session.scalar(
                 select(func.count())
@@ -527,7 +527,7 @@ def get_search_run_stage(
 ) -> SearchRunStage | None:
     """Return one durable stage report for internal diagnostics."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         record = session.get(SearchRunStageRecordModel, (run_id, stage_number))
         if record is None:
             return None
@@ -549,7 +549,7 @@ def get_search_run_stage(
 def get_search_run_report(run_id: str, *, database_url: str) -> dict[str, object] | None:
     """Read the complete private report for one durable search run."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         run = session.get(SearchRunRecordModel, run_id)
         if run is None:
             return None
@@ -661,7 +661,7 @@ def get_search_run_report(run_id: str, *, database_url: str) -> dict[str, object
 def get_search_run(run_id: str, *, database_url: str) -> SearchRun | None:
     """Return the durable top-level record for one Explore search run."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         record = session.get(SearchRunRecordModel, run_id)
         if record is None:
             return None

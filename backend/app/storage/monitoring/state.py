@@ -15,7 +15,7 @@ from app.database.records.monitoring import (
     RepositoryMonitoringCheckRecordModel,
     RepositoryMonitoringCursorRecordModel,
 )
-from app.database.session import session_scope
+from app.storage.transaction import persistence_session
 from app.models.feed import FeedEvent
 from app.models.monitoring import MonitoringRun, RepositoryMonitoringCheck
 from app.storage.feed.events import write_feed_events
@@ -32,7 +32,7 @@ def acquire_monitoring_job_lease(
 
     now = datetime.now(UTC)
     lease_expires_at = now + timedelta(seconds=lease_seconds)
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         updated = session.execute(
             update(MonitoringJobLeaseRecordModel)
             .where(MonitoringJobLeaseRecordModel.job_name == job_name)
@@ -65,7 +65,7 @@ def acquire_monitoring_job_lease(
 def release_monitoring_job_lease(job_name: str, holder_id: str, *, database_url: str) -> None:
     """Release a lease only when held by this job run."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         lease = session.get(MonitoringJobLeaseRecordModel, job_name)
         if lease is not None and lease.holder_id == holder_id:
             session.delete(lease)
@@ -74,7 +74,7 @@ def release_monitoring_job_lease(job_name: str, holder_id: str, *, database_url:
 def create_monitoring_run(run: MonitoringRun, *, database_url: str) -> None:
     """Persist a monitoring run at its start."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         session.add(
             MonitoringRunRecordModel(
                 run_id=run.run_id,
@@ -99,7 +99,7 @@ def finish_monitoring_run(
 ) -> None:
     """Finalize one persisted monitoring run."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         run = session.get(MonitoringRunRecordModel, run_id)
         if run is None:
             return
@@ -117,7 +117,7 @@ def get_repository_monitoring_cursors(
 ) -> dict[str, str]:
     """Return all durable monitoring cursors for one repository."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         rows = session.query(RepositoryMonitoringCursorRecordModel).filter_by(
             repository_id=repository_id
         ).all()
@@ -135,7 +135,7 @@ def persist_repository_monitoring_result(
 
     if not events and not checkpoint_updates:
         return
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         write_feed_events(session, events)
         _write_repository_monitoring_cursors(session, repository_id, checkpoint_updates)
 
@@ -173,7 +173,7 @@ def record_repository_monitoring_check(
 ) -> None:
     """Persist one repository's sanitized monitoring outcome."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         session.add(
             RepositoryMonitoringCheckRecordModel(
                 repository_id=check.repository_id,

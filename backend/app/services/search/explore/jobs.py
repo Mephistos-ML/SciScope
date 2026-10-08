@@ -11,6 +11,7 @@ import secrets
 from uuid import uuid4
 
 from app.models.explore_access import ExploreAdmission
+from app.models.persistence import PersistenceError
 from app.models.search_run import (
     SearchRun,
     SearchRunOperation,
@@ -255,7 +256,7 @@ def execute_search_run_operation(
             )
         if payload is not None:
             status = "completed_partial" if payload.get("partial") else "completed"
-    except SearchRunLeaseLostError:
+    except (SearchRunLeaseLostError, PersistenceError):
         raise
     except ExploreExecutionStateError as exc:
         error_code = exc.code

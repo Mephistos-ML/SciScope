@@ -13,7 +13,8 @@ from app.database.records.repositories import (
     RepositoryRecordModel,
     RepositorySearchEvidenceRecordModel,
 )
-from app.database.session import get_engine, session_scope
+from app.database.session import get_engine
+from app.storage.transaction import persistence_session
 from app.models.repository import (
     CatalogRepositoryMatch,
     Repository,
@@ -34,7 +35,7 @@ def upsert_repositories(
         return
 
     timestamp = _utc_now()
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         for repository in repositories:
             record = session.get(RepositoryRecordModel, repository.repository_id)
             values = _profile_values(repository, timestamp)
@@ -69,7 +70,7 @@ def get_or_insert_repository(repository: Repository, *, database_url: str) -> Re
         created_at=timestamp,
         **_profile_values(repository, timestamp),
     ).on_conflict_do_nothing(index_elements=["repository_id"])
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         session.execute(statement)
         record = session.get(RepositoryRecordModel, repository.repository_id)
         if record is None:
@@ -84,7 +85,7 @@ def list_repository_profile_snapshots(
     statement = select(RepositoryRecordModel).order_by(RepositoryRecordModel.repository_id)
     if repository_ids:
         statement = statement.where(RepositoryRecordModel.repository_id.in_(repository_ids))
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         return [
             RepositoryProfileSnapshot(_to_repository(row), _ensure_utc(row.updated_at))
             for row in session.scalars(statement)
@@ -95,7 +96,7 @@ def replace_repository_profile_if_unchanged(
     repository: Repository, *, expected_updated_at: datetime, database_url: str,
 ) -> bool:
     """Refresh a profile only if its observed revision is still current."""
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         result = session.execute(
             update(RepositoryRecordModel)
             .where(
@@ -140,7 +141,7 @@ def upsert_repository_search_evidence(
         return
 
     timestamp = _utc_now()
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         for evidence in evidence_items:
             key = (
                 evidence.repository_id,
@@ -218,7 +219,7 @@ def find_catalog_repository_matches(
         .order_by(RepositoryRecordModel.stars.desc(), RepositoryRecordModel.full_name.asc())
         .limit(limit)
     )
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         repository_rows = session.scalars(statement).all()
         repository_ids = [row.repository_id for row in repository_rows]
         evidence_rows = (
@@ -275,7 +276,7 @@ def list_repositories(
         statement = statement.where(RepositoryRecordModel.source == source)
     statement = statement.order_by(RepositoryRecordModel.full_name.asc())
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         rows = session.scalars(statement).all()
     return [_to_repository(row) for row in rows]
 
@@ -296,7 +297,7 @@ def list_repositories_by_ids(
         .order_by(RepositoryRecordModel.full_name.asc())
     )
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         rows = session.scalars(statement).all()
     return [_to_repository(row) for row in rows]
 
@@ -310,7 +311,7 @@ def list_repository_search_evidence(
     statement = select(RepositorySearchEvidenceRecordModel).order_by(
         RepositorySearchEvidenceRecordModel.query_normalized.asc()
     )
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         rows = session.scalars(statement).all()
     return [_to_evidence(row) for row in rows]
 
@@ -322,7 +323,7 @@ def get_repository(
 ) -> Repository | None:
     """Load one repository by id."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         row = session.get(RepositoryRecordModel, repository_id)
     if row is None:
         return None

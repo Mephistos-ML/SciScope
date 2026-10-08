@@ -15,7 +15,7 @@ from app.database.records.explore import (
     ExploreSearchEventRecordModel,
 )
 from app.database.records.search_runs import SearchRunRecordModel
-from app.database.session import session_scope
+from app.storage.transaction import persistence_session
 from app.models.explore_access import ExploreUsage
 from app.models.search_run import SearchRun, SearchRunOperation
 from app.storage.search_runs import (
@@ -92,7 +92,7 @@ class ExploreAdmissionStore:
 @contextmanager
 def explore_admission_transaction(*, database_url: str) -> Iterator[ExploreAdmissionStore]:
     """Serialize admission reads and writes with a database row lock."""
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         result = session.execute(update(ExploreAccessLockRecordModel).where(
             ExploreAccessLockRecordModel.lock_id == 1,
         ).values(lock_id=1))

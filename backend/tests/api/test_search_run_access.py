@@ -330,7 +330,6 @@ def test_parallel_expansions_schedule_once_and_charge_once(database_url, users, 
 @pytest.mark.parametrize("status", ["completed", "completed_partial"])
 def test_expansion_commit_failure_rolls_back_quota_operation_and_run(database_url, monkeypatch, status):
     from types import SimpleNamespace
-    from sqlalchemy.exc import IntegrityError
     from app.database.records.explore import ExploreSearchEventRecordModel
     from app.services.search.explore import jobs
 
@@ -343,9 +342,10 @@ def test_expansion_commit_failure_rolls_back_quota_operation_and_run(database_ur
     with monkeypatch.context() as failure:
         failure.setattr(jobs, "uuid4", lambda: SimpleNamespace(hex=existing_operation_id))
         with TestClient(app) as client:
-            with pytest.raises(IntegrityError):
-                client.post(f"/api/explore/search-runs/{created['runId']}/expand",
-                            headers={"X-Search-Run-Token": created["guestAccessToken"]})
+            response = client.post(f"/api/explore/search-runs/{created['runId']}/expand",
+                                   headers={"X-Search-Run-Token": created["guestAccessToken"]})
+            assert response.status_code == 409
+            assert response.json()["code"] == "persistence_conflict"
     assert get_search_run(created["runId"], database_url=database_url) == original
     assert _operation_count(created["runId"], database_url) == 1
     with session_scope(database_url) as session:

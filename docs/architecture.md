@@ -79,7 +79,7 @@ Repository integrations share protocol helpers under `integrations/repositories/
 
 ### Storage
 
-Owns persistence contracts for repositories, subscriptions, checkpoints, Feed events, auth records, and Explore usage. SQLAlchemy records stay under `database/records/` and are used only by storage.
+Owns persistence contracts for repositories, subscriptions, checkpoints, Feed events, auth records, and Explore usage. SQLAlchemy records stay under `database/records/` and are used only by storage. Storage transactions translate driver errors into shared persistence failure categories after rollback. Services decide which failures permit fallback; transport maps those categories to safe HTTP responses. See the [persistence contract](contracts/persistence-errors.md).
 
 ### Monitoring
 

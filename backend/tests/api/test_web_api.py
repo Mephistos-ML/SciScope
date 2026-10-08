@@ -40,9 +40,9 @@ from app.storage.search_runs import (
 from app.storage.subscriptions import SubscriptionWatchRecord
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def explore_run_database(tmp_path):
-    """Give async-run API tests an isolated migrated database."""
+    """Give API scenarios an isolated migrated database instead of relying on missing-table fallback."""
 
     database_url = build_test_database_url(tmp_path / "explore-runs.sqlite3")
     migrate_test_database(database_url)
@@ -115,7 +115,7 @@ def _build_subscription_watch() -> SubscriptionWatchRecord:
         subscription_id="sub_pnmr",
         user_id="user_test",
         repository=Repository(
-            repository_id="github:repo:Mephistos-ML/paranmr",
+            repository_id="github:repo:102",
             source="github",
             full_name="Mephistos-ML/paranmr",
             url="https://github.com/Mephistos-ML/paranmr",
@@ -254,7 +254,7 @@ def test_feed_endpoints_return_json() -> None:
                     ),
                     user_id=user.user_id,
                     subscription_id="sub_pnmr",
-                    repository_id="github:repo:Mephistos-ML/paranmr",
+                    repository_id="github:repo:102",
                     repository_full_name="Mephistos-ML/paranmr",
                     repository_source="github",
                     repository_url="https://github.com/Mephistos-ML/paranmr",
@@ -288,7 +288,7 @@ def test_feed_endpoints_return_json() -> None:
             feed_list = response.json()
             assert len(feed_list["items"]) == 1
             assert feed_list["items"][0]["subscriptionId"] == "sub_pnmr"
-            assert feed_list["items"][0]["repositoryId"] == "github:repo:Mephistos-ML/paranmr"
+            assert feed_list["items"][0]["repositoryId"] == "github:repo:102"
             assert feed_list["unreadCount"] == 1
             assert feed_list["hasMore"] is False
             assert feed_list["nextCursor"] is None
@@ -298,7 +298,7 @@ def test_feed_endpoints_return_json() -> None:
             assert response.status_code == 200
             detail_payload = response.json()
             assert detail_payload["title"] == "Mephistos-ML/paranmr release v0.3.0"
-            assert detail_payload["repositoryId"] == "github:repo:Mephistos-ML/paranmr"
+            assert detail_payload["repositoryId"] == "github:repo:102"
 
             response = client.patch(f"/api/feed/{event_id}")
             assert response.status_code == 200
@@ -344,7 +344,7 @@ def test_feed_loads_older_events_with_an_opaque_cursor() -> None:
                     event_id=f"event-{index:02d}",
                     user_id=user.user_id,
                     subscription_id="sub_pnmr",
-                    repository_id="github:repo:Mephistos-ML/paranmr",
+                    repository_id="github:repo:102",
                     repository_full_name="Mephistos-ML/paranmr",
                     repository_source="github",
                     repository_url="https://github.com/Mephistos-ML/paranmr",
@@ -735,7 +735,7 @@ def test_explore_search_returns_partial_results_when_one_source_fails(monkeypatc
         "app.services.search.explore.service.run_external_repository_retrieval",
         lambda queries, **kwargs: _build_retrieved_candidates(
             _build_explore_repository_signal(
-                "github:repo:Mephistos-ML/paranmr",
+                "github:repo:102",
                 query=queries[0],
             ),
             source_statuses=(
@@ -831,9 +831,9 @@ def test_explore_search_keeps_retrieved_candidate_without_literal_query_phrase(
         lambda queries, **kwargs: RetrievedCandidates(
             candidates=(
                 RepositoryCandidate(
-                    repository_id="github:repo:thermotools/lammps_mie_fh",
+                    repository_id="github:repo:115",
                     signal=_build_code_only_explore_repository_signal(
-                        "github:repo:thermotools/lammps_mie_fh",
+                        "github:repo:115",
                         query=queries[0],
                     ),
                     provenance=CandidateProvenance(
@@ -871,7 +871,7 @@ def test_explore_search_keeps_retrieved_candidate_without_literal_query_phrase(
     assert response.status_code == 200
     payload = response.json()
     assert len(payload["items"]) == 1
-    assert payload["items"][0]["itemId"] == "github:repo:thermotools/lammps_mie_fh"
+    assert payload["items"][0]["itemId"] == "github:repo:115"
     assert payload["items"][0]["score"] >= 50.0
 
 
@@ -889,7 +889,7 @@ def test_explore_search_applies_ranking_order_and_relevance_cutoff(monkeypatch) 
         lambda topic_description: _build_ready_repository_ai_plan(*queries),
     )
     top_signal = _build_explore_repository_signal(
-        "github:repo:science/feynman-hibbs-mie",
+        "github:repo:108",
         query=queries[0],
     )
     top_signal = Signal(
@@ -903,11 +903,11 @@ def test_explore_search_applies_ranking_order_and_relevance_cutoff(monkeypatch) 
         payload=top_signal.payload,
     )
     metadata_signal = _build_explore_repository_signal(
-        "github:repo:science/mie-solver",
+        "github:repo:110",
         query=queries[0],
     )
     weak_signal = _build_explore_repository_signal(
-        "github:repo:science/general-tools",
+        "github:repo:109",
         query=queries[0],
     )
     monkeypatch.setattr(
@@ -951,7 +951,7 @@ def test_explore_search_enforced_mode_hides_rejected_candidates(monkeypatch) -> 
     weak_signal = Signal(
         source="github",
         kind="repository",
-        item_id="github:repo:HeinrichHartmann/arxiv_meta",
+        item_id="github:repo:101",
         title="HeinrichHartmann/arxiv_meta",
         url="https://github.com/HeinrichHartmann/arxiv_meta",
         published_at=None,
@@ -968,7 +968,7 @@ def test_explore_search_enforced_mode_hides_rejected_candidates(monkeypatch) -> 
         "app.services.search.explore.service.run_external_repository_retrieval",
         lambda queries, **kwargs: _build_retrieved_candidates(
             _build_code_only_explore_repository_signal(
-                "github:repo:thermotools/lammps_mie_fh",
+                "github:repo:115",
                 query=queries[0],
             ),
             weak_signal,
@@ -988,7 +988,7 @@ def test_explore_search_enforced_mode_hides_rejected_candidates(monkeypatch) -> 
     assert response.status_code == 200
     payload = response.json()
     assert len(payload["items"]) == 1
-    assert payload["items"][0]["itemId"] == "github:repo:thermotools/lammps_mie_fh"
+    assert payload["items"][0]["itemId"] == "github:repo:115"
     assert "admission" not in payload
 
 
@@ -1027,7 +1027,7 @@ def test_explore_search_retries_timeouts_before_advancing_to_next_query(monkeypa
             )
         return _build_retrieved_candidates(
             _build_explore_repository_signal(
-                "github:repo:science/fallback-tool",
+                "github:repo:107",
                 query=query,
             ),
             source_statuses=(
@@ -1049,7 +1049,7 @@ def test_explore_search_retries_timeouts_before_advancing_to_next_query(monkeypa
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["items"][0]["itemId"] == "github:repo:science/fallback-tool"
+    assert payload["items"][0]["itemId"] == "github:repo:107"
     assert payload["canExpand"] is True
     assert attempted_queries == [
         "primary query",
@@ -1077,7 +1077,7 @@ def test_explore_search_retries_partial_timeouts_and_merges_attempt_results(monk
         (
             _build_retrieved_candidates(
                 _build_explore_repository_signal(
-                    "github:repo:science/partial-one",
+                    "github:repo:112",
                     query="primary query",
                 ),
                 source_statuses=(
@@ -1094,7 +1094,7 @@ def test_explore_search_retries_partial_timeouts_and_merges_attempt_results(monk
             ),
             _build_retrieved_candidates(
                 _build_explore_repository_signal(
-                    "github:repo:science/partial-two",
+                    "github:repo:113",
                     query="primary query",
                 ),
                 source_statuses=(
@@ -1111,7 +1111,7 @@ def test_explore_search_retries_partial_timeouts_and_merges_attempt_results(monk
             ),
             _build_retrieved_candidates(
                 _build_explore_repository_signal(
-                    "github:repo:science/complete",
+                    "github:repo:106",
                     query="primary query",
                 ),
                 source_statuses=(
@@ -1143,9 +1143,9 @@ def test_explore_search_retries_partial_timeouts_and_merges_attempt_results(monk
     assert {
         item["itemId"] for item in payload["items"]
     } == {
-        "github:repo:science/partial-one",
-        "github:repo:science/partial-two",
-        "github:repo:science/complete",
+        "github:repo:112",
+        "github:repo:113",
+        "github:repo:106",
     }
 
 
@@ -1404,7 +1404,7 @@ def test_explore_search_accepts_verified_turnstile_token_for_suspicious_guest(
         "app.services.search.explore.service.run_external_repository_retrieval",
         lambda queries, **kwargs: _build_retrieved_candidates(
             _build_explore_repository_signal(
-                "github:repo:Mephistos-ML/paranmr",
+                "github:repo:102",
                 query=queries[0],
             ),
             source_statuses=(
@@ -1425,7 +1425,7 @@ def test_explore_search_accepts_verified_turnstile_token_for_suspicious_guest(
         )
 
     assert response.status_code == 200
-    assert response.json()["items"][0]["itemId"] == "github:repo:Mephistos-ML/paranmr"
+    assert response.json()["items"][0]["itemId"] == "github:repo:102"
 
 
 def test_explore_search_run_returns_completed_snapshot(
@@ -1444,7 +1444,7 @@ def test_explore_search_run_returns_completed_snapshot(
         "app.services.search.explore.service.run_external_repository_retrieval",
         lambda queries, progress_callback=None, **kwargs: _build_retrieved_candidates(
             _build_explore_repository_signal(
-                "github:repo:Mephistos-ML/paranmr",
+                "github:repo:102",
                 query=queries[0],
             ),
             source_statuses=(
@@ -1467,7 +1467,7 @@ def test_explore_search_run_returns_completed_snapshot(
         created = client.get(f"/api/explore/search-runs/{response.json()['runId']}").json()
         assert created["status"] == "completed"
         assert created["canExpand"] is True
-        assert created["items"][0]["itemId"] == "github:repo:Mephistos-ML/paranmr"
+        assert created["items"][0]["itemId"] == "github:repo:102"
         assert "ownerUserId" not in created
 
         follow_up = client.get(f"/api/explore/search-runs/{created['runId']}")
@@ -1528,7 +1528,7 @@ def test_explore_search_run_expands_one_pending_query_and_merges_candidates(
         retrieval_queries.append(tuple(queries))
         return _build_retrieved_candidates(
             _build_explore_repository_signal(
-                f"github:repo:science/{queries[0].replace(' ', '-')}",
+                {'paramagnetic nmr': 'github:repo:111', 'pcs tensor fitting': 'github:repo:114', 'pseudocontact shift': 'github:repo:120'}[queries[0]],
                 query=queries[0],
             ),
             source_statuses=(
@@ -1561,8 +1561,8 @@ def test_explore_search_run_expands_one_pending_query_and_merges_candidates(
     assert payload["status"] == "completed"
     assert payload["canExpand"] is True
     assert {item["itemId"] for item in payload["items"]} == {
-        "github:repo:science/paramagnetic-nmr",
-        "github:repo:science/pcs-tensor-fitting",
+        "github:repo:111",
+        "github:repo:114",
     }
     assert retrieval_queries == [("paramagnetic nmr",), ("pcs tensor fitting",)]
 
@@ -1583,9 +1583,9 @@ def test_explore_search_expansion_preserves_all_previous_results(
     )
 
     repository_ids = {
-        "angle one": "github:repo:science/angle-one",
-        "angle two": "github:repo:science/angle-two",
-        "angle three": "github:repo:science/angle-three",
+        "angle one": "github:repo:103",
+        "angle two": "github:repo:105",
+        "angle three": "github:repo:104",
     }
 
     def _retrieve(queries, **_kwargs):
@@ -1636,17 +1636,17 @@ def test_explore_search_expansion_preserves_all_previous_results(
             item["itemId"] for item in second_expansion.json()["items"]
         }
 
-    assert initial_ids == {"github:repo:science/angle-one"}
+    assert initial_ids == {"github:repo:103"}
     assert initial_ids <= first_expansion_ids
     assert first_expansion_ids == {
-        "github:repo:science/angle-one",
-        "github:repo:science/angle-two",
+        "github:repo:103",
+        "github:repo:105",
     }
     assert first_expansion_ids <= second_expansion_ids
     assert second_expansion_ids == {
-        "github:repo:science/angle-one",
-        "github:repo:science/angle-two",
-        "github:repo:science/angle-three",
+        "github:repo:103",
+        "github:repo:105",
+        "github:repo:104",
     }
 
 
@@ -1662,7 +1662,7 @@ def test_explore_search_run_rejects_expansion_after_plan_is_exhausted(
         "app.services.search.explore.service.run_external_repository_retrieval",
         lambda queries, **kwargs: _build_retrieved_candidates(
             _build_explore_repository_signal(
-                "github:repo:Mephistos-ML/paranmr",
+                "github:repo:102",
                 query=queries[0],
             ),
             source_statuses=(
@@ -1742,7 +1742,7 @@ def test_explore_search_run_returns_completed_partial_snapshot(
         "app.services.search.explore.service.run_external_repository_retrieval",
         lambda queries, progress_callback=None, **kwargs: _build_retrieved_candidates(
             _build_explore_repository_signal(
-                "gitlab:repo:kragskow-group/orto",
+                "gitlab:repo:116",
                 source="gitlab",
                 query=queries[0],
             ),
@@ -1768,5 +1768,5 @@ def test_explore_search_run_returns_completed_partial_snapshot(
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "completed_partial"
-    assert payload["items"][0]["itemId"] == "gitlab:repo:kragskow-group/orto"
+    assert payload["items"][0]["itemId"] == "gitlab:repo:116"
     assert "partial coverage" in payload["message"]

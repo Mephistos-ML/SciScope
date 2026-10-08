@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from sqlalchemy import Select, select, update
 
 from app.database.records.auth import UserRecordModel, UserSessionRecordModel
-from app.database.session import session_scope
+from app.storage.transaction import persistence_session
 from app.storage.auth.users import UserRecord, _to_user_record
 
 
@@ -55,7 +55,7 @@ def create_user_session(
         revoked_at=None,
     )
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         session.add(record)
 
     return _to_user_session_record(record)
@@ -81,7 +81,7 @@ def get_authenticated_session_by_token_hash(
         .where(UserSessionRecordModel.expires_at > effective_now)
     )
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         row = session.execute(statement).one_or_none()
 
     if row is None:
@@ -102,7 +102,7 @@ def touch_user_session(
 ) -> None:
     """Update session activity timestamp."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         session.execute(
             update(UserSessionRecordModel)
             .where(UserSessionRecordModel.session_id == session_id)
@@ -118,7 +118,7 @@ def revoke_user_session_by_token_hash(
 ) -> bool:
     """Revoke one active session by its cookie token hash."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         result = session.execute(
             update(UserSessionRecordModel)
             .where(UserSessionRecordModel.session_token_hash == session_token_hash)

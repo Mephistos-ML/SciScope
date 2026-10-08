@@ -6,7 +6,7 @@ from collections import defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from hashlib import sha256
 import logging
-from sqlalchemy.exc import DBAPIError
+from app.models.persistence import PersistenceUnavailableError, PersistenceConflictError
 
 from app import config
 from app.services.ai.embeddings import EmbeddingProvider
@@ -76,7 +76,7 @@ def persist_semantic_catalog_documents(
             database_url=database_url,
             embeddings=embeddings,
         )
-    except (DBAPIError, AiDependencyError):
+    except (PersistenceUnavailableError, PersistenceConflictError, AiDependencyError):
         logger.exception("Semantic catalog ingestion failed without affecting search.")
         if raise_on_error:
             raise
@@ -162,7 +162,7 @@ def retrieve_semantic_catalog_candidates(
             tuple(evidence_by_repository),
             database_url=database_url,
         )
-    except (DBAPIError, AiDependencyError):
+    except (PersistenceUnavailableError, PersistenceConflictError, AiDependencyError):
         logger.exception("Semantic catalog retrieval failed; using lexical retrieval only.")
         return ()
 

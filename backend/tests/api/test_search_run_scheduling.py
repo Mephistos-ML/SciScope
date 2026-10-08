@@ -126,7 +126,7 @@ def test_failed_initial_scheduling_rolls_back_every_write_and_allows_retry(
         finally:
             if failure_stage == "commit":
                 event.remove(Session, "before_commit", fail_commit)
-    assert response.status_code == 500
+    assert response.status_code == (500 if failure_stage == "commit" else 409)
     assert _counts(database_url) == {"runs": 1, "operations": 1, "events": 0}
     assert get_search_run(existing["runId"], database_url=database_url) == original
 

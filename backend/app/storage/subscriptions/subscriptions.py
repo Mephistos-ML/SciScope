@@ -7,9 +7,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from sqlalchemy import delete, select
+from sqlalchemy.dialects.postgresql import insert as postgres_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from app.database.records.repositories import SubscriptionRecordModel
-from app.database.session import session_scope
+from app.storage.transaction import persistence_session
 
 
 @dataclass(frozen=True)
@@ -32,25 +34,32 @@ def create_subscription(
 ) -> SubscriptionRecord:
     """Create or return one direct repository watch."""
 
-    with session_scope(database_url) as session:
-        existing = session.scalar(
+    with persistence_session(database_url) as session:
+        dialect = session.get_bind().dialect.name
+        if dialect == "postgresql":
+            insert = postgres_insert
+        elif dialect == "sqlite":
+            insert = sqlite_insert
+        else:
+            raise ValueError(f"Subscription insertion does not support database dialect: {dialect}")
+        # Only this watch's unique key is idempotent. Other constraint failures
+        # propagate through the persistence error boundary.
+        session.execute(
+            insert(SubscriptionRecordModel).values(
+                subscription_id=f"sub_{uuid.uuid4().hex[:12]}",
+                user_id=user_id, repository_id=repository_id,
+                selected_query=selected_query.strip() if selected_query else None,
+                created_at=_utc_now(),
+            ).on_conflict_do_nothing(index_elements=["user_id", "repository_id"])
+        )
+        record = session.scalar(
             select(SubscriptionRecordModel)
             .where(SubscriptionRecordModel.user_id == user_id)
             .where(SubscriptionRecordModel.repository_id == repository_id)
         )
-        if existing is not None:
-            return _to_subscription_record(existing)
-
-        record = SubscriptionRecordModel(
-            subscription_id=f"sub_{uuid.uuid4().hex[:12]}",
-            user_id=user_id,
-            repository_id=repository_id,
-            selected_query=selected_query.strip() if selected_query else None,
-            created_at=_utc_now(),
-        )
-        session.add(record)
-
-    return _to_subscription_record(record)
+        if record is None:
+            raise RuntimeError("Subscription disappeared during creation.")
+        return _to_subscription_record(record)
 
 
 def list_subscriptions_for_user(
@@ -66,7 +75,7 @@ def list_subscriptions_for_user(
         .order_by(SubscriptionRecordModel.created_at.desc())
     )
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         rows = session.scalars(statement).all()
     return [_to_subscription_record(row) for row in rows]
 
@@ -78,7 +87,7 @@ def list_all_subscriptions(*, database_url: str) -> list[SubscriptionRecord]:
         SubscriptionRecordModel.created_at.desc()
     )
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         rows = session.scalars(statement).all()
     return [_to_subscription_record(row) for row in rows]
 
@@ -97,7 +106,7 @@ def get_subscription_for_user(
         .where(SubscriptionRecordModel.subscription_id == subscription_id)
     )
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         row = session.scalar(statement)
     if row is None:
         return None
@@ -112,7 +121,7 @@ def delete_subscription_for_user(
 ) -> bool:
     """Delete one user-owned repository watch."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         result = session.execute(
             delete(SubscriptionRecordModel)
             .where(SubscriptionRecordModel.user_id == user_id)

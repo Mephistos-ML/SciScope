@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+import logging
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +25,7 @@ from app.composition.search import build_explore_dependencies
 from app.database.session import check_database_connection
 from app.logging import configure_logging
 from app.integrations.repositories.registry import load_repository_profile
+from app.models.persistence import PersistenceError, PersistenceConflictError, PersistenceUnavailableError
 from app.models.explore_access import ExploreLimitCode
 from app.services.auth.service import get_current_user
 from app.services.search.access.errors import ExploreAccessDeniedError
@@ -84,6 +86,19 @@ async def handle_http_exception(_request: Request, exc: HTTPException) -> JSONRe
         status_code=exc.status_code,
         content={"error": str(exc.detail)},
     )
+
+
+@app.exception_handler(PersistenceError)
+async def handle_persistence_error(_request: Request, exc: PersistenceError) -> JSONResponse:
+    """Expose stable failure categories without SQL, parameters, or driver messages."""
+    if isinstance(exc, PersistenceUnavailableError):
+        status_code, code = status.HTTP_503_SERVICE_UNAVAILABLE, "persistence_unavailable"
+    elif isinstance(exc, PersistenceConflictError):
+        status_code, code = status.HTTP_409_CONFLICT, "persistence_conflict"
+    else:
+        status_code, code = status.HTTP_500_INTERNAL_SERVER_ERROR, "persistence_failed"
+    logging.getLogger(__name__).error("Persistence request failed: %s", code, exc_info=exc)
+    return JSONResponse(status_code=status_code, content={"error": str(exc), "code": code})
 
 
 @app.exception_handler(ExploreSearchUnavailableError)

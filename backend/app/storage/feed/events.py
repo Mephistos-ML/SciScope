@@ -9,7 +9,7 @@ from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.database.records.feed import FeedEventRecordModel
-from app.database.session import session_scope
+from app.storage.transaction import persistence_session
 from app.models.feed import FeedCursor, FeedEvent
 
 
@@ -23,7 +23,7 @@ def upsert_feed_events(
     if not events:
         return
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         write_feed_events(session, events)
 
 
@@ -108,7 +108,7 @@ def list_feed_events_for_user(
     if limit is not None:
         statement = statement.limit(limit)
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         rows = session.scalars(statement).all()
     return [_to_feed_event(row) for row in rows]
 
@@ -159,7 +159,7 @@ def get_feed_event_for_user(
         .where(FeedEventRecordModel.user_id == user_id)
         .where(FeedEventRecordModel.event_id == event_id)
     )
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         row = session.scalars(statement).first()
     if row is None:
         return None
@@ -170,7 +170,7 @@ def count_feed_events(*, database_url: str) -> int:
     """Return the total durable feed event count."""
 
     statement = select(func.count()).select_from(FeedEventRecordModel)
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         count = session.scalar(statement)
     return int(count or 0)
 
@@ -188,7 +188,7 @@ def count_unread_feed_events_for_user(
         .where(FeedEventRecordModel.user_id == user_id)
         .where(FeedEventRecordModel.read_at.is_(None))
     )
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         count = session.scalar(statement)
     return int(count or 0)
 
@@ -201,7 +201,7 @@ def mark_feed_event_read_for_user(
 ) -> FeedEvent | None:
     """Mark one user-owned Feed event as read and return its current value."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         record = session.scalar(
             select(FeedEventRecordModel)
             .where(FeedEventRecordModel.user_id == user_id)
@@ -228,7 +228,7 @@ def mark_all_feed_events_read_for_user(
         .where(FeedEventRecordModel.read_at.is_(None))
         .values(read_at=datetime.now(UTC))
     )
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         result = session.execute(statement)
     return int(result.rowcount or 0)
 

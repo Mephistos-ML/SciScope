@@ -133,3 +133,20 @@ def test_catalog_evidence_keeps_its_location_for_a_case_variant_current_query(tm
     )
 
     assert ranked.ranked_candidates[0].features.strongest_match_quality == 0.85
+
+
+def test_expected_catalog_outage_preserves_external_retrieval_path(monkeypatch):
+    from app.models.persistence import PersistenceUnavailableError
+    from app.services.search import catalog
+    def unavailable(*args, **kwargs):
+        raise PersistenceUnavailableError("Persistence is temporarily unavailable.")
+    monkeypatch.setattr(catalog, "find_catalog_repository_matches", unavailable)
+    assert catalog.retrieve_catalog_candidates(("science",), embeddings=None, database_url="unused") == ()
+
+
+def test_schema_defect_is_not_hidden_as_empty_catalog(tmp_path):
+    import pytest
+    from app.models.persistence import PersistenceError
+    with pytest.raises(PersistenceError) as failure:
+        retrieve_catalog_candidates(("science",), embeddings=None, database_url=build_test_database_url(tmp_path / "missing.sqlite3"))
+    assert type(failure.value) is PersistenceError

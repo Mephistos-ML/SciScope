@@ -45,7 +45,7 @@ The direct search endpoint also executes the search pipeline in the API process.
 | `app/integrations/repositories/` | Repository provider access, payload mapping, and repository-specific `common` helpers |
 | `app/integrations/ai/` | AI provider access and validated planner/embedding responses |
 | `app/integrations/security/` | Cloudflare Turnstile verification protocol and response mapping |
-| `app/storage/` | Persistence operations and transaction boundaries |
+| `app/storage/` | Persistence operations, transaction boundaries, and driver-error translation |
 | `app/database/` | SQLAlchemy records and engine/session plumbing |
 | `app/models/` | Application data structures |
 | `app/runtime/` | Process-local state |
@@ -150,6 +150,8 @@ PostgreSQL stores:
 SQLAlchemy records live in `app/database/records/`; transaction operations live
 in `app/storage/`. Schema migrations live in `alembic/versions/`.
 The catalog stores compact discovery profiles rather than mirroring repositories.
+Persistence failure categories and idempotent watch creation are defined in
+[the persistence contract](../docs/contracts/persistence-errors.md).
 
 ## Configuration and Maintenance
 

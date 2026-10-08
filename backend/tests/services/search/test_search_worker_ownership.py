@@ -286,3 +286,22 @@ def test_invalid_generated_progress_is_failed_without_publishing_it(work, monkey
     assert stored.execution_state is None
     assert stored.response_payload is None
     assert storage.count_search_run_stages(run_id, database_url=url) == 0
+
+
+def test_required_persistence_outage_preserves_work_for_retry(work, monkeypatch):
+    from app.models.persistence import PersistenceUnavailableError
+    url, _, run_id = work
+    operation = claim(url)
+    def unavailable(**kwargs):
+        raise PersistenceUnavailableError("Persistence is temporarily unavailable.")
+    monkeypatch.setattr(jobs, "run_explore_search", unavailable)
+    with pytest.raises(PersistenceUnavailableError):
+        jobs.execute_search_run_operation(operation, ensure_lease=lambda: None, database_url=url, dependencies=build_explore_dependencies())
+    stored = storage.get_search_run(run_id, database_url=url)
+    assert stored.status == "running"
+    assert stored.error_code is None
+    assert stored.execution_state is None
+    assert storage.count_search_run_stages(run_id, database_url=url) == 0
+    monkeypatch.setattr(jobs, "run_explore_search", lambda **kwargs: {"items": []})
+    jobs.execute_search_run_operation(operation, ensure_lease=lambda: None, database_url=url, dependencies=build_explore_dependencies())
+    assert storage.get_search_run(run_id, database_url=url).status == "completed"
