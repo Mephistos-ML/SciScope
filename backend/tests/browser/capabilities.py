@@ -16,6 +16,8 @@ QUERIES = ("protein folding", "molecular docking", "genome analysis")
 
 
 def plan(*, topic_description: str) -> AiSearchPlan:
+    if topic_description == "Fail planning":
+        raise RuntimeError("Controlled planner failure")
     return AiSearchPlan(status="ready", queries=QUERIES)
 
 

@@ -66,6 +66,7 @@ def serve() -> None:
     processes: list[subprocess.Popen] = []
     gates = {stage: Event() for stage in ("initial", "expansion")}
     entered = {stage: Event() for stage in gates}
+    failures = {stage: Event() for stage in gates}
     stop = Event()
     server = None
     engine = None
@@ -162,6 +163,8 @@ def serve() -> None:
                     entered[stage].set()
                     if not gates[stage].wait(20):
                         self.reply(504, {"error": "Provider gate was not released."})
+                    elif failures[stage].is_set():
+                        self.reply(503, {"error": "Controlled provider failure."})
                     else:
                         self.reply(200, {})
                 else:
@@ -172,8 +175,22 @@ def serve() -> None:
                 if self.path.startswith("/release/") and stage in gates:
                     gates[stage].set()
                     self.reply(200, {})
+                elif (
+                    self.path.startswith("/fail/")
+                    and self.path.removeprefix("/fail/") in gates
+                ):
+                    stage = self.path.removeprefix("/fail/")
+                    failures[stage].set()
+                    gates[stage].set()
+                    self.reply(200, {})
                 elif self.path == "/reset":
-                    for event in (*gates.values(), *entered.values()):
+                    with engine.begin() as connection:
+                        connection.execute(text("DELETE FROM search_access_events"))
+                    for event in (
+                        *gates.values(),
+                        *entered.values(),
+                        *failures.values(),
+                    ):
                         event.clear()
                     self.reply(200, {})
                 else:

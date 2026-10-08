@@ -8,7 +8,15 @@ The harness starts the real API and worker in separate processes, applies all
 migrations to a newly created PostgreSQL database, and drops that database on
 shutdown. Only the planner and provider retrieval capabilities use fixed data.
 Provider gates keep initial retrieval and expansion pending until the browser
-has checked their loading states. No application API responses are mocked.
+has checked their loading states.
+
+Failure tests additionally check rejected admission and expansion, failed worker
+execution, polling errors and partial coverage. HTTP rejection/error tests inject
+responses at the browser transport boundary; they verify client handling, not
+server quota or availability policy. Worker failure and provider outage tests use
+real API snapshots and PostgreSQL state. The successful journey mocks no API
+responses. Test reset clears admission events so cooldowns do not cross tests;
+within a test, admission waits respect the real backend cooldown.
 The external font stylesheet is replaced with empty CSS to avoid network access.
 Live provider protocols, OAuth and subscription flows are outside this test.
 
