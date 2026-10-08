@@ -90,3 +90,26 @@ def test_pool_checkout_timeout_is_unavailable_and_preserves_cause(tmp_path):
         event.remove(engine, "checkout", fail)
     assert failure.value.__cause__ is original
     assert "private" not in str(failure.value)
+
+
+def test_session_cannot_reference_a_missing_user(tmp_path):
+    from datetime import timedelta
+    from app.storage.auth.user_sessions import (
+        create_user_session,
+        get_authenticated_session_by_token_hash,
+    )
+
+    url = build_test_database_url(tmp_path / "session-owner.sqlite3")
+    migrate_test_database(url)
+    with pytest.raises(PersistenceConflictError) as failure:
+        create_user_session(
+            user_id="missing-owner",
+            session_token_hash="orphan-token-hash",
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+            database_url=url,
+        )
+    assert isinstance(failure.value.__cause__, IntegrityError)
+    assert (
+        get_authenticated_session_by_token_hash("orphan-token-hash", database_url=url)
+        is None
+    )

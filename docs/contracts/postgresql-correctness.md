@@ -30,6 +30,14 @@ Concurrent tests use independent connections and barriers/events. Tests requirin
 a lock wait observe it in `pg_stat_activity`; arbitrary sleeps do not establish
 that contention occurred. Database statement and lock timeouts bound failed work.
 
+Pytest uses its own application configuration and a temporary bootstrap database;
+shell deployment settings are ignored. Provider HTTP tests replace external IO:
+uncontrolled Python TCP connections and DNS lookups fail the test. The explicit
+`SCISCOPE_TEST_POSTGRES_URL` opt-in is preserved for the native PostgreSQL driver.
+SQLite connections enforce declared foreign keys. Test teardown disposes engines
+and clears application session/engine caches; resource and unraisable warnings
+fail the suite.
+
 ## Local execution
 
 Use a dedicated disposable test server with pgvector installed. Never supply

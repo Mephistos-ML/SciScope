@@ -122,3 +122,9 @@ allowed_importers = ["app.storage", "app.database", "app.api.app"]
 name = "Application packages have no dependency cycles"
 type = "acyclic_siblings"
 ancestors = ["app"]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "error::ResourceWarning",
+    "error::pytest.PytestUnraisableExceptionWarning",
+]

@@ -124,3 +124,26 @@ def test_missing_schema_is_an_unexpected_failure_and_the_connection_recovers(pos
     assert failure.value.__cause__.orig.sqlstate == "42P01"
     with persistence_session(postgres_url) as session:
         assert session.scalar(text("SELECT 1")) == 1
+
+
+def test_session_foreign_key_failure_rolls_back_without_an_orphan(postgres_url):
+    from datetime import timedelta
+    from app.storage.auth.user_sessions import (
+        create_user_session,
+        get_authenticated_session_by_token_hash,
+    )
+
+    with pytest.raises(PersistenceConflictError) as failure:
+        create_user_session(
+            user_id="missing-owner",
+            session_token_hash="orphan-token-hash",
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+            database_url=postgres_url,
+        )
+    assert failure.value.__cause__.orig.sqlstate == "23503"
+    assert (
+        get_authenticated_session_by_token_hash(
+            "orphan-token-hash", database_url=postgres_url
+        )
+        is None
+    )
