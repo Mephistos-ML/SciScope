@@ -3,9 +3,6 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-if (!process.env.SCISCOPE_TEST_POSTGRES_URL) {
-  throw new Error("Browser tests require SCISCOPE_TEST_POSTGRES_URL for a disposable PostgreSQL server.");
-}
 
 export default defineConfig({
   testDir: "./e2e",

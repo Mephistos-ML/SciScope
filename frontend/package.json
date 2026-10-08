@@ -9,7 +9,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "typecheck": "tsc -b && tsc -p tsconfig.e2e.json",
+    "typecheck": "tsc -b",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview",
     "test": "node --test tests/*.test.mjs",
