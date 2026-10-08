@@ -31,8 +31,6 @@ class RepositoryAdapters:
         if loader is None:
             raise ValueError("Repository source does not support profile lookup.")
         provider_id = parse_repository_id(repository_id, source=source)
-        if not provider_id.isascii() or not provider_id.isdecimal() or int(provider_id) <= 0:
-            raise ValueError("Repository ID must contain a positive numeric provider ID.")
         return loader(provider_id)
 
 

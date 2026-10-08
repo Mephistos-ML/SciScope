@@ -112,7 +112,7 @@ def test_explore_search_refreshes_external_candidates_after_a_strong_catalog_mat
     local_candidates = build_retrieved_candidates(
         *(
             build_explore_repository_signal(
-                f"github:repo:catalog-{index}",
+                f"github:repo:{1000 + index}",
                 query=query,
             )
             for index in range(10)
@@ -131,7 +131,7 @@ def test_explore_search_refreshes_external_candidates_after_a_strong_catalog_mat
             external_calls.append(queries)
             or build_retrieved_candidates(
                 build_explore_repository_signal(
-                    "github:repo:external-paranmr",
+                    "github:repo:2000",
                     query=queries[0],
                 ),
                 source_statuses=(

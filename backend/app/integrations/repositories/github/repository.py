@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from urllib.parse import quote, unquote, urlsplit
 
-from app.models.repository import Repository, build_repository_id, parse_provider_updated_at
+from app.models.repository import (
+    Repository, build_repository_id, parse_provider_updated_at, validate_provider_repository_id,
+)
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.integrations.repositories.github.client import GitHubClient
 
@@ -26,11 +28,14 @@ def map_repository_profile(payload: object) -> Repository:
     if not isinstance(payload, dict):
         raise _invalid_profile()
     provider_id = str(payload.get("id") or "")
+    try:
+        validate_provider_repository_id(provider_id)
+    except ValueError as exc:
+        raise _invalid_profile() from exc
     full_name = str(payload.get("full_name") or "").strip()
     url = str(payload.get("html_url") or "").strip()
     if (
-        not provider_id.isascii() or not provider_id.isdecimal() or int(provider_id) <= 0
-        or not full_name or urlsplit(url).scheme != "https"
+        not full_name or urlsplit(url).scheme != "https"
         or urlsplit(url).netloc != "github.com"
         or unquote(urlsplit(url).path).rstrip("/") != f"/{full_name}"
     ):

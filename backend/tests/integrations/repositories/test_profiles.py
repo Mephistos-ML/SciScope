@@ -84,3 +84,15 @@ def test_invalid_json_is_a_provider_error(source, module, monkeypatch):
     monkeypatch.setattr(client, "fetch_json", fetch)
     with pytest.raises(RepositorySourceError):
         module.load_repository_profile("123", client=client)
+
+
+@pytest.mark.parametrize("source,module", [("github", github), ("gitlab", gitlab)])
+@pytest.mark.parametrize("provider_id", [0, "-1", "١٢٣"])
+def test_invalid_native_id_in_otherwise_valid_profile_is_a_source_error(source, module, provider_id):
+    payload = _payload(source, provider_id)
+    with pytest.raises(RepositorySourceError, match="invalid repository profile") as failure:
+        if source == "github":
+            module.map_repository_profile(payload)
+        else:
+            module.map_repository_profile(payload, base_url="https://gitlab.com")
+    assert isinstance(failure.value.__cause__, ValueError)

@@ -64,8 +64,6 @@ def create_subscription_payload(
     if source not in {"github", "gitlab"}:
         raise ValueError("This repository source does not support subscriptions.")
     provider_id = parse_repository_id(repository_item_id, source=source)
-    if not provider_id.isascii() or not provider_id.isdecimal() or int(provider_id) <= 0:
-        raise ValueError("Repository ID must contain a positive numeric provider ID.")
 
     repository = get_repository(repository_item_id, database_url=database_url)
     if repository is None:

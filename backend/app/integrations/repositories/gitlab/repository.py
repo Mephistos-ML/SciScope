@@ -5,7 +5,9 @@ from __future__ import annotations
 from dataclasses import replace
 from urllib.parse import quote, unquote, urlsplit
 
-from app.models.repository import Repository, build_repository_id, parse_provider_updated_at
+from app.models.repository import (
+    Repository, build_repository_id, parse_provider_updated_at, validate_provider_repository_id,
+)
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.integrations.repositories.gitlab.client import GitLabClient
 
@@ -37,12 +39,15 @@ def map_repository_profile(payload: object, *, base_url: str) -> Repository:
     if not isinstance(payload, dict):
         raise _invalid_profile()
     provider_id = str(payload.get("id") or "")
+    try:
+        validate_provider_repository_id(provider_id)
+    except ValueError as exc:
+        raise _invalid_profile() from exc
     full_name = str(payload.get("path_with_namespace") or "").strip()
     url = str(payload.get("web_url") or "").strip()
     base = urlsplit(base_url)
     if (
-        not provider_id.isascii() or not provider_id.isdecimal() or int(provider_id) <= 0
-        or not full_name or urlsplit(url).scheme != base.scheme
+        not full_name or urlsplit(url).scheme != base.scheme
         or urlsplit(url).netloc != base.netloc
         or unquote(urlsplit(url).path).rstrip("/") != f"{unquote(base.path).rstrip('/')}/{full_name}"
     ):

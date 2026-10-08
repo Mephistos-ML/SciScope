@@ -136,3 +136,23 @@ def test_fetch_json_classifies_transport_timeouts(monkeypatch) -> None:
         github_client.GITHUB_RETRY_BACKOFF_SECONDS * attempt
         for attempt in range(1, github_client.GITHUB_REQUEST_RETRIES)
     ]
+
+
+@pytest.mark.parametrize("body,expected_status", [
+    (b'{"message":"API rate limit exceeded"}', "rate_limited"),
+    (b'{"message":"Resource not accessible by integration"}', "unauthorized"),
+    (b'invalid-json', "unauthorized"),
+    (b'[]', "unauthorized"),
+])
+def test_error_body_classifies_failure_without_rate_limit_headers(monkeypatch, body, expected_status):
+    from io import BytesIO
+
+    def fail(request, timeout):
+        raise HTTPError(request.full_url, 403, "Forbidden", {}, BytesIO(body))
+
+    monkeypatch.setattr(github_client, "urlopen", fail)
+    client = github_client.GitHubClient(lambda: {})
+    with pytest.raises(RepositorySourceError) as failure:
+        client.fetch_json("https://api.github.com/test")
+    assert failure.value.status == expected_status
+    assert isinstance(failure.value.__cause__, HTTPError)

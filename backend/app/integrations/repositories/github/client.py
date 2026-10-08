@@ -13,23 +13,18 @@ from time import monotonic
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from app.__version__ import __version__
+from app.integrations.repositories.github.http import (
+    GITHUB_API_BASE, build_user_agent, read_error_message,
+)
 from app.integrations.repositories.common.models import JsonResponse
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.integrations.repositories.common.deadlines import read_remaining_timeout_seconds
 
 logger = logging.getLogger(__name__)
 
-GITHUB_API_BASE = "https://api.github.com"
 GITHUB_REQUEST_TIMEOUT_SECONDS = 30
 GITHUB_REQUEST_RETRIES = 3
 GITHUB_RETRY_BACKOFF_SECONDS = 1.5
-
-
-def build_user_agent() -> str:
-    """Build the application user agent for outbound GitHub requests."""
-
-    return f"SciScope/{__version__}"
 
 
 @dataclass(frozen=True)
@@ -68,7 +63,7 @@ class GitHubClient:
                     final_url = getattr(response, "geturl", lambda: url)()
                     return JsonResponse(payload=json.load(response), url=str(final_url))
             except HTTPError as exc:
-                message = _read_error_message(exc)
+                message = read_error_message(exc)
                 if attempt < GITHUB_REQUEST_RETRIES and 500 <= exc.code < 600:
                     logger.warning(
                         (
@@ -94,7 +89,7 @@ class GitHubClient:
                     exc.code,
                     message,
                 )
-                raise _build_source_error(exc) from exc
+                raise _build_source_error(exc, message=message) from exc
             except (TimeoutError, URLError, OSError) as exc:
                 last_error = exc
                 logger.warning(
@@ -120,9 +115,7 @@ class GitHubClient:
         raise RuntimeError("GitHub fetch failed without a captured error.")
 
 
-def _build_source_error(exc: HTTPError) -> RepositorySourceError:
-    message = _read_error_message(exc)
-
+def _build_source_error(exc: HTTPError, *, message: str) -> RepositorySourceError:
     if exc.code in (401, 403):
         lowered = message.casefold()
         if (
@@ -180,17 +173,6 @@ def _is_timeout_error(exc: Exception) -> bool:
         return True
 
     return "timed out" in str(exc).casefold()
-
-
-def _read_error_message(exc: HTTPError) -> str:
-    try:
-        payload = json.load(exc)
-    except Exception:
-        return str(exc.reason)
-
-    if isinstance(payload, dict):
-        return str(payload.get("message") or exc.reason)
-    return str(exc.reason)
 
 
 def _read_retry_after_seconds(exc: HTTPError) -> int | None:

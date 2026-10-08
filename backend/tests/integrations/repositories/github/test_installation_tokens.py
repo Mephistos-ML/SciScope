@@ -112,3 +112,30 @@ def test_invalid_or_oversized_response_is_a_safe_provider_failure(monkeypatch, s
         owner.build_auth_headers()
     assert failure.value.__cause__ is not None
     assert pem not in str(failure.value)
+
+
+@pytest.mark.parametrize("body,expected_status", [
+    (b'{"message":"API rate limit exceeded"}', "rate_limited"),
+    (b'invalid-json', "unauthorized"),
+])
+def test_exchange_classifies_http_error_body_and_remains_retryable(monkeypatch, signing_key, body, expected_status):
+    from urllib.error import HTTPError
+
+    _, pem = signing_key
+    owner = auth.GitHubAppAuth("app", "111", "123", pem)
+    exchanges = []
+
+    def exchange(request, timeout):
+        exchanges.append(request.full_url)
+        if len(exchanges) == 1:
+            raise HTTPError(request.full_url, 403, "Forbidden", {}, BytesIO(body))
+        return BytesIO(json.dumps({"token": "recovered-secret",
+                                  "expires_at": (datetime.now(UTC) + timedelta(hours=1)).isoformat()}).encode())
+
+    monkeypatch.setattr(auth, "urlopen", exchange)
+    with pytest.raises(RepositorySourceError) as failure:
+        owner.build_auth_headers()
+    assert failure.value.status == expected_status
+    assert isinstance(failure.value.__cause__, HTTPError)
+    assert owner.build_auth_headers() == {"Authorization": "Bearer recovered-secret"}
+    assert len(exchanges) == 2

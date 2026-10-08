@@ -13,21 +13,15 @@ from urllib.request import Request, urlopen
 
 import jwt
 
-from app.__version__ import __version__
+from app.integrations.repositories.github.http import (
+    GITHUB_API_BASE, build_user_agent, read_error_message,
+)
 from app.integrations.repositories.common.source_status import RepositorySourceError
 
 
-GITHUB_API_BASE = "https://api.github.com"
 GITHUB_AUTH_TIMEOUT_SECONDS = 30
 GITHUB_TOKEN_REFRESH_BUFFER_SECONDS = 60
 GITHUB_TOKEN_RESPONSE_MAX_BYTES = 65536
-
-
-
-def build_user_agent() -> str:
-    """Build the application user agent for outbound GitHub requests."""
-
-    return f"SciScope/{__version__}"
 
 
 @dataclass(frozen=True)
@@ -206,7 +200,7 @@ def _parse_github_timestamp(raw_value: str) -> datetime | None:
 
 
 def _build_auth_error(exc: HTTPError) -> RepositorySourceError:
-    message = _read_error_message(exc)
+    message = read_error_message(exc)
 
     if exc.code in (401, 403):
         lowered = message.casefold()
@@ -238,14 +232,3 @@ def _build_auth_error(exc: HTTPError) -> RepositorySourceError:
         status="error",
         public_message="GitHub repository search is unavailable right now.",
     )
-
-
-def _read_error_message(exc: HTTPError) -> str:
-    try:
-        payload = json.load(exc)
-    except Exception:
-        return str(exc.reason)
-
-    if isinstance(payload, dict):
-        return str(payload.get("message") or exc.reason)
-    return str(exc.reason)
