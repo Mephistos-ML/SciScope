@@ -8,7 +8,10 @@ from uuid import uuid4
 
 from app.database.records.search_runs import SearchRunRecordModel
 from app.database.session import session_scope
-from app.models.search_run import SearchRun, SearchRunOperation
+from app.models.search_run import (
+    SearchRun, SearchRunOperation, SearchProviderOutcomeReport,
+    SearchRankingCandidateReport, SearchStageReport,
+)
 from app.storage.search_runs import write_search_run, write_search_run_operation
 
 
@@ -75,3 +78,15 @@ def set_search_run_state(
             record.started_at = started_at
         if completed_at is not None:
             record.completed_at = completed_at
+
+
+def build_stage_report(query: str = "first") -> SearchStageReport:
+    """Build one valid report shared by database ownership tests."""
+    return SearchStageReport(
+        executed_queries=(query,), retrieved_candidate_count=1,
+        admitted_candidate_count=1, visible_candidate_count=1, timings={"total": 12},
+        provider_outcomes=(SearchProviderOutcomeReport("github", "repository_search", query, 1, "ready", 1, 10),),
+        ranking_candidates=(SearchRankingCandidateReport(
+            "github:repo:1", "github", 1, 80.0, {"title": "Result"}, {}, {}, {}, {},
+        ),),
+    )

@@ -123,7 +123,11 @@ def claim_next_search_run_operation(
         operation_id = session.scalar(
             select(SearchRunOperationRecordModel.operation_id)
             .where(claimable)
-            .order_by(SearchRunOperationRecordModel.queued_at)
+            .order_by(
+                SearchRunOperationRecordModel.queued_at,
+                SearchRunOperationRecordModel.operation_id,
+            )
+            .with_for_update(skip_locked=True)
             .limit(1)
         )
         if operation_id is None:

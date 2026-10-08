@@ -10,10 +10,9 @@ from sqlalchemy.orm import Session
 
 from app.database.records.search_runs import SearchRunOperationRecordModel
 from app.database.session import session_scope
-from app.models.search_run import SearchProviderOutcomeReport, SearchRankingCandidateReport, SearchStageReport
 from app.storage import search_runs as storage
 from tests.conftest import build_test_database_url, migrate_test_database
-from tests.fixtures.search_runs import seed_search_run
+from tests.fixtures.search_runs import build_stage_report, seed_search_run
 
 
 @pytest.fixture
@@ -25,17 +24,6 @@ def work(tmp_path, monkeypatch):
     created = seed_search_run(topic_description="Lease regression", database_url=url)
     operation = storage.claim_next_search_run_operation(holder_id="worker", lease_seconds=60, database_url=url)
     return url, clock, created["runId"], operation
-
-
-def stage_report(query="first"):
-    return SearchStageReport(
-        executed_queries=(query,), retrieved_candidate_count=1,
-        admitted_candidate_count=1, visible_candidate_count=1, timings={"total": 12},
-        provider_outcomes=(SearchProviderOutcomeReport("github", "repository_search", query, 1, "ready", 1, 10),),
-        ranking_candidates=(SearchRankingCandidateReport(
-            "github:repo:1", "github", 1, 80.0, {"title": "Result"}, {}, {}, {}, {},
-        ),),
-    )
 
 
 def operation_record(operation, url):
@@ -59,7 +47,7 @@ def test_superseded_claim_cannot_write_or_release_replacement(work, holder, writ
             storage.finish_search_run_operation(
                 old, status={"success": "completed", "partial": "completed_partial", "failure": "failed"}[write],
                 response_payload={"items": ["stale"]}, execution_state={"queries": ["stale"]},
-                stage_report=stage_report(), error_message="stale failure", database_url=url,
+                stage_report=build_stage_report(), error_message="stale failure", database_url=url,
             )
     storage.release_search_run_operation_lease(old, database_url=url)
     assert operation_record(old, url).lease_token == replacement.lease_token
@@ -67,7 +55,7 @@ def test_superseded_claim_cannot_write_or_release_replacement(work, holder, writ
     assert storage.count_search_run_stages(run_id, database_url=url) == 0
     storage.finish_search_run_operation(
         replacement, status="completed", response_payload={"items": ["current"]},
-        execution_state={"queries": ["current"]}, stage_report=stage_report(), database_url=url,
+        execution_state={"queries": ["current"]}, stage_report=build_stage_report(), database_url=url,
     )
     result = storage.get_search_run(run_id, database_url=url)
     assert result.response_payload == {"items": ["current"]}
@@ -110,7 +98,7 @@ def test_completion_rolls_back_all_facts_and_lifecycle(work, failure):
         with pytest.raises(storage.SearchRunLeaseLostError if failure == "expiry" else RuntimeError):
             storage.finish_search_run_operation(
                 operation, status="completed", response_payload={"items": ["uncommitted"]},
-                execution_state={"progress": 1}, stage_report=stage_report(), database_url=url,
+                execution_state={"progress": 1}, stage_report=build_stage_report(), database_url=url,
             )
     finally:
         event.remove(Session, hook, interrupt)
@@ -124,7 +112,7 @@ def test_completion_rolls_back_all_facts_and_lifecycle(work, failure):
     assert storage.count_search_run_ranking_candidates(run_id, database_url=url) == 0
     storage.release_search_run_operation_lease(operation, database_url=url)
     retry = storage.claim_next_search_run_operation(holder_id="retry", lease_seconds=60, database_url=url)
-    storage.finish_search_run_operation(retry, status="completed", stage_report=stage_report(), database_url=url)
+    storage.finish_search_run_operation(retry, status="completed", stage_report=build_stage_report(), database_url=url)
     assert storage.get_search_run_stage(run_id, 1, database_url=url) is not None
     assert storage.count_search_run_stages(run_id, database_url=url) == 1
 

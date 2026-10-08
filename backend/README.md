@@ -157,6 +157,10 @@ in `app/storage/`. Schema migrations live in `alembic/versions/`.
 The catalog stores compact discovery profiles rather than mirroring repositories.
 Persistence failure categories and idempotent watch creation are defined in
 [the persistence contract](../docs/contracts/persistence-errors.md).
+Application PostgreSQL transactions use READ COMMITTED; durable Explore workers
+skip locked queue entries while retaining fenced ownership. The independent
+PostgreSQL/pgvector CI suite and local execution are described in
+[PostgreSQL correctness](../docs/contracts/postgresql-correctness.md).
 
 ## Configuration and Maintenance
 

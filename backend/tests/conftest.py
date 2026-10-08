@@ -56,3 +56,24 @@ def migrate_test_database(database_url: str, revision: str = "head") -> None:
             os.environ.pop("DATABASE_URL", None)
         else:
             os.environ["DATABASE_URL"] = previous_database_url
+
+
+def pytest_addoption(parser) -> None:
+    parser.addoption("--postgres", action="store_true", help="Run PostgreSQL/pgvector correctness tests.")
+
+
+def pytest_configure(config) -> None:
+    import pytest
+
+    config.addinivalue_line("markers", "postgres: requires an isolated PostgreSQL/pgvector test server")
+    if config.getoption("--postgres") and not os.environ.get("SCISCOPE_TEST_POSTGRES_URL"):
+        raise pytest.UsageError("--postgres requires SCISCOPE_TEST_POSTGRES_URL pointing to a test server.")
+
+
+def pytest_collection_modifyitems(config, items) -> None:
+    import pytest
+
+    if not config.getoption("--postgres"):
+        for item in items:
+            if item.get_closest_marker("postgres"):
+                item.add_marker(pytest.mark.skip(reason="Enable PostgreSQL tests with --postgres."))

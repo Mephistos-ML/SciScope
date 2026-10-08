@@ -49,13 +49,13 @@ the same transaction. Concurrent/repeated creation returns the committed watch,
 including its original ID, creation time, and selected query. A repeat does not
 edit the winning watch. Different users have independent watches. Conflicts on
 other constraints propagate; they are not mistaken for a duplicate watch.
-The PostgreSQL path assumes READ COMMITTED isolation. Higher isolation can
+Application PostgreSQL engines explicitly select READ COMMITTED isolation. Higher isolation can
 surface transaction conflicts; this operation does not retry them automatically.
 
 No schema migration is needed: the unique key already exists. SQLite tests cover
-parallel creation and rollback; injected real psycopg exception types cover driver
-classification only. These tests do not establish PostgreSQL isolation/locking
-correctness, which needs the production-database test suite.
+parallel creation and rollback; injected psycopg exceptions cover classification.
+The [PostgreSQL suite](postgresql-correctness.md) additionally verifies concurrent
+watch creation and rollback/classification against actual driver failures.
 
 ## References
 

@@ -35,6 +35,9 @@ def get_engine(database_url: str | None = None) -> Engine:
     engine_kwargs: dict[str, object] = {"future": True}
     if resolved_url.startswith("sqlite"):
         engine_kwargs["connect_args"] = {"check_same_thread": False}
+    elif make_url(resolved_url).get_backend_name() == "postgresql":
+        # Admission and idempotent inserts read committed winners in later statements.
+        engine_kwargs["isolation_level"] = "READ COMMITTED"
 
     engine = create_engine(resolved_url, **engine_kwargs)
     _ENGINE_CACHE[resolved_url] = engine
