@@ -81,3 +81,22 @@ class AdmissionResult:
             for candidate in self.evaluated_candidates
             if candidate.admission.keep
         )
+
+
+@dataclass(frozen=True)
+class CandidateFacts:
+    """Normalized facts used by cheap admission rules."""
+
+    has_code_search: bool
+    matched_query_count: int
+    hit_count: int
+    has_language: bool
+    language: str
+    repo_name_negative_hits: tuple[str, ...]
+    software_term_hits: tuple[str, ...]
+    data_like_term_hits: tuple[str, ...]
+    paper_like_term_hits: tuple[str, ...]
+    collection_term_hits: tuple[str, ...]
+    education_term_hits: tuple[str, ...]
+    path_strength: AdmissionPathStrength
+    evidence: AdmissionEvidence

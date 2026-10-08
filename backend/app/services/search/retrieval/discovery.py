@@ -7,7 +7,6 @@ from collections.abc import Sequence
 from queue import Empty, Queue
 
 from app.services.search.observability.context import SearchLogContext
-from app.services.search.observability.service import log_search_event
 from app.services.search.retrieval.lanes import (
     LaneResult,
     RetrievalProgressCallback,

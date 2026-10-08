@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from tests.fixtures.repository_clients import make_repository_monitor
-from importlib import import_module
 
 from datetime import UTC, datetime
 
-github_monitor = make_repository_monitor("github")
 from app.integrations.repositories.common.models import JsonResponse
 from app.models.repository import Repository
+
+github_monitor = make_repository_monitor("github")
 
 
 def test_load_repo_activity_builds_release_signals(monkeypatch) -> None:
@@ -87,7 +87,6 @@ def test_load_repo_activity_ignores_events_before_start(monkeypatch) -> None:
 
 
 def test_load_repo_activity_reports_provider_redirect(monkeypatch) -> None:
-    old_name = "Mephistos-ML/paranmr"
     new_url = "https://api.github.com/repositories/123/commits?per_page=10"
 
     def fake_fetch_json(url: str) -> JsonResponse:

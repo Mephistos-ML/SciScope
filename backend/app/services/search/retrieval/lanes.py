@@ -13,7 +13,6 @@ from typing import Callable
 from app.models.signal import Signal
 from app.services.search.observability.context import SearchLogContext
 from app.services.search.observability.service import (
-    SearchLogContext,
     build_duration_ms,
     log_search_event,
 )

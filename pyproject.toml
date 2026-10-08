@@ -13,6 +13,15 @@ dependencies = [
     "httpx2>=2.9,<2.10",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+    "ruff==0.16.10",
+    "mypy==2.4.0",
+    "import-linter==2.15",
+]
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
@@ -26,3 +35,90 @@ version = {attr = "app.__version__"}
 [tool.setuptools.packages.find]
 where = ["backend"]
 exclude = ["tests", "tests.*"]
+
+[tool.ruff]
+target-version = "py311"
+include = ["backend/**/*.py"]
+
+[tool.ruff.lint]
+select = ["E4", "E9", "F"]
+
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "backend"
+files = [
+    "backend/app/models",
+    "backend/app/services/ai",
+    "backend/app/services/search/retrieval/models.py",
+    "backend/app/services/search/explore/dependencies.py",
+    "backend/app/services/search/explore/execution.py",
+    "backend/app/services/search/admission/models.py",
+]
+follow_imports = "silent"
+strict = true
+show_error_codes = true
+
+[tool.importlinter]
+root_package = "app"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Domain models are independent of application and infrastructure"
+type = "forbidden"
+source_modules = ["app.models"]
+forbidden_modules = ["app.api", "app.services", "app.storage", "app.database", "app.integrations", "app.composition", "app.config", "fastapi", "sqlalchemy", "httpx2"]
+
+[[tool.importlinter.contracts]]
+name = "Application services do not depend on transport or composition"
+type = "forbidden"
+source_modules = ["app.services"]
+forbidden_modules = ["app.api", "app.composition", "fastapi"]
+
+[[tool.importlinter.contracts]]
+name = "Services do not directly use ORM or database plumbing"
+type = "forbidden"
+source_modules = ["app.services"]
+forbidden_modules = ["app.database", "sqlalchemy", "psycopg"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Services do not select concrete provider implementations"
+type = "forbidden"
+source_modules = ["app.services"]
+forbidden_modules = ["app.integrations.ai", "app.integrations.identity", "app.integrations.security", "app.integrations.repositories.github", "app.integrations.repositories.gitlab", "app.integrations.repositories.gitee", "app.integrations.repositories.gitcode", "app.integrations.repositories.gitverse"]
+
+[[tool.importlinter.contracts]]
+name = "Persistence does not depend on orchestration or external adapters"
+type = "forbidden"
+source_modules = ["app.storage", "app.database"]
+forbidden_modules = ["app.api", "app.services", "app.integrations", "app.composition", "fastapi", "httpx2"]
+
+[[tool.importlinter.contracts]]
+name = "External adapters do not depend on orchestration or persistence"
+type = "forbidden"
+source_modules = ["app.integrations"]
+forbidden_modules = ["app.api", "app.services", "app.storage", "app.database", "app.composition", "app.config", "fastapi", "sqlalchemy"]
+
+[[tool.importlinter.contracts]]
+name = "HTTP handlers do not perform persistence or provider IO"
+type = "forbidden"
+source_modules = ["app.api"]
+forbidden_modules = ["app.storage", "app.integrations", "sqlalchemy", "httpx2"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "ORM records are private to persistence"
+type = "protected"
+protected_modules = ["app.database.records"]
+allowed_importers = ["app.storage", "app.database"]
+
+[[tool.importlinter.contracts]]
+name = "Database session access belongs to persistence and startup"
+type = "protected"
+protected_modules = ["app.database.session"]
+allowed_importers = ["app.storage", "app.database", "app.api.app"]
+
+[[tool.importlinter.contracts]]
+name = "Application packages have no dependency cycles"
+type = "acyclic_siblings"
+ancestors = ["app"]

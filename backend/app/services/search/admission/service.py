@@ -18,7 +18,6 @@ from app.services.search.admission.models import (
 from app.services.search.admission.decision import build_admission_decision
 from app.services.search.observability.context import SearchLogContext
 from app.services.search.observability.service import (
-    SearchLogContext,
     build_duration_ms,
     log_search_event,
 )

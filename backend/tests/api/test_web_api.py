@@ -8,7 +8,6 @@ from pathlib import Path
 import tempfile
 
 import pytest
-from fastapi import Response
 from fastapi.testclient import TestClient
 
 from tests.conftest import build_test_database_url, migrate_test_database
@@ -278,7 +277,6 @@ def test_feed_endpoints_return_json() -> None:
 
         with TestClient(app) as client:
             client.app.state.database_url = database_url
-            session_response = Response()
             session_token = create_authenticated_session(user.user_id, database_url=database_url, ttl_seconds=3600)
             client.cookies.set(AUTH_SESSION_COOKIE_NAME, session_token)
 
@@ -365,7 +363,6 @@ def test_feed_loads_older_events_with_an_opaque_cursor() -> None:
 
         with TestClient(app) as client:
             client.app.state.database_url = database_url
-            session_response = Response()
             session_token = create_authenticated_session(user.user_id, database_url=database_url, ttl_seconds=3600)
             client.cookies.set(AUTH_SESSION_COOKIE_NAME, session_token)
 
@@ -404,7 +401,6 @@ def test_missing_feed_event_returns_404_json() -> None:
 
         with TestClient(app) as client:
             client.app.state.database_url = database_url
-            session_response = Response()
             session_token = create_authenticated_session(user.user_id, database_url=database_url, ttl_seconds=3600)
             client.cookies.set(AUTH_SESSION_COOKIE_NAME, session_token)
             response = client.get("/api/feed/missing")
@@ -432,7 +428,6 @@ def test_session_auth_and_subscription_endpoints(monkeypatch) -> None:
                 display_name="Test User",
                 database_url=database_url,
             )
-            session_response = Response()
             session_token = create_authenticated_session(user.user_id, database_url=database_url, ttl_seconds=3600)
             client.cookies.set(AUTH_SESSION_COOKIE_NAME, session_token)
 

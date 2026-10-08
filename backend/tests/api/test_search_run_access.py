@@ -235,7 +235,6 @@ def test_expansion_enforces_existing_limits(database_url, users, monkeypatch, li
 
 @pytest.mark.parametrize("token", [None, "invalid", "valid"])
 def test_expansion_requires_and_verifies_turnstile(database_url, monkeypatch, token):
-    from app.api.routes import explore
     from app.models.explore_access import ExploreActor, ExploreTier
     from app.services.search.access import policy
     from app.models.security import TurnstileVerificationResult
@@ -261,7 +260,6 @@ def test_expansion_requires_and_verifies_turnstile(database_url, monkeypatch, to
 
 
 def test_inaccessible_expansion_does_not_check_turnstile_or_reserve_quota(database_url, monkeypatch):
-    from app.api.routes import explore
     def unexpected(*args, **kwargs):
         raise AssertionError("Admission ran before ownership check")
     monkeypatch.setattr("app.services.search.access.service.resolve_explore_actor", unexpected)

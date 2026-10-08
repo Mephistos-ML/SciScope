@@ -164,6 +164,10 @@ PostgreSQL/pgvector CI suite and local execution are described in
 
 ## Configuration and Maintenance
 
+Backend import boundaries and dependency cycles, lint, and strict types for core
+contracts are checked in a dedicated CI job. Scope and local commands are defined
+in [Backend quality gates](../docs/contracts/backend-quality-gates.md).
+
 | Configuration | Purpose |
 | --- | --- |
 | `DATABASE_URL`, `APP_ENV`, `APP_HOST`, `APP_PORT`, `CORS_ORIGINS` | Database and HTTP environment |

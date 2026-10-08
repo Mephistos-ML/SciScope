@@ -10,9 +10,9 @@ import pytest
 from app.models.repository import Repository
 from app.integrations.repositories.common.models import JsonResponse
 from app.integrations.repositories.common.source_status import RepositorySourceError
+from tests.fixtures.repository_monitoring import commit, fake_provider
 github = make_repository_monitor("github")
 gitlab = make_repository_monitor("gitlab")
-from tests.fixtures.repository_monitoring import commit, fake_provider
 
 CUTOFF = datetime(2026, 10, 7, tzinfo=UTC)
 

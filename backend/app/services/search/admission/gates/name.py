@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from app.services.search.admission.facts import CandidateFacts
-from app.services.search.admission.models import AdmissionDecision
+from app.services.search.admission.models import AdmissionDecision, CandidateFacts
 
 
 def apply_repo_name_gate(facts: CandidateFacts) -> AdmissionDecision | None:
