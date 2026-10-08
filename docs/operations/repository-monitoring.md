@@ -1,7 +1,9 @@
 # Repository Monitoring
 
 Feed events and completed-stream checkpoints are committed in one database
-transaction per repository. A write or commit failure rolls back both, including
+transaction per repository. Redirected profiles join that transaction.
+Writes lock the current lease and validate its token and database expiry before
+and after flushing; loss of ownership rolls back the entire write. A write or commit failure rolls back both, including
 updates to existing events. Retried scans remain idempotent and preserve read
 status. Partial scans may persist collected events, but only completed streams
 advance their checkpoints in that same transaction.
@@ -38,3 +40,10 @@ original provider dates in Feed.
 The scheduled entrypoint is `app.jobs.scan_subscriptions`; the scan use case lives
 in `app/services/monitoring/scan.py`. See the [backend overview](../../backend/README.md)
 for the process and module map.
+
+The job renews its 1,800-second lease every 600 seconds while provider IO is in
+progress. Failed renewal stops publication and later repository reads; IO already
+in progress may finish, but its stale result cannot commit. Release conditionally
+deletes only that claim's token. A crashed or superseded run can retain `running`
+as its last recorded status; the next eligible scan creates a new run and resumes
+from committed checkpoints.

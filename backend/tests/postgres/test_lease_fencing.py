@@ -20,7 +20,7 @@ def expire(operation, url):
     with session_scope(url) as session:
         session.execute(update(SearchRunOperationRecordModel).where(
             SearchRunOperationRecordModel.operation_id == operation.operation_id,
-        ).values(lease_expires_at=search_runs._database_now(session) - timedelta(seconds=1)))
+        ).values(lease_expires_at=search_runs.database_now(session) - timedelta(seconds=1)))
 
 
 def operation_record(operation, url):
@@ -81,7 +81,7 @@ def test_expired_owner_is_rejected_after_waiting_for_operation_lock(postgres_url
             with get_engine(postgres_url).connect() as observer:
                 wait_until_blocked(observer, "UPDATE search_run_operations")
             # PostgreSQL releases the lock with the updated expired lease visible.
-            record.lease_expires_at = search_runs._database_now(locking) - timedelta(seconds=1)
+            record.lease_expires_at = search_runs.database_now(locking) - timedelta(seconds=1)
         with pytest.raises(search_runs.SearchRunLeaseLostError):
             future.result(timeout=10)
     assert search_runs.get_search_run(run_id, database_url=postgres_url).status == "running"
@@ -115,7 +115,7 @@ def test_real_flush_constraint_error_rolls_back_result_report_and_lifecycle(post
 def test_lease_clock_advances_inside_the_same_transaction(postgres_url):
     with session_scope(postgres_url) as session:
         transaction_time = session.scalar(text("SELECT CURRENT_TIMESTAMP"))
-        before = search_runs._database_now(session)
+        before = search_runs.database_now(session)
         session.execute(text("SELECT pg_sleep(0.02)"))
-        after = search_runs._database_now(session)
+        after = search_runs.database_now(session)
         assert after > before >= transaction_time

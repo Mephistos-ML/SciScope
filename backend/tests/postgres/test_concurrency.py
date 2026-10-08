@@ -168,7 +168,7 @@ def test_parallel_workers_claim_work_without_duplicate_owners(postgres_url, stat
         with session_scope(postgres_url) as session:
             session.execute(update(SearchRunOperationRecordModel).where(
                 SearchRunOperationRecordModel.operation_id == old.operation_id,
-            ).values(lease_expires_at=search_runs._database_now(session) - timedelta(seconds=1)))
+            ).values(lease_expires_at=search_runs.database_now(session) - timedelta(seconds=1)))
     ready = Barrier(6)
     def claim(index):
         ready.wait(timeout=10)

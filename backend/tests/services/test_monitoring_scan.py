@@ -20,8 +20,9 @@ from app.database.session import session_scope
 from app.models.repository import Repository
 from app.models.signal import Signal
 from app.services.monitoring import scan
+from app.jobs import scan_subscriptions as job
 from app.models.monitoring import (
-    RepositoryActivity, REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
+    MonitoringLease, RepositoryActivity, REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
     REPOSITORY_RELEASE_CHECKPOINT_KEY, REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY,
 )
 from app.integrations.repositories.common.source_status import RepositorySourceError
@@ -57,7 +58,7 @@ def test_scan_backfills_new_repository_since_earliest_subscription(monkeypatch) 
         ),
     )
 
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url="sqlite://")
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url="sqlite://")
 
     assert len(monitor.calls) == 1
     assert monitor.call_kwargs == [
@@ -98,7 +99,7 @@ def test_scan_loads_each_repository_once_and_fans_out_events(monkeypatch) -> Non
     )
     resolve_monitor = lambda _source: monitor
 
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url="sqlite://")
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url="sqlite://")
 
     assert len(monitor.calls) == 1
     assert {event.subscription_id for event in events} == {"sub_one", "sub_two"}
@@ -135,7 +136,7 @@ def test_scan_continues_after_one_repository_fails(monkeypatch) -> None:
             )
         return _Monitor(load)
 
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url="sqlite://")
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url="sqlite://")
 
     assert {check.status for check in checks} == {"failed", "succeeded"}
     assert finished_runs[-1]["status"] == "partial"
@@ -145,14 +146,14 @@ def test_scan_continues_after_one_repository_fails(monkeypatch) -> None:
 
 def test_scan_skips_when_another_run_holds_the_lease(monkeypatch) -> None:
     calls: list[str] = []
-    monkeypatch.setattr(scan, "acquire_monitoring_job_lease", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(job, "acquire_monitoring_job_lease", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         scan,
         "list_all_subscription_watches",
         lambda **_kwargs: calls.append("listed") or [],
     )
 
-    scan.run_repository_monitoring_scan(
+    job.run_repository_monitoring_scan(
         resolve_monitor=lambda _source: pytest.fail("Adapter resolved despite held lease"),
         database_url="sqlite://",
     )
@@ -179,7 +180,7 @@ def test_scan_records_classified_provider_failure(monkeypatch) -> None:
             )
         )
 
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url="sqlite://")
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url="sqlite://")
 
     assert checks[0].status == "failed"
     assert checks[0].error_code == "rate_limited"
@@ -201,11 +202,11 @@ def test_scan_refreshes_repository_profile_after_provider_redirect(monkeypatch) 
     resolve_monitor = lambda _source: monitor
     monkeypatch.setattr(
         scan,
-        "upsert_repositories",
-        lambda repositories, **_kwargs: refreshed_repositories.extend(repositories),
+        "persist_repository_monitoring_result",
+        lambda *args, refreshed_repository, **kwargs: refreshed_repositories.append(refreshed_repository),
     )
 
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url="sqlite://")
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url="sqlite://")
 
     assert [repository.full_name for repository in refreshed_repositories] == [
         "example/renamed-repository"
@@ -216,10 +217,11 @@ def test_monitoring_lease_allows_only_one_holder(tmp_path) -> None:
     database_url = build_test_database_url(tmp_path / "monitoring-lease.sqlite3")
     migrate_test_database(database_url)
 
-    assert acquire_monitoring_job_lease("scan", "run_one", database_url=database_url)
+    lease = acquire_monitoring_job_lease("scan", "run_one", database_url=database_url)
+    assert lease is not None
     assert not acquire_monitoring_job_lease("scan", "run_two", database_url=database_url)
 
-    release_monitoring_job_lease("scan", "run_one", database_url=database_url)
+    release_monitoring_job_lease(lease, database_url=database_url)
 
     assert acquire_monitoring_job_lease("scan", "run_two", database_url=database_url)
 
@@ -247,7 +249,7 @@ def test_scan_persists_baseline_events_cursors_and_health_facts(tmp_path, monkey
     )
     resolve_monitor = lambda _source: monitor
 
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
 
     baseline_cursors = get_repository_monitoring_cursors(
         repository.repository_id,
@@ -262,7 +264,7 @@ def test_scan_persists_baseline_events_cursors_and_health_facts(tmp_path, monkey
     published_at = datetime.now(UTC) + timedelta(minutes=1)
     signals.append(_signal("release-1", published_at))
 
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
 
     events = list_feed_events_for_user(user.user_id, database_url=database_url)
     cursors = get_repository_monitoring_cursors(
@@ -290,8 +292,9 @@ def _configure_scan(
     checks: list | None = None,
     finished_runs: list | None = None,
 ) -> None:
-    monkeypatch.setattr(scan, "acquire_monitoring_job_lease", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(scan, "release_monitoring_job_lease", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(job, "acquire_monitoring_job_lease",
+                        lambda name, holder, **kwargs: MonitoringLease(name, holder, "test-token"))
+    monkeypatch.setattr(job, "release_monitoring_job_lease", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(scan, "create_monitoring_run", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(scan, "list_all_subscription_watches", lambda **_kwargs: subscriptions)
     monkeypatch.setattr(
@@ -403,14 +406,14 @@ def test_incomplete_scan_retains_each_checkpoint_and_retries_without_duplicates(
     activity = RepositoryActivity(signals=(), releases_complete=True, commits_complete=True)
     monitor = _Monitor(lambda *_args, **_kwargs: activity)
     resolve_monitor = lambda _source: monitor
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
     baseline = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
     published_at = datetime.now(UTC) + timedelta(minutes=1)
     signals = (_signal("release-1", published_at),
                replace(_signal("commit-1", published_at), kind="commit"))
     activity = RepositoryActivity(signals=signals, releases_complete=releases_complete,
                                   commits_complete=commits_complete)
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
     first_events = list_feed_events_for_user(user.user_id, database_url=database_url)
     assert len(first_events) == 2
     from app.storage.feed import mark_feed_event_read_for_user
@@ -419,7 +422,7 @@ def test_incomplete_scan_retains_each_checkpoint_and_retries_without_duplicates(
     for key, complete in ((REPOSITORY_RELEASE_CHECKPOINT_KEY, releases_complete),
                           (REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY, commits_complete)):
         assert partial_cursors[key] == (published_at.isoformat() if complete else baseline[key])
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
     assert get_repository_monitoring_cursors(repository.repository_id, database_url=database_url) == partial_cursors
     retry_events = list_feed_events_for_user(user.user_id, database_url=database_url)
     assert {event.event_id for event in retry_events} == {event.event_id for event in first_events}
@@ -431,7 +434,7 @@ def test_incomplete_scan_retains_each_checkpoint_and_retries_without_duplicates(
     assert sorted(check.status for check in checks) == ["partial", "partial", "succeeded"]
     assert sum(check.error_code == "incomplete_interval" for check in checks) == 2
     activity = replace(activity, releases_complete=True, commits_complete=True)
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
     assert set(get_repository_monitoring_cursors(repository.repository_id, database_url=database_url).values()) == {published_at.isoformat()}
     assert len(list_feed_events_for_user(user.user_id, database_url=database_url)) == 2
 
@@ -446,7 +449,7 @@ def test_provider_error_keeps_checkpoints_for_retry(monkeypatch):
     def fail(*args, **kwargs):
         raise RepositorySourceError(source="github", status="timed_out", public_message="Provider timed out.")
     resolve_monitor = lambda _source: _Monitor(fail)
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url="sqlite://")
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url="sqlite://")
     assert updates == []
     assert checks[0].status == "failed"
     assert checks[0].error_code == "timed_out"
@@ -486,7 +489,7 @@ def test_paginated_releases_recover_after_page_failure_without_duplicates(tmp_pa
                                     for n in ids], url=url)
     monkeypatch.setattr(adapter.client, "fetch_json", fetch)
     resolve_monitor = lambda _source: adapter
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
     initial_events = list_feed_events_for_user(user.user_id, database_url=database_url)
     assert len(initial_events) == 100
     cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
@@ -494,8 +497,8 @@ def test_paginated_releases_recover_after_page_failure_without_duplicates(tmp_pa
     assert REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY in cursors
     mark_feed_event_read_for_user(user.user_id, initial_events[0].event_id, database_url=database_url)
     fail_page = False
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
     events = list_feed_events_for_user(user.user_id, database_url=database_url)
     assert len(events) == 125
     assert len({event.event_id for event in events}) == 125
@@ -532,20 +535,20 @@ def test_sha_checkpoint_preserves_backdated_commits_and_retries(tmp_path, monkey
     monkeypatch.setattr(type(adapter), "_load_release_signals", release_batch)
     resolve_monitor = lambda _source: adapter
     fake_provider(adapter, monkeypatch, [], head="old-head")
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
     baseline = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
     assert baseline[REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY] == "old-head"
     items = [commit("new-head"), *[commit(f"merged-{n}") for n in range(124)]]
     fake_provider(adapter, monkeypatch, items)
     if partial_first:
         monkeypatch.setattr(import_module(type(adapter).__module__), "MAX_COMMIT_PAGES", 1)
-        scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
+        job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
         assert len(list_feed_events_for_user(user.user_id, database_url=database_url)) == 100
         assert get_repository_monitoring_cursors(repository.repository_id, database_url=database_url) == baseline
-        scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
+        job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
         assert len(list_feed_events_for_user(user.user_id, database_url=database_url)) == 100
         monkeypatch.setattr(import_module(type(adapter).__module__), "MAX_COMMIT_PAGES", 10)
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
     events = list_feed_events_for_user(user.user_id, database_url=database_url)
     assert len(events) == 125
     assert {event.published_at.year for event in events} == {2010}
@@ -553,12 +556,12 @@ def test_sha_checkpoint_preserves_backdated_commits_and_retries(tmp_path, monkey
     assert cursors[REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY] == "new-head"
     assert cursors[REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY] == baseline[REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY]
     mark_feed_event_read_for_user(user.user_id, events[0].event_id, database_url=database_url)
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
     repeated = list_feed_events_for_user(user.user_id, database_url=database_url)
     assert len(repeated) == 125
     assert next(event for event in repeated if event.event_id == events[0].event_id).read_at is not None
     fake_provider(adapter, monkeypatch, [commit("rebased-head")], head="rebased-head", diverged=True)
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
     assert get_repository_monitoring_cursors(repository.repository_id, database_url=database_url) == cursors
     assert len(list_feed_events_for_user(user.user_id, database_url=database_url)) == 125
     with session_scope(database_url) as session:
@@ -592,7 +595,7 @@ def test_scan_rolls_back_events_and_checkpoints_then_retries(tmp_path, monkeypat
         commit_head_sha="old-head",
     ))
     resolve_monitor = lambda _source: monitor
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
     baseline_cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
     baseline_event = list_feed_events_for_user(user.user_id, database_url=database_url)[0]
     marked = mark_feed_event_read_for_user(user.user_id, baseline_event.event_id, database_url=database_url)
@@ -628,7 +631,7 @@ def test_scan_rolls_back_events_and_checkpoints_then_retries(tmp_path, monkeypat
                 session.flush()
                 raise RuntimeError("Injected monitoring write failure")
             fault.setattr(state, attribute, fail_write)
-        scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
+        job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
 
     assert get_repository_monitoring_cursors(repository.repository_id, database_url=database_url) == baseline_cursors
     items = list_feed_events_for_user(user.user_id, database_url=database_url)
@@ -639,8 +642,8 @@ def test_scan_rolls_back_events_and_checkpoints_then_retries(tmp_path, monkeypat
         checks = session.scalars(select(RepositoryMonitoringCheckRecordModel)).all()
         assert [check.status for check in checks].count("failed") == 1
 
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
-    scan.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
+    job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
     items = list_feed_events_for_user(user.user_id, database_url=database_url)
     assert len(items) == 2
     updated = next(item for item in items if item.event_id == baseline_event.event_id)
@@ -649,3 +652,19 @@ def test_scan_rolls_back_events_and_checkpoints_then_retries(tmp_path, monkeypat
     cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
     assert cursors[REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY] == "new-head"
     assert cursors[REPOSITORY_RELEASE_CHECKPOINT_KEY] == signals[1].published_at.isoformat()
+
+
+@pytest.mark.parametrize("failure", ["create", "subscriptions"])
+def test_scan_start_failure_releases_lease_and_preserves_failure_status(tmp_path, monkeypatch, failure):
+    database_url = build_test_database_url(tmp_path / "startup.sqlite3")
+    migrate_test_database(database_url)
+    def fail(*args, **kwargs):
+        raise RuntimeError("Injected startup failure")
+    monkeypatch.setattr(scan, "create_monitoring_run" if failure == "create" else "list_all_subscription_watches", fail)
+    with pytest.raises(RuntimeError, match="Injected startup failure"):
+        job.run_repository_monitoring_scan(resolve_monitor=lambda source: None, database_url=database_url)
+    lease = acquire_monitoring_job_lease(job.JOB_NAME, "retry", database_url=database_url)
+    assert lease is not None
+    with session_scope(database_url) as session:
+        runs = session.scalars(select(MonitoringRunRecordModel)).all()
+    assert [run.status for run in runs] == ([] if failure == "create" else ["failed"])

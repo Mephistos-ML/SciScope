@@ -13,6 +13,8 @@ from app.database.records.repositories import (
     RepositoryRecordModel,
     RepositorySearchEvidenceRecordModel,
 )
+from sqlalchemy.orm import Session
+
 from app.database.session import get_engine
 from app.storage.transaction import persistence_session
 from app.models.repository import (
@@ -34,24 +36,29 @@ def upsert_repositories(
     if not repositories:
         return
 
-    timestamp = _utc_now()
     with persistence_session(database_url) as session:
-        for repository in repositories:
-            record = session.get(RepositoryRecordModel, repository.repository_id)
-            values = _profile_values(repository, timestamp)
-            if record is None:
-                session.add(
-                    RepositoryRecordModel(
-                        repository_id=repository.repository_id,
-                        first_seen_at=repository.first_seen_at or timestamp,
-                        created_at=timestamp,
-                        **values,
-                    )
-                )
-                continue
+        write_repositories(session, repositories)
 
-            for name, value in values.items():
-                setattr(record, name, value)
+
+def write_repositories(session: Session, repositories: Sequence[Repository]) -> None:
+    """Write profiles inside the caller's transaction, including monitoring fencing."""
+    timestamp = _utc_now()
+    for repository in repositories:
+        record = session.get(RepositoryRecordModel, repository.repository_id)
+        values = _profile_values(repository, timestamp)
+        if record is None:
+            session.add(
+                RepositoryRecordModel(
+                    repository_id=repository.repository_id,
+                    first_seen_at=repository.first_seen_at or timestamp,
+                    created_at=timestamp,
+                    **values,
+                )
+            )
+            continue
+
+        for name, value in values.items():
+            setattr(record, name, value)
 
 
 def get_or_insert_repository(repository: Repository, *, database_url: str) -> Repository:

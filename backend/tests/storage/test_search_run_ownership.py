@@ -18,7 +18,7 @@ def work(tmp_path, monkeypatch):
     url = build_test_database_url(tmp_path / "ownership.sqlite3")
     migrate_test_database(url)
     clock = [datetime(2026, 10, 7, tzinfo=UTC)]
-    monkeypatch.setattr(storage, "_database_now", lambda session: clock[0])
+    monkeypatch.setattr(storage, "database_now", lambda session: clock[0])
     created = seed_search_run(topic_description="Lease regression", database_url=url)
     operation = storage.claim_next_search_run_operation(holder_id="worker", lease_seconds=60, database_url=url)
     return url, clock, created["runId"], operation
@@ -83,7 +83,7 @@ def test_database_clock_is_aware_and_tracks_wall_time(work, monkeypatch):
     monkeypatch.undo()
     before = datetime.now(UTC) - timedelta(milliseconds=2)
     with session_scope(url) as session:
-        actual = storage._database_now(session)
+        actual = storage.database_now(session)
     assert before <= actual <= datetime.now(UTC)
 
 
@@ -99,6 +99,6 @@ def test_nonpositive_lease_duration_is_rejected(work, duration):
 def test_lease_cannot_expire_between_validation_and_renewal(work, monkeypatch):
     url, clock, _, operation = work
     readings = iter((clock[0], clock[0] + timedelta(seconds=60)))
-    monkeypatch.setattr(storage, "_database_now", lambda session: next(readings))
+    monkeypatch.setattr(storage, "database_now", lambda session: next(readings))
     assert not storage.renew_search_run_operation_lease(operation, lease_seconds=60, database_url=url)
     assert operation_record(operation, url).lease_expires_at.replace(tzinfo=UTC) == clock[0] + timedelta(seconds=60)

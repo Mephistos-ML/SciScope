@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from app.models.signal import Signal
+
+REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY = "latest_main_commit_sha"
+REPOSITORY_RELEASE_CHECKPOINT_KEY = "latest_release_published_at"
+REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY = "latest_main_commit_published_at"
 
 
 @dataclass(frozen=True)
@@ -39,6 +43,12 @@ class RepositoryMonitoringCheck:
     error_message: str | None
 
 
-REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY = "latest_main_commit_sha"
-REPOSITORY_RELEASE_CHECKPOINT_KEY = "latest_release_published_at"
-REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY = "latest_main_commit_published_at"
+@dataclass(frozen=True)
+class MonitoringLease:
+    job_name: str
+    holder_id: str
+    token: str = field(repr=False)
+
+
+class MonitoringLeaseLostError(RuntimeError):
+    """The scan no longer has authority to publish monitoring facts."""

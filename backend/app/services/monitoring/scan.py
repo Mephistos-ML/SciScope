@@ -7,11 +7,11 @@ from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
 import logging
-from uuid import uuid4
 
 from app.models.monitoring import (
     MonitoringRun, RepositoryMonitoringCheck, REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY,
     REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY, REPOSITORY_RELEASE_CHECKPOINT_KEY,
+    MonitoringLease, MonitoringLeaseLostError,
 )
 from app.models.repository import Repository
 from app.models.signal import Signal
@@ -19,15 +19,12 @@ from app.services.feed.service import build_feed_event
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.services.monitoring.capabilities import RepositoryMonitor
 from app.storage.monitoring.state import (
-    acquire_monitoring_job_lease,
     create_monitoring_run,
     finish_monitoring_run,
     get_repository_monitoring_cursors,
     persist_repository_monitoring_result,
     record_repository_monitoring_check,
-    release_monitoring_job_lease,
 )
-from app.storage.repositories.repositories import upsert_repositories
 from app.storage.subscriptions.watches import (
     SubscriptionWatchRecord,
     list_all_subscription_watches,
@@ -38,36 +35,37 @@ JOB_NAME = "repository-monitoring-scan"
 logger = logging.getLogger(__name__)
 
 
-def run_repository_monitoring_scan(
+def scan_repository_subscriptions(
     *,
     resolve_monitor: Callable[[str], RepositoryMonitor | None],
+    lease: MonitoringLease, ensure_lease: Callable[[], None],
     database_url: str,
 ) -> None:
     """Scan every uniquely watched repository and fan out new events."""
 
-    run_id = str(uuid4())
-    if not acquire_monitoring_job_lease(JOB_NAME, run_id, database_url=database_url):
-        return
-
-    started_at = datetime.now(UTC)
-    create_monitoring_run(
-        MonitoringRun(run_id, started_at, None, "running", 0, 0, None),
-        database_url=database_url,
-    )
+    run_id = lease.holder_id
     failed_count = 0
     scanned_count = 0
+    started = False
     try:
+        ensure_lease()
+        create_monitoring_run(
+            MonitoringRun(run_id, datetime.now(UTC), None, "running", 0, 0, None),
+            lease=lease, database_url=database_url,
+        )
+        started = True
         subscriptions_by_repository = defaultdict(list)
         for subscription in list_all_subscription_watches(database_url=database_url):
             subscriptions_by_repository[subscription.repository.repository_id].append(subscription)
 
         for subscriptions in subscriptions_by_repository.values():
+            ensure_lease()
             repository = subscriptions[0].repository
             scanned_count += 1
             try:
                 complete = _scan_repository(
                     repository, subscriptions, resolve_monitor=resolve_monitor,
-                    database_url=database_url,
+                    database_url=database_url, lease=lease, ensure_lease=ensure_lease,
                 )
                 if not complete:
                     failed_count += 1
@@ -79,6 +77,8 @@ def run_repository_monitoring_scan(
                     None if complete else "incomplete_interval",
                     None if complete else "Activity reading is incomplete; monitoring will retry.",
                 )
+            except MonitoringLeaseLostError:
+                raise
             except RepositorySourceError as error:
                 failed_count += 1
                 logger.warning(
@@ -108,23 +108,21 @@ def run_repository_monitoring_scan(
                     "unexpected",
                     "Monitoring will retry automatically.",
                 )
-            record_repository_monitoring_check(check, run_id=run_id, database_url=database_url)
+            record_repository_monitoring_check(check, run_id=run_id, lease=lease, database_url=database_url)
 
         status = "partial" if failed_count else "succeeded"
-        finish_monitoring_run(run_id, status=status, scanned_repository_count=scanned_count, failed_repository_count=failed_count, error_summary=None, database_url=database_url)
+        finish_monitoring_run(run_id, status=status, scanned_repository_count=scanned_count, failed_repository_count=failed_count, error_summary=None, lease=lease, database_url=database_url)
+    except MonitoringLeaseLostError:
+        raise
     except Exception:
         logger.exception("Repository monitoring run failed unexpectedly.")
-        finish_monitoring_run(
-            run_id,
-            status="failed",
-            scanned_repository_count=scanned_count,
-            failed_repository_count=failed_count,
-            error_summary="Monitoring run failed unexpectedly.",
-            database_url=database_url,
-        )
+        if started:
+            finish_monitoring_run(
+                run_id, status="failed", scanned_repository_count=scanned_count,
+                failed_repository_count=failed_count, error_summary="Monitoring run failed unexpectedly.",
+                lease=lease, database_url=database_url,
+            )
         raise
-    finally:
-        release_monitoring_job_lease(JOB_NAME, run_id, database_url=database_url)
 
 
 def _scan_repository(
@@ -132,6 +130,7 @@ def _scan_repository(
     subscriptions: list[SubscriptionWatchRecord],
     *,
     resolve_monitor: Callable[[str], RepositoryMonitor | None],
+    lease: MonitoringLease, ensure_lease: Callable[[], None],
     database_url: str,
 ) -> bool:
     monitor = resolve_monitor(repository.source)
@@ -159,10 +158,12 @@ def _scan_repository(
         commit_started_after=commit_after,
         commit_after_sha=commit_after_sha,
     )
+    ensure_lease()
+    refreshed_repository = None
     if activity.redirected:
-        refreshed_repository = monitor.refresh_repository_profile(repository)
-        if refreshed_repository != repository:
-            upsert_repositories((refreshed_repository,), database_url=database_url)
+        profile = monitor.refresh_repository_profile(repository)
+        if profile != repository:
+            refreshed_repository = profile
             subscriptions = [
                 replace(subscription, repository=refreshed_repository)
                 for subscription in subscriptions
@@ -187,6 +188,7 @@ def _scan_repository(
         ).isoformat()
     persist_repository_monitoring_result(
         repository.repository_id, events, checkpoint_updates, database_url=database_url,
+        lease=lease, refreshed_repository=refreshed_repository,
     )
     return activity.releases_complete and activity.commits_complete
 

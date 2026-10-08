@@ -29,7 +29,7 @@ def work(tmp_path, monkeypatch):
     url = build_test_database_url(tmp_path / "worker-ownership.sqlite3")
     migrate_test_database(url)
     clock = [datetime(2026, 10, 7, tzinfo=UTC)]
-    monkeypatch.setattr(storage, "_database_now", lambda session: clock[0])
+    monkeypatch.setattr(storage, "database_now", lambda session: clock[0])
     created = seed_search_run(topic_description="Recovery regression", database_url=url)
     return url, clock, created["runId"]
 

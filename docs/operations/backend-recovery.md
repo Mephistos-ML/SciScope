@@ -116,6 +116,11 @@ success. Unrecoverable state requires a new search under normal admission.
 
 ## Recover Monitoring
 
+When deploying migration 0016, stop monitoring invocations before migration and
+restart them with the new application code. Existing lease rows without tokens
+are claimable by the new worker. Older binaries do not enforce fencing, so do not
+run them alongside the new monitoring implementation.
+
 Check the latest scan **and** per-repository checks. No new events can be a valid
 complete scan. Repository failures can produce `partial` and a normal CLI exit.
 Crashes leave committed repository results intact but can leave their scan summary
@@ -123,9 +128,10 @@ Crashes leave committed repository results intact but can leave their scan summa
 
 Before a manual retry, establish that the previous scan has stopped on every
 replica, then wait for lease expiry or normal release. The 1,800-second monitoring
-lease has no heartbeat or fencing: an expired lease/stale summary does not prove
-that an old scan has stopped. If necessary, restart the affected runtime and account
-for its other processes being interrupted.
+lease renews every 600 seconds. Expired or superseded tokens cannot publish results;
+a stale `running` summary does not prove that a scan still owns its lease. If
+necessary, restart the affected runtime and account for its other processes being
+interrupted.
 
 Allow the next two-hour UTC schedule, or run once in the configured backend:
 

@@ -28,10 +28,13 @@ def upgrade() -> None:
         sa.Column("lease_token", sa.String(32), nullable=True),
     )
 
+    op.add_column("monitoring_job_leases", sa.Column("lease_token", sa.String(32), nullable=True))
+
     _version_execution_states()
 
 
 def downgrade() -> None:
+    op.drop_column("monitoring_job_leases", "lease_token")
     op.drop_column("search_run_operations", "lease_token")
     op.drop_table("search_access_lock")
     op.drop_column("search_runs", "guest_access_token_hash")

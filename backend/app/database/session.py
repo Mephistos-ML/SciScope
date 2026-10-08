@@ -6,7 +6,9 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from datetime import UTC, datetime
+
+from sqlalchemy import create_engine, text, select, func
 from sqlalchemy.engine import Engine
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, sessionmaker
@@ -98,3 +100,11 @@ def session_scope(database_url: str | None = None) -> Iterator[Session]:
         raise
     finally:
         session.close()
+
+
+def database_now(session: Session) -> datetime:
+    """Read wall time from the lease authority, including after lock waits."""
+    if session.get_bind().dialect.name == "sqlite":
+        value = session.execute(select(func.strftime("%Y-%m-%dT%H:%M:%f", "now"))).scalar_one()
+        return datetime.fromisoformat(value).replace(tzinfo=UTC)
+    return session.execute(select(func.clock_timestamp())).scalar_one().astimezone(UTC)

@@ -20,6 +20,7 @@ from app.database.records.search_runs import (
     SearchRunRecordModel,
     SearchRunStageRecordModel,
 )
+from app.database.session import database_now
 from app.storage.transaction import persistence_session
 from app.models.ai import AiPlannerIdentity
 from app.models.search_run import (
@@ -87,14 +88,6 @@ class SearchRunLeaseLostError(RuntimeError):
     """The execution no longer has authority to change its durable run."""
 
 
-def _database_now(session: Session) -> datetime:
-    """Read wall time from the lease authority, including after lock waits."""
-    if session.get_bind().dialect.name == "sqlite":
-        value = session.execute(select(func.strftime("%Y-%m-%dT%H:%M:%f", "now"))).scalar_one()
-        return datetime.fromisoformat(value).replace(tzinfo=UTC)
-    return session.execute(select(func.clock_timestamp())).scalar_one().astimezone(UTC)
-
-
 def _utc(value: datetime) -> datetime:
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
@@ -109,7 +102,7 @@ def claim_next_search_run_operation(
     if lease_seconds <= 0:
         raise ValueError("Lease duration must be positive.")
     with persistence_session(database_url) as session:
-        now = _database_now(session)
+        now = database_now(session)
         claimable = or_(
             SearchRunOperationRecordModel.status == "queued",
             and_(
@@ -140,7 +133,7 @@ def claim_next_search_run_operation(
         if claimed.rowcount != 1:
             return None
         # The update acquired the write lock. Do not spend the lease waiting for it.
-        now = _database_now(session)
+        now = database_now(session)
         record = session.get(SearchRunOperationRecordModel, operation_id)
         record.started_at = record.started_at or now
         record.lease_expires_at = now + timedelta(seconds=lease_seconds)
@@ -177,10 +170,10 @@ def _owned_operation_session(
         if locked.rowcount != 1:
             raise SearchRunLeaseLostError("Operation claim was replaced or finished.")
         record = session.get(SearchRunOperationRecordModel, operation.operation_id)
-        _require_unexpired(record, _database_now(session))
+        _require_unexpired(record, database_now(session))
         yield session
         session.flush()
-        _require_unexpired(record, _database_now(session))
+        _require_unexpired(record, database_now(session))
 
 
 def _require_unexpired(record: SearchRunOperationRecordModel, now: datetime) -> None:
@@ -200,7 +193,7 @@ def renew_search_run_operation_lease(
     try:
         with _owned_operation_session(operation, database_url=database_url) as session:
             record = session.get(SearchRunOperationRecordModel, operation.operation_id)
-            now = _database_now(session)
+            now = database_now(session)
             _require_unexpired(record, now)
             record.lease_expires_at = now + timedelta(seconds=lease_seconds)
     except SearchRunLeaseLostError:
@@ -234,7 +227,7 @@ def start_search_run_operation(
             raise ValueError("Claimed operation refers to a missing run.")
         if record.status in {"queued", "running"}:
             record.status = "running"
-            record.started_at = record.started_at or _database_now(session)
+            record.started_at = record.started_at or database_now(session)
             if planner_identity is not None:
                 record.planner_mode = planner_identity.mode
                 record.planner_model = planner_identity.model
@@ -260,7 +253,7 @@ def finish_search_run_operation(
     with _owned_operation_session(operation, database_url=database_url) as session:
         run = session.get(SearchRunRecordModel, operation.run_id, with_for_update=True)
         record = session.get(SearchRunOperationRecordModel, operation.operation_id)
-        now = _database_now(session)
+        now = database_now(session)
         run.status = record.status = status
         run.error_code = record.error_code = error_code
         run.error_message = record.error_message = error_message

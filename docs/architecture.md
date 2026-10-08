@@ -57,8 +57,10 @@ attempts cannot publish results. External calls can repeat on replay. Terminal
 failures are not automatically requeued. Persisted JSON validation and conversion
 are defined in [Explore execution state](contracts/explore-execution-state.md).
 
-Monitoring instead uses a 1,800-second job lease without renewal or result fencing.
-It does not guarantee exclusivity after expiry. Commit bootstrap uses timestamps;
+Monitoring uses a 1,800-second job lease, renewed every 600 seconds by the job
+entrypoint. Each claim has a fresh token; storage checks ownership and database
+wall time before and after flushing writes. Superseded scans cannot publish Feed
+events, profiles, checkpoints, checks or run completion. Commit bootstrap uses timestamps;
 subsequent scans track newly reachable commits by SHA, including old-dated commits.
 Rewritten/unreadable history stays partial. Details and limits are in
 [Repository Monitoring](operations/repository-monitoring.md).
