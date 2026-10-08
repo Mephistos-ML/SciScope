@@ -22,6 +22,7 @@ class MonitoringJobLeaseRecordModel(Base):
     __tablename__ = "monitoring_job_leases"
     job_name: Mapped[str] = mapped_column(String, primary_key=True)
     holder_id: Mapped[str] = mapped_column(String, nullable=False)
+    lease_token: Mapped[str | None] = mapped_column(String(32), nullable=True)
     lease_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 

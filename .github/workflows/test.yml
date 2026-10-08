@@ -14,6 +14,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  backend-quality:
+    name: Backend architecture and static checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install dependencies
+        run: python -m pip install ".[dev]"
+      - name: Check import boundaries and cycles
+        run: lint-imports --no-cache
+        env:
+          PYTHONPATH: backend
+      - name: Lint backend
+        run: ruff check backend
+      - name: Check domain and capability types
+        run: mypy
+
   backend:
     name: Backend tests
     runs-on: ubuntu-latest
@@ -30,7 +53,7 @@ jobs:
           cache-dependency-path: pyproject.toml
 
       - name: Install dependencies
-        run: python -m pip install --upgrade pip && python -m pip install . pytest pytest-cov
+        run: python -m pip install ".[dev]"
 
       - name: Run backend tests with coverage
         run: pytest --cov=app --cov-report=term-missing --cov-report=xml:coverage.xml -q
@@ -43,6 +66,39 @@ jobs:
           fail_ci_if_error: false
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  postgres:
+    name: PostgreSQL correctness
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg18-trixie
+        env:
+          POSTGRES_USER: sciscope_test
+          POSTGRES_PASSWORD: sciscope_test
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sciscope_test -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      SCISCOPE_TEST_POSTGRES_URL: postgresql+psycopg://sciscope_test:sciscope_test@127.0.0.1:5432/postgres
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install dependencies
+        run: python -m pip install ".[dev]"
+      - name: Verify PostgreSQL contracts
+        run: pytest backend/tests/postgres --postgres -q
 
   frontend:
     name: Frontend build
@@ -59,12 +115,71 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Run frontend tests
+        run: npm test
+
       - name: Type-check and build frontend
         run: npm run build
+
+  browser-journey:
+    name: Explore browser journey
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg18-trixie
+        env:
+          POSTGRES_USER: sciscope_test
+          POSTGRES_PASSWORD: sciscope_test
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sciscope_test -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      SCISCOPE_TEST_POSTGRES_URL: postgresql+psycopg://sciscope_test:sciscope_test@127.0.0.1:5432/postgres
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install backend dependencies
+        run: python -m pip install ".[dev]"
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Install Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Verify guest Explore journey
+        working-directory: frontend
+        run: npm run test:e2e
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: explore-browser-failure
+          path: |
+            frontend/test-results/
+            frontend/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore

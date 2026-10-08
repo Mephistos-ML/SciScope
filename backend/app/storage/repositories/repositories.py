@@ -5,17 +5,23 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import exists, func, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as postgres_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from app.database.records.repositories import (
     RepositoryRecordModel,
     RepositorySearchEvidenceRecordModel,
 )
-from app.database.session import get_engine, session_scope
+from sqlalchemy.orm import Session
+
+from app.database.session import get_engine
+from app.storage.transaction import persistence_session
 from app.models.repository import (
     CatalogRepositoryMatch,
     Repository,
     RepositorySearchEvidence,
+    RepositoryProfileSnapshot,
     parse_repository_id,
 )
 
@@ -30,55 +36,114 @@ def upsert_repositories(
     if not repositories:
         return
 
-    timestamp = _utc_now()
-    with session_scope(database_url) as session:
-        for repository in repositories:
-            record = session.get(RepositoryRecordModel, repository.repository_id)
-            provider_repository_id = repository.provider_repository_id.strip() or parse_repository_id(
-                repository.repository_id,
-                source=repository.source,
-            )
-            search_text = _build_search_text(repository)
-            if record is None:
-                session.add(
-                    RepositoryRecordModel(
-                        repository_id=repository.repository_id,
-                        source=repository.source,
-                        full_name=repository.full_name,
-                        url=repository.url,
-                        provider_repository_id=provider_repository_id,
-                        owner_login=repository.owner_login,
-                        description=repository.description,
-                        language=repository.language,
-                        stars=repository.stars,
-                        topics_json=list(repository.topics),
-                        search_text=search_text,
-                        first_seen_at=repository.first_seen_at or timestamp,
-                        last_seen_at=repository.last_seen_at or timestamp,
-                        last_retrieved_at=repository.last_retrieved_at or timestamp,
-                        provider_updated_at=repository.provider_updated_at,
-                        metadata_json=dict(repository.metadata),
-                        created_at=timestamp,
-                        updated_at=timestamp,
-                    )
-                )
-                continue
+    with persistence_session(database_url) as session:
+        write_repositories(session, repositories)
 
-            record.source = repository.source
-            record.full_name = repository.full_name
-            record.url = repository.url
-            record.provider_repository_id = provider_repository_id
-            record.owner_login = repository.owner_login
-            record.description = repository.description
-            record.language = repository.language
-            record.stars = repository.stars
-            record.topics_json = list(repository.topics)
-            record.search_text = search_text
-            record.last_seen_at = repository.last_seen_at or timestamp
-            record.last_retrieved_at = repository.last_retrieved_at or timestamp
-            record.provider_updated_at = repository.provider_updated_at
-            record.metadata_json = dict(repository.metadata)
-            record.updated_at = timestamp
+
+def write_repositories(session: Session, repositories: Sequence[Repository]) -> None:
+    """Write profiles inside the caller's transaction, including monitoring fencing."""
+    timestamp = _utc_now()
+    for repository in repositories:
+        record = session.get(RepositoryRecordModel, repository.repository_id)
+        values = _profile_values(repository, timestamp)
+        if record is None:
+            session.add(
+                RepositoryRecordModel(
+                    repository_id=repository.repository_id,
+                    first_seen_at=repository.first_seen_at or timestamp,
+                    created_at=timestamp,
+                    **values,
+                )
+            )
+            continue
+
+        for name, value in values.items():
+            setattr(record, name, value)
+
+
+def get_or_insert_repository(repository: Repository, *, database_url: str) -> Repository:
+    """Insert a fetched profile only if absent; never replace a concurrent discovery."""
+    timestamp = _utc_now()
+    dialect = get_engine(database_url).dialect.name
+    if dialect == "postgresql":
+        insert = postgres_insert
+    elif dialect == "sqlite":
+        insert = sqlite_insert
+    else:
+        raise ValueError(f"Repository insertion does not support database dialect: {dialect}")
+    statement = insert(RepositoryRecordModel).values(
+        repository_id=repository.repository_id,
+        first_seen_at=repository.first_seen_at or timestamp,
+        created_at=timestamp,
+        **_profile_values(repository, timestamp),
+    ).on_conflict_do_nothing(index_elements=["repository_id"])
+    with persistence_session(database_url) as session:
+        session.execute(statement)
+        record = session.get(RepositoryRecordModel, repository.repository_id)
+        if record is None:
+            raise RuntimeError("Repository disappeared during profile insertion.")
+        return _to_repository(record)
+
+
+def list_repository_profile_snapshots(
+    *, database_url: str, limit: int, repository_ids: Sequence[str] = (),
+    after_repository_id: str | None = None,
+) -> list[RepositoryProfileSnapshot]:
+    """Read a bounded ID-ordered page with revisions for conditional maintenance."""
+    if limit <= 0:
+        raise ValueError("Snapshot page limit must be positive.")
+    statement = (
+        select(RepositoryRecordModel)
+        .order_by(RepositoryRecordModel.repository_id)
+        .limit(limit)
+    )
+    if after_repository_id is not None:
+        statement = statement.where(RepositoryRecordModel.repository_id > after_repository_id)
+    if repository_ids:
+        statement = statement.where(RepositoryRecordModel.repository_id.in_(repository_ids))
+    with persistence_session(database_url) as session:
+        return [
+            RepositoryProfileSnapshot(_to_repository(row), _ensure_utc(row.updated_at))
+            for row in session.scalars(statement)
+        ]
+
+
+def replace_repository_profile_if_unchanged(
+    repository: Repository, *, expected_updated_at: datetime, database_url: str,
+) -> bool:
+    """Refresh a profile only if its observed revision is still current."""
+    with persistence_session(database_url) as session:
+        result = session.execute(
+            update(RepositoryRecordModel)
+            .where(
+                RepositoryRecordModel.repository_id == repository.repository_id,
+                RepositoryRecordModel.updated_at == expected_updated_at,
+            )
+            .values(**_profile_values(repository, _utc_now()))
+        )
+        return result.rowcount == 1
+
+
+def _profile_values(repository: Repository, timestamp: datetime) -> dict[str, object]:
+    return {
+        "source": repository.source,
+        "full_name": repository.full_name,
+        "url": repository.url,
+        "provider_repository_id": repository.provider_repository_id.strip() or parse_repository_id(
+            repository.repository_id, source=repository.source,
+        ),
+        "owner_login": repository.owner_login,
+        "description": repository.description,
+        "language": repository.language,
+        "stars": repository.stars,
+        "topics_json": list(repository.topics),
+        "search_text": _build_search_text(repository),
+        "last_seen_at": repository.last_seen_at or timestamp,
+        "last_retrieved_at": repository.last_retrieved_at or timestamp,
+        "provider_updated_at": repository.provider_updated_at,
+        "metadata_json": dict(repository.metadata),
+        "updated_at": timestamp,
+    }
 
 
 def upsert_repository_search_evidence(
@@ -92,7 +157,7 @@ def upsert_repository_search_evidence(
         return
 
     timestamp = _utc_now()
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         for evidence in evidence_items:
             key = (
                 evidence.repository_id,
@@ -170,7 +235,7 @@ def find_catalog_repository_matches(
         .order_by(RepositoryRecordModel.stars.desc(), RepositoryRecordModel.full_name.asc())
         .limit(limit)
     )
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         repository_rows = session.scalars(statement).all()
         repository_ids = [row.repository_id for row in repository_rows]
         evidence_rows = (
@@ -227,7 +292,7 @@ def list_repositories(
         statement = statement.where(RepositoryRecordModel.source == source)
     statement = statement.order_by(RepositoryRecordModel.full_name.asc())
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         rows = session.scalars(statement).all()
     return [_to_repository(row) for row in rows]
 
@@ -248,7 +313,7 @@ def list_repositories_by_ids(
         .order_by(RepositoryRecordModel.full_name.asc())
     )
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         rows = session.scalars(statement).all()
     return [_to_repository(row) for row in rows]
 
@@ -262,7 +327,7 @@ def list_repository_search_evidence(
     statement = select(RepositorySearchEvidenceRecordModel).order_by(
         RepositorySearchEvidenceRecordModel.query_normalized.asc()
     )
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         rows = session.scalars(statement).all()
     return [_to_evidence(row) for row in rows]
 
@@ -274,7 +339,7 @@ def get_repository(
 ) -> Repository | None:
     """Load one repository by id."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         row = session.get(RepositoryRecordModel, repository_id)
     if row is None:
         return None

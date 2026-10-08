@@ -13,22 +13,24 @@ from typing import Callable
 from app.models.signal import Signal
 from app.services.search.observability.context import SearchLogContext
 from app.services.search.observability.service import (
-    SearchLogContext,
     build_duration_ms,
     log_search_event,
 )
 from app.services.search.retrieval.merge import merge_retrieval_hits
 from app.services.search.retrieval.models import (
     RetrievedCandidates,
+    RepositoryDiscoverer,
     RetrievalHit,
     RetrievalLaneOutcome,
 )
 from app.services.search.retrieval.timeouts import is_deadline_reached
-from app.sources.common import RepositorySourceError, build_source_status
+from app.integrations.repositories.common.source_status import (
+    RepositorySourceError,
+    build_source_status,
+)
 
 logger = logging.getLogger(__name__)
 
-RepositoryDiscoverer = Callable[[Sequence[str]], list[Signal]]
 RetrievalProgressCallback = Callable[[RetrievedCandidates], None]
 
 SOURCE_DISPLAY_NAMES = {
@@ -62,7 +64,6 @@ def start_lane_worker(
     source_name: str,
     channel_name: str,
     discover_candidates: RepositoryDiscoverer,
-    supports_deadline: bool,
     queries: Sequence[str],
     deadline_monotonic: float | None,
     result_queue: Queue[LaneResult],
@@ -74,7 +75,6 @@ def start_lane_worker(
             source_name=source_name,
             channel_name=channel_name,
             discover_candidates=discover_candidates,
-            supports_deadline=supports_deadline,
             queries=queries,
             deadline_monotonic=deadline_monotonic,
             result_queue=result_queue,
@@ -83,25 +83,6 @@ def start_lane_worker(
         daemon=True,
     )
     thread.start()
-
-
-def run_discoverer(
-    discover_candidates: RepositoryDiscoverer,
-    queries: Sequence[str],
-    *,
-    lane_deadline_monotonic: float | None,
-    supports_deadline: bool,
-) -> list[Signal]:
-    """Run one provider discoverer with optional deadline support."""
-
-    if not supports_deadline:
-        return list(discover_candidates(queries))
-    return list(
-        discover_candidates(
-            queries,
-            deadline_monotonic=lane_deadline_monotonic,
-        )
-    )
 
 
 def consume_lane_result(
@@ -376,7 +357,6 @@ def _run_lane_worker(
     source_name: str,
     channel_name: str,
     discover_candidates: RepositoryDiscoverer,
-    supports_deadline: bool,
     queries: Sequence[str],
     deadline_monotonic: float | None,
     result_queue: Queue[LaneResult],
@@ -395,7 +375,6 @@ def _run_lane_worker(
             discover_candidates=discover_candidates,
             queries=queries,
             lane_deadline_monotonic=deadline_monotonic,
-            supports_deadline=supports_deadline,
         )
     except RepositorySourceError as exc:
         logger.debug(
@@ -453,17 +432,14 @@ def _run_lane_discoverer(
     discover_candidates: RepositoryDiscoverer,
     queries: Sequence[str],
     lane_deadline_monotonic: float | None,
-    supports_deadline: bool,
 ) -> tuple[list[Signal], tuple[QueryFailure, ...], int | None]:
     """Run a lane, retaining completed code-search queries after local failures."""
 
     if channel_name != "code_search":
         return (
-            run_discoverer(
-                discover_candidates,
+            discover_candidates(
                 queries,
-                lane_deadline_monotonic=lane_deadline_monotonic,
-                supports_deadline=supports_deadline,
+                deadline_monotonic=lane_deadline_monotonic,
             ),
             (),
             None,
@@ -475,11 +451,9 @@ def _run_lane_discoverer(
     for query in queries:
         try:
             source_candidates.extend(
-                run_discoverer(
-                    discover_candidates,
+                discover_candidates(
                     (query,),
-                    lane_deadline_monotonic=lane_deadline_monotonic,
-                    supports_deadline=supports_deadline,
+                    deadline_monotonic=lane_deadline_monotonic,
                 )
             )
             completed_query_count += 1

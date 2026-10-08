@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+import logging
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,9 +20,16 @@ from app.api.routes import ranking_labels as ranking_labels_routes
 from app.api.routes import run_reports as run_reports_routes
 from app.api.routes import subscriptions as subscription_routes
 from app.config import CORS_ORIGINS, DATABASE_URL
+from app.composition.auth import build_google_oauth
+from app.composition.repositories import build_repository_adapters
+from app.composition.security import build_turnstile_verifier
+from app.composition.search import build_explore_dependencies
 from app.database.session import check_database_connection
 from app.logging import configure_logging
-from app.services.auth.service import get_current_user
+from app.models.auth import AuthConfigurationError
+from app.models.persistence import PersistenceError, PersistenceConflictError, PersistenceUnavailableError
+from app.models.explore_access import ExploreLimitCode
+from app.api.auth import get_current_user
 from app.services.search.access.errors import ExploreAccessDeniedError
 from app.services.search.explore.service import (
     AiSearchPlanningError,
@@ -60,12 +68,17 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="SciScope API", version=__version__, lifespan=lifespan)
 app.state.database_url = DATABASE_URL
+app.state.google_oauth = build_google_oauth()
+app.state.verify_turnstile_token = build_turnstile_verifier()
+repository_adapters = build_repository_adapters()
+app.state.explore_dependencies = build_explore_dependencies(repositories=repository_adapters)
+app.state.load_repository_profile = repository_adapters.load_repository_profile
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(CORS_ORIGINS),
     allow_credentials=True,
     allow_methods=["GET", "POST", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["Content-Type", "Authorization", "X-Search-Run-Token"],
 )
 
 
@@ -77,6 +90,24 @@ async def handle_http_exception(_request: Request, exc: HTTPException) -> JSONRe
         status_code=exc.status_code,
         content={"error": str(exc.detail)},
     )
+
+
+@app.exception_handler(AuthConfigurationError)
+async def handle_auth_configuration_error(_request: Request, exc: AuthConfigurationError) -> JSONResponse:
+    return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content={"error": str(exc)})
+
+
+@app.exception_handler(PersistenceError)
+async def handle_persistence_error(_request: Request, exc: PersistenceError) -> JSONResponse:
+    """Expose stable failure categories without SQL, parameters, or driver messages."""
+    if isinstance(exc, PersistenceUnavailableError):
+        status_code, code = status.HTTP_503_SERVICE_UNAVAILABLE, "persistence_unavailable"
+    elif isinstance(exc, PersistenceConflictError):
+        status_code, code = status.HTTP_409_CONFLICT, "persistence_conflict"
+    else:
+        status_code, code = status.HTTP_500_INTERNAL_SERVER_ERROR, "persistence_failed"
+    logging.getLogger(__name__).error("Persistence request failed: %s", code, exc_info=exc)
+    return JSONResponse(status_code=status_code, content={"error": str(exc), "code": code})
 
 
 @app.exception_handler(ExploreSearchUnavailableError)
@@ -115,14 +146,24 @@ async def handle_explore_access_denied(
 ) -> JSONResponse:
     """Return structured rate-limit and access-denial payloads."""
 
+    decision = exc.decision
     headers: dict[str, str] = {}
-    if exc.retry_after_seconds is not None:
-        headers["Retry-After"] = str(exc.retry_after_seconds)
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=exc.to_payload(),
-        headers=headers,
-    )
+    payload: dict[str, object] = {
+        "error": decision.message,
+        "code": str(decision.code),
+        "signInSuggested": decision.sign_in_suggested,
+        "turnstileRequired": decision.turnstile_required,
+    }
+    if decision.retry_after_seconds is not None:
+        headers["Retry-After"] = str(decision.retry_after_seconds)
+        payload["retryAfterSeconds"] = decision.retry_after_seconds
+    if decision.turnstile_required or decision.code is ExploreLimitCode.GUEST_SEARCH_DISABLED:
+        status_code = status.HTTP_403_FORBIDDEN
+    elif decision.code is ExploreLimitCode.GLOBAL_CAPACITY_REACHED:
+        status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    else:
+        status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    return JSONResponse(status_code=status_code, content=payload, headers=headers)
 
 
 @app.get("/")
@@ -155,10 +196,10 @@ def get_me(request: Request) -> dict[str, object]:
 
 
 @app.get("/api/auth/google/start")
-def start_google_auth() -> Response:
+def start_google_auth(request: Request) -> Response:
     """Start Google OAuth for one browser session."""
 
-    return auth_routes.start_google_auth_response()
+    return auth_routes.start_google_auth_response(request)
 
 
 @app.get("/api/auth/google/callback")
@@ -219,10 +260,10 @@ def get_explore_search_run(request: Request, run_id: str) -> dict[str, object]:
 
 
 @app.post("/api/explore/search-runs/{run_id}/expand", status_code=status.HTTP_202_ACCEPTED)
-def expand_explore_search_run(request: Request, run_id: str) -> dict[str, object]:
+def expand_explore_search_run(request: Request, run_id: str, body: dict[str, object] | None = None) -> dict[str, object]:
     """Run one next query from a completed Explore search run."""
 
-    payload = explore_routes.expand_explore_search_run_response(request, run_id)
+    payload = explore_routes.expand_explore_search_run_response(request, run_id, body or {})
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

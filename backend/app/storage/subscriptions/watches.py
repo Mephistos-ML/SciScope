@@ -9,7 +9,7 @@ from sqlalchemy import and_, func, select
 
 from app.database.records.feed import FeedEventRecordModel
 from app.database.records.repositories import RepositoryRecordModel, SubscriptionRecordModel
-from app.database.session import session_scope
+from app.storage.transaction import persistence_session
 from app.models.repository import Repository
 
 
@@ -55,7 +55,7 @@ def list_subscription_watches_for_user(
         .order_by(SubscriptionRecordModel.created_at.desc())
     )
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         rows = session.execute(statement).all()
     return [
         _to_subscription_watch_record(subscription, repository, unread_event_count=count)
@@ -78,7 +78,7 @@ def list_all_subscription_watches(
         .order_by(SubscriptionRecordModel.created_at.desc())
     )
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         rows = session.execute(statement).all()
     return [
         _to_subscription_watch_record(subscription, repository)

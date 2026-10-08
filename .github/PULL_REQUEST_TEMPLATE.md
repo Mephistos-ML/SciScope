@@ -6,7 +6,7 @@ Brief description of the change and its purpose.
 
 ## Scope
 
-- Target layer(s): `models` / `services` / `sources` / `storage` / `web` / `infra`
+- Target layer(s): `models` / `services` / `integrations` / `storage` / `web` / `infra`
 - Cross-layer impact: none / described below
 
 ---

@@ -117,11 +117,9 @@ export function ExplorePage({
   }, [results]);
 
   const retryLockActive = retrySecondsRemaining !== null && retrySecondsRemaining > 0;
-  const searchDisabled =
-    searchPending ||
-    !topicInput.trim() ||
-    retryLockActive ||
-    (requiresTurnstile && !turnstileReady);
+  const expansionDisabled =
+    searchPending || retryLockActive || (requiresTurnstile && !turnstileReady);
+  const searchDisabled = expansionDisabled || !topicInput.trim();
   const searchButtonLabel = searchPending
     ? "Searching"
     : retryLockActive
@@ -129,7 +127,7 @@ export function ExplorePage({
       : requiresTurnstile && !turnstileReady
       ? "Complete Verification"
       : "Run Search";
-  const showLoadingResults = searchPending;
+  const showLoadingResults = searchPending && !hasResults;
   const sortedResults = useMemo(
     () => sortExploreResults(results, sortOption),
     [results, sortOption],
@@ -454,7 +452,7 @@ export function ExplorePage({
                   {canExpandSearch ? (
                     <ExpandSearchControl
                       canExpand={canExpandSearch}
-                      disabled={searchPending}
+                      disabled={expansionDisabled}
                       onExpand={onExpandSearch}
                     />
                   ) : hasCompletedSearchPlan ? (
@@ -529,7 +527,7 @@ export function ExplorePage({
                 {hasCompletedSearchPlan ? (
                   <ExpandSearchControl
                     canExpand={canExpandSearch}
-                    disabled={searchPending || !canExpandSearch}
+                    disabled={expansionDisabled || !canExpandSearch}
                     onExpand={onExpandSearch}
                   />
                 ) : null}

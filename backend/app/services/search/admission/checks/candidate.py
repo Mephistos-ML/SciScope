@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from app.services.search.admission.facts import CandidateFacts
-from app.services.search.admission.models import AdmissionDecision
+from app.services.search.admission.models import AdmissionDecision, CandidateFacts
 
 
 def build_candidate_admission_decision(facts: CandidateFacts) -> AdmissionDecision:

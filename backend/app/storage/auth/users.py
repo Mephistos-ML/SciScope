@@ -12,7 +12,7 @@ from app.database.records.auth import UserRecordModel
 from app.database.records.explore import ExploreSearchEventRecordModel
 from app.database.records.feed import FeedEventRecordModel
 from app.database.records.repositories import SubscriptionRecordModel
-from app.database.session import session_scope
+from app.storage.transaction import persistence_session
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,7 @@ def create_user(
         updated_at=now,
     )
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         session.add(record)
 
     return _to_user_record(record)
@@ -58,7 +58,7 @@ def get_user_by_id(user_id: str, *, database_url: str) -> UserRecord | None:
 
     statement = select(UserRecordModel).where(UserRecordModel.user_id == user_id)
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         row = session.scalar(statement)
 
     if row is None:
@@ -71,7 +71,7 @@ def get_user_by_email(email: str, *, database_url: str) -> UserRecord | None:
 
     statement = select(UserRecordModel).where(UserRecordModel.email == email)
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         row = session.scalar(statement)
 
     if row is None:
@@ -89,7 +89,7 @@ def update_user(
 ) -> UserRecord:
     """Refresh one persisted user profile."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         row = session.scalar(
             select(UserRecordModel).where(UserRecordModel.user_id == user_id)
         )
@@ -108,7 +108,7 @@ def update_user(
 def delete_user_account(user_id: str, *, database_url: str) -> bool:
     """Delete one user's personal data while preserving global repository data."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         user = session.get(UserRecordModel, user_id)
         if user is None:
             return False

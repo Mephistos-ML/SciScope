@@ -15,7 +15,7 @@ from app.storage.feed import (
     mark_feed_event_read_for_user,
     upsert_feed_events,
 )
-from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.database import build_test_database_url, migrate_test_database
 
 
 def test_upsert_feed_events_persists_feed_rows(tmp_path) -> None:

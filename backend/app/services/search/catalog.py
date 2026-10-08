@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 import logging
 
-from sqlalchemy.exc import DBAPIError
+from app.models.persistence import PersistenceUnavailableError, PersistenceConflictError
 
 from app.models.repository import (
     Repository,
@@ -14,6 +14,7 @@ from app.models.repository import (
     parse_provider_updated_at,
 )
 from app.models.signal import Signal
+from app.services.ai.embeddings import EmbeddingProvider
 from app.services.search.retrieval import (
     CandidateProvenance,
     RepositoryCandidate,
@@ -37,13 +38,14 @@ def retrieve_catalog_candidates(
     queries: Sequence[str],
     *,
     database_url: str,
+    embeddings: EmbeddingProvider | None,
 ) -> tuple[RepositoryCandidate, ...]:
     """Map locally indexed catalog records into the standard retrieval contract."""
 
     candidates: list[RepositoryCandidate] = []
     try:
         matches = find_catalog_repository_matches(queries, database_url=database_url)
-    except DBAPIError:
+    except (PersistenceUnavailableError, PersistenceConflictError):
         logger.exception("Catalog retrieval failed; falling back to external providers.")
         return ()
 
@@ -131,6 +133,7 @@ def retrieve_catalog_candidates(
         )
     semantic_candidates = retrieve_semantic_catalog_candidates(
         queries,
+        embeddings=embeddings,
         database_url=database_url,
     )
     return merge_repository_candidates(tuple((*candidates, *semantic_candidates)))
@@ -140,6 +143,7 @@ def persist_catalog_candidates(
     candidates: Sequence[RepositoryCandidate],
     *,
     database_url: str,
+    embeddings: EmbeddingProvider | None,
 ) -> None:
     """Persist admitted external candidates and their retrieval evidence."""
 
@@ -159,9 +163,10 @@ def persist_catalog_candidates(
         persist_semantic_catalog_documents(
             repositories,
             tuple(item.query_normalized for item in evidence),
+            embeddings=embeddings,
             database_url=database_url,
         )
-    except (DBAPIError, ValueError):
+    except (PersistenceUnavailableError, PersistenceConflictError):
         logger.exception("Catalog ingestion failed after external retrieval.")
 
 

@@ -16,8 +16,7 @@ def build_repository_id(source: str, provider_repository_id: str) -> str:
     normalized_provider_id = provider_repository_id.strip()
     if not normalized_source or not normalized_provider_id:
         raise ValueError("Repository source and provider repository ID are required.")
-    if "/" in normalized_provider_id:
-        raise ValueError("Repository identity must use the provider-native ID, not full_name.")
+    validate_provider_repository_id(normalized_provider_id)
     return f"{normalized_source}{_REPOSITORY_ID_MARKER}{normalized_provider_id}"
 
 
@@ -31,9 +30,18 @@ def parse_repository_id(repository_id: str, *, source: str) -> str:
         raise ValueError("Repository ID does not match its provider source.")
 
     provider_repository_id = normalized_repository_id.removeprefix(expected_prefix)
-    if not provider_repository_id or "/" in provider_repository_id:
-        raise ValueError("Repository ID must contain a provider-native ID.")
+    validate_provider_repository_id(provider_repository_id)
     return provider_repository_id
+
+
+def validate_provider_repository_id(provider_repository_id: str) -> None:
+    """GitHub and GitLab repository identities are positive ASCII decimal IDs."""
+    if (
+        not provider_repository_id.isascii()
+        or not provider_repository_id.isdecimal()
+        or not provider_repository_id.strip("0")
+    ):
+        raise ValueError("Repository ID must contain a positive numeric provider ID.")
 
 
 def parse_provider_updated_at(value: object) -> datetime | None:
@@ -69,6 +77,14 @@ class Repository:
     last_seen_at: datetime | None = None
     last_retrieved_at: datetime | None = None
     provider_updated_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class RepositoryProfileSnapshot:
+    """A catalog profile and the revision observed before a provider refresh."""
+
+    repository: Repository
+    updated_at: datetime
 
 
 @dataclass(frozen=True)

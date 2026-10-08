@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from datetime import datetime
 
 
 class ExploreTier(StrEnum):
@@ -60,3 +61,22 @@ class ExploreAccessDecision:
     retry_after_seconds: int | None = None
     sign_in_suggested: bool = False
     turnstile_required: bool = False
+
+
+@dataclass(frozen=True)
+class ExploreUsage:
+    """Usage facts for an actor and the global admission window."""
+
+    global_count: int
+    actor_count: int
+    last_allowed_at: datetime | None
+    first_allowed_at: datetime | None
+
+
+@dataclass(frozen=True)
+class ExploreAdmission:
+    """Actor and completed verification facts for a search admission request."""
+
+    actor: ExploreActor
+    turnstile_verified: bool = False
+    bypass_quota: bool = False

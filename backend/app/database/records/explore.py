@@ -39,3 +39,10 @@ class ExploreSearchEventRecordModel(Base):
     topic_hash: Mapped[str] = mapped_column(String, nullable=False)
     outcome: Mapped[str] = mapped_column(String, nullable=False)
     retry_after_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class ExploreAccessLockRecordModel(Base):
+    """Singleton row serializing search admission across processes."""
+
+    __tablename__ = "search_access_lock"
+    lock_id: Mapped[int] = mapped_column(Integer, primary_key=True)

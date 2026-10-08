@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from app.models.signal import Signal
 from app.services.search.admission.checks.path import classify_path_strength
 from app.services.search.admission.terms.metadata import (
@@ -13,29 +11,10 @@ from app.services.search.admission.terms.metadata import (
     PAPER_LIKE_TERMS,
     SOFTWARE_TERMS,
 )
-from app.services.search.admission.models import AdmissionEvidence, AdmissionPathStrength
+from app.services.search.admission.models import AdmissionEvidence, CandidateFacts
 from app.services.search.admission.terms.name import REPO_NAME_REJECT_TERMS
 from app.services.search.retrieval.evidence import count_current_query_matches
 from app.services.search.retrieval.models import RepositoryCandidate
-
-
-@dataclass(frozen=True)
-class CandidateFacts:
-    """Normalized facts used by cheap admission rules."""
-
-    has_code_search: bool
-    matched_query_count: int
-    hit_count: int
-    has_language: bool
-    language: str
-    repo_name_negative_hits: tuple[str, ...]
-    software_term_hits: tuple[str, ...]
-    data_like_term_hits: tuple[str, ...]
-    paper_like_term_hits: tuple[str, ...]
-    collection_term_hits: tuple[str, ...]
-    education_term_hits: tuple[str, ...]
-    path_strength: AdmissionPathStrength
-    evidence: AdmissionEvidence
 
 
 def build_candidate_facts(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 
@@ -48,6 +48,7 @@ class SearchRun:
     error_message: str | None = None
     response_payload: dict[str, Any] | None = None
     execution_state: dict[str, Any] | None = None
+    guest_access_token_hash: str | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)
@@ -62,6 +63,7 @@ class SearchRunOperation:
     started_at: datetime | None = None
     completed_at: datetime | None = None
     lease_holder_id: str | None = None
+    lease_token: str | None = field(default=None, repr=False)
     lease_expires_at: datetime | None = None
     error_code: str | None = None
     error_message: str | None = None

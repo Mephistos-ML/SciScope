@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "plan": {"status": "ready", "queries": ["first", "second"]},
+  "executedQueries": ["first"],
+  "retrieved": {
+    "candidates": [{
+      "repositoryId": "github:repo:123",
+      "signal": {
+        "source": "github", "kind": "repository", "itemId": "github:repo:123",
+        "title": "science/example", "url": "https://github.com/science/example",
+        "publishedAt": "2026-10-07T00:00:00+00:00",
+        "rawText": "scientific tooling", "normalizedText": "science/example\nscientific tooling",
+        "payload": {"stars": 12, "topics": ["science"], "archived": false}
+      },
+      "provenance": {
+        "matchedQueries": ["first"], "matchedChannels": ["code_search"],
+        "bestRankByChannel": {"code_search": 3}, "hitCount": 1,
+        "matchEvidence": [{"query": "first", "location": "code", "path": "src/example.py", "alignment": 0.8, "channel": "code_search", "origin": "provider", "retrieval_rank": 3}],
+        "origins": ["provider"]
+      }
+    }],
+    "sourceStatuses": [{"source": "github", "status": "ok", "retryAfterSeconds": null}],
+    "successfulSourceCount": 1, "partial": true, "warnings": ["GitLab unavailable"],
+    "laneOutcomes": [{"source": "github", "channel": "code_search", "status": "completed", "candidate_count": 1, "duration_ms": 22, "query": "first", "attempt": 1, "retry_after_seconds": null, "error_code": null, "error_message": null}]
+  },
+  "attempts": [{"query": "first", "attempt": 1, "status": "completed", "duration_ms": 25, "candidate_count": 1}]
+}

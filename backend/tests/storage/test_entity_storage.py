@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.database import build_test_database_url, migrate_test_database
 from app.models.repository import (
     Repository,
     RepositorySearchEvidence,
@@ -62,6 +62,7 @@ def test_create_subscription_returns_direct_repository_watch(tmp_path) -> None:
         database_url=database_url,
     )
 
+    create_user(user_id="user_1", email="subscriber@example.test", display_name="Subscriber", database_url=database_url)
     subscription = create_subscription(
         user_id="user_1",
         repository_id="github:repo:123",

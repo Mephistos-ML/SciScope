@@ -6,10 +6,11 @@ from collections import defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from hashlib import sha256
 import logging
-import httpx2 as httpx
-from sqlalchemy.exc import DBAPIError
+from app.models.persistence import PersistenceUnavailableError, PersistenceConflictError
 
 from app import config
+from app.services.ai.embeddings import EmbeddingProvider
+from app.models.ai import AiDependencyError
 from app.models.repository import Repository
 from app.models.signal import Signal
 from app.services.search.retrieval import (
@@ -38,12 +39,12 @@ def persist_semantic_catalog_documents(
     queries: Sequence[str],
     *,
     database_url: str,
-    force: bool = False,
+    embeddings: EmbeddingProvider | None,
     raise_on_error: bool = False,
 ) -> None:
     """Embed changed catalog documents after their canonical records are persisted."""
 
-    if not force and not _enabled(database_url=database_url):
+    if embeddings is None:
         return
     if not semantic_catalog_is_available(database_url=database_url):
         return
@@ -63,20 +64,22 @@ def persist_semantic_catalog_documents(
             filter_missing=filter_missing_query_embeddings,
             upsert=upsert_query_embeddings,
             database_url=database_url,
+            embeddings=embeddings,
         )
         _persist_documents(
             profile_documents,
             filter_missing=filter_missing_profile_embeddings,
             upsert=upsert_profile_embeddings,
             database_url=database_url,
+            embeddings=embeddings,
         )
-    except (DBAPIError, SemanticEmbeddingError):
+    except (PersistenceUnavailableError, PersistenceConflictError, AiDependencyError):
         logger.exception("Semantic catalog ingestion failed without affecting search.")
         if raise_on_error:
             raise
 
 
-def backfill_semantic_catalog(*, database_url: str) -> tuple[int, int]:
+def backfill_semantic_catalog(*, database_url: str, embeddings: EmbeddingProvider) -> tuple[int, int]:
     """Embed existing canonical catalog records once after enabling pgvector."""
 
     repositories = list_repositories(database_url=database_url)
@@ -85,7 +88,7 @@ def backfill_semantic_catalog(*, database_url: str) -> tuple[int, int]:
         repositories,
         tuple(item.query_normalized for item in evidence),
         database_url=database_url,
-        force=True,
+        embeddings=embeddings,
         raise_on_error=True,
     )
     return len(repositories), len({item.query_normalized for item in evidence})
@@ -95,23 +98,24 @@ def retrieve_semantic_catalog_candidates(
     queries: Sequence[str],
     *,
     database_url: str,
+    embeddings: EmbeddingProvider | None,
 ) -> tuple[RepositoryCandidate, ...]:
     """Retrieve catalog candidates by query and profile semantic similarity."""
 
-    if not _enabled(database_url=database_url):
+    if embeddings is None or not semantic_catalog_is_available(database_url=database_url):
         return ()
     normalized_queries = tuple(dict.fromkeys(_normalize(query) for query in queries if _normalize(query)))
     if not normalized_queries:
         return ()
     try:
-        embeddings = _embed_texts(normalized_queries)
+        vectors = embeddings.embed(normalized_queries)
         evidence_by_repository: dict[str, list[RetrievalMatchEvidence]] = defaultdict(list)
         matched_queries_by_repository: dict[str, list[str]] = defaultdict(list)
-        for query, embedding in zip(normalized_queries, embeddings, strict=True):
+        for query, embedding in zip(normalized_queries, vectors, strict=True):
             for retrieval_rank, row in enumerate(
                 find_semantic_query_evidence(
                     embedding,
-                    embedding_model=config.SEMANTIC_EMBEDDING_MODEL,
+                    embedding_model=embeddings.model,
                     limit=config.SEMANTIC_CATALOG_QUERY_LIMIT,
                     min_similarity=config.SEMANTIC_CATALOG_MIN_SIMILARITY,
                     database_url=database_url,
@@ -132,7 +136,7 @@ def retrieve_semantic_catalog_candidates(
             for retrieval_rank, row in enumerate(
                 find_semantic_profiles(
                     embedding,
-                    embedding_model=config.SEMANTIC_EMBEDDING_MODEL,
+                    embedding_model=embeddings.model,
                     limit=config.SEMANTIC_CATALOG_PROFILE_LIMIT,
                     min_similarity=config.SEMANTIC_CATALOG_MIN_SIMILARITY,
                     database_url=database_url,
@@ -154,7 +158,7 @@ def retrieve_semantic_catalog_candidates(
             tuple(evidence_by_repository),
             database_url=database_url,
         )
-    except (DBAPIError, SemanticEmbeddingError):
+    except (PersistenceUnavailableError, PersistenceConflictError, AiDependencyError):
         logger.exception("Semantic catalog retrieval failed; using lexical retrieval only.")
         return ()
 
@@ -168,20 +172,17 @@ def retrieve_semantic_catalog_candidates(
     )
 
 
-class SemanticEmbeddingError(RuntimeError):
-    """Raised when the configured embedding provider returns an unusable response."""
-
-
 def _persist_documents(
     documents: Mapping[str, str],
     *,
     filter_missing: Callable[..., Mapping[str, str]],
     upsert: Callable[..., None],
     database_url: str,
+    embeddings: EmbeddingProvider,
 ) -> None:
     missing = filter_missing(
         documents,
-        embedding_model=config.SEMANTIC_EMBEDDING_MODEL,
+        embedding_model=embeddings.model,
         database_url=database_url,
     )
     if not missing:
@@ -189,10 +190,10 @@ def _persist_documents(
     payload: dict[str, tuple[str, tuple[float, ...]]] = {}
     for batch in _document_batches(missing):
         try:
-            vectors = _embed_texts(tuple(content for _, content in batch))
-        except SemanticEmbeddingError as exc:
+            vectors = embeddings.embed(tuple(content for _, content in batch))
+        except AiDependencyError as exc:
             sample_keys = ", ".join(key for key, _ in batch[:3])
-            raise SemanticEmbeddingError(
+            raise AiDependencyError(
                 "Embedding batch failed for "
                 f"{len(batch)} documents (sample keys: {sample_keys})."
             ) from exc
@@ -204,7 +205,7 @@ def _persist_documents(
         )
     upsert(
         payload,
-        embedding_model=config.SEMANTIC_EMBEDDING_MODEL,
+        embedding_model=embeddings.model,
         database_url=database_url,
     )
 
@@ -286,50 +287,6 @@ def _append_match(
     )
     if item not in evidence_by_repository[repository_id]:
         evidence_by_repository[repository_id].append(item)
-
-
-def _embed_texts(inputs: Sequence[str]) -> tuple[tuple[float, ...], ...]:
-    if not config.OPENAI_API_KEY:
-        raise SemanticEmbeddingError("Missing OPENAI_API_KEY for semantic catalog retrieval.")
-    with httpx.Client(
-        base_url=config.OPENAI_BASE_URL.rstrip("/"),
-        timeout=config.OPENAI_TIMEOUT_SECONDS,
-        headers={
-            "Authorization": f"Bearer {config.OPENAI_API_KEY}",
-            "Content-Type": "application/json",
-        },
-    ) as client:
-        response = client.post(
-            "/embeddings",
-            json={"model": config.SEMANTIC_EMBEDDING_MODEL, "input": list(inputs)},
-        )
-    try:
-        response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        preview = exc.response.text.strip().replace("\n", " ")
-        if len(preview) > 500:
-            preview = f"{preview[:500]}..."
-        raise SemanticEmbeddingError(
-            "Embedding request failed with status "
-            f"{exc.response.status_code}: {preview or '<empty response>'}"
-        ) from exc
-    payload = response.json()
-    data = payload.get("data") if isinstance(payload, dict) else None
-    if not isinstance(data, list) or len(data) != len(inputs):
-        raise SemanticEmbeddingError("Embedding response did not match the input batch.")
-    vectors: list[tuple[float, ...]] = []
-    for item in data:
-        vector = item.get("embedding") if isinstance(item, dict) else None
-        if not isinstance(vector, list) or len(vector) != config.SEMANTIC_EMBEDDING_DIMENSIONS:
-            raise SemanticEmbeddingError("Embedding response used an unexpected vector dimension.")
-        vectors.append(tuple(float(value) for value in vector))
-    return tuple(vectors)
-
-
-def _enabled(*, database_url: str) -> bool:
-    return config.SEMANTIC_CATALOG_ENABLED and semantic_catalog_is_available(
-        database_url=database_url
-    )
 
 
 def _normalize(query: str) -> str:

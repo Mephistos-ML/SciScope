@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from fastapi import HTTPException, Request, status
 
-from app.services.auth.service import get_current_user
+from app.api.auth import get_current_user
 from app.services.subscriptions.service import (
+    SubscriptionRepositoryUnavailableError,
     create_subscription_payload,
     delete_subscription_payload,
     list_subscription_payloads,
@@ -37,34 +38,32 @@ def create_subscription_response(
     repository = repository_payload if isinstance(repository_payload, dict) else {}
     repository_item_id = str(repository.get("itemId") or "").strip()
     repository_source = str(repository.get("source") or "").strip()
-    repository_full_name = str(repository.get("fullName") or "").strip()
-    repository_url = str(repository.get("url") or "").strip()
     selected_query = str(payload.get("selectedQuery") or "").strip() or None
 
-    if (
-        not repository_item_id
-        or not repository_source
-        or not repository_full_name
-        or not repository_url
-    ):
+    if not repository_item_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Repository subscription payload is incomplete.",
         )
 
     try:
+        if repository_source and repository_item_id.partition(":repo:")[0] != repository_source:
+            raise ValueError("Repository ID does not match its provider source.")
         return create_subscription_payload(
             user,
             repository_item_id=repository_item_id,
-            repository_source=repository_source,
-            repository_full_name=repository_full_name,
-            repository_url=repository_url,
+            load_repository_profile=request.app.state.load_repository_profile,
             selected_query=selected_query,
             database_url=database_url,
         )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except SubscriptionRepositoryUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(exc),
         ) from exc
 

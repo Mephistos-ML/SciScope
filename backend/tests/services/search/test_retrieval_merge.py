@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-import time
+from threading import Event
+
+from app.services.search.retrieval import timeouts
 from dataclasses import replace
 
 from app.models.signal import Signal
+from app.services.search.retrieval.models import RetrievalLane
 from app.services.search.retrieval.merge import merge_retrieval_hits
 from app.services.search.retrieval.service import run_external_repository_retrieval
-from app.sources.common import RepositorySourceError
+from app.integrations.repositories.common.source_status import RepositorySourceError
 
 
 def _build_repository_signal(
@@ -103,7 +106,7 @@ def test_merge_retrieval_hits_accumulates_candidate_provenance() -> None:
 
 
 def test_run_external_repository_retrieval_merges_duplicate_repo_hits() -> None:
-    def discover_github_candidates(_queries: tuple[str, ...]) -> list[Signal]:
+    def discover_github_candidates(_queries: tuple[str, ...], *, deadline_monotonic: float | None) -> list[Signal]:
         return [
             _build_repository_signal(
                 "github:repo:mephistos-ml/paranmr",
@@ -117,7 +120,7 @@ def test_run_external_repository_retrieval_merges_duplicate_repo_hits() -> None:
 
     retrieved = run_external_repository_retrieval(
         ("paramagnetic nmr", "pcs susceptibility tensor fitting"),
-        discoverers=(("github", "repository_search", discover_github_candidates),),
+        lanes=(RetrievalLane("github", "repository_search", discover_github_candidates),),
     )
 
     assert retrieved.successful_source_count == 1
@@ -296,39 +299,46 @@ def test_merge_retrieval_hits_classifies_match_locations_by_strength() -> None:
     ] == ["name", "description", "readme", "code", "documentation"]
 
 
-def test_run_external_repository_retrieval_marks_partial_when_parallel_lane_misses_soft_timeout() -> None:
-    def discover_github_candidates(_queries: tuple[str, ...]) -> list[Signal]:
-        return [
-            _build_repository_signal(
-                "github:repo:mephistos-ml/paranmr",
-                query="paramagnetic nmr",
-            )
-        ]
+def test_run_external_repository_retrieval_marks_partial_when_parallel_lane_misses_soft_timeout(monkeypatch) -> None:
+    release = Event()
+    finished = Event()
+    clock = [0.0]
+    monkeypatch.setattr(timeouts, "monotonic", lambda: clock[0])
 
-    def discover_gitlab_candidates(_queries: tuple[str, ...]) -> list[Signal]:
-        time.sleep(0.2)
-        return []
+    def expire_after_completed_source(snapshot):
+        assert snapshot.successful_source_count == 1
+        clock[0] = 5.0
 
-    started_at = time.monotonic()
-    retrieved = run_external_repository_retrieval(
-        ("paramagnetic nmr",),
-        discoverers=(
-            ("github", "repository_search", discover_github_candidates),
-            ("gitlab", "repository_search", discover_gitlab_candidates),
-        ),
-        soft_deadline_monotonic=time.monotonic() + 0.05,
-    )
-    elapsed_seconds = time.monotonic() - started_at
+    def github(_queries, *, deadline_monotonic):
+        return [_build_repository_signal("github:repo:mephistos-ml/paranmr", query="paramagnetic nmr")]
 
-    assert retrieved.successful_source_count == 1
-    assert len(retrieved.candidates) == 1
-    assert retrieved.partial is True
-    assert "partial coverage" in retrieved.warnings[0]
-    assert elapsed_seconds < 0.15
+    def gitlab(_queries, *, deadline_monotonic):
+        try:
+            assert release.wait(5), "The test must release its pending provider"
+            return []
+        finally:
+            finished.set()
+
+    try:
+        retrieved = run_external_repository_retrieval(
+            ("paramagnetic nmr",),
+            lanes=(RetrievalLane("github", "repository_search", github),
+                   RetrievalLane("gitlab", "repository_search", gitlab)),
+            soft_deadline_monotonic=5.0,
+            progress_callback=expire_after_completed_source,
+        )
+        assert not release.is_set()
+        assert retrieved.successful_source_count == 1
+        assert len(retrieved.candidates) == 1
+        assert retrieved.partial is True
+        assert "partial coverage" in retrieved.warnings[0]
+    finally:
+        release.set()
+        assert finished.wait(5), "The pending provider must finish before teardown"
 
 
 def test_run_external_repository_retrieval_retains_completed_code_queries_after_timeout() -> None:
-    def discover_github_code_candidates(queries: tuple[str, ...]) -> list[Signal]:
+    def discover_github_code_candidates(queries: tuple[str, ...], *, deadline_monotonic: float | None) -> list[Signal]:
         query = queries[0]
         if query == "timed out query":
             raise RepositorySourceError(
@@ -345,8 +355,8 @@ def test_run_external_repository_retrieval_retains_completed_code_queries_after_
 
     retrieved = run_external_repository_retrieval(
         ("first query", "timed out query", "last query"),
-        discoverers=(
-            ("github", "code_search", discover_github_code_candidates),
+        lanes=(
+            RetrievalLane("github", "code_search", discover_github_code_candidates),
         ),
     )
 
@@ -371,7 +381,7 @@ def test_run_external_repository_retrieval_retains_completed_code_queries_after_
 def test_run_external_repository_retrieval_stops_code_lane_after_rate_limit() -> None:
     attempted_queries: list[str] = []
 
-    def discover_github_code_candidates(queries: tuple[str, ...]) -> list[Signal]:
+    def discover_github_code_candidates(queries: tuple[str, ...], *, deadline_monotonic: float | None) -> list[Signal]:
         query = queries[0]
         attempted_queries.append(query)
         if query == "rate limited query":
@@ -390,8 +400,8 @@ def test_run_external_repository_retrieval_stops_code_lane_after_rate_limit() ->
 
     retrieved = run_external_repository_retrieval(
         ("first query", "rate limited query", "unattempted query"),
-        discoverers=(
-            ("github", "code_search", discover_github_code_candidates),
+        lanes=(
+            RetrievalLane("github", "code_search", discover_github_code_candidates),
         ),
     )
 

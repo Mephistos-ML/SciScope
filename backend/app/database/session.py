@@ -6,7 +6,9 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from datetime import UTC, datetime
+
+from sqlalchemy import create_engine, text, select, func
 from sqlalchemy.engine import Engine
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, sessionmaker
@@ -35,6 +37,9 @@ def get_engine(database_url: str | None = None) -> Engine:
     engine_kwargs: dict[str, object] = {"future": True}
     if resolved_url.startswith("sqlite"):
         engine_kwargs["connect_args"] = {"check_same_thread": False}
+    elif make_url(resolved_url).get_backend_name() == "postgresql":
+        # Admission and idempotent inserts read committed winners in later statements.
+        engine_kwargs["isolation_level"] = "READ COMMITTED"
 
     engine = create_engine(resolved_url, **engine_kwargs)
     _ENGINE_CACHE[resolved_url] = engine
@@ -95,3 +100,11 @@ def session_scope(database_url: str | None = None) -> Iterator[Session]:
         raise
     finally:
         session.close()
+
+
+def database_now(session: Session) -> datetime:
+    """Read wall time from the lease authority, including after lock waits."""
+    if session.get_bind().dialect.name == "sqlite":
+        value = session.execute(select(func.strftime("%Y-%m-%dT%H:%M:%f", "now"))).scalar_one()
+        return datetime.fromisoformat(value).replace(tzinfo=UTC)
+    return session.execute(select(func.clock_timestamp())).scalar_one().astimezone(UTC)

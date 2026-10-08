@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from datetime import datetime
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 from typing import Any
 
 from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.database.records.search_runs import (
     SearchRunOperationRecordModel,
@@ -16,7 +20,9 @@ from app.database.records.search_runs import (
     SearchRunRecordModel,
     SearchRunStageRecordModel,
 )
-from app.database.session import session_scope
+from app.database.session import database_now
+from app.storage.transaction import persistence_session
+from app.models.ai import AiPlannerIdentity
 from app.models.search_run import (
     SearchRun,
     SearchRunOperation,
@@ -24,257 +30,398 @@ from app.models.search_run import (
     SearchRankingCandidateReport,
     SearchRunRankingLabel,
     SearchRunStage,
+    SearchRunStatus,
+    SearchStageReport,
 )
 
 
-def create_search_run(run: SearchRun, *, database_url: str) -> None:
-    """Persist a newly created logical Explore search run."""
+def write_search_run(session: Session, run: SearchRun) -> None:
+    """Insert a logical run within the persistence caller's transaction."""
 
-    with session_scope(database_url) as session:
-        session.add(
-            SearchRunRecordModel(
-                run_id=run.run_id,
-                owner_user_id=run.owner_user_id,
-                topic_description=run.topic_description,
-                topic_hash=run.topic_hash,
-                status=run.status,
-                planner_mode=run.planner_mode,
-                planner_model=run.planner_model,
-                planner_reasoning_effort=run.planner_reasoning_effort,
-                ranking_policy_version=run.ranking_policy_version,
-                backend_revision=run.backend_revision,
-                created_at=run.created_at,
-                started_at=run.started_at,
-                completed_at=run.completed_at,
-                partial=run.partial,
-                error_code=run.error_code,
-                error_message=run.error_message,
-                response_payload_json=run.response_payload,
-                execution_state_json=run.execution_state,
-            )
+    session.add(
+        SearchRunRecordModel(
+            run_id=run.run_id,
+            owner_user_id=run.owner_user_id,
+            guest_access_token_hash=run.guest_access_token_hash,
+            topic_description=run.topic_description,
+            topic_hash=run.topic_hash,
+            status=run.status,
+            planner_mode=run.planner_mode,
+            planner_model=run.planner_model,
+            planner_reasoning_effort=run.planner_reasoning_effort,
+            ranking_policy_version=run.ranking_policy_version,
+            backend_revision=run.backend_revision,
+            created_at=run.created_at,
+            started_at=run.started_at,
+            completed_at=run.completed_at,
+            partial=run.partial,
+            error_code=run.error_code,
+            error_message=run.error_message,
+            response_payload_json=run.response_payload,
+            execution_state_json=run.execution_state,
         )
+    )
 
 
-def create_search_run_operation(
-    operation: SearchRunOperation,
-    *,
-    database_url: str,
-) -> None:
-    """Persist one initial-search or expansion operation."""
+def write_search_run_operation(session: Session, operation: SearchRunOperation) -> None:
+    """Insert an operation within the persistence caller's transaction."""
 
-    with session_scope(database_url) as session:
-        session.add(
-            SearchRunOperationRecordModel(
-                operation_id=operation.operation_id,
-                run_id=operation.run_id,
-                kind=operation.kind,
-                status=operation.status,
-                queued_at=operation.queued_at,
-                started_at=operation.started_at,
-                completed_at=operation.completed_at,
-                lease_holder_id=operation.lease_holder_id,
-                lease_expires_at=operation.lease_expires_at,
-                error_code=operation.error_code,
-                error_message=operation.error_message,
-            )
+    session.add(
+        SearchRunOperationRecordModel(
+            operation_id=operation.operation_id,
+            run_id=operation.run_id,
+            kind=operation.kind,
+            status=operation.status,
+            queued_at=operation.queued_at,
+            started_at=operation.started_at,
+            completed_at=operation.completed_at,
+            lease_holder_id=operation.lease_holder_id,
+            lease_token=operation.lease_token,
+            lease_expires_at=operation.lease_expires_at,
+            error_code=operation.error_code,
+            error_message=operation.error_message,
         )
+    )
+
+
+class SearchRunLeaseLostError(RuntimeError):
+    """The execution no longer has authority to change its durable run."""
+
+
+def _utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 def claim_next_search_run_operation(
     *,
     holder_id: str,
-    now: datetime,
-    lease_expires_at: datetime,
+    lease_seconds: int,
     database_url: str,
 ) -> SearchRunOperation | None:
-    """Atomically lease the oldest queued or abandoned search operation."""
-
-    claimable = or_(
-        SearchRunOperationRecordModel.status == "queued",
-        and_(
-            SearchRunOperationRecordModel.status == "running",
-            or_(
-                SearchRunOperationRecordModel.lease_expires_at.is_(None),
-                SearchRunOperationRecordModel.lease_expires_at < now,
+    """Atomically lease work; every claim receives a new fencing credential."""
+    if lease_seconds <= 0:
+        raise ValueError("Lease duration must be positive.")
+    with persistence_session(database_url) as session:
+        now = database_now(session)
+        claimable = or_(
+            SearchRunOperationRecordModel.status == "queued",
+            and_(
+                SearchRunOperationRecordModel.status == "running",
+                or_(
+                    SearchRunOperationRecordModel.lease_expires_at.is_(None),
+                    SearchRunOperationRecordModel.lease_expires_at <= now,
+                ),
             ),
-        ),
-    )
-    with session_scope(database_url) as session:
+        )
         operation_id = session.scalar(
             select(SearchRunOperationRecordModel.operation_id)
             .where(claimable)
-            .order_by(SearchRunOperationRecordModel.queued_at)
+            .order_by(
+                SearchRunOperationRecordModel.queued_at,
+                SearchRunOperationRecordModel.operation_id,
+            )
+            .with_for_update(skip_locked=True)
             .limit(1)
         )
         if operation_id is None:
             return None
         claimed = session.execute(
             update(SearchRunOperationRecordModel)
-            .where(
-                SearchRunOperationRecordModel.operation_id == operation_id,
-                claimable,
-            )
-            .values(
-                status="running",
-                started_at=func.coalesce(SearchRunOperationRecordModel.started_at, now),
-                lease_holder_id=holder_id,
-                lease_expires_at=lease_expires_at,
-            )
+            .where(SearchRunOperationRecordModel.operation_id == operation_id, claimable)
+            .values(status="running", lease_holder_id=holder_id, lease_token=uuid4().hex)
         )
         if claimed.rowcount != 1:
             return None
+        # The update acquired the write lock. Do not spend the lease waiting for it.
+        now = database_now(session)
         record = session.get(SearchRunOperationRecordModel, operation_id)
-        return _to_search_run_operation(record) if record is not None else None
+        record.started_at = record.started_at or now
+        record.lease_expires_at = now + timedelta(seconds=lease_seconds)
+        return _to_search_run_operation(record)
+
+
+def _ownership_conditions(operation: SearchRunOperation) -> tuple[ColumnElement[bool], ...]:
+    if not operation.lease_holder_id or not operation.lease_token:
+        raise SearchRunLeaseLostError("Operation has no claim credential.")
+    return (
+        SearchRunOperationRecordModel.operation_id == operation.operation_id,
+        SearchRunOperationRecordModel.run_id == operation.run_id,
+        SearchRunOperationRecordModel.lease_holder_id == operation.lease_holder_id,
+        SearchRunOperationRecordModel.lease_token == operation.lease_token,
+    )
+
+
+@contextmanager
+def _owned_operation_session(
+    operation: SearchRunOperation,
+    *,
+    database_url: str,
+) -> Iterator[Session]:
+    """Lock ownership before writes; reject expiry again after flushing them."""
+    with persistence_session(database_url) as session:
+        locked = session.execute(
+            update(SearchRunOperationRecordModel)
+            .where(
+                *_ownership_conditions(operation),
+                SearchRunOperationRecordModel.status == "running",
+            )
+            .values(lease_token=SearchRunOperationRecordModel.lease_token)
+        )
+        if locked.rowcount != 1:
+            raise SearchRunLeaseLostError("Operation claim was replaced or finished.")
+        record = session.get(SearchRunOperationRecordModel, operation.operation_id)
+        _require_unexpired(record, database_now(session))
+        yield session
+        session.flush()
+        _require_unexpired(record, database_now(session))
+
+
+def _require_unexpired(record: SearchRunOperationRecordModel, now: datetime) -> None:
+    if record.lease_expires_at is None or _utc(record.lease_expires_at) <= now:
+        raise SearchRunLeaseLostError("Operation lease expired.")
 
 
 def renew_search_run_operation_lease(
-    operation_id: str,
+    operation: SearchRunOperation,
     *,
-    holder_id: str,
-    lease_expires_at: datetime,
+    lease_seconds: int,
     database_url: str,
 ) -> bool:
-    """Extend a lease only while it remains owned by this worker."""
-
-    with session_scope(database_url) as session:
-        renewed = session.execute(
-            update(SearchRunOperationRecordModel)
-            .where(
-                SearchRunOperationRecordModel.operation_id == operation_id,
-                SearchRunOperationRecordModel.status == "running",
-                SearchRunOperationRecordModel.lease_holder_id == holder_id,
-            )
-            .values(lease_expires_at=lease_expires_at)
-        )
-        return renewed.rowcount == 1
+    """Renew a live claim; an expired owner cannot resurrect its lease."""
+    if lease_seconds <= 0:
+        raise ValueError("Lease duration must be positive.")
+    try:
+        with _owned_operation_session(operation, database_url=database_url) as session:
+            record = session.get(SearchRunOperationRecordModel, operation.operation_id)
+            now = database_now(session)
+            _require_unexpired(record, now)
+            record.lease_expires_at = now + timedelta(seconds=lease_seconds)
+    except SearchRunLeaseLostError:
+        return False
+    return True
 
 
 def release_search_run_operation_lease(
-    operation_id: str,
+    operation: SearchRunOperation,
     *,
-    holder_id: str,
     database_url: str,
 ) -> None:
-    """Remove a finished worker's lease without touching another worker's claim."""
-
-    with session_scope(database_url) as session:
+    """Release this exact claim, including after completion or lease expiry."""
+    with persistence_session(database_url) as session:
         session.execute(
-            update(SearchRunOperationRecordModel)
-            .where(
-                SearchRunOperationRecordModel.operation_id == operation_id,
-                SearchRunOperationRecordModel.lease_holder_id == holder_id,
-            )
-            .values(lease_holder_id=None, lease_expires_at=None)
+            update(SearchRunOperationRecordModel).where(*_ownership_conditions(operation))
+            .values(lease_holder_id=None, lease_token=None, lease_expires_at=None)
         )
 
 
-def record_search_run_stage(stage: SearchRunStage, *, database_url: str) -> None:
+def start_search_run_operation(
+    operation: SearchRunOperation,
+    *,
+    planner_identity: AiPlannerIdentity | None = None,
+    database_url: str,
+) -> SearchRun:
+    """Read the committed replay baseline and publish running state while owned."""
+    with _owned_operation_session(operation, database_url=database_url) as session:
+        record = session.get(SearchRunRecordModel, operation.run_id, with_for_update=True)
+        if record is None:
+            raise ValueError("Claimed operation refers to a missing run.")
+        if record.status in {"queued", "running"}:
+            record.status = "running"
+            record.started_at = record.started_at or database_now(session)
+            if planner_identity is not None:
+                record.planner_mode = planner_identity.mode
+                record.planner_model = planner_identity.model
+                record.planner_reasoning_effort = planner_identity.reasoning_effort
+        return map_search_run_record(record)
+
+
+def finish_search_run_operation(
+    operation: SearchRunOperation,
+    *,
+    status: SearchRunStatus,
+    response_payload: dict[str, Any] | None = None,
+    execution_state: dict[str, Any] | None = None,
+    stage_report: SearchStageReport | None = None,
+    stage_started_at: datetime | None = None,
+    error_code: str | None = None,
+    error_message: str | None = None,
+    database_url: str,
+) -> None:
+    """Commit the result, replay baseline, report and terminal lifecycle together."""
+    if status not in {"completed", "completed_partial", "failed", "interrupted"}:
+        raise ValueError("Operation completion requires a terminal status.")
+    with _owned_operation_session(operation, database_url=database_url) as session:
+        run = session.get(SearchRunRecordModel, operation.run_id, with_for_update=True)
+        record = session.get(SearchRunOperationRecordModel, operation.operation_id)
+        now = database_now(session)
+        run.status = record.status = status
+        run.error_code = record.error_code = error_code
+        run.error_message = record.error_message = error_message
+        run.completed_at = record.completed_at = now
+        run.partial = status == "completed_partial"
+        if response_payload is not None:
+            run.response_payload_json = response_payload
+        if execution_state is not None:
+            run.execution_state_json = execution_state
+        if stage_report is not None:
+            stage_number = session.scalar(
+                select(SearchRunStageRecordModel.stage_number).where(
+                    SearchRunStageRecordModel.operation_id == operation.operation_id,
+                )
+            )
+            if stage_number is None:
+                last_stage_number = session.scalar(
+                    select(func.max(SearchRunStageRecordModel.stage_number)).where(
+                        SearchRunStageRecordModel.run_id == operation.run_id,
+                    )
+                )
+                stage_number = (last_stage_number or 0) + 1
+            write_search_run_stage(
+                session,
+                SearchRunStage(
+                    run_id=operation.run_id,
+                    operation_id=operation.operation_id,
+                    stage_number=stage_number,
+                    status="completed",
+                    executed_query_ids=stage_report.executed_queries,
+                    retrieved_candidate_count=stage_report.retrieved_candidate_count,
+                    admitted_candidate_count=stage_report.admitted_candidate_count,
+                    visible_candidate_count=stage_report.visible_candidate_count,
+                    timings=stage_report.timings,
+                    started_at=stage_started_at or record.started_at,
+                    completed_at=now,
+                ),
+            )
+            write_search_run_provider_outcomes(
+                session,
+                tuple(
+                    SearchRunProviderOutcome(
+                        outcome_id=uuid4().hex,
+                        run_id=operation.run_id,
+                        operation_id=operation.operation_id,
+                        stage_number=stage_number,
+                        source=item.source,
+                        channel=item.channel,
+                        query_id=item.query,
+                        attempt=item.attempt,
+                        status=item.status,
+                        candidate_count=item.candidate_count,
+                        duration_ms=item.duration_ms,
+                        retry_after_seconds=item.retry_after_seconds,
+                        error_code=item.error_code,
+                        error_message=item.error_message,
+                    )
+                    for item in stage_report.provider_outcomes
+                ),
+            )
+            write_search_run_ranking_candidates(
+                session, operation.run_id, stage_number, stage_report.ranking_candidates,
+            )
+
+
+
+def write_search_run_stage(session: Session, stage: SearchRunStage) -> None:
     """Persist one stage report for a durable Explore search run."""
 
-    with session_scope(database_url) as session:
-        record = session.get(SearchRunStageRecordModel, (stage.run_id, stage.stage_number))
-        if record is None:
-            record = SearchRunStageRecordModel(
-                run_id=stage.run_id,
-                stage_number=stage.stage_number,
-                operation_id=stage.operation_id,
-                status=stage.status,
-                executed_query_ids_json=list(stage.executed_query_ids),
-                retrieved_candidate_count=stage.retrieved_candidate_count,
-                admitted_candidate_count=stage.admitted_candidate_count,
-                visible_candidate_count=stage.visible_candidate_count,
-                timings_json=dict(stage.timings),
-                started_at=stage.started_at,
-                completed_at=stage.completed_at,
-            )
-            session.add(record)
-            return
-        record.operation_id = stage.operation_id
-        record.status = stage.status
-        record.executed_query_ids_json = list(stage.executed_query_ids)
-        record.retrieved_candidate_count = stage.retrieved_candidate_count
-        record.admitted_candidate_count = stage.admitted_candidate_count
-        record.visible_candidate_count = stage.visible_candidate_count
-        record.timings_json = dict(stage.timings)
-        record.started_at = stage.started_at
-        record.completed_at = stage.completed_at
+    record = session.get(SearchRunStageRecordModel, (stage.run_id, stage.stage_number))
+    if record is None:
+        record = SearchRunStageRecordModel(
+            run_id=stage.run_id,
+            stage_number=stage.stage_number,
+            operation_id=stage.operation_id,
+            status=stage.status,
+            executed_query_ids_json=list(stage.executed_query_ids),
+            retrieved_candidate_count=stage.retrieved_candidate_count,
+            admitted_candidate_count=stage.admitted_candidate_count,
+            visible_candidate_count=stage.visible_candidate_count,
+            timings_json=dict(stage.timings),
+            started_at=stage.started_at,
+            completed_at=stage.completed_at,
+        )
+        session.add(record)
+        return
+    record.operation_id = stage.operation_id
+    record.status = stage.status
+    record.executed_query_ids_json = list(stage.executed_query_ids)
+    record.retrieved_candidate_count = stage.retrieved_candidate_count
+    record.admitted_candidate_count = stage.admitted_candidate_count
+    record.visible_candidate_count = stage.visible_candidate_count
+    record.timings_json = dict(stage.timings)
+    record.started_at = stage.started_at
+    record.completed_at = stage.completed_at
 
 
-def record_search_run_provider_outcomes(
+def write_search_run_provider_outcomes(
+    session: Session,
     outcomes: Sequence[SearchRunProviderOutcome],
-    *,
-    database_url: str,
 ) -> None:
     """Persist provider/channel facts observed during one search stage."""
 
     if not outcomes:
         return
 
-    with session_scope(database_url) as session:
-        stage_keys = {(outcome.run_id, outcome.stage_number) for outcome in outcomes}
-        for run_id, stage_number in stage_keys:
-            session.execute(
-                delete(SearchRunProviderOutcomeRecordModel).where(
-                    SearchRunProviderOutcomeRecordModel.run_id == run_id,
-                    SearchRunProviderOutcomeRecordModel.stage_number == stage_number,
-                )
+    stage_keys = {(outcome.run_id, outcome.stage_number) for outcome in outcomes}
+    for run_id, stage_number in stage_keys:
+        session.execute(
+            delete(SearchRunProviderOutcomeRecordModel).where(
+                SearchRunProviderOutcomeRecordModel.run_id == run_id,
+                SearchRunProviderOutcomeRecordModel.stage_number == stage_number,
             )
-        session.add_all(
-            SearchRunProviderOutcomeRecordModel(
-                outcome_id=outcome.outcome_id,
-                run_id=outcome.run_id,
-                operation_id=outcome.operation_id,
-                stage_number=outcome.stage_number,
-                source=outcome.source,
-                channel=outcome.channel,
-                query_id=outcome.query_id,
-                attempt=outcome.attempt,
-                status=outcome.status,
-                candidate_count=outcome.candidate_count,
-                duration_ms=outcome.duration_ms,
-                retry_after_seconds=outcome.retry_after_seconds,
-                error_code=outcome.error_code,
-                error_message=outcome.error_message,
-                details_json=outcome.details,
-            )
-            for outcome in outcomes
         )
+    session.add_all(
+        SearchRunProviderOutcomeRecordModel(
+            outcome_id=outcome.outcome_id,
+            run_id=outcome.run_id,
+            operation_id=outcome.operation_id,
+            stage_number=outcome.stage_number,
+            source=outcome.source,
+            channel=outcome.channel,
+            query_id=outcome.query_id,
+            attempt=outcome.attempt,
+            status=outcome.status,
+            candidate_count=outcome.candidate_count,
+            duration_ms=outcome.duration_ms,
+            retry_after_seconds=outcome.retry_after_seconds,
+            error_code=outcome.error_code,
+            error_message=outcome.error_message,
+            details_json=outcome.details,
+        )
+        for outcome in outcomes
+    )
 
 
-def record_search_run_ranking_candidates(
+def write_search_run_ranking_candidates(
+    session: Session,
     run_id: str,
     stage_number: int,
     candidates: Sequence[SearchRankingCandidateReport],
-    *,
-    database_url: str,
 ) -> None:
     """Persist immutable candidate-level inputs for offline reranking."""
 
     if not candidates:
         return
-    with session_scope(database_url) as session:
-        session.execute(
-            delete(SearchRunRankingCandidateRecordModel).where(
-                SearchRunRankingCandidateRecordModel.run_id == run_id,
-                SearchRunRankingCandidateRecordModel.stage_number == stage_number,
-            )
+    session.execute(
+        delete(SearchRunRankingCandidateRecordModel).where(
+            SearchRunRankingCandidateRecordModel.run_id == run_id,
+            SearchRunRankingCandidateRecordModel.stage_number == stage_number,
         )
-        session.add_all(
-            SearchRunRankingCandidateRecordModel(
-                run_id=run_id,
-                stage_number=stage_number,
-                repository_id=candidate.repository_id,
-                repository_source=candidate.repository_source,
-                rank_position=candidate.rank_position,
-                final_score=candidate.final_score,
-                candidate_facts_json=candidate.candidate_facts,
-                retrieval_facts_json=candidate.retrieval_facts,
-                admission_facts_json=candidate.admission_facts,
-                ranking_features_json=candidate.ranking_features,
-                score_breakdown_json=candidate.score_breakdown,
-            )
-            for candidate in candidates
+    )
+    session.add_all(
+        SearchRunRankingCandidateRecordModel(
+            run_id=run_id,
+            stage_number=stage_number,
+            repository_id=candidate.repository_id,
+            repository_source=candidate.repository_source,
+            rank_position=candidate.rank_position,
+            final_score=candidate.final_score,
+            candidate_facts_json=candidate.candidate_facts,
+            retrieval_facts_json=candidate.retrieval_facts,
+            admission_facts_json=candidate.admission_facts,
+            ranking_features_json=candidate.ranking_features,
+            score_breakdown_json=candidate.score_breakdown,
         )
+        for candidate in candidates
+    )
 
 
 def list_search_run_ranking_repository_ids(
@@ -285,7 +432,7 @@ def list_search_run_ranking_repository_ids(
 ) -> set[str]:
     """Return candidate identities available for one immutable snapshot."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         return set(
             session.scalars(
                 select(SearchRunRankingCandidateRecordModel.repository_id).where(
@@ -303,7 +450,7 @@ def upsert_search_run_ranking_labels(
 ) -> None:
     """Store human labels without changing the referenced snapshot facts."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         for label in labels:
             record = session.get(
                 SearchRunRankingLabelRecordModel,
@@ -330,7 +477,7 @@ def upsert_search_run_ranking_labels(
 def count_search_run_stages(run_id: str, *, database_url: str) -> int:
     """Return the number of completed run stages persisted so far."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         return int(
             session.scalar(
                 select(func.count())
@@ -344,7 +491,7 @@ def count_search_run_stages(run_id: str, *, database_url: str) -> int:
 def count_search_run_provider_outcomes(run_id: str, *, database_url: str) -> int:
     """Return the number of durable provider outcomes for one run."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         return int(
             session.scalar(
                 select(func.count())
@@ -358,7 +505,7 @@ def count_search_run_provider_outcomes(run_id: str, *, database_url: str) -> int
 def count_search_run_ranking_candidates(run_id: str, *, database_url: str) -> int:
     """Return the number of immutable ranking candidates for one run."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         return int(
             session.scalar(
                 select(func.count())
@@ -377,7 +524,7 @@ def get_search_run_stage(
 ) -> SearchRunStage | None:
     """Return one durable stage report for internal diagnostics."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         record = session.get(SearchRunStageRecordModel, (run_id, stage_number))
         if record is None:
             return None
@@ -399,7 +546,7 @@ def get_search_run_stage(
 def get_search_run_report(run_id: str, *, database_url: str) -> dict[str, object] | None:
     """Read the complete private report for one durable search run."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         run = session.get(SearchRunRecordModel, run_id)
         if run is None:
             return None
@@ -511,88 +658,37 @@ def get_search_run_report(run_id: str, *, database_url: str) -> dict[str, object
 def get_search_run(run_id: str, *, database_url: str) -> SearchRun | None:
     """Return the durable top-level record for one Explore search run."""
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         record = session.get(SearchRunRecordModel, run_id)
         if record is None:
             return None
-        return SearchRun(
-            run_id=record.run_id,
-            owner_user_id=record.owner_user_id,
-            topic_description=record.topic_description,
-            topic_hash=record.topic_hash,
-            status=record.status,  # type: ignore[arg-type]
-            planner_mode=record.planner_mode,
-            planner_model=record.planner_model,
-            planner_reasoning_effort=record.planner_reasoning_effort,
-            ranking_policy_version=record.ranking_policy_version,
-            backend_revision=record.backend_revision,
-            created_at=record.created_at,
-            started_at=record.started_at,
-            completed_at=record.completed_at,
-            partial=record.partial,
-            error_code=record.error_code,
-            error_message=record.error_message,
-            response_payload=record.response_payload_json,
-            execution_state=record.execution_state_json,
-        )
+        return map_search_run_record(record)
 
 
-def update_search_run(
-    run_id: str,
-    *,
-    status: str,
-    partial: bool = False,
-    error_code: str | None = None,
-    error_message: str | None = None,
-    response_payload: dict[str, Any] | None = None,
-    execution_state: dict[str, Any] | None = None,
-    started_at: datetime | None = None,
-    completed_at: datetime | None = None,
-    database_url: str,
-) -> None:
-    """Update the durable state of one Explore search run."""
+def map_search_run_record(record: SearchRunRecordModel) -> SearchRun:
+    """Map a persistence record for standalone and transactional run reads."""
 
-    with session_scope(database_url) as session:
-        record = session.get(SearchRunRecordModel, run_id)
-        if record is None:
-            return
-        record.status = status
-        record.partial = partial
-        record.error_code = error_code
-        record.error_message = error_message
-        if response_payload is not None:
-            record.response_payload_json = response_payload
-        if execution_state is not None:
-            record.execution_state_json = execution_state
-        if started_at is not None:
-            record.started_at = started_at
-        if completed_at is not None:
-            record.completed_at = completed_at
-
-
-def update_search_run_operation(
-    operation_id: str,
-    *,
-    status: str,
-    error_code: str | None = None,
-    error_message: str | None = None,
-    started_at: datetime | None = None,
-    completed_at: datetime | None = None,
-    database_url: str,
-) -> None:
-    """Update the durable lifecycle state of one background operation."""
-
-    with session_scope(database_url) as session:
-        record = session.get(SearchRunOperationRecordModel, operation_id)
-        if record is None:
-            return
-        record.status = status
-        record.error_code = error_code
-        record.error_message = error_message
-        if started_at is not None:
-            record.started_at = started_at
-        if completed_at is not None:
-            record.completed_at = completed_at
+    return SearchRun(
+        run_id=record.run_id,
+        owner_user_id=record.owner_user_id,
+        guest_access_token_hash=record.guest_access_token_hash,
+        topic_description=record.topic_description,
+        topic_hash=record.topic_hash,
+        status=record.status,  # type: ignore[arg-type]
+        planner_mode=record.planner_mode,
+        planner_model=record.planner_model,
+        planner_reasoning_effort=record.planner_reasoning_effort,
+        ranking_policy_version=record.ranking_policy_version,
+        backend_revision=record.backend_revision,
+        created_at=record.created_at,
+        started_at=record.started_at,
+        completed_at=record.completed_at,
+        partial=record.partial,
+        error_code=record.error_code,
+        error_message=record.error_message,
+        response_payload=record.response_payload_json,
+        execution_state=record.execution_state_json,
+    )
 
 
 def _to_search_run_operation(
@@ -607,6 +703,7 @@ def _to_search_run_operation(
         started_at=record.started_at,
         completed_at=record.completed_at,
         lease_holder_id=record.lease_holder_id,
+        lease_token=record.lease_token,
         lease_expires_at=record.lease_expires_at,
         error_code=record.error_code,
         error_message=record.error_message,

@@ -18,6 +18,7 @@ import {
   signOut,
 } from "../lib/api";
 import { frontendConfig } from "../lib/config";
+import { pollExploreSearchRun, searchRunPresentation } from "../lib/searchRuns";
 import { AppShell } from "../components/AppShell";
 import { AboutPage } from "../pages/AboutPage";
 import { AccountPage } from "../pages/AccountPage";
@@ -89,6 +90,7 @@ export function App() {
   );
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const [exploreGuestAccessToken, setExploreGuestAccessToken] = useState<string | null>(null);
   const [activeExploreJobId, setActiveExploreJobId] = useState<string | null>(null);
   const [lastCompletedExploreJobId, setLastCompletedExploreJobId] = useState<string | null>(null);
   const [activeExploreJobStatus, setActiveExploreJobStatus] =
@@ -210,18 +212,13 @@ export function App() {
       return;
     }
 
-    let cancelled = false;
-    let timeoutId: number | null = null;
-
-    const syncJob = async () => {
-      try {
-        const snapshot = await fetchExploreSearchRun(activeExploreJobId);
-        if (cancelled) {
-          return;
-        }
+    return pollExploreSearchRun({
+      fetchSnapshot: () => fetchExploreSearchRun(activeExploreJobId, exploreGuestAccessToken),
+      onSnapshot: (snapshot) => {
         setActiveExploreJobStatus(snapshot.status);
+        const presentation = searchRunPresentation[snapshot.status];
 
-        if (snapshot.status === "completed" || snapshot.status === "completed_partial") {
+        if (presentation.state === "completed") {
           applyExploreSearchRunSnapshot(snapshot);
           setLastCompletedExploreJobId(snapshot.runId);
           setLastCompletedExploreRunVersion(snapshot.updatedAt);
@@ -248,51 +245,42 @@ export function App() {
           return;
         }
 
-        if (snapshot.status === "failed") {
+        if (presentation.state === "error") {
           setLastCompletedExploreJobId(snapshot.runId);
           setLastCompletedExploreRunVersion(snapshot.updatedAt);
           setSearchPending(false);
+          setIsExpandingSearch(false);
+          setCanExpandSearch(false);
           setActiveExploreJobId(null);
           setActiveExploreJobStatus(null);
           setExploreSearchFeedback({
-            message: snapshot.error ?? "Failed to run search.",
+            message: snapshot.error ?? presentation.fallbackMessage,
             retryUntilEpochMs: null,
             signInSuggested: false,
             turnstileRequired: false,
           });
           return;
         }
-
-        timeoutId = window.setTimeout(() => {
-          void syncJob();
-        }, 1000);
-      } catch (error) {
-        if (cancelled) {
-          return;
+      },
+      onError: (error) => {
+        if (error instanceof ApiError && error.status === 404) {
+          clearUnavailableExploreRun();
         }
-
         setSearchPending(false);
         setIsExpandingSearch(false);
         setActiveExploreJobId(null);
         setActiveExploreJobStatus(null);
         setExploreSearchFeedback({
-          message: error instanceof Error ? error.message : "Failed to refresh search status.",
+          message: error instanceof ApiError && error.status === 404
+            ? "This search is no longer available. Start a new search."
+            : error instanceof Error ? error.message : "Failed to refresh search status.",
           retryUntilEpochMs: null,
           signInSuggested: false,
           turnstileRequired: false,
         });
-      }
-    };
-
-    void syncJob();
-
-    return () => {
-      cancelled = true;
-      if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
-      }
-    };
-  }, [activeExploreJobId, isExpandingSearch]);
+      },
+    });
+  }, [activeExploreJobId, exploreGuestAccessToken, isExpandingSearch]);
 
   async function handleSignIn() {
     setSigningIn(true);
@@ -332,6 +320,8 @@ export function App() {
     setCanExpandSearch(false);
     setErrorMessage(null);
     setResults([]);
+    setActiveExploreJobId(null);
+    setExploreGuestAccessToken(null);
     setLastCompletedExploreJobId(null);
     setLastCompletedExploreRunVersion(null);
     setLastAiSearchPlan(null);
@@ -341,6 +331,7 @@ export function App() {
         topicDescription: topicInput.trim(),
         turnstileToken,
       });
+      setExploreGuestAccessToken(job.guestAccessToken ?? null);
       setActiveExploreJobId(job.runId);
       setActiveExploreJobStatus(job.status);
       setTurnstileToken(null);
@@ -386,19 +377,40 @@ export function App() {
     setLastCompletedExploreRunVersion(null);
     setExploreSearchFeedback(null);
     try {
-      const job = await expandExploreSearchRun(lastCompletedExploreJobId);
+      const job = await expandExploreSearchRun(lastCompletedExploreJobId, exploreGuestAccessToken, turnstileToken);
+      setTurnstileToken(null);
+      setTurnstileResetKey((current) => current + 1);
       setActiveExploreJobId(job.runId);
       setActiveExploreJobStatus(job.status);
     } catch (error) {
       setSearchPending(false);
       setIsExpandingSearch(false);
+      if (error instanceof ApiError && error.status === 404) {
+        clearUnavailableExploreRun();
+      }
+      if (turnstileToken || (error instanceof ApiError && error.turnstileRequired)) {
+        setTurnstileToken(null);
+        setTurnstileResetKey((current) => current + 1);
+      }
       setExploreSearchFeedback({
-        message: error instanceof Error ? error.message : "Could not expand search.",
-        retryUntilEpochMs: null,
-        signInSuggested: false,
-        turnstileRequired: false,
+        message: error instanceof ApiError && error.status === 404
+          ? "This search is no longer available. Start a new search."
+          : error instanceof Error ? error.message : "Could not expand search.",
+        retryUntilEpochMs: error instanceof ApiError && error.retryAfterSeconds !== null
+          ? Date.now() + error.retryAfterSeconds * 1000 : null,
+        signInSuggested: error instanceof ApiError && error.signInSuggested,
+        turnstileRequired: error instanceof ApiError && error.turnstileRequired,
       });
     }
+  }
+
+  function clearUnavailableExploreRun() {
+    setCanExpandSearch(false);
+    setActiveExploreJobId(null);
+    setActiveExploreJobStatus(null);
+    setLastCompletedExploreJobId(null);
+    setLastCompletedExploreRunVersion(null);
+    setExploreGuestAccessToken(null);
   }
 
   function applyExploreSearchRunSnapshot(snapshot: ExploreSearchRunPayload) {
@@ -422,9 +434,6 @@ export function App() {
       const subscription = await createSubscription({
         repository: {
           itemId: result.itemId,
-          source: result.source,
-          fullName: result.fullName,
-          url: result.url,
         },
         selectedQuery: result.query,
       });
@@ -768,13 +777,11 @@ function isSearchDiagnosticsRequested(search: string): boolean {
 function mapExploreJobStatusToStage(
   status: ExploreSearchRunStatus | null,
 ): string | null {
-  if (status === "queued" || status === "planning") {
-    return "Understanding your topic";
+  if (status === null) {
+    return null;
   }
-  if (status === "retrieving") {
-    return "Searching repositories";
-  }
-  return null;
+  const presentation = searchRunPresentation[status];
+  return presentation.state === "pending" ? presentation.stageLabel : null;
 }
 
 function readAuthErrorFromUrl(): string | null {

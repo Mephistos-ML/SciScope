@@ -3,33 +3,28 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
 import logging
-from uuid import uuid4
 
-from app.config import DATABASE_URL
-from app.models.monitoring import MonitoringRun, RepositoryMonitoringCheck
+from app.models.monitoring import (
+    MonitoringRun, RepositoryMonitoringCheck, REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY,
+    REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY, REPOSITORY_RELEASE_CHECKPOINT_KEY,
+    MonitoringLease, MonitoringLeaseLostError,
+)
 from app.models.repository import Repository
 from app.models.signal import Signal
 from app.services.feed.service import build_feed_event
-from app.sources.common.factories import (
-    REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
-    REPOSITORY_RELEASE_CHECKPOINT_KEY,
-)
-from app.sources.common.source_status import RepositorySourceError
-from app.sources.registry import get_repository_monitor
-from app.storage.feed.events import upsert_feed_events
+from app.integrations.repositories.common.source_status import RepositorySourceError
+from app.services.monitoring.capabilities import RepositoryMonitor
 from app.storage.monitoring.state import (
-    acquire_monitoring_job_lease,
     create_monitoring_run,
     finish_monitoring_run,
     get_repository_monitoring_cursors,
+    persist_repository_monitoring_result,
     record_repository_monitoring_check,
-    release_monitoring_job_lease,
-    upsert_repository_monitoring_cursors,
 )
-from app.storage.repositories.repositories import upsert_repositories
 from app.storage.subscriptions.watches import (
     SubscriptionWatchRecord,
     list_all_subscription_watches,
@@ -40,37 +35,50 @@ JOB_NAME = "repository-monitoring-scan"
 logger = logging.getLogger(__name__)
 
 
-def run_repository_monitoring_scan(*, database_url: str = DATABASE_URL) -> None:
+def scan_repository_subscriptions(
+    *,
+    resolve_monitor: Callable[[str], RepositoryMonitor | None],
+    lease: MonitoringLease, ensure_lease: Callable[[], None],
+    database_url: str,
+) -> None:
     """Scan every uniquely watched repository and fan out new events."""
 
-    run_id = str(uuid4())
-    if not acquire_monitoring_job_lease(JOB_NAME, run_id, database_url=database_url):
-        return
-
-    started_at = datetime.now(UTC)
-    create_monitoring_run(
-        MonitoringRun(run_id, started_at, None, "running", 0, 0, None),
-        database_url=database_url,
-    )
+    run_id = lease.holder_id
     failed_count = 0
     scanned_count = 0
+    started = False
     try:
+        ensure_lease()
+        create_monitoring_run(
+            MonitoringRun(run_id, datetime.now(UTC), None, "running", 0, 0, None),
+            lease=lease, database_url=database_url,
+        )
+        started = True
         subscriptions_by_repository = defaultdict(list)
         for subscription in list_all_subscription_watches(database_url=database_url):
             subscriptions_by_repository[subscription.repository.repository_id].append(subscription)
 
         for subscriptions in subscriptions_by_repository.values():
+            ensure_lease()
             repository = subscriptions[0].repository
             scanned_count += 1
             try:
-                _scan_repository(repository, subscriptions, database_url=database_url)
+                complete = _scan_repository(
+                    repository, subscriptions, resolve_monitor=resolve_monitor,
+                    database_url=database_url, lease=lease, ensure_lease=ensure_lease,
+                )
+                if not complete:
+                    failed_count += 1
+                    logger.warning("Repository monitoring read an incomplete interval for %s", repository.repository_id)
                 check = RepositoryMonitoringCheck(
                     repository.repository_id,
                     datetime.now(UTC),
-                    "succeeded",
-                    None,
-                    None,
+                    "succeeded" if complete else "partial",
+                    None if complete else "incomplete_interval",
+                    None if complete else "Activity reading is incomplete; monitoring will retry.",
                 )
+            except MonitoringLeaseLostError:
+                raise
             except RepositorySourceError as error:
                 failed_count += 1
                 logger.warning(
@@ -100,34 +108,34 @@ def run_repository_monitoring_scan(*, database_url: str = DATABASE_URL) -> None:
                     "unexpected",
                     "Monitoring will retry automatically.",
                 )
-            record_repository_monitoring_check(check, run_id=run_id, database_url=database_url)
+            record_repository_monitoring_check(check, run_id=run_id, lease=lease, database_url=database_url)
 
         status = "partial" if failed_count else "succeeded"
-        finish_monitoring_run(run_id, status=status, scanned_repository_count=scanned_count, failed_repository_count=failed_count, error_summary=None, database_url=database_url)
+        finish_monitoring_run(run_id, status=status, scanned_repository_count=scanned_count, failed_repository_count=failed_count, error_summary=None, lease=lease, database_url=database_url)
+    except MonitoringLeaseLostError:
+        raise
     except Exception:
         logger.exception("Repository monitoring run failed unexpectedly.")
-        finish_monitoring_run(
-            run_id,
-            status="failed",
-            scanned_repository_count=scanned_count,
-            failed_repository_count=failed_count,
-            error_summary="Monitoring run failed unexpectedly.",
-            database_url=database_url,
-        )
+        if started:
+            finish_monitoring_run(
+                run_id, status="failed", scanned_repository_count=scanned_count,
+                failed_repository_count=failed_count, error_summary="Monitoring run failed unexpectedly.",
+                lease=lease, database_url=database_url,
+            )
         raise
-    finally:
-        release_monitoring_job_lease(JOB_NAME, run_id, database_url=database_url)
 
 
 def _scan_repository(
     repository: Repository,
     subscriptions: list[SubscriptionWatchRecord],
     *,
+    resolve_monitor: Callable[[str], RepositoryMonitor | None],
+    lease: MonitoringLease, ensure_lease: Callable[[], None],
     database_url: str,
-) -> None:
-    monitor = get_repository_monitor(repository.source)
+) -> bool:
+    monitor = resolve_monitor(repository.source)
     if monitor is None:
-        return
+        return True
     cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
     subscription_started_at = min(
         datetime.fromisoformat(subscription.created_at).astimezone(UTC)
@@ -143,15 +151,19 @@ def _scan_repository(
         REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
         subscription_started_at,
     )
+    commit_after_sha = cursors.get(REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY)
     activity = monitor.load_repository_activity(
         repository,
         release_started_after=release_after,
         commit_started_after=commit_after,
+        commit_after_sha=commit_after_sha,
     )
+    ensure_lease()
+    refreshed_repository = None
     if activity.redirected:
-        refreshed_repository = monitor.refresh_repository_profile(repository)
-        if refreshed_repository != repository:
-            upsert_repositories((refreshed_repository,), database_url=database_url)
+        profile = monitor.refresh_repository_profile(repository)
+        if profile != repository:
+            refreshed_repository = profile
             subscriptions = [
                 replace(subscription, repository=refreshed_repository)
                 for subscription in subscriptions
@@ -160,25 +172,25 @@ def _scan_repository(
         build_feed_event(signal, subscription)
         for subscription in subscriptions
         for signal in activity.signals
-        if _is_after_subscription(signal.published_at, subscription.created_at)
+        if (signal.kind == "commit" and commit_after_sha is not None)
+        or _is_after_subscription(signal.published_at, subscription.created_at)
     ]
-    upsert_feed_events(events, database_url=database_url)
-    upsert_repository_monitoring_cursors(
-        repository.repository_id,
-        {
-            REPOSITORY_RELEASE_CHECKPOINT_KEY: _latest(
-                activity.signals,
-                "release",
-                release_after,
-            ).isoformat(),
-            REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY: _latest(
-                activity.signals,
-                "commit",
-                commit_after,
-            ).isoformat(),
-        },
-        database_url=database_url,
+    checkpoint_updates: dict[str, str] = {}
+    if activity.releases_complete:
+        checkpoint_updates[REPOSITORY_RELEASE_CHECKPOINT_KEY] = _latest(
+            activity.signals, "release", release_after,
+        ).isoformat()
+    if activity.commits_complete:
+        if activity.commit_head_sha is not None:
+            checkpoint_updates[REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY] = activity.commit_head_sha
+        checkpoint_updates[REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY] = _latest(
+            activity.signals, "commit", commit_after,
+        ).isoformat()
+    persist_repository_monitoring_result(
+        repository.repository_id, events, checkpoint_updates, database_url=database_url,
+        lease=lease, refreshed_repository=refreshed_repository,
     )
+    return activity.releases_complete and activity.commits_complete
 
 
 def _read_cursor(cursors: dict[str, str], key: str, fallback: datetime) -> datetime:
@@ -187,14 +199,14 @@ def _read_cursor(cursors: dict[str, str], key: str, fallback: datetime) -> datet
 
 
 def _latest(signals: tuple[Signal, ...], kind: str, fallback: datetime) -> datetime:
-    return max(
+    return max(fallback, max(
         (
             signal.published_at
             for signal in signals
             if signal.kind == kind and signal.published_at
         ),
         default=fallback,
-    )
+    ))
 
 
 def _is_after_subscription(published_at: datetime | None, created_at: str) -> bool:

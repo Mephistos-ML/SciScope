@@ -1,107 +1,91 @@
 # SciScope Architecture
 
-## System Shape
+## Processes
 
-SciScope is a structured monolith with one backend application, one frontend application, one database, and background monitoring inside the backend process.
+The React/TypeScript frontend calls a Python backend backed by PostgreSQL/pgvector.
+Each backend container runs three processes through
+[Supervisor](../backend/infra/supervisord.conf). They share database state, not Python state.
 
-The system centres on topic-driven discovery, repositories, subscriptions, and Feed events.
+```mermaid
+flowchart LR
+    Browser[React client] --> API[FastAPI]
+    API --> DB[(PostgreSQL / pgvector)]
+    API --> Auth[Google / Turnstile]
+    API --> Search[OpenAI / GitHub / GitLab]
+    Worker[Explore worker] --> DB
+    Worker --> Search
+    Scheduler[Supercronic] --> Scan[Monitoring invocation]
+    Scan --> DB
+    Scan --> Providers[GitHub / GitLab]
+```
 
-## End-to-End Flows
+| Process | Entrypoint | Lifecycle |
+| --- | --- | --- |
+| API | `app.api.app:app` | Uvicorn; startup and `/ready` check DB connectivity |
+| Explore worker | `app.jobs.process_search_runs` | Continuous polling; default idle interval 1 second |
+| Monitoring scheduler | `supercronic` | Runs `app.jobs.scan_subscriptions` every even UTC hour at minute 0 |
 
-### Explore
+Supervisor restarts unexpected exits and forwards logs to stdout/stderr. Its
+configuration has no control socket; recovery cannot use `supervisorctl restart`.
+A Machine/container restart interrupts all three processes and any active scan.
 
-`topic description -> AI query plan -> local catalog retrieval -> external fallback when coverage is low -> candidate merge -> admission -> ranking -> results`
+[Fly](../fly.toml) builds the backend Dockerfile and applies Alembic migrations
+before the new application starts. The [release workflow](../.github/workflows/release.yml)
+creates semantic releases; it does not deploy to Fly. `/ready` tests connectivity,
+not schema compatibility, worker progress, Feed freshness or provider availability.
 
-Ownership:
+## Durable Ownership
 
-- `services/ai/`: builds a concise query plan from one topic description
-- `services/search/catalog.py`: maps catalog records into standard retrieval candidates and persists admitted external discoveries
-- `services/search/retrieval/`: coordinates source lanes, deadlines, merging, evidence, and partial coverage
-- `sources/github/search/` and `sources/gitlab/search/`: perform provider-specific repository retrieval and supported code retrieval
-- `services/search/admission/`: applies repository-name gates and conservative candidate checks
-- `services/search/ranking/`: builds source-independent features and explainable heuristic scores
-- `services/search/explore/`: owns job lifecycle and Explore response assembly
+| State | Owner and commit boundary | Recovery |
+| --- | --- | --- |
+| Explore admission and scheduling | `storage/search_admission.py`: usage event, run and operation commit together | Rejected admission or a write failure schedules no work |
+| Explore execution | Worker claims an operation; `storage/search_runs.py` publishes response, execution JSON, reports and statuses together | Unfinished work replays from the last committed baseline |
+| Repository catalog | Catalog ingestion and validated profile lookup through repository storage | Optional ingestion can fail independently of delivered search results |
+| Subscriptions | User-owned watch, unique by user and repository | Repeated creation returns the winning watch |
+| Monitoring results | Feed upserts and completed-stream cursors commit per repository | Incomplete streams retain their boundary; retries preserve event IDs/read state |
+| Monitoring summaries/checks | Separate transactions from repository results | A crash can leave a `running` summary after some repositories committed |
+| Sessions | Durable token hash with expiry/revocation | Process restart does not revoke sessions |
 
-Explore is read-only and does not create subscriptions.
+Explore creates no subscriptions, but writes usage, runs, reports and catalog
+facts. The browser creates/polls `search-runs` and requests `expand`; the direct
+`/api/explore/search` endpoint executes in the API without a durable operation.
+Guest runs require `X-Search-Run-Token`; signed-in runs require their owner.
 
-### Subscription
+Explore claims use `SKIP LOCKED`, a fresh fencing token and database wall time.
+The default 300-second lease renews every third of its duration. Expired/superseded
+attempts cannot publish results. External calls can repeat on replay. Terminal
+failures are not automatically requeued. Persisted JSON validation and conversion
+are defined in [Explore execution state](contracts/explore-execution-state.md).
 
-`clicked repository -> repository upsert -> subscription create -> baseline sync`
+Monitoring uses a 1,800-second job lease, renewed every 600 seconds by the job
+entrypoint. Each claim has a fresh token; storage checks ownership and database
+wall time before and after flushing writes. Superseded scans cannot publish Feed
+events, profiles, checkpoints, checks or run completion. Commit bootstrap uses timestamps;
+subsequent scans track newly reachable commits by SHA, including old-dated commits.
+Rewritten/unreadable history stays partial. Details and limits are in
+[Repository Monitoring](operations/repository-monitoring.md).
 
-The subscription is an explicit user decision to monitor one repository.
+## Code Boundaries
 
-### Monitoring
+The package map and product pipeline are in the [backend README](../backend/README.md).
+Typical calls flow `api -> services -> integrations/storage`; storage uses database
+internals. Composition selects implementations, while services invoke capabilities.
+Integrations own provider protocol/mapping, services own admission/ranking policy,
+and storage owns transactions and error translation.
 
-`subscription watch -> source checkpoints -> releases and default-branch commits -> append-only Feed events`
+API and worker processes each construct their own `ExploreDependencies` and
+provider clients; scan/repair invocations construct their own sets. Each GitHub
+installation auth instance owns its token cache and refresh lock. Configuration
+changes take effect on reconstruction/restart. Quotas, ownership and progress
+are durable database state. PostgreSQL application engines use READ COMMITTED.
 
-Ownership:
+| Detailed contract | Use it for |
+| --- | --- |
+| [Authentication](contracts/authentication-boundaries.md) | Sessions, OAuth validation and request identity |
+| [Runtime dependencies](contracts/runtime-dependencies.md) | Client/cache lifetimes and injection |
+| [Persistence errors](contracts/persistence-errors.md) | Rollback, failure categories and retry decisions |
+| [PostgreSQL correctness](contracts/postgresql-correctness.md) | Database-specific guarantees and test setup |
+| [Backend quality gates](contracts/backend-quality-gates.md) | Executable import/cycle, lint and type checks |
 
-- `services/subscriptions/`: subscription lifecycle and baseline initialization
-- `services/monitoring/`: background scheduler and source polling
-- `services/feed/`: Feed-event assembly
-- `storage/`: catalog repository profiles, retrieval evidence, checkpoints, subscriptions, and Feed persistence
-- `sources/github/` and `sources/gitlab/`: provider monitoring adapters
-
-## Stable Boundaries
-
-### API
-
-Owns FastAPI transport, authentication boundaries, payload validation, and response mapping. It contains no source or persistence logic.
-
-### AI Planning
-
-Owns generation of a search query plan from a topic description. It does not retrieve repositories, create subscriptions, or persist search candidates.
-
-### Search
-
-Owns topic-driven Explore behavior: retrieval orchestration, candidate merge, admission, ranking, asynchronous jobs, partial coverage, and response assembly. It does not persist subscriptions.
-
-### Sources
-
-Own provider-specific external IO: authentication, repository retrieval, supported code retrieval, release and commit monitoring, and checkpoint resolution. Sources do not apply admission or ranking policy.
-
-### Storage
-
-Owns persistence contracts for repositories, subscriptions, checkpoints, Feed events, auth records, and Explore usage. SQLAlchemy records stay under `database/records/` and are used only by storage.
-
-### Monitoring
-
-Owns periodic scans, monitoring control, and the creation of user Feed events from subscribed repositories.
-
-## Search Delivery Policy
-
-Admission runs before ranking. It is deliberately conservative and removes obvious non-software candidates such as paper lists, teaching materials, and repository-name classes excluded by policy.
-
-Ranking uses an explainable heuristic score:
-
-- query coverage with diminishing returns
-- strongest match location for each query
-- bounded evidence density
-
-Explore results must pass the relevance cutoff. Beta diagnostics show candidates rejected by gates, admission, or the cutoff to configured internal users.
-
-External failures are coverage information, not empty results. Completed candidates remain available when a lane times out or one source is unavailable. Provider rate limits stop further work for the affected lane and surface a retry window when supplied by the provider.
-
-## Domain Model
-
-Core objects:
-
-- `Repository`: canonical identity and current provider metadata for a catalog repository
-- `RepositorySearchEvidence`: durable query-specific evidence of where a repository matched
-- `Subscription`: one repository watch owned by one user
-- `Signal`: canonical provider event shape
-- `FeedEvent`: durable per-user delivery record for a discovered release or default-branch commit
-
-## Provider Coverage
-
-GitHub supports repository retrieval, code retrieval, and monitoring.
-
-GitLab supports repository retrieval and monitoring. GitLab.com global code retrieval is disabled because its public API does not provide the required global blob-search capability.
-
-Gitee, GitCode, and GitVerse remain unavailable source modules.
-
-## Dependency Direction
-
-`api -> services -> sources/storage -> database`
-
-`models` and `config` are shared layers. The complete change contract is maintained in [AGENTS.md](../AGENTS.md).
+[Backend recovery](operations/backend-recovery.md) contains operational commands.
+[AGENTS.md](../AGENTS.md) defines engineering policy.

@@ -5,19 +5,14 @@ from __future__ import annotations
 from fastapi import Request
 from fastapi import HTTPException, status
 
-from app.models.explore_access import ExploreTier
-from app.services.auth.service import get_current_user
-from app.services.security.turnstile import verify_turnstile_token
-from app.services.search.access.errors import build_explore_access_denied_error
-from app.services.search.access.policy import has_search_quota_bypass
+from app.models.explore_access import ExploreAdmission
+from app.api.auth import get_current_user
+from app.api.client import read_explore_client_ip
+from app.services.search.access.errors import ExploreAccessDeniedError
 from app.services.search.access.service import (
-    build_turnstile_failure_decision,
-    check_explore_access,
+    prepare_explore_admission,
+    reserve_explore_access,
     hash_explore_topic,
-    read_explore_client_ip,
-    record_allowed_explore_attempt,
-    record_blocked_explore_attempt,
-    resolve_explore_actor,
 )
 from app.services.search.explore.jobs import (
     create_explore_search_run,
@@ -39,6 +34,7 @@ def search_explore_response(
         payload,
     )
     return run_explore_search(
+        dependencies=request.app.state.explore_dependencies,
         topic_description=topic_description,
         database_url=request.app.state.database_url,
         log_context=SearchLogContext(
@@ -54,14 +50,12 @@ def create_explore_search_run_response(
 ) -> dict[str, object]:
     """Create one background explore search run."""
 
-    topic_description, topic_hash = _authorize_explore_search_request(
-        request,
-        payload,
-    )
-    user = get_current_user(request, database_url=request.app.state.database_url)
+    topic_description = str(payload.get("topicDescription") or "").strip()
+    admission = _prepare_explore_search_request(request, payload)
     return create_explore_search_run(
+        dependencies=request.app.state.explore_dependencies,
         topic_description=topic_description,
-        owner_user_id=user.user_id if user else None,
+        admission=admission,
         database_url=request.app.state.database_url,
     )
 
@@ -72,23 +66,35 @@ def get_explore_search_run_response(
 ) -> dict[str, object] | None:
     """Return one background explore search run snapshot."""
 
-    payload = get_explore_search_run(run_id, database_url=request.app.state.database_url)
-    if payload is None:
-        return None
-    return payload
+    database_url = request.app.state.database_url
+    user = get_current_user(request, database_url=database_url)
+    return get_explore_search_run(
+        run_id,
+        viewer_user_id=user.user_id if user else None,
+        guest_access_token=request.headers.get("X-Search-Run-Token"),
+        database_url=database_url,
+    )
 
 
 def expand_explore_search_run_response(
     request: Request,
     run_id: str,
+    payload: dict[str, object],
 ) -> dict[str, object] | None:
     """Start one pending query for an existing Explore search run."""
 
-    existing = get_explore_search_run_response(request, run_id)
-    if existing is None:
-        return None
+    database_url = request.app.state.database_url
+    user = get_current_user(request, database_url=database_url)
     try:
-        return expand_explore_search_run(run_id, database_url=request.app.state.database_url)
+        return expand_explore_search_run(
+            run_id,
+            prepare_admission=lambda topic: _prepare_explore_search_request(
+                request, {"topicDescription": topic, "turnstileToken": payload.get("turnstileToken")},
+            ),
+            viewer_user_id=user.user_id if user else None,
+            guest_access_token=request.headers.get("X-Search-Run-Token"),
+            database_url=database_url,
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -100,57 +106,31 @@ def _authorize_explore_search_request(
     request: Request,
     payload: dict[str, object],
 ) -> tuple[str, str]:
+    topic_description = str(payload.get("topicDescription") or "").strip()
+    topic_hash = hash_explore_topic(topic_description)
+    admission = _prepare_explore_search_request(request, payload)
+    decision = reserve_explore_access(
+        admission.actor,
+        topic_hash=topic_hash,
+        turnstile_verified=admission.turnstile_verified,
+        bypass_quota=admission.bypass_quota,
+        database_url=request.app.state.database_url,
+    )
+    if not decision.allowed:
+        raise ExploreAccessDeniedError(decision)
+    return topic_description, topic_hash
+
+
+def _prepare_explore_search_request(
+    request: Request, payload: dict[str, object],
+) -> ExploreAdmission:
+    """Resolve the actor and verify external proof before database admission."""
     database_url = request.app.state.database_url
     topic_description = str(payload.get("topicDescription") or "").strip()
     turnstile_token = str(payload.get("turnstileToken") or "").strip()
-    topic_hash = hash_explore_topic(topic_description)
-    user = get_current_user(request, database_url=database_url)
-    actor = resolve_explore_actor(
-        request,
-        user,
+    return prepare_explore_admission(
+        user=get_current_user(request, database_url=database_url),
+        client_ip=read_explore_client_ip(request), topic_description=topic_description,
+        turnstile_token=turnstile_token, verify_turnstile_token=request.app.state.verify_turnstile_token,
         database_url=database_url,
     )
-    turnstile_verified = False
-    quota_bypassed = has_search_quota_bypass(user.email if user else None)
-
-    if actor.tier is ExploreTier.SUSPICIOUS and turnstile_token:
-        verification = verify_turnstile_token(
-            turnstile_token,
-            remote_ip=read_explore_client_ip(request),
-        )
-        if not verification.success:
-            decision = build_turnstile_failure_decision(
-                service_unavailable=verification.service_unavailable
-            )
-            record_blocked_explore_attempt(
-                actor,
-                decision,
-                topic_hash=topic_hash,
-                database_url=database_url,
-            )
-            raise build_explore_access_denied_error(decision)
-        turnstile_verified = True
-
-    decision = check_explore_access(
-        actor,
-        turnstile_verified=turnstile_verified,
-        bypass_quota=quota_bypassed,
-        database_url=database_url,
-    )
-
-    if not decision.allowed:
-        record_blocked_explore_attempt(
-            actor,
-            decision,
-            topic_hash=topic_hash,
-            database_url=database_url,
-        )
-        raise build_explore_access_denied_error(decision)
-
-    record_allowed_explore_attempt(
-        actor,
-        topic_hash=topic_hash,
-        quota_bypassed=quota_bypassed,
-        database_url=database_url,
-    )
-    return topic_description, topic_hash

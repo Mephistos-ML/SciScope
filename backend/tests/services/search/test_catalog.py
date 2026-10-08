@@ -13,7 +13,7 @@ from app.services.search.retrieval import (
     RepositoryCandidate,
     RetrievalMatchEvidence,
 )
-from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.database import build_test_database_url, migrate_test_database
 
 
 def test_catalog_retrieval_keeps_query_specific_evidence(tmp_path) -> None:
@@ -65,10 +65,10 @@ def test_catalog_retrieval_keeps_query_specific_evidence(tmp_path) -> None:
             ),
         ),
     )
-    persist_catalog_candidates((candidate,), database_url=database_url)
+    persist_catalog_candidates((candidate,), database_url=database_url, embeddings=None)
 
-    pnmr = retrieve_catalog_candidates(("paramagnetic nmr",), database_url=database_url)
-    relaxation = retrieve_catalog_candidates(("relaxation",), database_url=database_url)
+    pnmr = retrieve_catalog_candidates(("paramagnetic nmr",), database_url=database_url, embeddings=None)
+    relaxation = retrieve_catalog_candidates(("relaxation",), database_url=database_url, embeddings=None)
 
     assert pnmr[0].repository_id == "github:repo:123"
     assert pnmr[0].signal.payload["query"] == "paramagnetic nmr"
@@ -120,11 +120,12 @@ def test_catalog_evidence_keeps_its_location_for_a_case_variant_current_query(tm
             ),
         ),
     )
-    persist_catalog_candidates((candidate,), database_url=database_url)
+    persist_catalog_candidates((candidate,), database_url=database_url, embeddings=None)
 
     local_candidates = retrieve_catalog_candidates(
         ("Paramagnetic NMR",),
         database_url=database_url,
+        embeddings=None,
     )
     ranked = rank_repository_candidates(
         local_candidates,
@@ -132,3 +133,20 @@ def test_catalog_evidence_keeps_its_location_for_a_case_variant_current_query(tm
     )
 
     assert ranked.ranked_candidates[0].features.strongest_match_quality == 0.85
+
+
+def test_expected_catalog_outage_preserves_external_retrieval_path(monkeypatch):
+    from app.models.persistence import PersistenceUnavailableError
+    from app.services.search import catalog
+    def unavailable(*args, **kwargs):
+        raise PersistenceUnavailableError("Persistence is temporarily unavailable.")
+    monkeypatch.setattr(catalog, "find_catalog_repository_matches", unavailable)
+    assert catalog.retrieve_catalog_candidates(("science",), embeddings=None, database_url="unused") == ()
+
+
+def test_schema_defect_is_not_hidden_as_empty_catalog(tmp_path):
+    import pytest
+    from app.models.persistence import PersistenceError
+    with pytest.raises(PersistenceError) as failure:
+        retrieve_catalog_candidates(("science",), embeddings=None, database_url=build_test_database_url(tmp_path / "missing.sqlite3"))
+    assert type(failure.value) is PersistenceError

@@ -2,26 +2,29 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 import hashlib
 
-from fastapi import Request
-
-from app.config import DATABASE_URL
 from app.config import (
     EXPLORE_SUSPICIOUS_BLOCK_THRESHOLD,
     EXPLORE_SUSPICIOUS_WINDOW_SECONDS,
     TURNSTILE_ENABLED,
 )
 from app.models.explore_access import (
+    ExploreAdmission,
     ExploreAccessDecision,
     ExploreAccessOutcome,
     ExploreActor,
     ExploreLimitCode,
     ExploreTier,
+    ExploreUsage,
 )
-from app.services.auth.service import User
+from app.models.auth import User
+from app.models.security import TurnstileVerificationResult
+from app.services.search.access.errors import ExploreAccessDeniedError
 from app.services.search.access.policy import (
+    has_search_quota_bypass,
     build_cooldown_decision,
     build_global_capacity_decision,
     build_public_access_disabled_decision,
@@ -34,11 +37,10 @@ from app.services.search.access.policy import (
 )
 from app.storage.explore import (
     count_explore_events_since,
-    count_global_explore_events_since,
-    get_first_explore_event_at_since,
-    get_last_explore_event_at,
     record_explore_search_event,
 )
+
+from app.storage.search_admission import ExploreAdmissionStore, explore_admission_transaction
 
 SUSPICIOUS_GUEST_OUTCOMES = (
     str(ExploreAccessOutcome.BLOCKED_COOLDOWN),
@@ -48,13 +50,13 @@ SUSPICIOUS_GUEST_OUTCOMES = (
 
 
 def resolve_explore_actor(
-    request: Request,
     user: User | None,
     *,
+    client_ip: str | None,
     now: datetime | None = None,
-    database_url: str = DATABASE_URL,
+    database_url: str,
 ) -> ExploreActor:
-    """Resolve the current explore actor from request and optional user."""
+    """Resolve the Explore actor from an authenticated user and explicit client address."""
 
     if user is not None:
         return ExploreActor(
@@ -64,8 +66,7 @@ def resolve_explore_actor(
             user_id=user.user_id,
         )
 
-    raw_ip = read_explore_client_ip(request)
-    ip_hash = _hash_value(raw_ip or "unknown")
+    ip_hash = _hash_value(client_ip or "unknown")
     tier = _resolve_guest_tier(
         ip_hash,
         now=now,
@@ -84,8 +85,8 @@ def check_explore_access(
     *,
     turnstile_verified: bool = False,
     bypass_quota: bool = False,
+    usage: ExploreUsage,
     now: datetime | None = None,
-    database_url: str = DATABASE_URL,
 ) -> ExploreAccessDecision:
     """Return whether the actor may run a new explore search."""
 
@@ -101,22 +102,12 @@ def check_explore_access(
     if bypass_quota:
         return ExploreAccessDecision(allowed=True)
 
-    quota_window_start = current_time - timedelta(seconds=policy.quota_window_seconds)
     global_limit = get_global_explore_daily_limit()
-    global_count = count_global_explore_events_since(
-        since=quota_window_start,
-        outcomes=(str(ExploreAccessOutcome.ALLOWED),),
-        database_url=database_url,
-    )
+    global_count = usage.global_count
     if global_count >= global_limit:
         return build_global_capacity_decision()
 
-    last_allowed_event_at = get_last_explore_event_at(
-        subject_type=actor.subject_type,
-        subject_key=actor.subject_key,
-        outcomes=(str(ExploreAccessOutcome.ALLOWED),),
-        database_url=database_url,
-    )
+    last_allowed_event_at = usage.last_allowed_at
     if last_allowed_event_at is not None:
         next_allowed_at = last_allowed_event_at + timedelta(
             seconds=policy.cooldown_seconds
@@ -128,21 +119,9 @@ def check_explore_access(
                 retry_after_seconds=max(retry_after_seconds, 1),
             )
 
-    actor_count = count_explore_events_since(
-        subject_type=actor.subject_type,
-        subject_key=actor.subject_key,
-        since=quota_window_start,
-        outcomes=(str(ExploreAccessOutcome.ALLOWED),),
-        database_url=database_url,
-    )
+    actor_count = usage.actor_count
     if actor_count >= policy.daily_limit:
-        first_allowed_event_at = get_first_explore_event_at_since(
-            subject_type=actor.subject_type,
-            subject_key=actor.subject_key,
-            since=quota_window_start,
-            outcomes=(str(ExploreAccessOutcome.ALLOWED),),
-            database_url=database_url,
-        )
+        first_allowed_event_at = usage.first_allowed_at
         next_reset_at = (first_allowed_event_at or current_time) + timedelta(
             seconds=policy.quota_window_seconds
         )
@@ -161,7 +140,7 @@ def record_allowed_explore_attempt(
     topic_hash: str,
     quota_bypassed: bool = False,
     created_at: datetime | None = None,
-    database_url: str = DATABASE_URL,
+    database_url: str,
 ) -> None:
     """Persist one allowed explore attempt."""
 
@@ -187,7 +166,7 @@ def record_blocked_explore_attempt(
     *,
     topic_hash: str,
     created_at: datetime | None = None,
-    database_url: str = DATABASE_URL,
+    database_url: str,
 ) -> None:
     """Persist one blocked explore attempt."""
 
@@ -211,28 +190,11 @@ def hash_explore_topic(topic_description: str) -> str:
     return _hash_value(normalized or "empty")
 
 
-def build_turnstile_failure_decision(
-    *,
-    service_unavailable: bool = False,
-) -> ExploreAccessDecision:
-    """Return one denial decision for an invalid or unavailable Turnstile check."""
-
-    return build_turnstile_verification_failed_decision(
-        service_unavailable=service_unavailable
-    )
-
-
-def read_explore_client_ip(request: Request) -> str | None:
-    """Return the best-effort client IP address for one explore request."""
-
-    return _read_client_ip(request)
-
-
 def _resolve_guest_tier(
     ip_hash: str,
     *,
     now: datetime | None = None,
-    database_url: str = DATABASE_URL,
+    database_url: str,
 ) -> ExploreTier:
     if not TURNSTILE_ENABLED:
         return ExploreTier.GUEST
@@ -270,21 +232,7 @@ def _map_blocked_decision_to_outcome(decision: ExploreAccessDecision) -> str:
         ExploreLimitCode.TURNSTILE_VERIFICATION_FAILED,
     }:
         return str(ExploreAccessOutcome.BLOCKED_TURNSTILE)
-    return str(ExploreAccessOutcome.BLOCKED_GLOBAL_CAPACITY)
-
-
-def _read_client_ip(request: Request) -> str | None:
-    forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip() or None
-
-    fly_client_ip = request.headers.get("fly-client-ip")
-    if fly_client_ip:
-        return fly_client_ip.strip() or None
-
-    if request.client is not None:
-        return request.client.host
-    return None
+    return str(ExploreAccessOutcome.BLOCKED_CAPACITY)
 
 
 def _hash_value(value: str) -> str:
@@ -299,3 +247,75 @@ def _ensure_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+def reserve_explore_access(
+    actor: ExploreActor, *, topic_hash: str, turnstile_verified: bool = False,
+    bypass_quota: bool = False, now: datetime | None = None, database_url: str,
+) -> ExploreAccessDecision:
+    """Decide and persist admission before another request can consume capacity."""
+    with explore_admission_transaction(database_url=database_url) as store:
+        return record_explore_admission(
+            actor, store=store, topic_hash=topic_hash, turnstile_verified=turnstile_verified,
+            bypass_quota=bypass_quota, now=now,
+        )
+
+
+def record_explore_admission(
+    actor: ExploreActor, *, store: ExploreAdmissionStore, topic_hash: str,
+    turnstile_verified: bool = False, bypass_quota: bool = False,
+    now: datetime | None = None,
+) -> ExploreAccessDecision:
+    """Apply admission policy and record its outcome in the caller's transaction."""
+    current_time = _ensure_utc(now or _utc_now())
+    policy = get_explore_policy_for_actor(actor)
+    usage = store.read_usage(subject_type=actor.subject_type, subject_key=actor.subject_key,
+                             since=current_time - timedelta(seconds=policy.quota_window_seconds))
+    decision = check_explore_access(actor, turnstile_verified=turnstile_verified,
+                                    bypass_quota=bypass_quota, now=current_time,
+                                    usage=usage)
+    outcome = (str(ExploreAccessOutcome.ALLOWED_INTERNAL if bypass_quota else ExploreAccessOutcome.ALLOWED)
+               if decision.allowed else _map_blocked_decision_to_outcome(decision))
+    store.record_event(user_id=actor.user_id, subject_type=actor.subject_type,
+                       subject_key=actor.subject_key, ip_hash=actor.ip_hash,
+                       topic_hash=topic_hash, outcome=outcome, created_at=current_time,
+                       retry_after_seconds=decision.retry_after_seconds)
+    return decision
+
+
+def prepare_explore_admission(
+    *, user: User | None, client_ip: str | None, topic_description: str,
+    turnstile_token: str, verify_turnstile_token: Callable[..., TurnstileVerificationResult],
+    database_url: str,
+) -> ExploreAdmission:
+    """Apply abuse-proof policy and audit denials before the admission transaction."""
+    topic_hash = hash_explore_topic(topic_description)
+    actor = resolve_explore_actor(
+        user,
+        client_ip=client_ip,
+        database_url=database_url,
+    )
+    turnstile_verified = False
+    quota_bypassed = has_search_quota_bypass(user.email if user else None)
+
+    if actor.tier is ExploreTier.SUSPICIOUS and turnstile_token:
+        verification = verify_turnstile_token(
+            turnstile_token,
+            remote_ip=client_ip,
+        )
+        if not verification.success:
+            decision = build_turnstile_verification_failed_decision(
+                service_unavailable=verification.service_unavailable
+            )
+            record_blocked_explore_attempt(
+                actor,
+                decision,
+                topic_hash=topic_hash,
+                database_url=database_url,
+            )
+            raise ExploreAccessDeniedError(decision)
+        turnstile_verified = True
+
+    return ExploreAdmission(
+        actor=actor, turnstile_verified=turnstile_verified, bypass_quota=quota_bypassed,
+    )

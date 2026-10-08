@@ -8,16 +8,17 @@ from dataclasses import dataclass, replace
 from time import monotonic
 
 from app import config
+from app.models.ai import AiSearchPlan
 from app.models.search_run import (
     SearchRankingCandidateReport,
     SearchProviderOutcomeReport,
     SearchStageReport,
 )
-from app.services.ai.openai.client import (
-    OpenAIClientConfigurationError,
-    OpenAIResponseError,
-)
-from app.services.ai.planner import build_ai_search_plan
+from app.services.ai.embeddings import EmbeddingProvider
+from app.models.ai import AiDependencyError
+from app.services.ai.planner import AiSearchPlanner
+from app.services.search.explore.dependencies import ExploreDependencies
+from app.services.search.retrieval.models import RetrievalLane
 from app.services.ai.search_plans import (
     serialize_ai_search_plan,
 )
@@ -78,11 +79,12 @@ class AiSearchPlanningError(RuntimeError):
 def run_explore_search(
     *,
     topic_description: str,
+    dependencies: ExploreDependencies,
     progress_callback: ExploreSearchProgressCallback | None = None,
     execution_callback: ExploreSearchExecutionCallback | None = None,
     stage_report_callback: ExploreSearchStageReportCallback | None = None,
     log_context: SearchLogContext | None = None,
-    database_url: str = config.DATABASE_URL,
+    database_url: str,
 ) -> dict[str, object]:
     """Run a read-only repository search from one topic description."""
 
@@ -104,7 +106,9 @@ def run_explore_search(
 
     try:
         planning_started_at = monotonic()
-        ai_search_plan = _plan_explore_search(topic_description=topic_description)
+        ai_search_plan = _plan_explore_search(
+            topic_description=topic_description, planner=dependencies.planner,
+        )
         ai_search_plan_payload = serialize_ai_search_plan(ai_search_plan)
         planned_queries = tuple(ai_search_plan.queries)
         executed_queries = planned_queries[:1]
@@ -116,15 +120,9 @@ def run_explore_search(
                 context=log_context,
                 duration_ms=planning_duration_ms,
                 query_count=len(planned_queries),
-                planner=config.AI_PLANNER_MODE,
-                planner_model=(
-                    config.OPENAI_MODEL if config.AI_PLANNER_MODE == "openai" else None
-                ),
-                planner_reasoning_effort=(
-                    config.OPENAI_REASONING_EFFORT
-                    if config.AI_PLANNER_MODE == "openai"
-                    else None
-                ),
+                planner=dependencies.planner.identity.mode,
+                planner_model=dependencies.planner.identity.model,
+                planner_reasoning_effort=dependencies.planner.identity.reasoning_effort,
             )
 
         if not executed_queries:
@@ -155,6 +153,8 @@ def run_explore_search(
         retrieval_started_at = monotonic()
         current_stage = "external_retrieval"
         retrieval_sequence = _retrieve_planned_queries(
+            lanes=dependencies.lanes,
+            embeddings=dependencies.embeddings,
             queries=planned_queries,
             topic_description=topic_description,
             ai_search_plan_payload=ai_search_plan_payload,
@@ -182,6 +182,7 @@ def run_explore_search(
                 for candidate in retrieval_sequence.external_candidates
                 if candidate.repository_id in admitted_repository_ids
             ),
+            embeddings=dependencies.embeddings,
             database_url=database_url,
         )
         repository_persistence_duration_ms = build_duration_ms(persistence_started_at)
@@ -328,11 +329,12 @@ def run_explore_search(
 def expand_explore_search(
     *,
     topic_description: str,
+    dependencies: ExploreDependencies,
     execution: ExploreSearchExecution,
     execution_callback: ExploreSearchExecutionCallback | None = None,
     stage_report_callback: ExploreSearchStageReportCallback | None = None,
     log_context: SearchLogContext | None = None,
-    database_url: str = config.DATABASE_URL,
+    database_url: str,
 ) -> dict[str, object]:
     """Run exactly one pending query and rerank the accumulated candidate pool."""
 
@@ -344,6 +346,8 @@ def expand_explore_search(
     ai_search_plan_payload = serialize_ai_search_plan(execution.ai_search_plan)
     retrieval_started_at = monotonic()
     retrieval_sequence = _retrieve_planned_queries(
+        lanes=dependencies.lanes,
+        embeddings=dependencies.embeddings,
         queries=next_queries,
         topic_description=topic_description,
         ai_search_plan_payload=ai_search_plan_payload,
@@ -372,6 +376,7 @@ def expand_explore_search(
                 for candidate in retrieval_sequence.external_candidates
             if candidate.repository_id in admitted_repository_ids
         ),
+        embeddings=dependencies.embeddings,
         database_url=database_url,
     )
     repository_persistence_duration_ms = build_duration_ms(persistence_started_at)
@@ -543,6 +548,8 @@ def _build_ranking_candidate_reports(
 
 def _retrieve_planned_queries(
     *,
+    lanes: tuple[RetrievalLane, ...],
+    embeddings: EmbeddingProvider | None,
     queries: tuple[str, ...],
     topic_description: str,
     ai_search_plan_payload: dict[str, object],
@@ -553,7 +560,6 @@ def _retrieve_planned_queries(
     """Retrieve planned queries until one completes or every timeout fallback is exhausted."""
 
     accumulated: RetrievedCandidates | None = None
-    last_timed_out_retrieval: RetrievedCandidates | None = None
     executed_queries: list[str] = []
     attempts: list[ExploreQueryAttempt] = []
     external_candidates: list = []
@@ -570,6 +576,8 @@ def _retrieve_planned_queries(
             step_candidate_merge_duration_ms,
         ) = (
             _retrieve_query_with_timeout_retries(
+                lanes=lanes,
+                embeddings=embeddings,
                 query=query,
                 topic_description=topic_description,
                 ai_search_plan_payload=ai_search_plan_payload,
@@ -583,15 +591,12 @@ def _retrieve_planned_queries(
         external_candidates.extend(step_external_candidates)
         catalog_retrieval_duration_ms += step_catalog_retrieval_duration_ms
         candidate_merge_duration_ms += step_candidate_merge_duration_ms
-        if exhausted_timeouts:
-            last_timed_out_retrieval = step
-            continue
-
         accumulated = step if accumulated is None else _merge_retrieved_candidates(accumulated, step)
-        break
+        if not exhausted_timeouts:
+            break
 
     if accumulated is None:
-        accumulated = last_timed_out_retrieval or RetrievedCandidates(
+        accumulated = RetrievedCandidates(
             candidates=(), source_statuses=(), successful_source_count=0
         )
     return _RetrievalSequence(
@@ -606,6 +611,8 @@ def _retrieve_planned_queries(
 
 def _retrieve_query_with_timeout_retries(
     *,
+    lanes: tuple[RetrievalLane, ...],
+    embeddings: EmbeddingProvider | None,
     query: str,
     topic_description: str,
     ai_search_plan_payload: dict[str, object],
@@ -623,10 +630,11 @@ def _retrieve_query_with_timeout_retries(
     for attempt_number in range(1, MAX_TIMEOUT_ATTEMPTS_PER_QUERY + 1):
         attempt_started_at = monotonic()
         catalog_retrieval_started_at = monotonic()
-        local_candidates = retrieve_catalog_candidates((query,), database_url=database_url)
+        local_candidates = retrieve_catalog_candidates((query,), database_url=database_url, embeddings=embeddings)
         catalog_retrieval_duration_ms += build_duration_ms(catalog_retrieval_started_at)
         external_retrieved = _run_external_retrieval(
             (query,),
+            lanes=lanes,
             local_candidates=local_candidates,
             topic_description=topic_description,
             ai_search_plan_payload=ai_search_plan_payload,
@@ -706,10 +714,10 @@ def _query_attempt_timed_out(retrieved: RetrievedCandidates) -> bool:
     )
 
 
-def _plan_explore_search(*, topic_description: str):
+def _plan_explore_search(*, topic_description: str, planner: AiSearchPlanner) -> AiSearchPlan:
     try:
-        return build_ai_search_plan(topic_description=topic_description)
-    except (OpenAIClientConfigurationError, OpenAIResponseError, RuntimeError) as exc:
+        return planner.build_search_plan(topic_description=topic_description)
+    except AiDependencyError as exc:
         logger.exception(
             "AI search planning failed for topic=%r: %s",
             topic_description[:200],
@@ -723,6 +731,7 @@ def _plan_explore_search(*, topic_description: str):
 def _run_external_retrieval(
     queries: tuple[str, ...],
     *,
+    lanes: tuple[RetrievalLane, ...],
     local_candidates,
     topic_description: str,
     ai_search_plan_payload: dict[str, object],
@@ -755,7 +764,7 @@ def _run_external_retrieval(
                 queries=queries,
             )
         )
-    return run_external_repository_retrieval(queries, **retrieval_options)
+    return run_external_repository_retrieval(queries, lanes=lanes, **retrieval_options)
 
 
 def _build_explore_search_progress_payload(

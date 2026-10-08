@@ -7,7 +7,8 @@ from datetime import UTC, datetime
 
 from sqlalchemy import text
 
-from app.database.session import get_engine, session_scope
+from app.database.session import get_engine
+from app.storage.transaction import persistence_session
 
 
 def semantic_catalog_is_available(*, database_url: str) -> bool:
@@ -104,7 +105,7 @@ def find_semantic_query_evidence(
         LIMIT :limit
         """
     )
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         rows = session.execute(
             statement,
             {
@@ -141,7 +142,7 @@ def find_semantic_profiles(
         LIMIT :limit
         """
     )
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         rows = session.execute(
             statement,
             {
@@ -169,7 +170,7 @@ def _filter_missing(
         f"SELECT {key_column}, content_hash FROM {table_name} "
         f"WHERE {key_column} = ANY(:keys) AND embedding_model = :embedding_model"
     )
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         existing = {
             str(row[0]): str(row[1])
             for row in session.execute(
@@ -217,7 +218,7 @@ def _upsert_embeddings(
         }
         for key, (content_hash, vector) in embeddings.items()
     ]
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         session.execute(statement, rows)
 
 

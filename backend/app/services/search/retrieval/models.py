@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Mapping
+from collections.abc import Sequence
+from typing import Literal, Mapping, Protocol
 
 from app.models.signal import Signal
 
@@ -20,6 +21,9 @@ RetrievalMatchLocation = Literal[
 ]
 
 
+RetrievalMatchOrigin = Literal["catalog", "provider", "unknown"]
+
+
 @dataclass(frozen=True)
 class RetrievalMatchEvidence:
     """One normalized query match observed for a repository candidate."""
@@ -29,7 +33,7 @@ class RetrievalMatchEvidence:
     path: str = ""
     alignment: float = 1.0
     channel: str = "unknown"
-    origin: Literal["catalog", "provider", "unknown"] = "unknown"
+    origin: RetrievalMatchOrigin = "unknown"
     retrieval_rank: int | None = None
 
 
@@ -53,7 +57,7 @@ class CandidateProvenance:
     best_rank_by_channel: Mapping[str, int]
     hit_count: int
     match_evidence: tuple[RetrievalMatchEvidence, ...] = ()
-    origins: tuple[str, ...] = ("provider",)
+    origins: tuple[RetrievalMatchOrigin, ...] = ("provider",)
 
 
 @dataclass(frozen=True)
@@ -91,3 +95,18 @@ class RetrievedCandidates:
     partial: bool = False
     warnings: tuple[str, ...] = ()
     lane_outcomes: tuple[RetrievalLaneOutcome, ...] = ()
+
+
+class RepositoryDiscoverer(Protocol):
+    def __call__(
+        self, queries: Sequence[str], *, deadline_monotonic: float | None,
+    ) -> list[Signal]: ...
+
+
+@dataclass(frozen=True)
+class RetrievalLane:
+    """One registered provider capability with its source and channel identity."""
+
+    source: str
+    channel: str
+    discover: RepositoryDiscoverer

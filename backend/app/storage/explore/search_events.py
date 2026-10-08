@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from sqlalchemy import Select, func, select
 
 from app.database.records.explore import ExploreSearchEventRecordModel
-from app.database.session import session_scope
+from app.storage.transaction import persistence_session
 
 
 @dataclass(frozen=True)
@@ -55,7 +55,7 @@ def record_explore_search_event(
         retry_after_seconds=retry_after_seconds,
     )
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         session.add(record)
 
     return _to_explore_search_event(record)
@@ -78,7 +78,7 @@ def count_explore_events_since(
         outcomes=outcomes,
     )
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         count = session.scalar(statement)
     return int(count or 0)
 
@@ -102,7 +102,7 @@ def get_last_explore_event_at(
     if outcomes:
         statement = statement.where(ExploreSearchEventRecordModel.outcome.in_(outcomes))
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         value = session.scalar(statement)
     if value is None:
         return None
@@ -130,7 +130,7 @@ def get_first_explore_event_at_since(
     if outcomes:
         statement = statement.where(ExploreSearchEventRecordModel.outcome.in_(outcomes))
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         value = session.scalar(statement)
     if value is None:
         return None
@@ -151,7 +151,7 @@ def count_global_explore_events_since(
     if outcomes:
         statement = statement.where(ExploreSearchEventRecordModel.outcome.in_(outcomes))
 
-    with session_scope(database_url) as session:
+    with persistence_session(database_url) as session:
         count = session.scalar(statement)
     return int(count or 0)
 
