@@ -13,7 +13,7 @@ from app.services.auth.service import (
 )
 from app.storage.auth.users import create_user, get_user_by_id
 from app.storage.auth.user_sessions import create_user_session, get_authenticated_session_by_token_hash
-from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.database import build_test_database_url, migrate_test_database
 
 
 @pytest.mark.parametrize("facts,code", [

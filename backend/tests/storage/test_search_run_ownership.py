@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.database.records.search_runs import SearchRunOperationRecordModel
 from app.database.session import session_scope
 from app.storage import search_runs as storage
-from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.database import build_test_database_url, migrate_test_database
 from tests.fixtures.search_runs import build_stage_report, seed_search_run
 
 

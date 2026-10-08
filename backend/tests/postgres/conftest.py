@@ -9,7 +9,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.pool import NullPool
 
 from app.database.session import get_engine
-from tests.conftest import migrate_test_database
+from tests.fixtures.database import migrate_test_database
 
 
 @pytest.fixture(scope="session")

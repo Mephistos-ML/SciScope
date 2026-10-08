@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 const api = "http://127.0.0.1:8011/api/explore/search-runs";
 const provider = "http://127.0.0.1:8012";
@@ -26,9 +27,8 @@ async function startSearch(page: Page) {
   return response.json();
 }
 
-test.beforeEach(async ({ request }) => {
+test.beforeEach(() => {
   admittedAt = 0;
-  expect((await request.post(`${provider}/reset`)).ok()).toBeTruthy();
 });
 
 test("rejected admission shows retry feedback without starting polling", async ({ page }) => {

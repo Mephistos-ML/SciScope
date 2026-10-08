@@ -4,7 +4,7 @@ from app.models.repository import Repository
 from app.storage.auth.users import create_user
 from app.storage.repositories import upsert_repositories
 from app.storage.subscriptions.subscriptions import create_subscription, list_subscriptions_for_user
-from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.database import build_test_database_url, migrate_test_database
 
 
 def test_repeated_creation_preserves_query_and_users_have_independent_subscriptions(tmp_path):

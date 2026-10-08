@@ -20,7 +20,7 @@ from app.services.search.explore.execution import ExploreSearchExecution, serial
 from app.services.search.retrieval.models import RetrievedCandidates
 from app.storage.auth.users import create_user
 from app.storage.search_runs import write_search_run, get_search_run, get_search_run_report
-from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.database import build_test_database_url, migrate_test_database
 from tests.fixtures.search_runs import seed_search_run, set_search_run_state
 
 

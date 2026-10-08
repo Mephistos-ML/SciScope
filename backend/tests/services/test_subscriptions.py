@@ -26,7 +26,7 @@ from app.integrations.repositories.common.source_status import RepositorySourceE
 from app.storage.auth.users import create_user
 from app.storage.repositories.repositories import get_repository, upsert_repositories
 from app.storage.subscriptions.subscriptions import list_subscriptions_for_user
-from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.database import build_test_database_url, migrate_test_database
 
 
 @pytest.fixture

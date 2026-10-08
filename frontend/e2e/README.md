@@ -15,7 +15,10 @@ execution, polling errors and partial coverage. HTTP rejection/error tests injec
 responses at the browser transport boundary; they verify client handling, not
 server quota or availability policy. Worker failure and provider outage tests use
 real API snapshots and PostgreSQL state. The successful journey mocks no API
-responses. Test reset clears admission events so cooldowns do not cross tests;
+responses. Each test starts with empty run, catalog and admission data. Teardown closes the
+page, releases provider gates, waits for the worker to commit pending operations,
+and clears data even when assertions fail. Reset rejects pending work. This keeps
+failed scenarios from changing the next test;
 within a test, admission waits respect the real backend cooldown.
 The external font stylesheet is replaced with empty CSS to avoid network access.
 Live provider protocols, OAuth and subscription flows are outside this test.

@@ -28,7 +28,7 @@ from app.storage.repositories.repositories import upsert_repositories
 from app.models.repository import Repository
 from tests.fixtures.search_runs import seed_search_run, set_search_run_state
 from app.services.search.explore.execution import deserialize_execution
-from tests.conftest import BACKEND_ROOT
+from tests.fixtures.database import BACKEND_ROOT
 from tests.fixtures.postgres import wait_until_blocked
 
 pytestmark = pytest.mark.postgres

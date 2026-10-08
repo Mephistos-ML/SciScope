@@ -9,7 +9,7 @@ import pytest
 
 from app.api.app import app
 from app.models.search_run import SearchRunStatus
-from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.database import build_test_database_url, migrate_test_database
 from tests.fixtures.search_runs import seed_search_run, set_search_run_state
 
 

@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import select
 
-from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.database import build_test_database_url, migrate_test_database
 from app.database.records.monitoring import (
     MonitoringRunRecordModel,
     RepositoryMonitoringCheckRecordModel,

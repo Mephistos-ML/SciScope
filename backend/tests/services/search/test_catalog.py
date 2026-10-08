@@ -13,7 +13,7 @@ from app.services.search.retrieval import (
     RepositoryCandidate,
     RetrievalMatchEvidence,
 )
-from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.database import build_test_database_url, migrate_test_database
 
 
 def test_catalog_retrieval_keeps_query_specific_evidence(tmp_path) -> None:

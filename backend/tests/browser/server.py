@@ -154,7 +154,10 @@ def serve() -> None:
                                 "repository_subscriptions",
                             )
                         }
-                    self.reply(200, {"counts": counts})
+                        pending = connection.scalar(text(
+                            "SELECT count(*) FROM search_run_operations WHERE status IN ('queued', 'running')"
+                        ))
+                    self.reply(200, {"counts": counts, "pendingOperations": pending})
                 elif path.path == "/retrieve":
                     from tests.browser.capabilities import provider_stage
 
@@ -185,7 +188,15 @@ def serve() -> None:
                     self.reply(200, {})
                 elif self.path == "/reset":
                     with engine.begin() as connection:
-                        connection.execute(text("DELETE FROM search_access_events"))
+                        pending = connection.scalar(text(
+                            "SELECT count(*) FROM search_run_operations WHERE status IN ('queued', 'running')"
+                        ))
+                        if pending:
+                            self.reply(409, {"error": "Release and drain pending operations before reset."})
+                            return
+                        connection.execute(text(
+                            "TRUNCATE search_runs, repositories, search_access_events CASCADE"
+                        ))
                     for event in (
                         *gates.values(),
                         *entered.values(),

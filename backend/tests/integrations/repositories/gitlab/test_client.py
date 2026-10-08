@@ -93,10 +93,13 @@ def test_fetch_json_classifies_unauthorized_gitlab_requests(monkeypatch) -> None
 
 
 def test_fetch_json_classifies_transport_timeouts(monkeypatch) -> None:
+    sleeps = []
+    monkeypatch.setattr(gitlab_client.time, "sleep", sleeps.append)
+    attempts = []
     client = gitlab_client.GitLabClient("https://gitlab.com", lambda: {"PRIVATE-TOKEN": "test-token"})
 
     def fake_urlopen(_request, timeout):  # type: ignore[no-untyped-def]
-        del timeout
+        attempts.append(timeout)
         raise URLError(TimeoutError("The read operation timed out"))
 
     monkeypatch.setattr(gitlab_client, "urlopen", fake_urlopen)
@@ -105,3 +108,9 @@ def test_fetch_json_classifies_transport_timeouts(monkeypatch) -> None:
         client.fetch_json("https://gitlab.com/api/v4/test")
 
     assert exc_info.value.status == "timed_out"
+
+    assert len(attempts) == gitlab_client.GITLAB_REQUEST_RETRIES
+    assert sleeps == [
+        gitlab_client.GITLAB_RETRY_BACKOFF_SECONDS * attempt
+        for attempt in range(1, gitlab_client.GITLAB_REQUEST_RETRIES)
+    ]

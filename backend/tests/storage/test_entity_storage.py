@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.database import build_test_database_url, migrate_test_database
 from app.models.repository import (
     Repository,
     RepositorySearchEvidence,

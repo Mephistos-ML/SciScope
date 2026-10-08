@@ -8,7 +8,7 @@ import sysconfig
 
 import pytest
 
-from tests.conftest import BACKEND_ROOT, REPO_ROOT
+from tests.fixtures.database import BACKEND_ROOT, REPO_ROOT
 
 
 @pytest.fixture

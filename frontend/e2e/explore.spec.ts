@@ -1,4 +1,5 @@
-import { expect, test, type Response } from "@playwright/test";
+import type { Response } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 const api = "http://127.0.0.1:8011";
 const provider = "http://127.0.0.1:8012";
@@ -14,7 +15,6 @@ async function isRunningPoll(response: Response): Promise<boolean> {
 
 test("guest discovers repositories, polls and expands the same durable run", async ({ page, request }) => {
   const baseline = await (await request.get(`${provider}/facts`)).json();
-  expect((await request.post(`${provider}/reset`)).ok()).toBeTruthy();
   const unexpectedRequests: string[] = [];
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));

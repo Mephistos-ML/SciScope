@@ -20,7 +20,7 @@ from app.services.search.explore import jobs
 from app.models.security import TurnstileVerificationResult
 from app.storage.auth.users import create_user
 from app.storage.search_runs import get_search_run
-from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.database import build_test_database_url, migrate_test_database
 from tests.fixtures.search_runs import seed_search_run
 
 

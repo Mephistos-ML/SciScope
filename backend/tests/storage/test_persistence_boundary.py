@@ -12,7 +12,7 @@ from app.database.session import get_engine
 from app.models.persistence import PersistenceConflictError, PersistenceError, PersistenceUnavailableError
 from app.storage.auth.users import create_user, get_user_by_id
 from app.storage.transaction import persistence_session
-from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.database import build_test_database_url, migrate_test_database
 
 
 def test_commit_conflict_rolls_back_all_related_writes(tmp_path):

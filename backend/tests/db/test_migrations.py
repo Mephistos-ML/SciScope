@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
 
-from tests.conftest import BACKEND_ROOT, build_test_database_url, migrate_test_database
+from tests.fixtures.database import BACKEND_ROOT, build_test_database_url, migrate_test_database
 
 
 def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path) -> None:

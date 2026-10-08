@@ -27,7 +27,7 @@ from app.storage.search_runs import (
     release_search_run_operation_lease,
     renew_search_run_operation_lease,
 )
-from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.database import build_test_database_url, migrate_test_database
 
 
 def test_search_run_storage_persists_execution_facts(tmp_path) -> None:

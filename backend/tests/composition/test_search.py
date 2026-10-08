@@ -17,7 +17,7 @@ from app.services.search.explore.dependencies import ExploreDependencies
 from app.services.search.retrieval.models import RetrievalLane
 from app.services.search.retrieval.service import run_external_repository_retrieval
 from app.storage.search_runs import get_search_run
-from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.database import build_test_database_url, migrate_test_database
 
 
 from app import config

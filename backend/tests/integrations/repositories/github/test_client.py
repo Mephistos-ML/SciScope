@@ -115,10 +115,13 @@ def test_fetch_json_reads_rate_limit_retry_after(monkeypatch) -> None:
 
 
 def test_fetch_json_classifies_transport_timeouts(monkeypatch) -> None:
+    sleeps = []
+    monkeypatch.setattr(github_client.time, "sleep", sleeps.append)
+    attempts = []
     client = github_client.GitHubClient(lambda: {"Authorization": "Bearer token"})
 
     def fake_urlopen(_request, timeout):  # type: ignore[no-untyped-def]
-        del timeout
+        attempts.append(timeout)
         raise URLError(TimeoutError("The read operation timed out"))
 
     monkeypatch.setattr(github_client, "urlopen", fake_urlopen)
@@ -127,3 +130,9 @@ def test_fetch_json_classifies_transport_timeouts(monkeypatch) -> None:
         client.fetch_json("https://api.github.com/test")
 
     assert exc_info.value.status == "timed_out"
+
+    assert len(attempts) == github_client.GITHUB_REQUEST_RETRIES
+    assert sleeps == [
+        github_client.GITHUB_RETRY_BACKOFF_SECONDS * attempt
+        for attempt in range(1, github_client.GITHUB_REQUEST_RETRIES)
+    ]

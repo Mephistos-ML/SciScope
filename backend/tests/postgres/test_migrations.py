@@ -8,7 +8,7 @@ import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
 
-from tests.conftest import BACKEND_ROOT, migrate_test_database
+from tests.fixtures.database import BACKEND_ROOT, migrate_test_database
 from app.database.session import get_engine
 from app.services.search.explore.execution import deserialize_execution
 

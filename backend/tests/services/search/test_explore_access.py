@@ -113,7 +113,7 @@ def test_has_search_quota_bypass_matches_normalized_email(monkeypatch) -> None:
 def test_parallel_reservations_do_not_exceed_last_slot(tmp_path, monkeypatch, shared_actor):
     from concurrent.futures import ThreadPoolExecutor
     from threading import Barrier
-    from tests.conftest import build_test_database_url, migrate_test_database
+    from tests.fixtures.database import build_test_database_url, migrate_test_database
     from app.storage.explore import count_global_explore_events_since
     from datetime import UTC, datetime, timedelta
 
@@ -135,7 +135,7 @@ def test_parallel_reservations_do_not_exceed_last_slot(tmp_path, monkeypatch, sh
 
 
 def test_failed_reservation_transaction_rolls_back(tmp_path):
-    from tests.conftest import build_test_database_url, migrate_test_database
+    from tests.fixtures.database import build_test_database_url, migrate_test_database
     from app.storage.search_admission import explore_admission_transaction
     from datetime import UTC, datetime, timedelta
     from app.storage.explore import count_global_explore_events_since

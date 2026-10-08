@@ -10,7 +10,7 @@ from app.api.app import app
 from app.api.routes import subscriptions
 from app.database.session import get_engine
 from app.models.auth import User
-from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.database import build_test_database_url, migrate_test_database
 
 
 @pytest.mark.parametrize("driver_error,http_status,code", [

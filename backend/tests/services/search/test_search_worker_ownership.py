@@ -20,7 +20,7 @@ from app.services.search.explore import jobs
 from app.services.search.explore.execution import ExploreSearchExecution, serialize_execution
 from app.services.search.retrieval.models import RetrievedCandidates
 from app.storage import search_runs as storage
-from tests.conftest import build_test_database_url, migrate_test_database
+from tests.fixtures.database import build_test_database_url, migrate_test_database
 from tests.fixtures.search_runs import seed_search_run
 
 
