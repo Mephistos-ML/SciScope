@@ -126,8 +126,9 @@ watched repository -> releases + default-branch commits
 
 Each repository scan commits collected events and completed-stream checkpoints
 together. Partial streams retain their checkpoints; retries deduplicate events
-and preserve read state. Events cover activity after subscription time, and
-removing a subscription preserves historical Feed events. The detailed scan
+and preserve read state. Timestamp bootstrap respects subscription time; an
+established commit SHA also discovers newly reachable commits with older dates.
+Removing a subscription preserves historical Feed events. The detailed scan
 contract is in [Repository Monitoring](../docs/operations/repository-monitoring.md).
 
 ## HTTP Surface
@@ -135,10 +136,9 @@ contract is in [Repository Monitoring](../docs/operations/repository-monitoring.
 | Area | Endpoints |
 | --- | --- |
 | Explore | `POST /api/explore/search` (direct), `POST /api/explore/search-runs`, `GET /api/explore/search-runs/{id}`, `POST /api/explore/search-runs/{id}/expand` |
-| Authentication | `GET /api/me`, `GET /api/auth/google/start`, `GET /api/auth/google/callback`, `POST /api/logout` |
+| Authentication | `GET /api/me`, `GET /api/auth/google/start`, `GET /api/auth/google/callback`, `POST /api/logout`, `DELETE /api/account` |
 | Subscriptions | `GET /api/subscriptions`, `POST /api/subscriptions`, `DELETE /api/subscriptions/{id}` |
-| Feed | `GET /api/feed`, `GET /api/feed/{id}` |
-| Monitoring controls | `POST /api/start`, `POST /api/stop`, `GET /api/status` |
+| Feed | `GET /api/feed`, `GET /api/feed/{id}`, `PATCH /api/feed/{id}`, `POST /api/feed/read-all` |
 
 Route handlers live in `app/api/routes/`; registration lives in `app/api/app.py`.
 
@@ -183,3 +183,5 @@ in [Backend quality gates](../docs/contracts/backend-quality-gates.md).
 See [config.py](app/config.py) for the complete configuration and validation.
 Catalog maintenance instructions are in [Catalog Profile Repair](../docs/operations/catalog-repair.md).
 The semantic backfill entrypoint is `scripts.backfill_semantic_catalog`.
+Deployment order, health interpretation and recovery procedures are in
+[Backend recovery](../docs/operations/backend-recovery.md).

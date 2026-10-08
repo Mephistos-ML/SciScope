@@ -26,7 +26,7 @@ Public service: `https://sciscope.uk/`
 - runs searches asynchronously and returns completed work when a source is slow, rate-limited, or unavailable
 - lets signed-in users subscribe to repositories
 - monitors subscribed repositories for releases and default-branch commits
-- delivers new activity through an append-only personal Feed
+- delivers new activity through a durable personal Feed
 
 ## User Flow
 
@@ -65,41 +65,33 @@ GitLab.com global code search is disabled because its public API does not provid
 
 SciScope is a structured monolith with a React + TypeScript frontend, FastAPI backend, and Postgres persistence layer.
 
-Main backend areas:
-
-- `backend/app/api/`: FastAPI transport, auth, and request validation
-- `backend/app/services/ai/`: AI query planning
-- `backend/app/services/search/`: retrieval, admission, ranking, async jobs, and observability
-- `backend/app/services/subscriptions/`: repository subscriptions
-- `backend/app/services/monitoring/`: repository monitoring and Feed creation
-- `backend/app/integrations/repositories/`: repository provider adapters and shared repository integration helpers
-- `backend/app/integrations/ai/`: AI provider adapters
-- `backend/app/storage/`: persistence contracts
-- `backend/app/database/records/`: SQLAlchemy records used only by storage
-- `backend/alembic/`: database migrations
-
-The core dependency direction is `api -> services -> integrations/storage -> database`. Details are recorded in [AGENTS.md](AGENTS.md) and [docs/architecture.md](docs/architecture.md).
+The API, Explore worker and scheduled monitoring share PostgreSQL, with separate
+process-local clients. The package map and product flows are in the
+[backend README](backend/README.md); process and transaction guarantees are in
+[Architecture](docs/architecture.md). [AGENTS.md](AGENTS.md) defines engineering policy.
 
 ## API Surfaces
 
 - `POST /api/explore/search`
-- `POST /api/explore/search-jobs`
-- `GET /api/explore/search-jobs/{id}`
+- `POST /api/explore/search-runs`
+- `GET /api/explore/search-runs/{run_id}`
+- `POST /api/explore/search-runs/{run_id}/expand`
 - `GET /api/subscriptions`
 - `POST /api/subscriptions`
 - `DELETE /api/subscriptions/{id}`
 - `GET /api/feed`
 - `GET /api/feed/{id}`
-- `POST /api/start`
-- `POST /api/stop`
 
 ## Operations
 
 - External provider failures and timeouts return completed work with partial coverage.
 - GitHub code retrieval stops after a provider rate-limit response and reports a retry window when the provider supplies one.
-- Search emits structured events for planning, retrieval, admission, ranking, and completion.
+- Search emits structured events for start, provider degradation, ranking stages, completion and failure.
 - Public search quotas and abuse controls are configured through environment variables.
 - Restricted search diagnostics are available only to configured internal users.
+
+Diagnosis, queue replay, interrupted monitoring and migration order are described
+in [Backend recovery](docs/operations/backend-recovery.md).
 
 ## Development
 
@@ -113,7 +105,9 @@ Backend setup and operations are documented in [backend/README.md](backend/READM
 
 - Backend tests: `pytest -q`
 - Backend coverage: `pytest --cov=app --cov-report=term-missing`
-- Frontend checks: `npm run build`
+- Frontend checks (from `frontend/`): `npm test`, `npm run build`
+- Backend import boundaries, lint and scoped strict types: [quality gates](docs/contracts/backend-quality-gates.md)
+- Database-specific integration checks: [PostgreSQL correctness](docs/contracts/postgresql-correctness.md)
 - Pull requests are validated through GitHub Actions.
 
 ## Author

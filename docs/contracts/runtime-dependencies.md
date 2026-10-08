@@ -21,8 +21,7 @@ configuration change takes effect when the entrypoint constructs a new set,
 normally after restarting the process.
 
 Repository integrations do not read deployment configuration. Replay fixture
-loading also requires an explicit path. No provider registry or obsolete runtime
-package supplies hidden defaults.
+loading also requires an explicit path.
 
 ## GitHub installation token cache
 
@@ -39,7 +38,7 @@ failed exchange raises a source error without caching a replacement. A later
 caller may attempt the exchange again. This is local cache recovery, not a durable
 retry queue or cross-process single-flight guarantee.
 
-The token exchange retains its 30-second network timeout and has no automatic
+The token exchange has a 30-second network timeout and no automatic
 retries. The cache lock does not provide an end-to-end search deadline or cancel
 an exchange already in progress. Cached credentials disappear on process exit;
 the next process obtains its own token. Private keys, bearer tokens and credential
@@ -52,8 +51,6 @@ They do not silently fall back to the deployment database. API and background
 entrypoints own connection selection; storage owns transaction behavior. Passing
 a connection does not combine otherwise independent operations into a single
 transaction.
-
-No database schema or persisted execution format changes with this contract.
 
 ## Verification
 
