@@ -221,6 +221,10 @@ def test_monitoring_release_links_reuse_old_facts_and_commit_atomically(feed_api
     run()
     cards = client.get("/api/feed/groups").json()
     assert cards["unreadCount"] == 2
+    watched = client.get("/api/subscriptions").json()["items"]
+    assert len(watched) == 1
+    assert watched[0]["unreadGroupCount"] == 2
+    assert watched[0]["unreadEventCount"] == 4
     assert len(cards["items"]) == 3
     assert get_feed_update_group_for_user("user-1", old_group.group_id, database_url=url) == old_group
     release_card = next(item for item in cards["items"] if item["kind"] == "release")
@@ -249,6 +253,9 @@ def test_monitoring_release_links_reuse_old_facts_and_commit_atomically(feed_api
     assert retained["commitDetailsStatus"] == "partial"
     assert retained["commitCount"] == 2 and retained["totalCommitCount"] == 3
     assert retained["hasMore"] is False
+    assert client.patch(f"/api/feed/groups/{release_card['groupId']}").status_code == 200
+    watched = client.get("/api/subscriptions").json()["items"][0]
+    assert watched["unreadGroupCount"] == watched["unreadEventCount"] == 1
 
 
 def test_unavailable_release_details_keep_the_release_link_without_fake_zero(feed_api):

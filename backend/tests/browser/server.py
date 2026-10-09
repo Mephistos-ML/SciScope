@@ -186,6 +186,10 @@ def serve() -> None:
                     failures[stage].set()
                     gates[stage].set()
                     self.reply(200, {})
+                elif self.path == "/feed/seed":
+                    from tests.browser.feed import seed_feed
+
+                    self.reply(200, seed_feed(database_url))
                 elif self.path == "/reset":
                     with engine.begin() as connection:
                         pending = connection.scalar(text(
@@ -195,7 +199,7 @@ def serve() -> None:
                             self.reply(409, {"error": "Release and drain pending operations before reset."})
                             return
                         connection.execute(text(
-                            "TRUNCATE search_runs, repositories, search_access_events CASCADE"
+                            "TRUNCATE search_runs, repositories, search_access_events, users, monitoring_job_leases, monitoring_runs CASCADE"
                         ))
                     for event in (
                         *gates.values(),

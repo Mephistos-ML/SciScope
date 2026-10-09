@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import and_, func, select
 
-from app.database.records.feed import FeedEventRecordModel
+from app.database.records.feed import FeedEventRecordModel, FeedUpdateGroupMemberRecordModel
 from app.database.records.repositories import RepositoryRecordModel, SubscriptionRecordModel
 from app.storage.transaction import persistence_session
 from app.models.repository import Repository
@@ -23,6 +23,7 @@ class SubscriptionWatchRecord:
     selected_query: str | None
     created_at: str
     unread_event_count: int = 0
+    unread_group_count: int = 0
 
 
 def list_subscription_watches_for_user(
@@ -37,6 +38,7 @@ def list_subscription_watches_for_user(
             SubscriptionRecordModel,
             RepositoryRecordModel,
             func.count(FeedEventRecordModel.event_id),
+            func.count(func.distinct(FeedUpdateGroupMemberRecordModel.group_id)),
         )
         .join(
             RepositoryRecordModel,
@@ -50,6 +52,8 @@ def list_subscription_watches_for_user(
                 FeedEventRecordModel.read_at.is_(None),
             ),
         )
+        .outerjoin(FeedUpdateGroupMemberRecordModel,
+                   FeedUpdateGroupMemberRecordModel.event_id == FeedEventRecordModel.event_id)
         .where(SubscriptionRecordModel.user_id == user_id)
         .group_by(SubscriptionRecordModel.subscription_id, RepositoryRecordModel.repository_id)
         .order_by(SubscriptionRecordModel.created_at.desc())
@@ -58,8 +62,8 @@ def list_subscription_watches_for_user(
     with persistence_session(database_url) as session:
         rows = session.execute(statement).all()
     return [
-        _to_subscription_watch_record(subscription, repository, unread_event_count=count)
-        for subscription, repository, count in rows
+        _to_subscription_watch_record(subscription, repository, unread_event_count=count, unread_group_count=groups)
+        for subscription, repository, count, groups in rows
     ]
 
 
@@ -90,6 +94,7 @@ def _to_subscription_watch_record(
     subscription: SubscriptionRecordModel,
     repository: RepositoryRecordModel,
     unread_event_count: int = 0,
+    unread_group_count: int = 0,
 ) -> SubscriptionWatchRecord:
     return SubscriptionWatchRecord(
         subscription_id=subscription.subscription_id,
@@ -118,6 +123,7 @@ def _to_subscription_watch_record(
         selected_query=subscription.selected_query,
         created_at=_ensure_utc(subscription.created_at).isoformat(timespec="seconds"),
         unread_event_count=unread_event_count,
+        unread_group_count=unread_group_count,
     )
 
 

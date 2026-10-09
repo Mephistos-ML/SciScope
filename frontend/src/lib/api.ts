@@ -1,7 +1,8 @@
 import type {
   ExploreAccessErrorPayload,
-  FeedEventDetailPayload,
-  FeedEventListPayload,
+  FeedGroupDetailPayload,
+  FeedGroupItem,
+  FeedGroupListPayload,
   SearchDiagnosticsReport,
   ExploreSearchRunPayload,
   ExploreSearchRunCreatedPayload,
@@ -90,6 +91,9 @@ async function readErrorPayload(response: Response): Promise<ExploreAccessErrorP
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
+  const abortRequest = () => controller.abort();
+  init?.signal?.addEventListener("abort", abortRequest, { once: true });
+  if (init?.signal?.aborted) controller.abort();
   const timeoutId = window.setTimeout(() => controller.abort(), frontendConfig.requestTimeoutMs);
 
   try {
@@ -130,6 +134,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError("The SciScope API is unreachable right now. Please try again.");
   } finally {
     window.clearTimeout(timeoutId);
+    init?.signal?.removeEventListener("abort", abortRequest);
   }
 }
 
@@ -163,8 +168,8 @@ export async function createSubscription(payload: {
     itemId: string;
   };
   selectedQuery: string | null;
-}): Promise<SubscriptionItem> {
-  return requestJson<SubscriptionItem>("/api/subscriptions", {
+}): Promise<Omit<SubscriptionItem, "unreadGroupCount">> {
+  return requestJson<Omit<SubscriptionItem, "unreadGroupCount">>("/api/subscriptions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -235,23 +240,21 @@ export async function fetchSearchDiagnosticsReport(runId: string): Promise<Searc
   );
 }
 
-export async function fetchFeed(options: { cursor?: string; state?: "all" | "unread"; subscriptionId?: string; limit?: number } = {}): Promise<FeedEventListPayload> {
+export async function fetchFeedGroups(options: { cursor?: string; state?: "all" | "unread"; subscriptionId?: string; limit?: number } = {}): Promise<FeedGroupListPayload> {
   const parameters = new URLSearchParams({ limit: String(options.limit ?? 20), state: options.state ?? "all" });
-  if (options.cursor) {
-    parameters.set("cursor", options.cursor);
-  }
+  if (options.cursor) parameters.set("cursor", options.cursor);
   if (options.subscriptionId) parameters.set("subscription_id", options.subscriptionId);
-  return requestJson<FeedEventListPayload>(`/api/feed?${parameters}`);
+  return requestJson<FeedGroupListPayload>(`/api/feed/groups?${parameters}`);
 }
 
-export async function fetchFeedEvent(eventId: string): Promise<FeedEventDetailPayload> {
-  return requestJson<FeedEventDetailPayload>(`/api/feed/${encodeURIComponent(eventId)}`);
+export async function fetchFeedGroup(groupId: string, options: { cursor?: string; signal?: AbortSignal } = {}): Promise<FeedGroupDetailPayload> {
+  const parameters = new URLSearchParams({ limit: "10" });
+  if (options.cursor) parameters.set("cursor", options.cursor);
+  return requestJson<FeedGroupDetailPayload>(`/api/feed/groups/${encodeURIComponent(groupId)}?${parameters}`, { signal: options.signal });
 }
 
-export async function markFeedEventRead(eventId: string): Promise<FeedEventDetailPayload> {
-  return requestJson<FeedEventDetailPayload>(`/api/feed/${encodeURIComponent(eventId)}`, {
-    method: "PATCH",
-  });
+export async function markFeedGroupRead(groupId: string): Promise<FeedGroupItem> {
+  return requestJson<FeedGroupItem>(`/api/feed/groups/${encodeURIComponent(groupId)}`, { method: "PATCH" });
 }
 
 export async function markAllFeedEventsRead(): Promise<{ updatedCount: number }> {

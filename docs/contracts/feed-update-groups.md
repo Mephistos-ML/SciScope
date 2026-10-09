@@ -163,3 +163,31 @@ so stop monitoring when rolling back and preserve snapshots before restarting it
 Provider protocol references:
 [GitHub compare commits](https://docs.github.com/en/rest/commits/commits#compare-two-commits)
 and [GitLab repository comparisons](https://docs.gitlab.com/api/repositories/#compare-branches-tags-or-commits).
+
+## Browser behavior and rollout
+
+Feed and subscription previews use the grouped endpoints. Cards disclose stored
+commit previews on request, initially ten at a time. Loading more commits retains
+the current page; collapsing preserves loaded details. Closing or leaving a card
+cancels its pending detail request and ignores late responses. Failed pages offer
+retry without discarding confirmed commits. Missing provider dates remain unknown;
+publication time is not displayed as activity time.
+
+Opening details and following provider links leave read state untouched. Explicit
+Mark read updates that card's members. Mark all read applies across the account,
+including cards outside the current filter. Global and subscription unread badges
+count publications with unread members. `GET /api/subscriptions` exposes
+`unreadGroupCount`; its existing `unreadEventCount` remains event-based for released
+clients. Read actions refresh counts from the server while preserving loaded cards.
+
+All/Unread keeps the selected repository scope. Leaving a repository-filtered
+Feed restores the global list; obsolete list responses cannot replace a newer
+scope or restore a pre-read snapshot. Coverage is visible independently of local
+pagination: unavailable details have no numeric zero, while partial details explain
+that retained commits are only part of the range.
+
+Deploy the schema and group-publishing backend before the grouped client. A client
+rollback can use the preserved event endpoints with the same canonical read state;
+it does not require a database downgrade. Worker rollback has the snapshot
+constraints described above. Browser journeys use real API responses and a
+migrated disposable PostgreSQL database to verify this behavior.

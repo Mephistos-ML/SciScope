@@ -1,49 +1,38 @@
 # Frontend
 
-React + TypeScript frontend for SciScope.
-
-Use Node.js 24 and npm 11. From the repository root, run `nvm install` and `nvm use`, then
+React + TypeScript client for SciScope. Use Node.js 24 and npm 11.
+From the repository root, run `nvm install` and `nvm use`, then
 `cd frontend` and `npm ci`.
 
-Run `npm test` for search polling lifecycle checks and `npm run build` for
-TypeScript validation and the production build. Backend API tests also verify
-that the client search status union matches the backend lifecycle contract.
+```sh
+npm run dev
+npm test
+npm run build
+```
 
-Public service:
+Set `VITE_API_BASE_URL` to the backend URL. `VITE_API_TIMEOUT_MS` controls request
+timeouts; `VITE_TURNSTILE_SITE_KEY` enables the search challenge widget.
 
-- `https://sciscope.uk/`
+## Product surfaces
 
-UI surfaces:
+- Explore creates and polls searches, preserves useful results during expansion,
+  and offers explicit repository subscriptions.
+- Feed lists release cards and scan commit groups. Each card loads ten commit
+  previews on expansion and pages additional commits on request. Opening or
+  following links does not mark updates read. Card and account-wide read actions
+  update server-owned state; unread badges count cards.
+- My Subscriptions manages watches and previews the same grouped updates. Its
+  View all updates action opens a repository-filtered Feed; All/Unread preserves
+  that scope. Leaving this Feed restores the global list.
+- Account provides sign-out and account deletion. Google sign-in establishes a
+  backend session; user-owned Feed and subscriptions require that session.
 
-- Explore
-  - public repository discovery from a topic description
-- Feed
-  - saved repository subscriptions for signed-in users
+Network calls and API errors live in `src/lib/api.ts`; transport types in
+`src/types/api.ts`. `App.tsx` coordinates navigation, list scope and read actions.
+`FeedUpdateCard` owns disclosure state, bounded commit pagination, cancellation
+and retry feedback. Provider availability and grouping policy remain backend-owned.
 
-## Frontend Responsibility
-
-The frontend owns:
-
-- Explore query input and result rendering
-- per-repository `Subscribe` actions
-- Google sign-in entry
-- subscription list and selected Feed state
-- source badge links to repository URLs
-
-## Auth Behavior
-
-- Explore works without sign-in.
-- Saving subscriptions requires Google OAuth to be configured on the backend.
-- If backend Google OAuth is not configured, the frontend stays in public Explore mode.
-
-The frontend uses:
-
-- `VITE_API_BASE_URL`
-- `VITE_API_TIMEOUT_MS`
-
-## UX Notes
-
-- Explore generates repository queries and shows matched repositories.
-- `Subscribe` is per-result and updates the row locally to `Subscribed` after success.
-- Feed focuses on saved repository subscriptions.
-- The backend exposes monitoring and signal APIs.
+Backend contract checks verify client fields, nullability and statuses against the
+HTTP Feed schemas and search lifecycle. `npm test` covers search polling cleanup;
+`npm run build` checks TypeScript and produces the Vite bundle. The real API and
+PostgreSQL [browser journeys](e2e/README.md) cover Explore and Feed interactions.

@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 
-import { EventKindBadge } from "../components/EventKindBadge";
-import { fetchFeed } from "../lib/api";
+import { FeedUpdateKindBadge } from "../components/FeedUpdateKindBadge";
+import { fetchFeedGroups } from "../lib/api";
 import { getSourceLogo } from "../lib/sourceLogos";
 import feedEmptyIllustration from "../assets/states/feed/feed-empty.svg";
 import feedNoUpdatesIllustration from "../assets/states/feed/feed-no-updates.svg";
-import type { FeedEventItem, SubscriptionItem, ViewerPayload } from "../types/api";
+import type { FeedGroupItem, SubscriptionItem, ViewerPayload } from "../types/api";
 
 type SubscriptionsPageProps = {
   deletePending: boolean;
@@ -20,7 +20,7 @@ type SubscriptionsPageProps = {
 type RecentUpdatesStatus = "loading" | "ready" | "error";
 
 type RecentUpdatesState = {
-  items: FeedEventItem[];
+  items: FeedGroupItem[];
   status: RecentUpdatesStatus;
   subscriptionId: string | null;
 };
@@ -54,7 +54,7 @@ export function SubscriptionsPage({
 
     let cancelled = false;
     setRecentUpdates({ items: [], status: "loading", subscriptionId: selectedSubscriptionId });
-    void fetchFeed({ subscriptionId: selectedSubscriptionId, limit: 5 })
+    void fetchFeedGroups({ subscriptionId: selectedSubscriptionId, limit: 5 })
       .then((payload) => {
         if (!cancelled) {
           setRecentUpdates({
@@ -81,13 +81,13 @@ export function SubscriptionsPage({
 
   const recentUpdatesStatus =
     recentUpdates.subscriptionId === selectedSubscriptionId ? recentUpdates.status : "loading";
-  const selectedFeedEvents = recentUpdatesStatus === "ready" ? recentUpdates.items : [];
+  const selectedFeedGroups = recentUpdatesStatus === "ready" ? recentUpdates.items : [];
   const recentUpdatesBadgeLabel =
     recentUpdatesStatus === "loading"
       ? "Loading"
       : recentUpdatesStatus === "error"
         ? "Unavailable"
-        : `${selectedFeedEvents.length} events`;
+        : `${selectedFeedGroups.length} updates`;
   const hasSubscriptions = subscriptions.length > 0;
 
   return (
@@ -152,7 +152,7 @@ export function SubscriptionsPage({
                     <p>{subscription.selectedQuery || "No Query Snapshot Saved."}</p>
                     <span className="subscription-card-meta">
                       {subscription.repository.source}
-                      {subscription.unreadEventCount > 0 ? ` · ${subscription.unreadEventCount} unread` : ""}
+                      {subscription.unreadGroupCount > 0 ? ` · ${subscription.unreadGroupCount} unread updates` : ""}
                     </span>
                   </button>
                   <button
@@ -213,7 +213,7 @@ export function SubscriptionsPage({
                         <p className="detail-copy">Try again in a moment.</p>
                       </div>
                     </div>
-                  ) : selectedFeedEvents.length === 0 ? (
+                  ) : selectedFeedGroups.length === 0 ? (
                     <div className="feed-updates-placeholder">
                       <img
                         alt=""
@@ -230,19 +230,19 @@ export function SubscriptionsPage({
                     </div>
                   ) : (
                     <div className="subscription-update-list">
-                      {selectedFeedEvents.map((event) => (
+                      {selectedFeedGroups.map((event) => (
                         <a
                           className="subscription-update"
                           href={event.url}
-                          key={event.eventId}
+                          key={event.groupId}
                           rel="noreferrer"
                           target="_blank"
                         >
-                          <EventKindBadge kind={event.signalKind} />
+                          <FeedUpdateKindBadge kind={event.kind} />
                           <strong>{event.title}</strong>
-                          <span className="subscription-update-summary">{event.summary}</span>
+                          <span className="subscription-update-summary">{event.kind === "commits" ? `${event.commitCount} commits` : event.summary}</span>
                           <span className="subscription-update-date">
-                            {formatEventDate(event.publishedAt || event.createdAt)}
+                            {formatEventDate(event.publishedAt)}
                           </span>
                         </a>
                       ))}

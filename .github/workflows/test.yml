@@ -170,14 +170,14 @@ jobs:
       - name: Install Chromium
         working-directory: frontend
         run: npx playwright install --with-deps chromium
-      - name: Verify guest Explore journey
+      - name: Verify Explore and Feed journeys
         working-directory: frontend
         run: npm run test:e2e
       - name: Upload browser failure evidence
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: explore-browser-failure
+          name: browser-journey-failure
           path: |
             frontend/test-results/
             frontend/playwright-report/
