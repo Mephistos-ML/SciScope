@@ -84,3 +84,28 @@ class FeedCursor:
     published_at: datetime | None
     created_at: datetime
     event_id: str
+
+
+@dataclass(frozen=True)
+class FeedGroupCursor:
+    """Position in the activity-ordered publication list."""
+
+    published_at: datetime | None
+    created_at: datetime
+    group_id: str
+
+
+@dataclass(frozen=True)
+class FeedGroupSummary:
+    """Bounded publication view; membership and read state are derived facts."""
+
+    group_id: str
+    subscription_id: str
+    repository_id: str
+    kind: FeedUpdateKind
+    created_at: datetime
+    published_at: datetime | None
+    event_count: int
+    commit_count: int
+    unread_event_count: int
+    representative: FeedEvent

@@ -121,12 +121,18 @@ explicit user action; Explore does not create subscriptions.
 
 ```text
 watched repository -> releases + default-branch commits
-                   -> Feed events + completed-stream checkpoints -> Feed reads
+                   -> Feed events + publication groups + completed checkpoints
+                   -> paginated cards -> bounded member details
 ```
 
-Each repository scan commits collected events and completed-stream checkpoints
-together. Partial streams retain their checkpoints; retries deduplicate events
-and preserve read state. Timestamp bootstrap respects subscription time; an
+Each repository scan commits collected events, immutable publication groups, and
+completed-stream checkpoints together under a fenced lease. Fresh commits form
+one group per subscription and scan; releases have separate groups. Partial
+streams retain their checkpoints; retries deduplicate events and preserve read
+state. Grouped reads paginate cards before loading member details, and card read
+state is derived from its events. See the
+[Feed publication contract](../docs/contracts/feed-update-groups.md) for API and
+pagination semantics. Timestamp bootstrap respects subscription time; an
 established commit SHA also discovers newly reachable commits with older dates.
 Removing a subscription preserves historical Feed events. The detailed scan
 contract is in [Repository Monitoring](../docs/operations/repository-monitoring.md).
@@ -138,7 +144,8 @@ contract is in [Repository Monitoring](../docs/operations/repository-monitoring.
 | Explore | `POST /api/explore/search` (direct), `POST /api/explore/search-runs`, `GET /api/explore/search-runs/{id}`, `POST /api/explore/search-runs/{id}/expand` |
 | Authentication | `GET /api/me`, `GET /api/auth/google/start`, `GET /api/auth/google/callback`, `POST /api/logout`, `DELETE /api/account` |
 | Subscriptions | `GET /api/subscriptions`, `POST /api/subscriptions`, `DELETE /api/subscriptions/{id}` |
-| Feed | `GET /api/feed`, `GET /api/feed/{id}`, `PATCH /api/feed/{id}`, `POST /api/feed/read-all` |
+| Grouped Feed | `GET /api/feed/groups`, `GET /api/feed/groups/{id}`, `PATCH /api/feed/groups/{id}` |
+| Feed events | `GET /api/feed`, `GET /api/feed/{id}`, `PATCH /api/feed/{id}`, `POST /api/feed/read-all` |
 
 Route handlers live in `app/api/routes/`; registration lives in `app/api/app.py`.
 

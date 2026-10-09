@@ -16,6 +16,7 @@ from app.api.routes import auth as auth_routes
 from app.api.routes import dashboard as dashboard_routes
 from app.api.routes import explore as explore_routes
 from app.api.routes import feed as feed_routes
+from app.api.routes.feed_groups import router as feed_groups_router
 from app.api.routes import ranking_labels as ranking_labels_routes
 from app.api.routes import run_reports as run_reports_routes
 from app.api.routes import subscriptions as subscription_routes
@@ -348,6 +349,9 @@ def delete_subscription(request: Request, subscription_id: str) -> dict[str, boo
             detail="Subscription not found",
         )
     return {"deleted": True}
+
+
+app.include_router(feed_groups_router)
 
 
 @app.get("/api/feed")

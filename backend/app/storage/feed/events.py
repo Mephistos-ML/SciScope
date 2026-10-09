@@ -110,7 +110,7 @@ def list_feed_events_for_user(
 
     with persistence_session(database_url) as session:
         rows = session.scalars(statement).all()
-    return [_to_feed_event(row) for row in rows]
+    return [to_feed_event(row) for row in rows]
 
 
 def _events_after_cursor(cursor: FeedCursor):
@@ -163,7 +163,7 @@ def get_feed_event_for_user(
         row = session.scalars(statement).first()
     if row is None:
         return None
-    return _to_feed_event(row)
+    return to_feed_event(row)
 
 
 def count_feed_events(*, database_url: str) -> int:
@@ -212,7 +212,7 @@ def mark_feed_event_read_for_user(
         if record.read_at is None:
             record.read_at = datetime.now(UTC)
             session.flush()
-        return _to_feed_event(record)
+        return to_feed_event(record)
 
 
 def mark_all_feed_events_read_for_user(
@@ -233,7 +233,8 @@ def mark_all_feed_events_read_for_user(
     return int(result.rowcount or 0)
 
 
-def _to_feed_event(record: FeedEventRecordModel) -> FeedEvent:
+def to_feed_event(record: FeedEventRecordModel) -> FeedEvent:
+    """Map persisted event facts for event and publication queries."""
     return FeedEvent(
         event_id=record.event_id,
         user_id=record.user_id,

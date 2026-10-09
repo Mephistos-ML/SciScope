@@ -83,7 +83,7 @@ def get_feed_list_payload(
     next_cursor = _encode_feed_cursor(visible_events[-1]) if len(events) > limit else None
     return {
         "items": [
-            _to_feed_item_payload(event)
+            to_feed_item_payload(event)
             for event in visible_events
         ],
         "nextCursor": next_cursor,
@@ -136,7 +136,7 @@ def get_feed_event_payload(
     if event is None:
         return None
 
-    payload = _to_feed_item_payload(event)
+    payload = to_feed_item_payload(event)
     payload["rawText"] = event.raw_text
     payload["normalizedText"] = event.normalized_text
     payload["metadata"] = dict(event.metadata)
@@ -159,7 +159,7 @@ def mark_feed_event_read_payload(
     if event is None:
         return None
 
-    payload = _to_feed_item_payload(event)
+    payload = to_feed_item_payload(event)
     payload["rawText"] = event.raw_text
     payload["normalizedText"] = event.normalized_text
     payload["metadata"] = dict(event.metadata)
@@ -181,7 +181,8 @@ def mark_all_feed_events_read_payload(
     }
 
 
-def _to_feed_item_payload(event: FeedEvent) -> dict[str, object]:
+def to_feed_item_payload(event: FeedEvent) -> dict[str, object]:
+    """Serialize the shared event preview contract for Feed lists and members."""
     return {
         "eventId": event.event_id,
         "subscriptionId": event.subscription_id,

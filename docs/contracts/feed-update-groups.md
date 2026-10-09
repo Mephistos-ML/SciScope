@@ -57,3 +57,53 @@ events and their read state. Re-upgrade reconstructs singleton groups; it cannot
 recover the original multi-event publication boundaries after downgrade.
 
 Group storage does not change the existing event-based HTTP Feed contract.
+
+## Grouped HTTP Feed
+
+The authenticated grouped contract is exposed alongside the event contract:
+
+| Operation | Endpoint | Result |
+| --- | --- | --- |
+| List cards | `GET /api/feed/groups` | `items`, `nextCursor`, `hasMore`, `unreadCount` |
+| Open a card or load more commits | `GET /api/feed/groups/{group_id}` | Card fields, `release`, `commits`, `nextCursor`, `hasMore` |
+| Mark a card read | `PATCH /api/feed/groups/{group_id}` | Updated card fields |
+
+Lists default to 20 cards; details default to 10 commits. Both accept `limit`
+from 1 to 50 and an opaque `cursor`. Lists also accept `state=all|unread` and
+`subscription_id`. Invalid limits, states, cursor versions, or cursor shapes
+return 422. A commit cursor is bound to its group and cannot be used for another
+card or for list pagination. Unauthenticated requests return 401; absent and
+foreign-owned cards both return 404.
+
+Cards are grouped in SQL before applying the page limit. A release is ordered
+by its release timestamp; a commit batch by its latest member commit timestamp.
+Undated cards follow dated cards. Publication time and group ID break ties;
+the cursor preserves full timestamp precision. Newer publications arriving while
+loading older pages do not shift the cursor position. Like event-based pagination,
+this is a live feed, not a snapshot across edits, retention, or read-state changes.
+
+Each card exposes `groupId`, subscription and repository identity/profile,
+`kind=release|commits`, derived title, summary and URL, `publishedAt`, `createdAt`,
+`eventCount`, `commitCount`, `unreadEventCount`, and `isRead`. `publishedAt` is
+provider activity time; `createdAt` is publication time, not a substitute activity
+date. Commit-batch display text and repository URL are derived, never stored as
+synthetic release facts.
+
+`unreadCount` counts cards with at least one unread member across the user's
+whole Feed, independent of list filters. `unreadEventCount` is the count within
+one card. Read state remains authoritative in events: reading an individual
+event affects its card; marking a card read updates every unread member in one
+transaction. Already-read timestamps are preserved. Opening details is read-only.
+The existing `POST /api/feed/read-all` updates all user events and therefore all
+cards; its `updatedCount` continues to count events.
+
+Details return the canonical release description and metadata, if this is a
+release card, plus a bounded page of commit previews. `commitCount` and `hasMore`
+refer only to stored group members. They do not claim complete provider coverage
+or imply that a release with no linked members has no commits. Confirmed provider
+release-to-commit coverage has its own integration contract. No provider IO occurs
+when listing cards or opening stored details.
+
+The event-based endpoints remain compatible for independently deployed clients.
+The frontend transition to grouped cards uses the grouped endpoints; individual
+events remain the authoritative facts for reading and detail access.
