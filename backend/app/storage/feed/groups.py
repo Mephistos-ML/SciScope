@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.database.records.feed import (
     FeedEventRecordModel, FeedUpdateGroupMemberRecordModel, FeedUpdateGroupRecordModel,
 )
-from app.models.feed import FeedEvent, FeedUpdateGroup, FeedUpdateKind
+from app.models.feed import FeedEvent, FeedUpdateGroup, FeedUpdateKind, read_feed_release_commit_details
 from app.models.persistence import PersistenceConflictError
 from app.storage.feed.events import write_feed_events
 from app.storage.transaction import persistence_session
@@ -58,6 +58,7 @@ def write_feed_update_groups(session: Session, groups: Sequence[FeedUpdateGroup]
             ):
                 raise PersistenceConflictError("A published Feed group's scope and membership are immutable.")
         kinds = []
+        release_id = None
         for start in range(0, len(group.event_ids), 500):
             rows = session.execute(select(FeedEventRecordModel.event_id, FeedEventRecordModel.kind).where(
                 FeedEventRecordModel.event_id.in_(group.event_ids[start:start + 500]),
@@ -66,6 +67,7 @@ def write_feed_update_groups(session: Session, groups: Sequence[FeedUpdateGroup]
                 FeedEventRecordModel.repository_id == group.repository_id,
             )).all()
             kinds.extend(row.kind for row in rows)
+            release_id = next((row.event_id for row in rows if row.kind == "release"), release_id)
         if len(kinds) != len(group.event_ids):
             raise PersistenceConflictError("Group members must exist in the same subscription and repository scope.")
         if (group.kind == "commits" and any(kind != "commit" for kind in kinds)) or (
@@ -74,6 +76,18 @@ def write_feed_update_groups(session: Session, groups: Sequence[FeedUpdateGroup]
             raise PersistenceConflictError("Group members do not match its update kind.")
         if inserted is None:
             continue
+        if release_id is not None:
+            release = session.get(FeedEventRecordModel, release_id)
+            references = read_feed_release_commit_details(release.metadata_json).event_ids
+            if references:
+                matched = set(session.scalars(select(FeedEventRecordModel.event_id).where(
+                    FeedEventRecordModel.event_id.in_(references), FeedEventRecordModel.kind == "commit",
+                    FeedEventRecordModel.user_id == group.user_id,
+                    FeedEventRecordModel.subscription_id == group.subscription_id,
+                    FeedEventRecordModel.repository_id == group.repository_id,
+                )))
+                if matched != set(references):
+                    raise PersistenceConflictError("Release references must identify commit facts in the same scope.")
         session.add_all(FeedUpdateGroupMemberRecordModel(
             event_id=event_id, group_id=group.group_id, **scope,
         ) for event_id in group.event_ids)

@@ -62,7 +62,7 @@ class RepositoryRelease:
 
 @dataclass(frozen=True)
 class RepositoryCommit:
-    """One default-branch commit event emitted by a repository source."""
+    """One commit fact emitted by a repository source."""
 
     source: str
     repo_full_name: str

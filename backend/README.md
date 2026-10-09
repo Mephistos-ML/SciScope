@@ -127,7 +127,10 @@ watched repository -> releases + default-branch commits
 
 Each repository scan commits collected events, immutable publication groups, and
 completed-stream checkpoints together under a fenced lease. Fresh commits form
-one group per subscription and scan; releases have separate groups. Partial
+one group per subscription and scan. Confirmed fresh release commits join the
+release group; remaining commits keep their scan batch. Bounded tag comparisons
+record complete, partial, or unavailable coverage without delaying publication
+when optional details cannot be fetched. Partial
 streams retain their checkpoints; retries deduplicate events and preserve read
 state. Grouped reads paginate cards before loading member details, and card read
 state is derived from its events. See the

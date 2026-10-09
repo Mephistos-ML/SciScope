@@ -204,6 +204,7 @@ def persist_repository_monitoring_result(
     events: Sequence[FeedEvent],
     checkpoint_updates: dict[str, str],
     *,
+    supplemental_events: Sequence[FeedEvent],
     group_new_events: Callable[[Sequence[FeedEvent]], Sequence[FeedUpdateGroup]],
     refreshed_repository: Repository | None = None,
     lease: MonitoringLease,
@@ -218,8 +219,8 @@ def persist_repository_monitoring_result(
     with _owned_monitoring_session(lease, database_url=database_url) as session:
         if refreshed_repository is not None:
             write_repositories(session, (refreshed_repository,))
-        unique_events = {event.event_id: event for event in events}
-        if any(event.repository_id != repository_id for event in events):
+        unique_events = {event.event_id: event for event in (*supplemental_events, *events)}
+        if any(event.repository_id != repository_id for event in unique_events.values()):
             raise ValueError("Monitoring events must belong to the scanned repository.")
         event_ids = list(unique_events)
         existing_ids: set[str] = set()
@@ -230,7 +231,9 @@ def persist_repository_monitoring_result(
                 )
             ))
         new_events = [event for key, event in unique_events.items() if key not in existing_ids]
-        write_feed_events(session, list(unique_events.values()))
+        source_ids = {event.event_id for event in events}
+        write_feed_events(session, [event for key, event in unique_events.items()
+                                    if key in source_ids or key not in existing_ids])
         session.flush()
         write_feed_update_groups(session, group_new_events(new_events))
         _write_repository_monitoring_cursors(session, repository_id, checkpoint_updates)

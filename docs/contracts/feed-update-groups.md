@@ -26,9 +26,10 @@ identity, scope, kind, and first-publication time;
   checkpoints in one fenced transaction. Fresh event IDs are determined after
   locking the monitoring lease; the application grouping callback is pure and
   performs no external IO while the lock is held.
-- Each fresh release gets its own publication. Fresh commits form one publication
-  per subscription and scan, identified by the monitoring run ID. Release and
-  commit events remain separate until their relationship is confirmed.
+- Each fresh release gets its own publication. Fresh commits uniquely confirmed for a fresh release become its members.
+  Remaining fresh commits form one publication per subscription and scan,
+  identified by the monitoring run ID. Overlapping release comparisons leave
+  ambiguous fresh commits in the scan batch; no release is chosen arbitrarily.
 - Incomplete scans publish discovered events immediately and retain unfinished
   stream checkpoints. Recovery publishes only newly discovered IDs. Repeated
   facts can refresh event content without regrouping them or resetting read state.
@@ -91,19 +92,74 @@ synthetic release facts.
 
 `unreadCount` counts cards with at least one unread member across the user's
 whole Feed, independent of list filters. `unreadEventCount` is the count within
-one card. Read state remains authoritative in events: reading an individual
+one card, counting publication members. Read state remains authoritative in events: reading an individual
 event affects its card; marking a card read updates every unread member in one
 transaction. Already-read timestamps are preserved. Opening details is read-only.
 The existing `POST /api/feed/read-all` updates all user events and therefore all
 cards; its `updatedCount` continues to count events.
 
 Details return the canonical release description and metadata, if this is a
-release card, plus a bounded page of commit previews. `commitCount` and `hasMore`
-refer only to stored group members. They do not claim complete provider coverage
-or imply that a release with no linked members has no commits. Confirmed provider
-release-to-commit coverage has its own integration contract. No provider IO occurs
+release card, plus a bounded page of commit previews. `commitCount` counts currently retained commits available for the card, including
+confirmed references to earlier publications. `totalCommitCount` is the known
+provider range count, or null when unknown. `commitDetailsStatus` is `complete`,
+`partial`, or `unavailable`; unavailable counts are null, not a fabricated zero.
+`hasMore` describes pagination of retained facts and is independent of coverage. No provider IO occurs
 when listing cards or opening stored details.
 
 The event-based endpoints remain compatible for independently deployed clients.
 The frontend transition to grouped cards uses the grouped endpoints; individual
 events remain the authoritative facts for reading and detail access.
+
+
+## Confirmed release comparisons
+
+`RepositoryMonitor.load_release_commit_details` compares a release tag with the
+unambiguous release published immediately before it. Adapters require a complete
+catalogue within three pages of 100 releases, ignore drafts, and decline ambiguous
+predecessors. Both tags are resolved to immutable commit SHAs before comparing.
+GitHub requires an ancestral merge base and pages the pinned comparison; GitLab
+verifies ancestry with a reverse comparison before reading the direct range.
+A first release, missing tag, divergent history, ambiguous or oversized catalogue,
+provider failure, or exhausted budget leaves useful release content and its link
+available with `unavailable` comparison coverage.
+
+Monitoring attempts comparisons for up to five fresh releases per repository,
+prioritizing the newest, under one shared 15-second request budget. Each comparison
+retains at most 500 mapped commits; confirmed partial results remain usable.
+Comparison responses are capped at 8 MiB each before JSON parsing. Client
+request timeouts and retry backoff respect the remaining budget. Optional
+comparison coverage does not control the release or main-commit stream checkpoints.
+HTTP Feed reads perform no comparison IO. Aggregate enrichment logs record attempts,
+coverage counts, and duration per repository.
+
+Release events store `release_commit_details` in their existing canonical metadata.
+Its version-1 schema contains `status`, pinned `baseSha` and `headSha`, `eventIds`,
+and optional `totalCount`. It contains no copied commit bodies or read state.
+All referenced facts are written or verified in the same publication transaction
+and must be commits in the same user, subscription, and repository scope.
+Supplemental comparison facts are inserted only if unseen; they do not overwrite
+previously published commit content. The first successful publication freezes the
+comparison snapshot. Later provider refreshes can update release text without
+replacing the snapshot or extending published groups. Historical events without
+comparison metadata are explicitly unavailable and are not reconstructed.
+
+A reference can identify a commit in an earlier publication. That earlier group
+keeps its membership and read state. Reading a release card marks its own members;
+earlier referenced events keep their original publication's read state. The
+account-wide read action still operates on all canonical events.
+
+Retention may remove referenced facts. Both card summaries and details count only
+retained, scope-matching commits; missing references make coverage partial while
+preserving the original provider count. Detail pagination can end while coverage
+is still partial. Unknown metadata versions or invalid snapshot shapes are data
+contract failures, not empty complete results. Version-1 readers must remain in
+place while these snapshots are retained.
+
+This contract uses the existing JSON metadata column; no schema revision is needed.
+A coordinated rollback must keep a reader for retained version-1 snapshots. A
+pre-feature worker can overwrite these metadata values during release refreshes,
+so stop monitoring when rolling back and preserve snapshots before restarting it.
+
+Provider protocol references:
+[GitHub compare commits](https://docs.github.com/en/rest/commits/commits#compare-two-commits)
+and [GitLab repository comparisons](https://docs.gitlab.com/api/repositories/#compare-branches-tags-or-commits).

@@ -51,7 +51,9 @@ class FeedGroupResponse(BaseModel):
     publishedAt: datetime | None
     createdAt: datetime
     eventCount: int
-    commitCount: int
+    commitCount: int | None
+    totalCommitCount: int | None
+    commitDetailsStatus: Literal["complete", "partial", "unavailable"]
     unreadEventCount: int
     isRead: bool
 

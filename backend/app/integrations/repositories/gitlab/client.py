@@ -43,9 +43,12 @@ class GitLabClient:
         url: str,
         *,
         deadline_monotonic: float | None = None,
+        max_response_bytes: int | None = None,
     ) -> JsonResponse:
         """Fetch JSON and the provider URL after any HTTP redirect."""
 
+        if max_response_bytes is not None and max_response_bytes <= 0:
+            raise ValueError("Response byte budget must be positive.")
         headers = {
             "Accept": "application/json",
             "User-Agent": build_user_agent(),
@@ -66,10 +69,23 @@ class GitLabClient:
                 )
                 with urlopen(request, timeout=request_timeout_seconds) as response:
                     final_url = getattr(response, "geturl", lambda: url)()
-                    return JsonResponse(payload=json.load(response), url=str(final_url))
+                    if max_response_bytes is None:
+                        payload = json.load(response)
+                    else:
+                        body = response.read(max_response_bytes + 1)
+                        if len(body) > max_response_bytes:
+                            raise RepositorySourceError(source="gitlab", status="error",
+                                                        public_message="Provider response exceeded its byte budget.")
+                        try:
+                            payload = json.loads(body)
+                        except (ValueError, UnicodeDecodeError, RecursionError) as error:
+                            raise RepositorySourceError(source="gitlab", status="error",
+                                                        public_message="Provider returned invalid JSON.") from error
+                    return JsonResponse(payload=payload, url=str(final_url))
             except HTTPError as exc:
                 message = _read_error_message(exc)
-                if attempt < GITLAB_REQUEST_RETRIES and 500 <= exc.code < 600:
+                if (attempt < GITLAB_REQUEST_RETRIES and 500 <= exc.code < 600
+                        and (deadline_monotonic is None or monotonic() + GITLAB_RETRY_BACKOFF_SECONDS * attempt < deadline_monotonic)):
                     logger.warning(
                         (
                             "GitLab API request returned retryable HTTP error "
@@ -110,7 +126,7 @@ class GitLabClient:
                 )
                 if attempt == GITLAB_REQUEST_RETRIES:
                     break
-                if deadline_monotonic is not None and monotonic() >= deadline_monotonic:
+                if deadline_monotonic is not None and monotonic() + GITLAB_RETRY_BACKOFF_SECONDS * attempt >= deadline_monotonic:
                     break
                 time.sleep(GITLAB_RETRY_BACKOFF_SECONDS * attempt)
 

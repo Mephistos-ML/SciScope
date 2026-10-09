@@ -20,7 +20,7 @@ from app.database.records.monitoring import (
 )
 from app.jobs import scan_subscriptions as job
 from app.models.monitoring import (
-    MonitoringRun,
+    ReleaseCommitDetails, MonitoringRun,
     RepositoryActivity,
     RepositoryMonitoringCheck,
     MonitoringLeaseLostError,
@@ -115,6 +115,7 @@ def test_superseded_scan_cannot_publish_any_facts_or_release_replacement(
                 repository.repository_id, "github", "science/stale", repository.url, {}
             ),
             lease=old,
+            supplemental_events=(),
             group_new_events=partial(build_feed_update_groups, publication_key=old.holder_id, created_at=datetime.now(UTC)),
             database_url=postgres_url,
         ),
@@ -167,6 +168,7 @@ def test_superseded_scan_cannot_publish_any_facts_or_release_replacement(
         (feed_event,),
         {"latest_main_commit_sha": "current"},
         lease=current,
+        supplemental_events=(),
         group_new_events=partial(build_feed_update_groups, publication_key=current.holder_id, created_at=datetime.now(UTC)),
         database_url=postgres_url,
     )
@@ -218,6 +220,7 @@ def test_expiry_after_flush_rolls_back_feed_profile_and_checkpoint(
                     {},
                 ),
                 lease=lease,
+                supplemental_events=(),
                 group_new_events=partial(build_feed_update_groups, publication_key=lease.holder_id, created_at=datetime.now(UTC)),
                 database_url=postgres_url,
             )
@@ -361,6 +364,9 @@ def test_heartbeat_renews_during_io_and_takeover_discards_old_results(
     monkeypatch.setattr(job, "renew_monitoring_job_lease", renewing)
 
     class Monitor:
+        def load_release_commit_details(self, *args, **kwargs):
+            return ReleaseCommitDetails()
+
         def load_repository_activity(self, *args, **kwargs):
             entered.set()
             assert release.wait(10)

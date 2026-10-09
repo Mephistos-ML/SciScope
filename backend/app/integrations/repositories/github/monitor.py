@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from time import monotonic
 from json import JSONDecodeError
 from urllib.parse import quote, urlencode
 
-from app.models.monitoring import RepositoryActivity
+from app.integrations.repositories.common.release_comparison import find_previous_release_tag, valid_commit_sha, MAX_RELEASE_RESPONSE_BYTES
+from app.models.monitoring import RepositoryActivity, ReleaseCommitDetails
 from app.models.repository import Repository
 from app.models.signal import Signal
 from app.integrations.repositories.common.models import (
@@ -16,7 +18,7 @@ from app.integrations.repositories.common.models import (
 )
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.integrations.repositories.common.factories import (
-    build_repository_main_commit_signal,
+    build_repository_commit_signal,
     build_repository_release_signal,
     read_repository_name,
 )
@@ -63,6 +65,73 @@ class GitHubRepositoryMonitor:
             commit_head_sha=commits.head_sha,
             redirected=releases.redirected or commits.redirected,
         )
+
+
+    def load_release_commit_details(
+        self, repository: Repository, release: Signal, *, deadline_monotonic: float,
+    ) -> ReleaseCommitDetails:
+        """Compare the preceding published release to this tag, using pinned SHAs."""
+        name = read_repository_name(repository)
+        tag = release.payload.get("tag_name")
+        if not name or not isinstance(tag, str) or not tag or release.published_at is None:
+            return ReleaseCommitDetails()
+        base_url = f"{self.client.api_base}/repos/{name}"
+
+        def fetch(url: str) -> object:
+            if monotonic() >= deadline_monotonic:
+                raise TimeoutError("Release comparison budget expired.")
+            return self.client.fetch_json(url, deadline_monotonic=deadline_monotonic,
+                                          max_response_bytes=MAX_RELEASE_RESPONSE_BYTES).payload
+
+        commits: dict[str, Signal] = {}
+        base_sha = head_sha = None
+        total = None
+        try:
+            previous_tag = find_previous_release_tag(
+                release, lambda page: fetch(f"{base_url}/releases?per_page=100&page={page}"),
+                timestamp_field="published_at", parse_timestamp=_parse_github_datetime,
+            )
+            if previous_tag is None:
+                return ReleaseCommitDetails()
+            base = fetch(f"{base_url}/commits/{quote(previous_tag, safe='')}")
+            head = fetch(f"{base_url}/commits/{quote(tag, safe='')}")
+            base_sha = base.get("sha") if isinstance(base, dict) else None
+            head_sha = head.get("sha") if isinstance(head, dict) else None
+            if not valid_commit_sha(base_sha) or not valid_commit_sha(head_sha):
+                return ReleaseCommitDetails()
+            if base_sha == head_sha:
+                return ReleaseCommitDetails("complete", (), base_sha, head_sha, 0)
+            valid = True
+            for page in range(1, 6):
+                payload = fetch(f"{base_url}/compare/{base_sha}...{head_sha}?per_page=100&page={page}")
+                if not isinstance(payload, dict):
+                    break
+                origin, merge_base = payload.get("base_commit"), payload.get("merge_base_commit")
+                items, count = payload.get("commits"), payload.get("total_commits")
+                if (payload.get("status") != "ahead" or not isinstance(origin, dict) or origin.get("sha") != base_sha
+                        or not isinstance(merge_base, dict) or merge_base.get("sha") != base_sha
+                        or not isinstance(items, list) or len(items) > 100
+                        or type(count) is not int or count <= 0 or (total is not None and total != count)):
+                    break
+                total = count
+                for item in items:
+                    signal = _map_commit(name, item, branch="") if isinstance(item, dict) and valid_commit_sha(item.get("sha")) else None
+                    if signal is None:
+                        valid = False
+                    else:
+                        commits[signal.item_id] = signal
+                if len(commits) > total:
+                    total = None
+                    break
+                if valid and len(commits) == total and any(c.payload.get("commit_sha") == head_sha for c in commits.values()):
+                    return ReleaseCommitDetails("complete", tuple(commits.values()), base_sha, head_sha, total)
+                if len(items) < 100:
+                    break
+        except (RepositorySourceError, JSONDecodeError, TimeoutError):
+            pass
+        if commits and base_sha and head_sha:
+            return ReleaseCommitDetails("partial", tuple(commits.values()), base_sha, head_sha, total)
+        return ReleaseCommitDetails()
 
     def refresh_repository_profile(self, repository: Repository) -> Repository:
         """Load the canonical GitHub profile by immutable provider repository ID."""
@@ -234,7 +303,7 @@ class GitHubRepositoryMonitor:
             pass
         return RepositoryActivityBatch(signals=tuple(signals), complete=False, redirected=redirected)
 
-def _map_commit(repo_full_name: str, item: object) -> Signal | None:
+def _map_commit(repo_full_name: str, item: object, *, branch: str = "default") -> Signal | None:
     """Map a provider commit without treating its timestamp as an arrival boundary."""
     if not isinstance(item, dict):
         return None
@@ -269,11 +338,11 @@ def _map_commit(repo_full_name: str, item: object) -> Signal | None:
             or f"https://github.com/{repo_full_name}/commit/{commit_sha}"
         ),
         published_at=published_at,
-        branch="default",
+        branch=branch,
         author_name=str(author_payload.get("name") or ""),
         body=message,
     )
-    return build_repository_main_commit_signal(commit)
+    return build_repository_commit_signal(commit)
 
 
 def _parse_github_datetime(value: object) -> datetime | None:

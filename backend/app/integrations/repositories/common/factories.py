@@ -110,8 +110,8 @@ def build_repository_release_signal(release: RepositoryRelease) -> Signal:
     )
 
 
-def build_repository_main_commit_signal(commit: RepositoryCommit) -> Signal:
-    """Convert one repository main-branch commit event into the shared signal shape."""
+def build_repository_commit_signal(commit: RepositoryCommit) -> Signal:
+    """Convert one repository commit fact into the shared signal shape."""
 
     short_sha = commit.commit_sha[:7]
     branch_suffix = f" ({commit.branch})" if commit.branch else ""

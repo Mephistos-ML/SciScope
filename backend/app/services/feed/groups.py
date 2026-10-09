@@ -6,10 +6,10 @@ from datetime import datetime
 import json
 from typing import cast
 
-from app.models.feed import FeedCursor, FeedGroupCursor, FeedGroupSummary, FeedEvent
+from app.models.feed import FeedCursor, FeedGroupCursor, FeedGroupSummary, FeedEvent, read_feed_release_commit_details
 from app.services.feed.service import to_feed_item_payload
 from app.storage.feed.group_queries import (
-    count_unread_feed_groups_for_user, list_feed_group_commits_for_user,
+    count_unread_feed_groups_for_user, get_feed_group_commit_page_for_user,
     list_feed_group_summaries_for_user, mark_feed_group_read_for_user,
 )
 
@@ -56,6 +56,10 @@ def _decode_cursor(value: str, *, kind: str, group_id: str | None = None) -> dic
 
 def _group_payload(group: FeedGroupSummary) -> dict[str, object]:
     event = to_feed_item_payload(group.representative)
+    details = read_feed_release_commit_details(group.representative.metadata) if group.kind == "release" else None
+    status = details.status if details else "complete"
+    if details and len(details.event_ids) > group.commit_count:
+        status = "partial"
     return {
         "groupId": group.group_id, "subscriptionId": group.subscription_id,
         "repositoryId": group.repository_id,
@@ -66,7 +70,9 @@ def _group_payload(group: FeedGroupSummary) -> dict[str, object]:
         "url": event["url"] if group.kind == "release" else event["repositoryUrl"],
         "publishedAt": group.published_at.isoformat() if group.published_at else None,
         "createdAt": group.created_at.isoformat(),
-        "eventCount": group.event_count, "commitCount": group.commit_count,
+        "eventCount": group.event_count, "commitCount": group.commit_count if status != "unavailable" else None,
+        "totalCommitCount": details.total_count if details else group.commit_count,
+        "commitDetailsStatus": status,
         "unreadEventCount": group.unread_event_count, "isRead": group.unread_event_count == 0,
     }
 
@@ -118,8 +124,11 @@ def get_feed_group_detail_payload(
     if not groups:
         return None
     group = groups[0]
-    commits = list_feed_group_commits_for_user(user_id, group_id, database_url=database_url,
-                                             limit=limit + 1, cursor=position)
+    details = read_feed_release_commit_details(group.representative.metadata) if group.kind == "release" else None
+    page = get_feed_group_commit_page_for_user(user_id, group_id, database_url=database_url,
+                                              limit=limit + 1, cursor=position,
+                                              reference_ids=details.event_ids if details else None)
+    commits = page.events
     visible = commits[:limit]
     next_cursor = None
     if len(commits) > limit:
@@ -129,7 +138,12 @@ def get_feed_group_detail_payload(
         next_cursor = _encode_cursor({"type": "commits", "groupId": group_id, "eventId": last.event_id,
                                       "publishedAt": last.published_at.isoformat() if last.published_at else None,
                                       "createdAt": last.created_at.isoformat()})
+    status = details.status if details else "complete"
+    if details and len(details.event_ids) > page.retained_count:
+        status = "partial"
     return {**_group_payload(group),
+            "commitCount": page.retained_count if status != "unavailable" else None,
+            "commitDetailsStatus": status,
             "release": _event_detail(group.representative) if group.kind == "release" else None,
             "commits": [to_feed_item_payload(event) for event in visible],
             "nextCursor": next_cursor, "hasMore": next_cursor is not None}

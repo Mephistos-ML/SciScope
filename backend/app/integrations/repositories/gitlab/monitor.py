@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from time import monotonic
 from json import JSONDecodeError
 from urllib.parse import quote, quote_plus, urlencode
 
-from app.models.monitoring import RepositoryActivity
+from app.integrations.repositories.common.release_comparison import find_previous_release_tag, valid_commit_sha, MAX_RELEASE_RESPONSE_BYTES
+from app.models.monitoring import RepositoryActivity, ReleaseCommitDetails, MAX_RELEASE_COMMIT_DETAILS
 from app.models.repository import Repository
 from app.models.signal import Signal
 from app.integrations.repositories.common.models import (
@@ -16,7 +18,7 @@ from app.integrations.repositories.common.models import (
 )
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.integrations.repositories.common.factories import (
-    build_repository_main_commit_signal,
+    build_repository_commit_signal,
     build_repository_release_signal,
     read_repository_name,
 )
@@ -63,6 +65,77 @@ class GitLabRepositoryMonitor:
             commit_head_sha=commits.head_sha,
             redirected=releases.redirected or commits.redirected,
         )
+
+
+    def load_release_commit_details(
+        self, repository: Repository, release: Signal, *, deadline_monotonic: float,
+    ) -> ReleaseCommitDetails:
+        """Compare the preceding published release to this tag, using pinned SHAs."""
+        name = read_repository_name(repository)
+        tag = release.payload.get("tag_name")
+        if not name or not isinstance(tag, str) or not tag or release.published_at is None:
+            return ReleaseCommitDetails()
+        base_url = f"{self.client.api_base}/projects/{quote_plus(name)}"
+
+        def fetch(url: str) -> object:
+            if monotonic() >= deadline_monotonic:
+                raise TimeoutError("Release comparison budget expired.")
+            return self.client.fetch_json(url, deadline_monotonic=deadline_monotonic,
+                                          max_response_bytes=MAX_RELEASE_RESPONSE_BYTES).payload
+
+        commits: dict[str, Signal] = {}
+        base_sha = head_sha = None
+        total = None
+        try:
+            previous_tag = find_previous_release_tag(
+                release, lambda page: fetch(f"{base_url}/releases?per_page=100&page={page}&order_by=released_at&sort=desc"),
+                timestamp_field="released_at", parse_timestamp=_parse_gitlab_datetime,
+            )
+            if previous_tag is None:
+                return ReleaseCommitDetails()
+            base = fetch(f"{base_url}/repository/tags/{quote(previous_tag, safe='')}")
+            head = fetch(f"{base_url}/repository/tags/{quote(tag, safe='')}")
+            base_commit = base.get("commit") if isinstance(base, dict) else None
+            head_commit = head.get("commit") if isinstance(head, dict) else None
+            base_sha = base_commit.get("id") if isinstance(base_commit, dict) else None
+            head_sha = head_commit.get("id") if isinstance(head_commit, dict) else None
+            if not valid_commit_sha(base_sha) or not valid_commit_sha(head_sha):
+                return ReleaseCommitDetails()
+            if base_sha == head_sha:
+                return ReleaseCommitDetails("complete", (), base_sha, head_sha, 0)
+            reverse = fetch(f"{base_url}/repository/compare?" + urlencode({
+                "from": head_sha, "to": base_sha, "straight": "true",
+            }))
+            reverse_tip = reverse.get("commit") if isinstance(reverse, dict) else None
+            if (not isinstance(reverse, dict) or reverse.get("commits") != []
+                    or not isinstance(reverse_tip, dict) or reverse_tip.get("id") != base_sha):
+                return ReleaseCommitDetails()
+            payload = fetch(f"{base_url}/repository/compare?" + urlencode({
+                "from": base_sha, "to": head_sha, "straight": "true",
+            }))
+            if not isinstance(payload, dict) or not isinstance(payload.get("commits"), list):
+                return ReleaseCommitDetails()
+            tip = payload.get("commit")
+            if not isinstance(tip, dict) or tip.get("id") != head_sha:
+                return ReleaseCommitDetails()
+            items = payload["commits"]
+            total = len(items)
+            valid = True
+            for item in items[:MAX_RELEASE_COMMIT_DETAILS]:
+                signal = _map_commit(name, item, branch="") if isinstance(item, dict) and valid_commit_sha(item.get("id")) else None
+                if signal is None:
+                    valid = False
+                else:
+                    commits[signal.item_id] = signal
+            # GitLab documents commits as complete even if diff comparison times
+            # out. The local size budget and commit mapping still limit coverage.
+            if valid and len(commits) == total and any(c.payload.get("commit_sha") == head_sha for c in commits.values()):
+                return ReleaseCommitDetails("complete", tuple(commits.values()), base_sha, head_sha, total)
+        except (RepositorySourceError, JSONDecodeError, TimeoutError):
+            pass
+        if commits and base_sha and head_sha:
+            return ReleaseCommitDetails("partial", tuple(commits.values()), base_sha, head_sha, total)
+        return ReleaseCommitDetails()
 
     def refresh_repository_profile(self, repository: Repository) -> Repository:
         """Load the canonical GitLab profile by immutable provider project ID."""
@@ -238,7 +311,7 @@ class GitLabRepositoryMonitor:
             pass
         return RepositoryActivityBatch(signals=tuple(signals), complete=False, redirected=redirected)
 
-def _map_commit(repo_full_name: str, item: object) -> Signal | None:
+def _map_commit(repo_full_name: str, item: object, *, branch: str = "default") -> Signal | None:
     """Map a provider commit without treating its timestamp as an arrival boundary."""
     if not isinstance(item, dict):
         return None
@@ -264,11 +337,11 @@ def _map_commit(repo_full_name: str, item: object) -> Signal | None:
             or f"https://gitlab.com/{repo_full_name}/-/commit/{commit_sha}"
         ),
         published_at=published_at,
-        branch="default",
+        branch=branch,
         author_name=str(item.get("author_name") or ""),
         body=message,
     )
-    return build_repository_main_commit_signal(commit)
+    return build_repository_commit_signal(commit)
 
 
 def _parse_gitlab_datetime(value: object) -> datetime | None:

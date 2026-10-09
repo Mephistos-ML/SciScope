@@ -23,7 +23,7 @@ from app.models.signal import Signal
 from app.services.monitoring import scan
 from app.jobs import scan_subscriptions as job
 from app.models.monitoring import (
-    MonitoringLease, RepositoryActivity, REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
+    ReleaseCommitDetails, MonitoringLease, RepositoryActivity, REPOSITORY_MAIN_COMMIT_CHECKPOINT_KEY,
     REPOSITORY_RELEASE_CHECKPOINT_KEY, REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY,
 )
 from app.integrations.repositories.common.source_status import RepositorySourceError
@@ -293,6 +293,7 @@ def _configure_scan(
     checks: list | None = None,
     finished_runs: list | None = None,
 ) -> None:
+    monkeypatch.setattr(scan, "get_existing_feed_event_ids", lambda *args, **kwargs: set())
     monkeypatch.setattr(job, "acquire_monitoring_job_lease",
                         lambda name, holder, **kwargs: MonitoringLease(name, holder, "test-token"))
     monkeypatch.setattr(job, "release_monitoring_job_lease", lambda *_args, **_kwargs: None)
@@ -360,6 +361,9 @@ def _cursors() -> dict[str, str]:
 
 
 class _Monitor:
+    def load_release_commit_details(self, *args, **kwargs):
+        return ReleaseCommitDetails()
+
     def __init__(
         self,
         load_activity: Callable[..., RepositoryActivity],
@@ -479,7 +483,7 @@ def test_paginated_releases_recover_after_page_failure_without_duplicates(tmp_pa
                         selected_query="releases", database_url=database_url)
     published_at = datetime.now(UTC) + timedelta(minutes=1)
     fail_page = True
-    def fetch(url):
+    def fetch(url, **kwargs):
         if "?" not in url:
             return JsonResponse(payload={"commit": {"sha": "head", "id": "head"}} if "/branches/" in url else {"default_branch": "main"}, url=url)
         if "/commits?" in url:

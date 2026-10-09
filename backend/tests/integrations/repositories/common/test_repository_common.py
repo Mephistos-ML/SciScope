@@ -9,7 +9,7 @@ from app.integrations.repositories.common.factories import (
     MAX_PROVIDER_EVENT_BODY_BYTES,
     build_repository_candidate_signal,
     build_repository_entity,
-    build_repository_main_commit_signal,
+    build_repository_commit_signal,
     build_repository_release_signal,
     read_repository_name,
 )
@@ -79,7 +79,7 @@ def test_build_repository_release_signal_uses_shared_contract() -> None:
     assert signal.payload["repo"] == "Mephistos-ML/paranmr"
 
 
-def test_build_repository_main_commit_signal_uses_shared_contract() -> None:
+def test_build_repository_commit_signal_uses_shared_contract() -> None:
     commit = RepositoryCommit(
         source="github",
         repo_full_name="Mephistos-ML/paranmr",
@@ -91,7 +91,7 @@ def test_build_repository_main_commit_signal_uses_shared_contract() -> None:
         author_name="Ernest",
         body="Refine tensor optimization defaults.",
     )
-    signal = build_repository_main_commit_signal(commit)
+    signal = build_repository_commit_signal(commit)
 
     assert signal.item_id == "Mephistos-ML/paranmr:commit:abcdef1234567890"
     assert signal.payload["repo"] == "Mephistos-ML/paranmr"

@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from datetime import datetime
 
-from app.models.feed import FeedEvent, FeedUpdateGroup, FeedUpdateKind, build_feed_update_group_id
+from app.models.feed import FeedEvent, FeedUpdateGroup, FeedUpdateKind, build_feed_update_group_id, read_feed_release_commit_details
 
 
 def build_feed_update_groups(
@@ -17,12 +17,26 @@ def build_feed_update_groups(
         subscriptions.setdefault(event.subscription_id, []).append(event)
     groups = []
     for subscription_id, items in subscriptions.items():
+        releases = [event for event in items if event.kind == "release"]
+        commits = [event for event in items if event.kind == "commit"]
+        claims: dict[str, list[str]] = {}
+        for release in releases:
+            for event_id in read_feed_release_commit_details(release.metadata).event_ids:
+                claims.setdefault(event_id, []).append(release.event_id)
+        related: dict[str, list[FeedEvent]] = {}
+        remaining = []
+        for commit in commits:
+            owners = claims.get(commit.event_id, ())
+            if len(owners) == 1:
+                related.setdefault(owners[0], []).append(commit)
+            else:
+                remaining.append(commit)
         batches: list[tuple[FeedUpdateKind, str, tuple[FeedEvent, ...]]] = [
-            ("release", event.event_id, (event,)) for event in items if event.kind == "release"
+            ("release", release.event_id, (release, *related.get(release.event_id, ())))
+            for release in releases
         ]
-        commits = tuple(event for event in items if event.kind == "commit")
-        if commits:
-            batches.append(("commits", publication_key, commits))
+        if remaining:
+            batches.append(("commits", publication_key, tuple(remaining)))
         for kind, key, members in batches:
             first = members[0]
             groups.append(FeedUpdateGroup(

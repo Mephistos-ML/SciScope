@@ -1,5 +1,7 @@
 """User-scoped, bounded publication reads and explicit member read updates."""
 
+from collections.abc import Sequence
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import cast
 
@@ -9,7 +11,8 @@ from app.database.records.feed import (
     FeedEventRecordModel as Event, FeedUpdateGroupMemberRecordModel as Member,
     FeedUpdateGroupRecordModel as Group,
 )
-from app.models.feed import FeedCursor, FeedGroupCursor, FeedGroupSummary, FeedUpdateKind, FeedEvent
+from app.models.feed import FeedCursor, FeedGroupCursor, FeedGroupSummary, FeedUpdateKind, FeedGroupCommitPage, read_feed_release_commit_details
+from app.models.monitoring import MAX_RELEASE_COMMIT_DETAILS
 from app.storage.feed.events import to_feed_event
 from app.storage.transaction import persistence_session
 
@@ -79,11 +82,27 @@ def list_feed_group_summaries_for_user(
     ).where(ranked.c.position == 1).order_by(page.c.published_at.desc().nullslast(),
                                             page.c.created_at.desc(), page.c.group_id.desc())
     with persistence_session(database_url) as session:
-        return [FeedGroupSummary(
+        summaries = [FeedGroupSummary(
             row.group_id, row.subscription_id, row.repository_id, cast(FeedUpdateKind, row.kind),
             _utc(row.created_at), _utc(row.published_at) if row.published_at else None,
             row.event_count, row.commit_count, row.unread_event_count, to_feed_event(row[-1]),
         ) for row in session.execute(statement)]
+        references = {summary.group_id: read_feed_release_commit_details(summary.representative.metadata).event_ids
+                      for summary in summaries if summary.kind == "release"}
+        # At most 51 cards x 500 references. Batch identities, not content, rather
+        # than issuing a detail query for every release card.
+        wanted = list({event_id for ids in references.values() for event_id in ids})
+        retained = {}
+        for offset in range(0, len(wanted), 5000):
+            retained.update({row.event_id: (row.subscription_id, row.repository_id) for row in session.execute(
+                select(Event.event_id, Event.subscription_id, Event.repository_id).where(
+                    Event.event_id.in_(wanted[offset:offset + 5000]), Event.user_id == user_id, Event.kind == "commit",
+                )
+            )})
+        return [replace(summary, commit_count=sum(
+            retained.get(event_id) == (summary.subscription_id, summary.repository_id)
+            for event_id in references[summary.group_id]
+        )) if summary.kind == "release" else summary for summary in summaries]
 
 
 def count_unread_feed_groups_for_user(user_id: str, *, database_url: str) -> int:
@@ -93,25 +112,38 @@ def count_unread_feed_groups_for_user(user_id: str, *, database_url: str) -> int
         return int(session.scalar(select(func.count()).select_from(stats).where(stats.c.unread_event_count > 0)) or 0)
 
 
-def list_feed_group_commits_for_user(
+def get_feed_group_commit_page_for_user(
     user_id: str, group_id: str, *, database_url: str, limit: int, cursor: FeedCursor | None = None,
-) -> list[FeedEvent]:
-    """Read a bounded commit page; never include a release in the dropdown."""
+    reference_ids: Sequence[str] | None = None,
+) -> FeedGroupCommitPage:
+    """Read member commits or confirmed release references within the same scope."""
     if not 1 <= limit <= 51:
         raise ValueError("Commit query limit must be between 1 and 51.")
-    statement = select(Event).join(Member, Member.event_id == Event.event_id).join(
-        Group, Group.group_id == Member.group_id,
-    ).where(Group.group_id == group_id, Group.user_id == user_id,
-            Member.user_id == user_id, Event.user_id == user_id, Event.kind == "commit").order_by(
-        Event.published_at.desc().nullslast(), Event.created_at.desc(), Event.event_id.desc(),
-    ).limit(limit)
+    statement = select(Event).join(Group, and_(
+        Group.user_id == Event.user_id, Group.subscription_id == Event.subscription_id,
+        Group.repository_id == Event.repository_id,
+    )).where(Group.group_id == group_id, Group.user_id == user_id,
+            Event.user_id == user_id, Event.kind == "commit")
+    if reference_ids is None:
+        statement = statement.join(Member, Member.event_id == Event.event_id).where(
+            Member.group_id == group_id, Member.user_id == user_id,
+        )
+    else:
+        if len(reference_ids) > MAX_RELEASE_COMMIT_DETAILS:
+            raise ValueError("Release commit references exceed the storage query budget.")
+        statement = statement.where(Event.event_id.in_(reference_ids))
+    count = select(func.count()).select_from(statement.subquery())
     if cursor is not None:
         statement = statement.where(_after(
             Event.published_at, Event.created_at, Event.event_id,
             published_at=cursor.published_at, created_at=cursor.created_at, identity=cursor.event_id,
         ))
+    statement = statement.order_by(Event.published_at.desc().nullslast(), Event.created_at.desc(),
+                                    Event.event_id.desc()).limit(limit)
     with persistence_session(database_url) as session:
-        return [to_feed_event(row) for row in session.scalars(statement)]
+        retained = int(session.scalar(count) or 0)
+        events = tuple(to_feed_event(row) for row in session.scalars(statement))
+        return FeedGroupCommitPage(events, retained)
 
 
 def mark_feed_group_read_for_user(user_id: str, group_id: str, *, database_url: str) -> bool:

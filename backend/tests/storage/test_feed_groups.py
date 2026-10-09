@@ -105,3 +105,16 @@ def test_retry_cannot_change_an_existing_groups_member_kind(database_url):
     with pytest.raises(PersistenceConflictError):
         publish_feed_update_groups((replace(event, kind="release"),), (group,), database_url=database_url)
     assert get_feed_event_for_user(event.user_id, event.event_id, database_url=database_url).kind == "commit"
+
+
+@pytest.mark.parametrize("scope", ["user_id", "subscription_id", "repository_id"])
+def test_release_references_cannot_reach_foreign_commit_facts(database_url, scope):
+    from app.models.feed import FeedReleaseCommitDetails, RELEASE_COMMIT_METADATA_KEY
+    foreign = replace(feed_event("commit:foreign"), **{scope: "other"})
+    release = feed_event("release:one", kind="release")
+    release = replace(release, metadata={**release.metadata, RELEASE_COMMIT_METADATA_KEY:
+        FeedReleaseCommitDetails("complete", (foreign.event_id,), "b" * 40, "a" * 40, 1).to_metadata()})
+    with pytest.raises(PersistenceConflictError):
+        publish_feed_update_groups((release, foreign), (feed_group(release),), database_url=database_url)
+    assert get_feed_event_for_user(release.user_id, release.event_id, database_url=database_url) is None
+    assert get_feed_event_for_user(foreign.user_id, foreign.event_id, database_url=database_url) is None
