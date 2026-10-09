@@ -148,7 +148,8 @@ PostgreSQL stores:
 
 - repository catalog profiles, query evidence, and optional semantic embeddings;
 - subscriptions, monitoring cursors, leases, runs, and checks;
-- Feed events and read state;
+- Feed events and read state, plus immutable publication groups with explicitly
+  scoped membership ([storage contract](../docs/contracts/feed-update-groups.md));
 - Explore usage, runs, operations, execution state, reports, and ranking labels;
 - users, OAuth accounts, and sessions.
 

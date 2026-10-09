@@ -136,7 +136,9 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
             sa.text("SELECT version_num FROM alembic_version")
         ).scalar_one()
 
-    assert version == "0016_guest_run_access"
+    assert version == "0017_feed_update_groups"
+    assert inspector.has_table("user_feed_update_groups")
+    assert inspector.has_table("user_feed_update_group_members")
     assert inspector.has_table("search_runs")
     assert inspector.has_table("search_run_operations")
     assert inspector.has_table("search_run_stages")

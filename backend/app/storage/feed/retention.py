@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import delete
+from sqlalchemy import delete, exists
 
-from app.database.records.feed import FeedEventRecordModel
+from app.database.records.feed import FeedEventRecordModel, FeedUpdateGroupRecordModel, FeedUpdateGroupMemberRecordModel
 from app.storage.transaction import persistence_session
 
 
@@ -26,4 +26,7 @@ def delete_feed_events_older_than(
                 FeedEventRecordModel.created_at < cutoff
             )
         )
+        session.execute(delete(FeedUpdateGroupRecordModel).where(~exists().where(
+            FeedUpdateGroupMemberRecordModel.group_id == FeedUpdateGroupRecordModel.group_id,
+        )))
     return int(result.rowcount or 0)
