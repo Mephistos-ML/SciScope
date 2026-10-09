@@ -232,3 +232,46 @@ test("navigation during a read cannot restore a pre-read list or double-decremen
     releaseList();
   }
 });
+
+test("a late subscription feed response cannot override newer navigation", async ({ page }) => {
+  await openFeed(page);
+  await page.getByRole("button", { name: "Subscriptions", exact: true }).click();
+  await page.getByRole("button", { name: /science\/tool simulation github/ }).click();
+  await expect(page.getByText("4 updates", { exact: true })).toBeVisible();
+  let releaseResponse!: () => void;
+  const gate = new Promise<void>((resolve) => { releaseResponse = resolve; });
+  let captured!: () => void;
+  const responseCaptured = new Promise<void>((resolve) => { captured = resolve; });
+  await page.route(`${api}/api/feed/groups?*`, async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("limit") === "20" && url.searchParams.has("subscription_id")) {
+      const response = await route.fetch();
+      captured();
+      await gate;
+      await route.fulfill({ response });
+    } else await route.continue();
+  });
+  try {
+    await page.getByRole("button", { name: "View all updates", exact: true }).click();
+    await responseCaptured;
+    await page.getByRole("button", { name: "Explore", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Explore Scientific Software", exact: true })).toBeVisible();
+    const lateResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname === "/api/feed/groups" && url.searchParams.get("limit") === "20" && url.searchParams.has("subscription_id");
+    });
+    releaseResponse();
+    await lateResponse;
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    await expect(page).toHaveURL("/");
+    await expect(page.getByRole("heading", { name: "Explore Scientific Software", exact: true })).toBeVisible();
+    // A subsequent Feed visit also retains global scope rather than the discarded request's scope.
+    await page.getByRole("button", { name: /Feed 24/ }).click();
+    await expect(page.getByRole("heading", { name: "Recent Repository Updates", exact: true })).toBeVisible();
+    await expect(page.getByText("20 updates", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Explore", exact: true }).click();
+    await expect(page).toHaveURL("/");
+  } finally {
+    releaseResponse();
+  }
+});

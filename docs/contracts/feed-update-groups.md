@@ -185,7 +185,8 @@ clients. Read actions refresh counts from the server while preserving loaded car
 
 All/Unread keeps the selected repository scope. Leaving a repository-filtered
 Feed restores the global list; obsolete list responses cannot replace a newer
-scope or restore a pre-read snapshot. Coverage is visible independently of local
+scope or restore a pre-read snapshot. Pending repository Feed navigation is
+discarded when the user navigates elsewhere. Coverage is visible independently of local
 pagination: unavailable details have no numeric zero, while partial details explain
 that retained commits are only part of the range.
 

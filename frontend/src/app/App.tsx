@@ -85,6 +85,7 @@ export function App() {
   const [accountDeletePending, setAccountDeletePending] = useState(false);
   const [feedUpdatePending, setFeedUpdatePending] = useState(false);
   const feedRequestVersion = useRef(0);
+  const pendingFeedNavigation = useRef<number | null>(null);
   const feedReadRevision = useRef(0);
   const feedVisibility = useRef(feedState);
   feedVisibility.current = feedState;
@@ -155,6 +156,7 @@ export function App() {
   useEffect(() => {
     const syncViewFromHistory = () => {
       const nextView = viewFromPath(window.location.pathname);
+      cancelPendingFeedNavigation();
       if (activeView === "feed" && nextView !== "feed" && feedSubscriptionId) {
         void restoreGlobalFeed();
       }
@@ -618,13 +620,14 @@ export function App() {
   }
 
   function handleViewChange(nextView: AppView) {
+    navigateTo(nextView);
     if (activeView === "feed" && nextView !== "feed" && feedSubscriptionId) {
       void restoreGlobalFeed();
     }
-    navigateTo(nextView);
   }
 
   function handleToggleSearchDiagnostics() {
+    cancelPendingFeedNavigation();
     const nextRequested = !searchDiagnosticsActive;
     const nextUrl = new URL(window.location.href);
     nextUrl.pathname = VIEW_PATHS.explore;
@@ -639,6 +642,7 @@ export function App() {
   }
 
   function navigateTo(nextView: AppView) {
+    cancelPendingFeedNavigation();
     const nextPath = VIEW_PATHS[nextView];
     if (window.location.pathname !== nextPath) {
       window.history.pushState({}, "", nextPath);
@@ -649,9 +653,22 @@ export function App() {
     setActiveView(nextView);
   }
 
+  function cancelPendingFeedNavigation() {
+    if (pendingFeedNavigation.current === null) return;
+    pendingFeedNavigation.current = null;
+    feedRequestVersion.current += 1;
+    setFeedLoadPending(false);
+  }
+
   async function handleViewSubscriptionFeed(subscriptionId: string) {
     if (feedMutationPending.current) return;
-    if (await loadFeedGroups({ state: "all", subscriptionId })) navigateTo("feed");
+    const version = feedRequestVersion.current + 1;
+    pendingFeedNavigation.current = version;
+    try {
+      if (await loadFeedGroups({ state: "all", subscriptionId })) navigateTo("feed");
+    } finally {
+      if (pendingFeedNavigation.current === version) pendingFeedNavigation.current = null;
+    }
   }
 
   return (
