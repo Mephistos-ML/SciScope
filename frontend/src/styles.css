@@ -2268,21 +2268,57 @@ input::placeholder {
   border-top: 0;
 }
 
+.feed-commits-disclosure {
+  margin: 0 18px 18px;
+  border: var(--border-subtle);
+  border-radius: var(--radius-panel);
+  background: var(--surface-subtle);
+}
+
 .feed-commits-toggle {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  align-self: flex-start;
-  margin-top: 10px;
-  padding: 4px 0;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 8px;
   border: 0;
   border-radius: var(--radius-button);
   background: transparent;
-  color: var(--teal-600);
+  color: var(--navy-900);
   cursor: pointer;
+  font-size: 13px;
   font-weight: 650;
-  text-decoration: underline;
-  text-underline-offset: 0.18em;
+  text-align: left;
+}
+
+.feed-commits-chevron {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  transform: rotate(-90deg);
+  transition: transform 150ms ease;
+}
+
+.feed-commits-toggle[aria-expanded="true"] .feed-commits-chevron {
+  transform: rotate(0deg);
+}
+
+.feed-commit-count {
+  padding: 2px 7px;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+@media (hover: hover) {
+  .feed-commits-toggle:hover {
+    background: color-mix(in srgb, var(--navy-700) 7%, var(--surface));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feed-commits-chevron {
+    transition: none;
+  }
 }
 
 .feed-commits-toggle:focus-visible,
@@ -2293,7 +2329,10 @@ input::placeholder {
 }
 
 .feed-commit-details {
-  padding: 0 18px 18px;
+  padding: 8px 16px 12px 40px;
+  border-top: var(--border-subtle);
+  border-radius: 0 0 calc(var(--radius-panel) - 1px) calc(var(--radius-panel) - 1px);
+  background: var(--surface);
   font-size: 13px;
   overflow-wrap: anywhere;
 }
@@ -2309,16 +2348,54 @@ input::placeholder {
   border-top: var(--border-subtle);
 }
 
+.feed-commit-link {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.feed-commit-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--navy-700);
+  opacity: 0.65;
+}
+
+.feed-commit-list li:first-child {
+  border-top: 0;
+}
+
 .feed-commit-list p {
-  margin: 4px 0;
+  margin: 4px 0 4px 24px;
   color: var(--text-secondary);
 }
 
+.feed-commit-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 8px 16px;
+}
+
 .feed-commit-list time {
-  display: block;
-  margin-top: 4px;
   color: var(--text-secondary);
   font-size: 12px;
+}
+
+@container (max-width: 760px) {
+  .feed-commit-heading {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .feed-commit-heading time {
+    margin-left: 24px;
+  }
 }
 
 .feed-coverage-message {

@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 
+import dropdownIcon from "../assets/buttons/sciscope-dropdown.svg";
+
 import { FeedUpdateKindBadge } from "./FeedUpdateKindBadge";
 import { fetchFeedGroup } from "../lib/api";
 import { getSourceLogo } from "../lib/sourceLogos";
@@ -81,9 +83,6 @@ export function FeedUpdateCard({ group, readPending, onMarkRead }: FeedUpdateCar
           <p className="repository-description">
             {group.kind === "commits" ? `${group.commitCount} ${group.commitCount === 1 ? "commit" : "commits"} found in this update.` : group.summary || "No release description available."}
           </p>
-          <button aria-controls={detailsId} aria-expanded={open} className="feed-commits-toggle" onClick={toggleCommits} type="button">
-            <span aria-hidden="true">{open ? "⌄" : "›"}</span> {commitLabel}
-          </button>
         </div>
         <div className="repository-cell" data-label="Repository">
           <span className="repository-provider-link">
@@ -100,36 +99,51 @@ export function FeedUpdateCard({ group, readPending, onMarkRead }: FeedUpdateCar
           )}
         </div>
       </div>
-      <div aria-label={`Commits for ${group.title}`} className="feed-commit-details" hidden={!open} id={detailsId} role="region">
-        {open ? <>
-          {coverage.commitDetailsStatus === "unavailable" ? (
-            <p className="feed-coverage-message">Commit details are unavailable. View the release on {group.repositorySource === "gitlab" ? "GitLab" : "GitHub"} for more information.</p>
-          ) : coverage.commitDetailsStatus === "partial" ? (
-            <p className="feed-coverage-message">{coverage.totalCommitCount === null
-              ? "Only some commits are available for this release."
-              : `${coverage.commitCount} of ${coverage.totalCommitCount} commits available for this release.`} View the release for the full context.</p>
-          ) : null}
-          {details?.commits.length ? (
-            <ul className="feed-commit-list">
-              {details.commits.map((commit) => (
-                <li key={commit.eventId}>
-                  <a className="repository-inline-link" href={commit.url} rel="noreferrer" target="_blank">{commit.title}</a>
-                  {commit.summary && commit.summary !== commit.title ? <p>{commit.summary}</p> : null}
-                  <time dateTime={commit.publishedAt ?? undefined}>{formatActivityDate(commit.publishedAt)}</time>
-                </li>
-              ))}
-            </ul>
-          ) : details && coverage.commitDetailsStatus === "complete" ? <p>{group.kind === "release" ? "No commits in this release comparison." : "No retained commits for this update."}</p> : null}
-          {pending ? <p role="status">Loading commits…</p> : null}
-          {error ? (
-            <div className="feed-commit-error">
-              <p role="alert">{error}</p>
-              <button className="outline-button" disabled={pending} onClick={() => void loadCommits(details?.nextCursor ?? undefined)} type="button">Retry commits</button>
-            </div>
-          ) : details?.hasMore ? (
-            <button className="outline-button" disabled={pending} onClick={() => void loadCommits(details.nextCursor ?? undefined)} type="button">Load more commits</button>
-          ) : null}
-        </> : null}
+      <div className="feed-commits-disclosure">
+        <button aria-controls={detailsId} aria-expanded={open} aria-label={commitLabel} className="feed-commits-toggle" onClick={toggleCommits} type="button">
+          <img alt="" aria-hidden="true" className="feed-commits-chevron" src={dropdownIcon} />
+          <span>Commits</span>
+          {coverage.commitCount !== null ? <span aria-hidden="true" className="results-count-badge feed-commit-count">{coverage.commitCount}</span> : null}
+        </button>
+        <div aria-label={`Commits for ${group.title}`} className="feed-commit-details" hidden={!open} id={detailsId} role="region">
+          {open ? <>
+            {coverage.commitDetailsStatus === "unavailable" ? (
+              <p className="feed-coverage-message">Commit details are unavailable. View the release on {group.repositorySource === "gitlab" ? "GitLab" : "GitHub"} for more information.</p>
+            ) : coverage.commitDetailsStatus === "partial" ? (
+              <p className="feed-coverage-message">{coverage.totalCommitCount === null
+                ? "Only some commits are available for this release."
+                : `${coverage.commitCount} of ${coverage.totalCommitCount} commits available for this release.`} View the release for the full context.</p>
+            ) : null}
+            {details?.commits.length ? (
+              <ul className="feed-commit-list">
+                {details.commits.map((commit) => (
+                  <li key={commit.eventId}>
+                    <div className="feed-commit-heading">
+                      <a className="repository-inline-link feed-commit-link" href={commit.url} rel="noreferrer" target="_blank">
+                        <svg aria-hidden="true" className="feed-commit-icon" fill="none" focusable="false" viewBox="0 0 16 16">
+                          <path d="M1.5 8H4.5M11.5 8H14.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" />
+                          <circle cx="8" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.5" />
+                        </svg>
+                        <span>{commit.title}</span>
+                      </a>
+                      <time dateTime={commit.publishedAt ?? undefined}>{formatActivityDate(commit.publishedAt)}</time>
+                    </div>
+                    {commit.summary && commit.summary !== commit.title ? <p>{commit.summary}</p> : null}
+                  </li>
+                ))}
+              </ul>
+            ) : details && coverage.commitDetailsStatus === "complete" ? <p>{group.kind === "release" ? "No commits in this release comparison." : "No retained commits for this update."}</p> : null}
+            {pending ? <p role="status">Loading commits…</p> : null}
+            {error ? (
+              <div className="feed-commit-error">
+                <p role="alert">{error}</p>
+                <button className="outline-button" disabled={pending} onClick={() => void loadCommits(details?.nextCursor ?? undefined)} type="button">Retry commits</button>
+              </div>
+            ) : details?.hasMore ? (
+              <button className="outline-button" disabled={pending} onClick={() => void loadCommits(details.nextCursor ?? undefined)} type="button">Load more commits</button>
+            ) : null}
+          </> : null}
+        </div>
       </div>
     </article>
   );
