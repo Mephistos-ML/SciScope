@@ -82,7 +82,7 @@ export function FeedUpdateCard({ group, readPending, onMarkRead }: FeedUpdateCar
             {group.kind === "commits" ? `${group.commitCount} ${group.commitCount === 1 ? "commit" : "commits"} found in this update.` : group.summary || "No release description available."}
           </p>
           <button aria-controls={detailsId} aria-expanded={open} className="feed-commits-toggle" onClick={toggleCommits} type="button">
-            <span aria-hidden="true">{open ? "▾" : "▸"}</span> {commitLabel}
+            <span aria-hidden="true">{open ? "⌄" : "›"}</span> {commitLabel}
           </button>
         </div>
         <div className="repository-cell" data-label="Repository">
