@@ -17,7 +17,8 @@ from app.integrations.repositories.common.models import (
 )
 
 
-MAX_PROVIDER_EVENT_BODY_BYTES = 32 * 1024
+MAX_PROVIDER_EVENT_TEXT_BYTES = 32 * 1024
+MAX_PROVIDER_EVENT_TITLE_BYTES = 512
 
 
 def build_repository_candidate_signal(candidate: RepositoryCandidate) -> Signal:
@@ -92,20 +93,23 @@ def build_repository_entity(signal: Signal) -> Repository:
 def build_repository_release_signal(release: RepositoryRelease) -> Signal:
     """Convert one repository release event into the shared signal shape."""
 
-    body, body_truncated = _limit_provider_event_body(release.body)
+    original_title = release.title.strip() or release.tag_name or "Release"
+    title = _truncate_provider_text(original_title, max_bytes=MAX_PROVIDER_EVENT_TITLE_BYTES)
+    content = f"{title}\n\n{release.body.strip()}".strip()
+    raw_text = _truncate_provider_text(content, max_bytes=MAX_PROVIDER_EVENT_TEXT_BYTES)
     return Signal(
         source=release.source,
         kind="release",
         item_id=f"{release.repo_full_name}:release:{release.release_id}",
-        title=f"{release.repo_full_name} release {release.title}",
+        title=title,
         url=release.url,
         published_at=release.published_at,
-        raw_text=f"{release.title}\n\n{body}\n\n{release.tag_name}".strip(),
+        raw_text=raw_text,
         payload={
             "repo": release.repo_full_name,
             "tag_name": release.tag_name,
             **release.metadata,
-            **({"body_truncated": True} if body_truncated else {}),
+            **({"text_truncated": True} if title != original_title or raw_text != content else {}),
         },
     )
 
@@ -113,38 +117,40 @@ def build_repository_release_signal(release: RepositoryRelease) -> Signal:
 def build_repository_commit_signal(commit: RepositoryCommit) -> Signal:
     """Convert one repository commit fact into the shared signal shape."""
 
-    short_sha = commit.commit_sha[:7]
-    branch_suffix = f" ({commit.branch})" if commit.branch else ""
-    body, body_truncated = _limit_provider_event_body(commit.body)
+    original_title = commit.title.strip().splitlines()[0] if commit.title.strip() else commit.commit_sha[:7]
+    title = _truncate_provider_text(original_title, max_bytes=MAX_PROVIDER_EVENT_TITLE_BYTES)
+    body = commit.body.strip()
+    if body and body.splitlines()[0].strip() == original_title:
+        body = body.partition("\n")[2].strip()
+    content = f"{title}\n\n{body}".strip()
+    raw_text = _truncate_provider_text(content, max_bytes=MAX_PROVIDER_EVENT_TEXT_BYTES)
     return Signal(
         source=commit.source,
         kind="commit",
         item_id=f"{commit.repo_full_name}:commit:{commit.commit_sha}",
-        title=f"{commit.repo_full_name} commit {short_sha}{branch_suffix}",
+        title=title,
         url=commit.url,
         published_at=commit.published_at,
-        raw_text=f"{commit.title}\n\n{body}\n\n{commit.author_name}".strip(),
+        raw_text=raw_text,
         payload={
             "repo": commit.repo_full_name,
             "branch": commit.branch,
             "commit_sha": commit.commit_sha,
             "author_name": commit.author_name,
             **commit.metadata,
-            **({"body_truncated": True} if body_truncated else {}),
+            **({"text_truncated": True} if title != original_title or raw_text != content else {}),
         },
     )
 
 
-def _limit_provider_event_body(value: str) -> tuple[str, bool]:
-    """Keep provider event bodies within the durable-storage budget."""
-
+def _truncate_provider_text(value: str, *, max_bytes: int) -> str:
+    """Bound provider text without splitting a UTF-8 character."""
     encoded = value.encode("utf-8")
-    if len(encoded) <= MAX_PROVIDER_EVENT_BODY_BYTES:
-        return value, False
-
+    if len(encoded) <= max_bytes:
+        return value
     suffix = "…"
-    truncated = encoded[: MAX_PROVIDER_EVENT_BODY_BYTES - len(suffix.encode("utf-8"))]
-    return f"{truncated.decode('utf-8', errors='ignore').rstrip()}{suffix}", True
+    truncated = encoded[:max_bytes - len(suffix.encode("utf-8"))]
+    return f"{truncated.decode('utf-8', errors='ignore').rstrip()}{suffix}"
 
 
 def read_repository_name(repository: Repository) -> str | None:

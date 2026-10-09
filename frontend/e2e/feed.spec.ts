@@ -38,6 +38,10 @@ test("grouped updates page commits, preserve read state on opening, and mark who
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   const commits = release.getByRole("region", { name: "Commits for v2.0", exact: true });
   await expect(commits.getByRole("listitem")).toHaveCount(10);
+  await expect(commits.getByRole("link", { name: "Release commit 22", exact: true })).toHaveAttribute(
+    "href", /^https:\/\/github\.com\/science\/tool\/commit\/[0-9a-f]{40}$/,
+  );
+  await expect(commits.getByText("Improve numerical accuracy and simulation reproducibility.", { exact: true })).toHaveCount(10);
   await page.setViewportSize({ width: 390, height: 844 });
   await release.scrollIntoViewIfNeeded();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

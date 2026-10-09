@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from datetime import datetime
 
-from app.models.feed import FeedEvent, FeedUpdateGroup, FeedUpdateKind, build_feed_update_group_id, read_feed_release_commit_details
+from app.models.feed import FeedEvent, FeedUpdateGroup, build_feed_update_group_id, read_feed_release_commit_details
 
 
 def build_feed_update_groups(
@@ -31,18 +31,20 @@ def build_feed_update_groups(
                 related.setdefault(owners[0], []).append(commit)
             else:
                 remaining.append(commit)
-        batches: list[tuple[FeedUpdateKind, str, tuple[FeedEvent, ...]]] = [
-            ("release", release.event_id, (release, *related.get(release.event_id, ())))
-            for release in releases
-        ]
-        if remaining:
-            batches.append(("commits", publication_key, tuple(remaining)))
-        for kind, key, members in batches:
-            first = members[0]
+        for release in releases:
             groups.append(FeedUpdateGroup(
-                group_id=build_feed_update_group_id(subscription_id, kind, key),
+                group_id=build_feed_update_group_id(subscription_id, "release", release.event_id),
+                user_id=release.user_id, subscription_id=subscription_id,
+                repository_id=release.repository_id, kind="release",
+                event_ids=(release.event_id, *(event.event_id for event in related.get(release.event_id, ()))),
+                created_at=created_at,
+            ))
+        if remaining:
+            first = remaining[0]
+            groups.append(FeedUpdateGroup(
+                group_id=build_feed_update_group_id(subscription_id, "commits", publication_key),
                 user_id=first.user_id, subscription_id=subscription_id,
-                repository_id=first.repository_id, kind=kind,
-                event_ids=tuple(event.event_id for event in members), created_at=created_at,
+                repository_id=first.repository_id, kind="commits",
+                event_ids=tuple(event.event_id for event in remaining), created_at=created_at,
             ))
     return groups

@@ -2,18 +2,23 @@
 
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from uuid import uuid5, NAMESPACE_URL
 
 from app.config import AUTH_SESSION_COOKIE_NAME
+from app.integrations.repositories.common.factories import build_repository_commit_signal, build_repository_release_signal
+from app.integrations.repositories.common.models import RepositoryCommit, RepositoryRelease
 from app.jobs.scan_subscriptions import run_repository_monitoring_scan
 from app.models.monitoring import ReleaseCommitDetails, RepositoryActivity
 from app.models.repository import Repository
 from app.models.signal import Signal
 from app.services.auth.service import create_authenticated_session
+from app.services.feed.service import build_feed_event
 from app.storage.auth.users import create_user
 from app.storage.feed.groups import publish_feed_update_groups
 from app.storage.repositories.repositories import upsert_repositories
 from app.storage.subscriptions.subscriptions import create_subscription
-from tests.fixtures.feed import feed_event, feed_group
+from app.storage.subscriptions.watches import SubscriptionWatchRecord
+from tests.fixtures.feed import feed_group
 
 
 def seed_feed(database_url: str) -> dict[str, str]:
@@ -26,20 +31,26 @@ def seed_feed(database_url: str) -> dict[str, str]:
     archived = create_subscription(user_id=user.user_id, repository_id=archive.repository_id,
                                    selected_query="archive", database_url=database_url)
     now = datetime.now(UTC) + timedelta(minutes=1)
+    def signal(name: str, *, kind: str = "commit", minutes: int = 0, profile: Repository = repository) -> Signal:
+        published = now + timedelta(minutes=minutes)
+        if kind == "release":
+            return build_repository_release_signal(RepositoryRelease(
+                "github", profile.full_name, name, name, f"{profile.url}/releases/tag/{name}",
+                published, name, "Scientific software improvements",
+            ))
+        sha = f"{uuid5(NAMESPACE_URL, name).int:040x}"
+        return build_repository_commit_signal(RepositoryCommit(
+            "github", profile.full_name, sha, name, f"{profile.url}/commit/{sha}", published,
+            branch="main", author_name="Researcher",
+            body=f"{name}\n\nImprove numerical accuracy\nand simulation reproducibility.",
+        ))
     # Closed older publications exceed the real 20-card list page without provider history IO.
-    old_events = [replace(feed_event(f"commit:archive-{index}", user_id=user.user_id, subscription_id=archived.subscription_id),
-                          repository_id=archive.repository_id, repository_full_name=archive.full_name,
-                          repository_url=archive.url, title=f"Archive update {index}",
-                          published_at=now - timedelta(days=index + 1), created_at=now - timedelta(days=index + 1))
+    archive_watch = SubscriptionWatchRecord(archived.subscription_id, user.user_id, archive, "archive", archived.created_at)
+    old_events = [replace(build_feed_event(signal(f"Archive update {index}", profile=archive, minutes=-(index + 1) * 1440),
+                                           archive_watch), created_at=now - timedelta(days=index + 1))
                   for index in range(20)]
     publish_feed_update_groups(old_events, [feed_group(event, publication_key=event.event_id) for event in old_events],
                                database_url=database_url)
-
-    def signal(name: str, *, kind: str = "commit", minutes: int = 0) -> Signal:
-        return Signal("github", kind, f"science/tool:{kind}:{name}", name,
-                      f"{repository.url}/{'releases/tag' if kind == 'release' else 'commit'}/{name}",
-                      now + timedelta(minutes=minutes), f"{name}\n\nScientific software improvements",
-                      payload={"repo": repository.full_name, "tag_name": name} if kind == "release" else {"repo": repository.full_name})
 
     confirmed = tuple(signal(f"Release commit {index:02d}") for index in range(23))
     partial = (signal("Partial commit 1"), signal("Partial commit 2"))
@@ -47,14 +58,14 @@ def seed_feed(database_url: str) -> dict[str, str]:
     releases = (signal("v2.0", kind="release", minutes=6), signal("v1.5", kind="release", minutes=4),
                 signal("v1.0", kind="release", minutes=2))
     comparisons = {
-        "v2.0": ReleaseCommitDetails("complete", confirmed, "b" * 40, "a" * 40, 23),
+        "v2.0": ReleaseCommitDetails("complete", confirmed, "b" * 40, confirmed[-1].payload["commit_sha"], 23),
         "v1.5": ReleaseCommitDetails("partial", partial, "c" * 40, "b" * 40, 5),
         "v1.0": ReleaseCommitDetails(),
     }
 
     class Monitor:
         def load_repository_activity(self, profile, **kwargs):
-            return RepositoryActivity((*releases, *confirmed, *partial, *unrelated), True, True, "head") if profile.repository_id == repository.repository_id else RepositoryActivity((), True, True, "archive-head")
+            return RepositoryActivity((*releases, *confirmed, *partial, *unrelated), True, True, unrelated[-1].payload["commit_sha"]) if profile.repository_id == repository.repository_id else RepositoryActivity((), True, True, old_events[0].metadata["commit_sha"])
 
         def load_release_commit_details(self, profile, release, **kwargs):
             return comparisons[release.title]

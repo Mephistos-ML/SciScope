@@ -192,7 +192,7 @@ def to_feed_item_payload(event: FeedEvent) -> dict[str, object]:
         "repositoryUrl": event.repository_url,
         "selectedQuery": event.selected_query,
         "title": event.title,
-        "summary": _read_feed_summary(event.raw_text),
+        "summary": _read_feed_summary(event),
         "source": event.source,
         "signalKind": event.kind,
         "url": event.url,
@@ -214,12 +214,16 @@ def to_feed_item_payload(event: FeedEvent) -> dict[str, object]:
     }
 
 
-def _read_feed_summary(raw_text: str) -> str:
-    parts = [part.strip() for part in raw_text.splitlines() if part.strip()]
-    if len(parts) >= 2:
-        return _truncate_feed_summary(parts[1])
-    if parts:
-        return _truncate_feed_summary(parts[0])
+def _read_feed_summary(event: FeedEvent) -> str:
+    """Preview the first description paragraph, excluding title and identity facts."""
+    paragraphs = [" ".join(part.split()) for part in event.raw_text.replace("\r\n", "\n").split("\n\n") if part.strip()]
+    if not paragraphs:
+        return ""
+    identity_text = {value for value in (paragraphs[0], event.title, event.metadata.get("tag_name"),
+                                        event.metadata.get("author_name")) if isinstance(value, str)}
+    for paragraph in paragraphs[1:]:
+        if paragraph not in identity_text:
+            return _truncate_feed_summary(paragraph)
     return ""
 
 

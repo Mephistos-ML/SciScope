@@ -106,6 +106,14 @@ provider range count, or null when unknown. `commitDetailsStatus` is `complete`,
 `hasMore` describes pagination of retained facts and is independent of coverage. No provider IO occurs
 when listing cards or opening stored details.
 
+Provider titles use release names or commit subjects, bounded to 512 UTF-8 bytes.
+Event `rawText` contains the title and description/message body within a shared
+32 KiB UTF-8 budget; `text_truncated` metadata records truncation. Commit subjects
+are not repeated in the message body. Tags and authors remain identity metadata.
+Previews derive the first description paragraph, collapse whitespace, and limit
+it to 320 characters. Missing descriptions stay empty rather than repeating the
+title, tag, or author. Summaries are derived on reads, not persisted separately.
+
 The event-based endpoints remain compatible for independently deployed clients.
 The frontend transition to grouped cards uses the grouped endpoints; individual
 events remain the authoritative facts for reading and detail access.
