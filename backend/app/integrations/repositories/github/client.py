@@ -6,6 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import ClassVar
 import json
+from http.client import HTTPException
 import logging
 from math import ceil
 import time
@@ -19,6 +20,7 @@ from app.integrations.repositories.github.http import (
 from app.integrations.repositories.common.models import JsonResponse
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.integrations.repositories.common.deadlines import read_remaining_timeout_seconds
+from app.integrations.repositories.common.response_body import read_response_body
 
 logger = logging.getLogger(__name__)
 
@@ -64,13 +66,12 @@ class GitHubClient:
                 )
                 with urlopen(request, timeout=request_timeout_seconds) as response:
                     final_url = getattr(response, "geturl", lambda: url)()
-                    if max_response_bytes is None:
+                    if max_response_bytes is None and deadline_monotonic is None:
                         payload = json.load(response)
                     else:
-                        body = response.read(max_response_bytes + 1)
-                        if len(body) > max_response_bytes:
-                            raise RepositorySourceError(source="github", status="error",
-                                                        public_message="Provider response exceeded its byte budget.")
+                        body = read_response_body(response, source="github",
+                                                  deadline_monotonic=deadline_monotonic,
+                                                  max_response_bytes=max_response_bytes)
                         try:
                             payload = json.loads(body)
                         except (ValueError, UnicodeDecodeError, RecursionError) as error:
@@ -78,7 +79,12 @@ class GitHubClient:
                                                         public_message="Provider returned invalid JSON.") from error
                     return JsonResponse(payload=payload, url=str(final_url))
             except HTTPError as exc:
-                message = read_error_message(exc)
+                try:
+                    message = read_error_message(exc, deadline_monotonic=deadline_monotonic)
+                except TimeoutError as error:
+                    raise _build_transport_source_error(error) from error
+                finally:
+                    exc.close()
                 if (attempt < GITHUB_REQUEST_RETRIES and 500 <= exc.code < 600
                         and (deadline_monotonic is None or monotonic() + GITHUB_RETRY_BACKOFF_SECONDS * attempt < deadline_monotonic)):
                     logger.warning(
@@ -106,7 +112,7 @@ class GitHubClient:
                     message,
                 )
                 raise _build_source_error(exc, message=message) from exc
-            except (TimeoutError, URLError, OSError) as exc:
+            except (HTTPException, TimeoutError, URLError, OSError) as exc:
                 last_error = exc
                 logger.warning(
                     (

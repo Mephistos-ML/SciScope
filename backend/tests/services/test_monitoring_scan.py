@@ -739,3 +739,48 @@ def test_scan_publishes_per_subscription_batches_without_regrouping_old_commits(
     activity = replace(activity, signals=(), releases_complete=True, commits_complete=True)
     run()
     assert _publications(database_url) == after
+
+
+@pytest.mark.parametrize("source", ["github", "gitlab"])
+def test_optional_comparison_transport_failure_preserves_activity_publication(tmp_path, monkeypatch, source):
+    from dataclasses import replace
+    from http.client import IncompleteRead
+
+    from app.models.feed import read_feed_release_commit_details
+
+    database_url = build_test_database_url(tmp_path / "comparison-failure.sqlite3")
+    migrate_test_database(database_url)
+    repository = replace(_repository(), repository_id=f"{source}:repo:123", source=source,
+                         url=f"https://{source}.com/example/repository")
+    upsert_repositories((repository,), database_url=database_url)
+    user = auth_storage.create_user(email="reader@example.com", display_name="Reader", database_url=database_url)
+    create_subscription(user_id=user.user_id, repository_id=repository.repository_id,
+                        selected_query="monitor", database_url=database_url)
+    published = datetime.now(UTC) + timedelta(minutes=1)
+    release = replace(_signal("release-1", published), source=source,
+                      payload={"repo": repository.full_name, "tag_name": "v1"})
+    commit = replace(release, kind="commit", item_id="commit-1", title="A scientific software change")
+    activity = RepositoryActivity((release, commit), True, True, "a" * 40)
+    client_module = import_module(f"app.integrations.repositories.{source}.client")
+    monitor_module = import_module(f"app.integrations.repositories.{source}.monitor")
+    client = (client_module.GitHubClient(lambda: {}) if source == "github"
+              else client_module.GitLabClient(f"https://{source}.com", lambda: {}))
+    adapter = (monitor_module.GitHubRepositoryMonitor if source == "github"
+               else monitor_module.GitLabRepositoryMonitor)(client)
+    monkeypatch.setattr(type(adapter), "load_repository_activity", lambda *_args, **_kwargs: activity)
+    def interrupted(*_args, **_kwargs):
+        raise IncompleteRead(b"partial", 42)
+    monkeypatch.setattr(client_module, "urlopen", interrupted)
+    monkeypatch.setattr(client_module.time, "sleep", lambda _delay: None)
+
+    job.run_repository_monitoring_scan(resolve_monitor=lambda _source: adapter, database_url=database_url)
+
+    events = list_feed_events_for_user(user.user_id, database_url=database_url)
+    assert {event.kind for event in events} == {"release", "commit"}
+    assert read_feed_release_commit_details(next(event for event in events if event.kind == "release").metadata).status == "unavailable"
+    assert sorted(group[1] for group in _publications(database_url).values()) == ["commits", "release"]
+    cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
+    assert cursors[REPOSITORY_RELEASE_CHECKPOINT_KEY] == published.isoformat()
+    assert cursors[REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY] == "a" * 40
+    with session_scope(database_url) as session:
+        assert [run.status for run in session.scalars(select(MonitoringRunRecordModel))] == ["succeeded"]

@@ -127,7 +127,10 @@ Monitoring attempts comparisons for up to five fresh releases per repository,
 prioritizing the newest, under one shared 15-second request budget. Each comparison
 retains at most 500 mapped commits; confirmed partial results remain usable.
 Comparison responses are capped at 8 MiB each before JSON parsing. Client
-request timeouts and retry backoff respect the remaining budget. Optional
+request timeouts and retry backoff respect the remaining budget. Response-body
+reads are interrupted at the shared deadline, including trickling, chunked, and
+HTTP error responses. Interrupted HTTP framing is a classified transport failure.
+Optional
 comparison coverage does not control the release or main-commit stream checkpoints.
 HTTP Feed reads perform no comparison IO. Aggregate enrichment logs record attempts,
 coverage counts, and duration per repository.
