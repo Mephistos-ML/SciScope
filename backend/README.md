@@ -4,6 +4,31 @@ The backend provides repository discovery, Google authentication, subscriptions,
 and a personal Feed of repository activity. It is a Python application backed by
 PostgreSQL, with separate API, search-worker, and scheduled monitoring processes.
 
+## Development checks
+
+Use Python 3.13, the CI version. Run these commands from the repository root:
+
+```sh
+python3.13 -m venv .venv
+. .venv/bin/activate
+python -m pip install -e ".[dev]"
+```
+
+Run the backend checks:
+
+```sh
+python -m pytest -q
+ruff check backend
+mypy
+PYTHONPATH=backend lint-imports --no-cache
+```
+
+The default test suite supplies its own application configuration and skips
+PostgreSQL-specific tests. Use the dedicated
+[PostgreSQL test setup](../docs/contracts/postgresql-correctness.md) and
+[browser journeys](../frontend/e2e/README.md) for database and UI verification.
+Frontend requirements and checks are in the [frontend README](../frontend/README.md).
+
 ## Runtime
 
 ```mermaid

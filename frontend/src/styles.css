@@ -2370,11 +2370,6 @@ input::placeholder {
   border-top: 0;
 }
 
-.feed-commit-list p {
-  margin: 4px 0 4px 24px;
-  color: var(--text-secondary);
-}
-
 .feed-commit-heading {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

@@ -128,7 +128,6 @@ export function FeedUpdateCard({ group, readPending, onMarkRead }: FeedUpdateCar
                       </a>
                       <time dateTime={commit.publishedAt ?? undefined}>{formatActivityDate(commit.publishedAt)}</time>
                     </div>
-                    {commit.summary && commit.summary !== commit.title ? <p>{commit.summary}</p> : null}
                   </li>
                 ))}
               </ul>

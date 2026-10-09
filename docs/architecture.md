@@ -1,5 +1,41 @@
 # SciScope Architecture
 
+## Design Choices
+
+### Structured monolith
+
+Discovery, subscriptions and monitoring share repository identities and durable
+state. Keeping them in one backend lets related writes use local database
+transactions and keeps deployment within one application. Module boundaries
+separate product policy, provider access and persistence.
+
+The tradeoff is a shared release cycle: backend components are not independently
+versioned or deployed. Changes must preserve the contracts used by all processes.
+
+### PostgreSQL-backed work queue
+
+Search admission, usage accounting and queued work commit in one transaction.
+Storing operations in PostgreSQL avoids a separate database-to-broker handoff
+and gives workers durable progress to resume after a restart. Claims use row
+locks and fenced leases; external IO runs outside those transactions.
+
+Polling and queue writes consume database capacity alongside application queries.
+Workers can repeat provider calls after interruption, so durable ownership does
+not guarantee exactly-once external execution. Queue throughput and database
+contention need to be measured as workload grows.
+
+### Separate processes in one container
+
+The browser schedules asynchronous searches through the API; a worker executes
+them, and a scheduler invokes repository monitoring. This keeps long-running
+background workflows outside HTTP request lifetimes and allows Supervisor to
+restart an unexpectedly exited process.
+
+These processes still share container resources and a deployment lifecycle. A
+container restart interrupts all of them; process separation does not provide
+independent scaling or isolate resource exhaustion. The direct search endpoint
+also remains an API-process execution path.
+
 ## Processes
 
 The React/TypeScript frontend calls a Python backend backed by PostgreSQL/pgvector.

@@ -4,115 +4,82 @@
   <img src="frontend/src/assets/brand/sciscope-logo.svg" alt="SciScope logo" width="188">
 </p>
 
+Discover scientific software for your research topic and follow repository updates in one feed.
+
+**[Try SciScope](https://sciscope.uk/)** · [Architecture](docs/architecture.md) · [Development](backend/README.md)
+
 [![CI](https://github.com/Mephistos-ML/SciScope/actions/workflows/test.yml/badge.svg)](https://github.com/Mephistos-ML/SciScope/actions/workflows/test.yml)
-[![Release](https://github.com/Mephistos-ML/SciScope/actions/workflows/release.yml/badge.svg)](https://github.com/Mephistos-ML/SciScope/actions/workflows/release.yml)
 [![GitHub release](https://img.shields.io/github/v/release/Mephistos-ML/SciScope)](https://github.com/Mephistos-ML/SciScope/releases)
 [![Backend coverage](https://codecov.io/gh/Mephistos-ML/SciScope/branch/main/graph/badge.svg?flag=backend)](https://codecov.io/gh/Mephistos-ML/SciScope)
 
-SciScope is a live service for discovering and monitoring domain-specific scientific software.
+## See it in action
 
-Public service: `https://sciscope.uk/`
+## From a research topic to software you can follow
 
-`topic description -> AI query plan -> external retrieval -> admission -> ranking -> results -> explicit subscribe -> monitoring -> feed`
+Scientific software is spread across repositories, and finding relevant tools often requires several searches with different terminology.
 
-## What The Service Does
+SciScope searches GitHub and GitLab from a description of your research topic. You can review the results, subscribe to useful repositories, and follow their releases and code updates in a personal feed.
 
-- accepts a free-form scientific topic description
-- generates a concise AI-assisted query plan
-- retrieves repository candidates from GitHub and GitLab, plus code-search candidates from GitHub
-- merges duplicate candidates and records source-independent match evidence
-- removes obvious non-software repositories through conservative admission gates
-- ranks retained repositories with an explainable heuristic score and configurable cutoff
-- runs searches asynchronously and returns completed work when a source is slow, rate-limited, or unavailable
-- lets signed-in users subscribe to repositories
-- monitors subscribed repositories for releases and default-branch commits
-- delivers new activity through a durable personal Feed
+1. **Describe your topic.** Enter a research area or task, such as `paramagnetic NMR tools`.
+2. **Explore repositories.** SciScope generates search queries, combines results, and ranks candidates by relevance.
+3. **Follow useful tools.** Subscribe to the repositories you want to monitor.
+4. **Review updates.** Browse release cards and grouped commits, expand their details, and mark updates as read.
 
-## User Flow
+Explore is available without an account. Google sign-in enables subscriptions and your personal feed.
 
-1. A user enters a topic description in Explore.
-2. SciScope generates a small set of distinct search queries.
-3. External retrieval lanes collect repository candidates.
-4. SciScope deduplicates candidates, applies admission, and ranks the retained pool.
-5. Explore shows repositories above the relevance cutoff.
-6. The user explicitly subscribes to repositories worth monitoring.
-7. Feed shows release cards with confirmed commits, and groups other commits from each scan. Opening commit details preserves unread state; reading is explicit.
+## Repository updates
 
-Explore does not require sign-in. Subscriptions and Feed access require Google sign-in because they are user-owned.
+Each new release appears as a feed card with its description and an expandable list of confirmed commits.
 
-## Ranking
+Other newly discovered commits are grouped by monitoring scan. Commit entries link directly to the provider, so you can inspect the original changes.
 
-SciScope uses an explainable heuristic score. It combines:
+Opening a card does not mark it as read. Read actions are explicit, and incomplete release commit coverage is shown in the interface.
 
-- query coverage, with diminishing returns for additional matching queries
-- match location, where repository metadata is stronger evidence than an incidental code match
-- bounded evidence density, so repetitive hits cannot dominate the result
+## How it works
 
-The relevance cutoff controls which repositories appear in Explore.
+SciScope is a structured monolith built with React, TypeScript, FastAPI, and PostgreSQL.
 
-## Source Coverage
+```mermaid
+flowchart LR
+    User[Browser] --> API[FastAPI]
+    API --> DB[(PostgreSQL)]
+    Worker[Search worker] --> DB
+    Worker --> Providers[GitHub / GitLab]
+    Worker --> AI[AI query planning]
+    Monitor[Scheduled monitoring] --> Providers
+    Monitor --> DB
+```
 
-Active:
+AI assists with query planning. Repository relevance is scored using an explainable heuristic based on query coverage, match location, and evidence density.
 
-- GitHub repository and code retrieval
-- GitHub release and default-branch commit monitoring
-- GitLab repository retrieval
-- GitLab release and default-branch commit monitoring
+The API, search worker, and scheduled monitoring run as separate processes sharing PostgreSQL.
 
-GitLab.com global code search is disabled because its public API does not provide the required global blob-search capability. GitLab repository retrieval and monitoring remain active.
+## Reliability and verification
 
-## Architecture
+- Searches run asynchronously and retain completed results when a provider is slow or unavailable.
+- Provider requests have bounded deadlines and response sizes.
+- Feed publications and monitoring checkpoints commit atomically.
+- CI checks import boundaries, lint, scoped strict typing, backend tests, and the frontend build.
+- PostgreSQL tests cover database-specific transactions and concurrency.
+- Browser tests exercise search, subscriptions, grouped feed updates, and read-state behavior.
 
-SciScope is a structured monolith with a React + TypeScript frontend, FastAPI backend, and Postgres persistence layer.
+## Current scope and ongoing work
 
-The API, Explore worker and scheduled monitoring share PostgreSQL, with separate
-process-local clients. The package map and product flows are in the
-[backend README](backend/README.md); process and transaction guarantees are in
-[Architecture](docs/architecture.md). [AGENTS.md](AGENTS.md) defines engineering policy.
+SciScope uses a heuristic ranking engine whose scoring formula is still being tuned. It can currently miss useful repositories. A training and evaluation dataset is being collected, and improving ranking quality is an active priority.
 
-## API Surfaces
+Repository discovery and monitoring currently cover GitHub and GitLab. Gitee and other hosting platforms are not yet integrated.
 
-- `POST /api/explore/search`
-- `POST /api/explore/search-runs`
-- `GET /api/explore/search-runs/{run_id}`
-- `POST /api/explore/search-runs/{run_id}/expand`
-- `GET /api/subscriptions`
-- `POST /api/subscriptions`
-- `DELETE /api/subscriptions/{id}`
-- `GET /api/feed/groups`
-- `GET /api/feed/groups/{id}`
-- `PATCH /api/feed/groups/{id}`
-- `POST /api/feed/read-all`
+Multilingual support is not yet available.
 
-## Operations
+## Development and documentation
 
-- External provider failures and timeouts return completed work with partial coverage.
-- GitHub code retrieval stops after a provider rate-limit response and reports a retry window when the provider supplies one.
-- Search emits structured events for start, provider degradation, ranking stages, completion and failure.
-- Public search quotas and abuse controls are configured through environment variables.
-- Restricted search diagnostics are available only to configured internal users.
-
-Diagnosis, queue replay, interrupted monitoring and migration order are described
-in [Backend recovery](docs/operations/backend-recovery.md).
-
-## Development
-
-- Python backend: `>=3.11`
-- Frontend: Vite, React, and TypeScript
-- Database: Postgres with SQLAlchemy and Alembic
-
-Backend setup and operations are documented in [backend/README.md](backend/README.md).
-
-## Quality
-
-- Backend tests: `pytest -q`
-- Backend coverage: `pytest --cov=app --cov-report=term-missing`
-- Frontend checks (from `frontend/`): `npm test`, `npm run build`
-- Explore and grouped Feed browser journeys: [setup and execution](frontend/e2e/README.md)
-- Backend import boundaries, lint and scoped strict types: [quality gates](docs/contracts/backend-quality-gates.md)
-- Database-specific integration checks: [PostgreSQL correctness](docs/contracts/postgresql-correctness.md)
-- Pull requests are validated through GitHub Actions.
+- [Backend setup and package structure](backend/README.md)
+- [Frontend setup](frontend/README.md)
+- [Architecture and transaction guarantees](docs/architecture.md)
+- [Recovery instructions](docs/operations/backend-recovery.md)
+- [Browser test setup](frontend/e2e/README.md)
+- [Engineering contract](AGENTS.md)
 
 ## Author
 
-SciScope is an independent product designed and built end-to-end by Ernest Borysenko.
+Designed and built end-to-end by **Ernest Borysenko**.
