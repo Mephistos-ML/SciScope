@@ -126,3 +126,24 @@ def test_malformed_head_does_not_create_checkpoint(adapter, monkeypatch):
     activity = load(adapter, after_sha=None)
     assert activity.commits_complete is False
     assert activity.commit_head_sha is None
+
+
+def test_provider_commit_subject_and_first_description_paragraph_reach_feed(adapter, monkeypatch):
+    from app.services.feed.service import build_feed_event, to_feed_item_payload
+    from app.storage.subscriptions.watches import SubscriptionWatchRecord
+
+    item = commit("new-head")
+    subject = "Fix numerical precision"
+    message = subject + "\r\n\r\nHandle subnormal floats\r\nwithout losing precision.\r\n\r\nFurther implementation details."
+    item.update(title=subject, message=message)
+    item["commit"]["message"] = message
+    fake_provider(adapter, monkeypatch, [item])
+    signal = load(adapter).signals[0]
+    repository = Repository("repo", signal.source, "science/example", "https://example.com")
+    watch = SubscriptionWatchRecord("sub", "reader", repository, None, CUTOFF.isoformat())
+    payload = to_feed_item_payload(build_feed_event(signal, watch))
+
+    assert payload["title"] == subject
+    assert payload["summary"] == "Handle subnormal floats without losing precision."
+    assert signal.raw_text.count(subject) == 1
+    assert signal.payload["commit_sha"] == "new-head"

@@ -6,10 +6,10 @@ from datetime import UTC, datetime
 
 from app.models.repository import Repository
 from app.integrations.repositories.common.factories import (
-    MAX_PROVIDER_EVENT_BODY_BYTES,
+    MAX_PROVIDER_EVENT_TEXT_BYTES,
     build_repository_candidate_signal,
     build_repository_entity,
-    build_repository_main_commit_signal,
+    build_repository_commit_signal,
     build_repository_release_signal,
     read_repository_name,
 )
@@ -79,7 +79,7 @@ def test_build_repository_release_signal_uses_shared_contract() -> None:
     assert signal.payload["repo"] == "Mephistos-ML/paranmr"
 
 
-def test_build_repository_main_commit_signal_uses_shared_contract() -> None:
+def test_build_repository_commit_signal_uses_shared_contract() -> None:
     commit = RepositoryCommit(
         source="github",
         repo_full_name="Mephistos-ML/paranmr",
@@ -91,7 +91,7 @@ def test_build_repository_main_commit_signal_uses_shared_contract() -> None:
         author_name="Ernest",
         body="Refine tensor optimization defaults.",
     )
-    signal = build_repository_main_commit_signal(commit)
+    signal = build_repository_commit_signal(commit)
 
     assert signal.item_id == "Mephistos-ML/paranmr:commit:abcdef1234567890"
     assert signal.payload["repo"] == "Mephistos-ML/paranmr"
@@ -107,15 +107,14 @@ def test_repository_event_body_is_limited_without_splitting_utf8_characters() ->
         url="https://github.com/Mephistos-ML/paranmr/releases/tag/v0.4.0",
         published_at=datetime(2026, 7, 19, 11, 0, tzinfo=UTC),
         tag_name="v0.4.0",
-        body="🧬" * MAX_PROVIDER_EVENT_BODY_BYTES,
+        body="🧬" * MAX_PROVIDER_EVENT_TEXT_BYTES,
     )
 
     signal = build_repository_release_signal(release)
 
-    body = signal.raw_text.split("\n\n")[1]
-    assert len(body.encode("utf-8")) <= MAX_PROVIDER_EVENT_BODY_BYTES
-    assert body.endswith("…")
-    assert signal.payload["body_truncated"] is True
+    assert len(signal.raw_text.encode("utf-8")) <= MAX_PROVIDER_EVENT_TEXT_BYTES
+    assert signal.raw_text.endswith("…")
+    assert signal.payload["text_truncated"] is True
 
 
 def test_read_repository_name_uses_metadata_then_full_name() -> None:
@@ -128,3 +127,18 @@ def test_read_repository_name_uses_metadata_then_full_name() -> None:
     )
 
     assert read_repository_name(repository) == "group/project"
+
+
+def test_oversized_commit_subject_and_message_cannot_bypass_durable_text_limits():
+    from app.integrations.repositories.common.factories import MAX_PROVIDER_EVENT_TITLE_BYTES
+
+    subject = "🧬" * 25_000
+    commit = RepositoryCommit("github", "science/tool", "a" * 40, subject, "https://example.com/commit",
+                              datetime.now(UTC), body=f"{subject}\n\n" + "🧬" * 25_000)
+    signal = build_repository_commit_signal(commit)
+
+    assert len(signal.title.encode("utf-8")) <= MAX_PROVIDER_EVENT_TITLE_BYTES
+    assert len(signal.raw_text.encode("utf-8")) <= MAX_PROVIDER_EVENT_TEXT_BYTES
+    assert signal.title.endswith("…") and signal.raw_text.endswith("…")
+    assert signal.payload["text_truncated"] is True
+    assert signal.item_id == f"science/tool:commit:{'a' * 40}"

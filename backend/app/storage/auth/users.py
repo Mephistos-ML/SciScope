@@ -10,7 +10,7 @@ from sqlalchemy import delete, select
 
 from app.database.records.auth import UserRecordModel
 from app.database.records.explore import ExploreSearchEventRecordModel
-from app.database.records.feed import FeedEventRecordModel
+from app.database.records.feed import FeedEventRecordModel, FeedUpdateGroupRecordModel
 from app.database.records.repositories import SubscriptionRecordModel
 from app.storage.transaction import persistence_session
 
@@ -113,6 +113,9 @@ def delete_user_account(user_id: str, *, database_url: str) -> bool:
         if user is None:
             return False
 
+        session.execute(
+            delete(FeedUpdateGroupRecordModel).where(FeedUpdateGroupRecordModel.user_id == user_id)
+        )
         session.execute(
             delete(FeedEventRecordModel).where(FeedEventRecordModel.user_id == user_id)
         )

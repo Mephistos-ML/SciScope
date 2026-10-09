@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   ApiError,
@@ -7,14 +7,14 @@ import {
   createSubscription,
   deleteAccount,
   deleteSubscription,
-  fetchFeed,
+  fetchFeedGroups,
   fetchExploreSearchRun,
   fetchSearchDiagnosticsReport,
   expandExploreSearchRun,
   fetchMe,
   fetchSubscriptions,
   markAllFeedEventsRead,
-  markFeedEventRead,
+  markFeedGroupRead,
   signOut,
 } from "../lib/api";
 import { frontendConfig } from "../lib/config";
@@ -28,7 +28,7 @@ import { PrivacyPage, TermsPage } from "../pages/LegalPages";
 import { SubscriptionsPage } from "../pages/SubscriptionsPage";
 import type {
   AiSearchPlanPayload,
-  FeedEventItem,
+  FeedGroupItem,
   ExploreSearchRunPayload,
   ExploreSearchRunStatus,
   ExploreResultItem,
@@ -63,7 +63,7 @@ export function App() {
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [results, setResults] = useState<ExploreResultItem[]>([]);
   const [lastAiSearchPlan, setLastAiSearchPlan] = useState<AiSearchPlanPayload | null>(null);
-  const [feedEvents, setFeedEvents] = useState<FeedEventItem[]>([]);
+  const [feedGroups, setFeedGroups] = useState<FeedGroupItem[]>([]);
   const [unreadFeedCount, setUnreadFeedCount] = useState(0);
   const [feedState, setFeedState] = useState<"all" | "unread">("all");
   const [feedSubscriptionId, setFeedSubscriptionId] = useState<string | null>(null);
@@ -84,6 +84,14 @@ export function App() {
   const [deletePending, setDeletePending] = useState(false);
   const [accountDeletePending, setAccountDeletePending] = useState(false);
   const [feedUpdatePending, setFeedUpdatePending] = useState(false);
+  const feedRequestVersion = useRef(0);
+  const pendingFeedNavigation = useRef<number | null>(null);
+  const feedReadRevision = useRef(0);
+  const feedVisibility = useRef(feedState);
+  feedVisibility.current = feedState;
+  const feedMutationPending = useRef(false);
+  const feedUserId = useRef<string | null>(null);
+  feedUserId.current = viewer?.userId ?? null;
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [exploreSearchFeedback, setExploreSearchFeedback] = useState<ExploreSearchFeedback | null>(
     null,
@@ -115,35 +123,40 @@ export function App() {
       clearAuthErrorFromUrl();
     }
 
+    let cancelled = false;
     async function loadInitialState() {
       try {
         const viewerPayload = await fetchMe();
+        if (cancelled) return;
         setViewer(viewerPayload.user);
         if (viewerPayload.user) {
           const [subscriptionPayload, feedPayload] = await Promise.all([
             fetchSubscriptions(),
-            fetchFeed(),
+            fetchFeedGroups(),
           ]);
+          if (cancelled) return;
           setSubscriptions(subscriptionPayload.items);
-          setFeedEvents(feedPayload.items);
+          setFeedGroups(feedPayload.items);
           setUnreadFeedCount(feedPayload.unreadCount);
           setFeedState("all");
           setFeedNextCursor(feedPayload.nextCursor);
           setFeedHasMore(feedPayload.hasMore);
           setSelectedSubscriptionId(subscriptionPayload.items[0]?.subscriptionId ?? null);
         }
-        setBootstrapStatus("ready");
+        if (!cancelled) setBootstrapStatus("ready");
       } catch {
-        setBootstrapStatus("error");
+        if (!cancelled) setBootstrapStatus("error");
       }
     }
 
     void loadInitialState();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
     const syncViewFromHistory = () => {
       const nextView = viewFromPath(window.location.pathname);
+      cancelPendingFeedNavigation();
       if (activeView === "feed" && nextView !== "feed" && feedSubscriptionId) {
         void restoreGlobalFeed();
       }
@@ -159,7 +172,10 @@ export function App() {
       return;
     }
 
-    setFeedEvents([]);
+    feedRequestVersion.current += 1;
+    setFeedLoadPending(false);
+    setFeedSubscriptionId(null);
+    setFeedGroups([]);
     setUnreadFeedCount(0);
     setFeedState("all");
     setFeedNextCursor(null);
@@ -443,10 +459,10 @@ export function App() {
         );
         if (existingIndex >= 0) {
           const next = [...current];
-          next[existingIndex] = subscription;
+          next[existingIndex] = { ...subscription, unreadGroupCount: current[existingIndex].unreadGroupCount };
           return next;
         }
-        return [subscription, ...current];
+        return [{ ...subscription, unreadGroupCount: 0 }, ...current];
       });
       setSelectedSubscriptionId(subscription.subscriptionId);
     } catch (error) {
@@ -494,102 +510,124 @@ export function App() {
     }
   }
 
-  async function handleMarkFeedEventRead(eventId: string) {
+  async function refreshFeedReadCounts(userId: string | null) {
+    const [feed, saved] = await Promise.all([fetchFeedGroups({ limit: 1 }), fetchSubscriptions()]);
+    if (feedUserId.current !== userId) return;
+    setUnreadFeedCount(feed.unreadCount);
+    setSubscriptions(saved.items);
+  }
+
+  async function handleMarkFeedGroupRead(groupId: string) {
+    if (feedMutationPending.current || feedLoadPending) return;
+    feedMutationPending.current = true;
+    feedRequestVersion.current += 1;
+    const userId = feedUserId.current;
     setFeedUpdatePending(true);
+    setErrorMessage(null);
+    let marked = false;
     try {
-      const event = await markFeedEventRead(eventId);
-      setFeedEvents((current) =>
-        feedState === "unread"
-          ? current.filter((item) => item.eventId !== eventId)
-          : current.map((item) => (item.eventId === eventId ? event : item)),
-      );
-      setUnreadFeedCount((current) => Math.max(0, current - 1));
+      const group = await markFeedGroupRead(groupId);
+      if (feedUserId.current !== userId) return;
+      marked = true;
+      feedReadRevision.current += 1;
+      setFeedGroups((current) => feedVisibility.current === "unread"
+        ? current.filter((item) => item.groupId !== groupId)
+        : current.map((item) => item.groupId === groupId ? group : item));
+      await refreshFeedReadCounts(userId);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to mark Feed event as read.");
+      if (feedUserId.current === userId) {
+        setErrorMessage(marked ? "Update marked read, but counts could not be refreshed. Reload the page."
+          : error instanceof Error ? error.message : "Failed to mark update as read.");
+      }
     } finally {
+      feedMutationPending.current = false;
       setFeedUpdatePending(false);
     }
   }
 
   async function handleMarkAllFeedEventsRead() {
+    if (feedMutationPending.current || feedLoadPending) return;
+    feedMutationPending.current = true;
+    feedRequestVersion.current += 1;
+    const userId = feedUserId.current;
     setFeedUpdatePending(true);
+    setErrorMessage(null);
+    let marked = false;
     try {
       await markAllFeedEventsRead();
-      const readAt = new Date().toISOString();
-      setFeedEvents((current) => current.map((item) => ({ ...item, readAt })));
-      setUnreadFeedCount(0);
-      if (feedState === "unread") {
-        setFeedEvents([]);
+      if (feedUserId.current !== userId) return;
+      marked = true;
+      feedReadRevision.current += 1;
+      setFeedGroups((current) => feedVisibility.current === "unread" ? [] : current.map((item) => ({ ...item, isRead: true, unreadEventCount: 0 })));
+      if (feedVisibility.current === "unread") {
         setFeedNextCursor(null);
         setFeedHasMore(false);
       }
+      await refreshFeedReadCounts(userId);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to mark Feed events as read.");
+      if (feedUserId.current === userId) {
+        setErrorMessage(marked ? "Updates marked read, but counts could not be refreshed. Reload the page."
+          : error instanceof Error ? error.message : "Failed to mark updates as read.");
+      }
     } finally {
+      feedMutationPending.current = false;
       setFeedUpdatePending(false);
     }
   }
 
-  async function handleFeedStateChange(nextState: "all" | "unread") {
-    if (nextState === feedState) return;
+  async function loadFeedGroups(options: { state: "all" | "unread"; subscriptionId: string | null; cursor?: string }): Promise<boolean> {
+    const version = ++feedRequestVersion.current;
+    const readRevision = feedReadRevision.current;
+    const userId = feedUserId.current;
     setFeedLoadPending(true);
+    setErrorMessage(null);
     try {
-      const payload = await fetchFeed({ state: nextState });
-      setFeedState(nextState);
-      setFeedEvents(payload.items);
+      const payload = await fetchFeedGroups({ ...options, subscriptionId: options.subscriptionId ?? undefined });
+      if (version !== feedRequestVersion.current || feedUserId.current !== userId) return false;
+      // Navigation may start a list request while an explicit read is still committing.
+      if (readRevision !== feedReadRevision.current) return loadFeedGroups(options);
+      setFeedState(options.state);
+      setFeedSubscriptionId(options.subscriptionId);
+      setFeedGroups((current) => options.cursor
+        ? [...current, ...payload.items.filter((item) => !current.some((existing) => existing.groupId === item.groupId))]
+        : payload.items);
       setFeedNextCursor(payload.nextCursor);
       setFeedHasMore(payload.hasMore);
       setUnreadFeedCount(payload.unreadCount);
+      return true;
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to load Feed events.");
+      if (version === feedRequestVersion.current && feedUserId.current === userId) {
+        setErrorMessage(error instanceof Error ? error.message : "Failed to load Feed updates.");
+      }
+      return false;
     } finally {
-      setFeedLoadPending(false);
+      if (version === feedRequestVersion.current) setFeedLoadPending(false);
     }
   }
 
-  async function handleLoadOlderFeedEvents() {
-    if (!feedNextCursor) return;
-    setFeedLoadPending(true);
-    try {
-      const payload = await fetchFeed({ cursor: feedNextCursor, state: feedState, subscriptionId: feedSubscriptionId ?? undefined });
-      setFeedEvents((current) => [...current, ...payload.items]);
-      setFeedNextCursor(payload.nextCursor);
-      setFeedHasMore(payload.hasMore);
-      setUnreadFeedCount(payload.unreadCount);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to load older Feed events.");
-    } finally {
-      setFeedLoadPending(false);
-    }
+  async function handleFeedStateChange(nextState: "all" | "unread") {
+    if (nextState === feedState || feedMutationPending.current || feedLoadPending) return;
+    await loadFeedGroups({ state: nextState, subscriptionId: feedSubscriptionId });
+  }
+
+  async function handleLoadOlderFeedGroups() {
+    if (!feedNextCursor || feedLoadPending || feedMutationPending.current) return;
+    await loadFeedGroups({ cursor: feedNextCursor, state: feedState, subscriptionId: feedSubscriptionId });
   }
 
   async function restoreGlobalFeed() {
-    setFeedSubscriptionId(null);
-    setFeedEvents([]);
-    setFeedNextCursor(null);
-    setFeedHasMore(false);
-    setFeedLoadPending(true);
-    try {
-      const payload = await fetchFeed({ state: feedState });
-      setFeedEvents(payload.items);
-      setFeedNextCursor(payload.nextCursor);
-      setFeedHasMore(payload.hasMore);
-      setUnreadFeedCount(payload.unreadCount);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to restore the global Feed.");
-    } finally {
-      setFeedLoadPending(false);
-    }
+    await loadFeedGroups({ state: feedState, subscriptionId: null });
   }
 
   function handleViewChange(nextView: AppView) {
+    navigateTo(nextView);
     if (activeView === "feed" && nextView !== "feed" && feedSubscriptionId) {
       void restoreGlobalFeed();
     }
-    navigateTo(nextView);
   }
 
   function handleToggleSearchDiagnostics() {
+    cancelPendingFeedNavigation();
     const nextRequested = !searchDiagnosticsActive;
     const nextUrl = new URL(window.location.href);
     nextUrl.pathname = VIEW_PATHS.explore;
@@ -604,6 +642,7 @@ export function App() {
   }
 
   function navigateTo(nextView: AppView) {
+    cancelPendingFeedNavigation();
     const nextPath = VIEW_PATHS[nextView];
     if (window.location.pathname !== nextPath) {
       window.history.pushState({}, "", nextPath);
@@ -614,19 +653,21 @@ export function App() {
     setActiveView(nextView);
   }
 
+  function cancelPendingFeedNavigation() {
+    if (pendingFeedNavigation.current === null) return;
+    pendingFeedNavigation.current = null;
+    feedRequestVersion.current += 1;
+    setFeedLoadPending(false);
+  }
+
   async function handleViewSubscriptionFeed(subscriptionId: string) {
-    setFeedLoadPending(true);
+    if (feedMutationPending.current) return;
+    const version = feedRequestVersion.current + 1;
+    pendingFeedNavigation.current = version;
     try {
-      const payload = await fetchFeed({ subscriptionId });
-      setFeedSubscriptionId(subscriptionId);
-      setFeedState("all");
-      setFeedEvents(payload.items);
-      setFeedNextCursor(payload.nextCursor);
-      setFeedHasMore(payload.hasMore);
-      setUnreadFeedCount(payload.unreadCount);
-      handleViewChange("feed");
+      if (await loadFeedGroups({ state: "all", subscriptionId })) navigateTo("feed");
     } finally {
-      setFeedLoadPending(false);
+      if (pendingFeedNavigation.current === version) pendingFeedNavigation.current = null;
     }
   }
 
@@ -651,7 +692,7 @@ export function App() {
         <AppUnavailableState />
       ) : (
         <>
-          {errorMessage ? <section className="shell-alert shell-alert-error">{errorMessage}</section> : null}
+          {errorMessage ? <section className="shell-alert shell-alert-error" role="alert">{errorMessage}</section> : null}
 
           {activeView === "explore" ? (
             <ExplorePage
@@ -697,14 +738,14 @@ export function App() {
             <FeedPage
               feedUpdatePending={feedUpdatePending}
               feedLoadPending={feedLoadPending}
-              feedEvents={feedEvents}
+              feedGroups={feedGroups}
               feedHasMore={feedHasMore}
               feedState={feedState}
               feedSubscriptionId={feedSubscriptionId}
               unreadFeedCount={unreadFeedCount}
-              onLoadOlder={() => void handleLoadOlderFeedEvents()}
+              onLoadOlder={() => void handleLoadOlderFeedGroups()}
               onMarkAllRead={() => void handleMarkAllFeedEventsRead()}
-              onMarkRead={(eventId) => void handleMarkFeedEventRead(eventId)}
+              onMarkRead={(groupId) => void handleMarkFeedGroupRead(groupId)}
               onStateChange={(state) => void handleFeedStateChange(state)}
               viewer={viewer}
             />

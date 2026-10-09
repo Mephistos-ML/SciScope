@@ -83,7 +83,7 @@ def get_feed_list_payload(
     next_cursor = _encode_feed_cursor(visible_events[-1]) if len(events) > limit else None
     return {
         "items": [
-            _to_feed_item_payload(event)
+            to_feed_item_payload(event)
             for event in visible_events
         ],
         "nextCursor": next_cursor,
@@ -136,7 +136,7 @@ def get_feed_event_payload(
     if event is None:
         return None
 
-    payload = _to_feed_item_payload(event)
+    payload = to_feed_item_payload(event)
     payload["rawText"] = event.raw_text
     payload["normalizedText"] = event.normalized_text
     payload["metadata"] = dict(event.metadata)
@@ -159,7 +159,7 @@ def mark_feed_event_read_payload(
     if event is None:
         return None
 
-    payload = _to_feed_item_payload(event)
+    payload = to_feed_item_payload(event)
     payload["rawText"] = event.raw_text
     payload["normalizedText"] = event.normalized_text
     payload["metadata"] = dict(event.metadata)
@@ -181,7 +181,8 @@ def mark_all_feed_events_read_payload(
     }
 
 
-def _to_feed_item_payload(event: FeedEvent) -> dict[str, object]:
+def to_feed_item_payload(event: FeedEvent) -> dict[str, object]:
+    """Serialize the shared event preview contract for Feed lists and members."""
     return {
         "eventId": event.event_id,
         "subscriptionId": event.subscription_id,
@@ -191,7 +192,7 @@ def _to_feed_item_payload(event: FeedEvent) -> dict[str, object]:
         "repositoryUrl": event.repository_url,
         "selectedQuery": event.selected_query,
         "title": event.title,
-        "summary": _read_feed_summary(event.raw_text),
+        "summary": _read_feed_summary(event),
         "source": event.source,
         "signalKind": event.kind,
         "url": event.url,
@@ -213,12 +214,16 @@ def _to_feed_item_payload(event: FeedEvent) -> dict[str, object]:
     }
 
 
-def _read_feed_summary(raw_text: str) -> str:
-    parts = [part.strip() for part in raw_text.splitlines() if part.strip()]
-    if len(parts) >= 2:
-        return _truncate_feed_summary(parts[1])
-    if parts:
-        return _truncate_feed_summary(parts[0])
+def _read_feed_summary(event: FeedEvent) -> str:
+    """Preview the first description paragraph, excluding title and identity facts."""
+    paragraphs = [" ".join(part.split()) for part in event.raw_text.replace("\r\n", "\n").split("\n\n") if part.strip()]
+    if not paragraphs:
+        return ""
+    identity_text = {value for value in (paragraphs[0], event.title, event.metadata.get("tag_name"),
+                                        event.metadata.get("author_name")) if isinstance(value, str)}
+    for paragraph in paragraphs[1:]:
+        if paragraph not in identity_text:
+            return _truncate_feed_summary(paragraph)
     return ""
 
 

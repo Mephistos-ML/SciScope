@@ -1210,10 +1210,6 @@ input::placeholder {
   border-top: 0;
 }
 
-.repository-row-unread {
-  box-shadow: inset 3px 0 0 var(--coral-500);
-}
-
 .feed-actions {
   display: flex;
   align-items: center;
@@ -1851,7 +1847,7 @@ input::placeholder {
   line-height: 20px;
 }
 
-.event-kind-badge {
+.feed-update-kind-badge {
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
@@ -1865,16 +1861,16 @@ input::placeholder {
   white-space: nowrap;
 }
 
-.event-kind-badge-commit {
+.feed-update-kind-badge-commits {
   background: color-mix(in srgb, var(--navy-700) 8%, var(--surface));
   color: var(--navy-700);
 }
 
-.subscription-update .event-kind-badge {
+.subscription-update .feed-update-kind-badge {
   align-self: start;
 }
 
-.feed-event-heading {
+.feed-update-heading {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -2252,4 +2248,161 @@ input::placeholder {
     padding-top: 0;
     align-self: flex-start;
   }
+}
+
+.feed-update-card {
+  border-top: var(--border-subtle);
+  background: var(--surface);
+}
+
+.feed-update-card:first-child {
+  border-top: 0;
+}
+
+.feed-update-card-unread {
+  box-shadow: inset 3px 0 0 var(--coral-500);
+}
+
+.feed-update-card .repository-row {
+  background: transparent;
+  border-top: 0;
+}
+
+.feed-commits-disclosure {
+  margin: 0 18px 18px;
+  border: var(--border-subtle);
+  border-radius: var(--radius-panel);
+  background: var(--surface-subtle);
+}
+
+.feed-commits-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: var(--radius-button);
+  background: transparent;
+  color: var(--navy-900);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.feed-commits-chevron {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  transform: rotate(-90deg);
+  transition: transform 150ms ease;
+}
+
+.feed-commits-toggle[aria-expanded="true"] .feed-commits-chevron {
+  transform: rotate(0deg);
+}
+
+.feed-commit-count {
+  padding: 2px 7px;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+@media (hover: hover) {
+  .feed-commits-toggle:hover {
+    background: color-mix(in srgb, var(--navy-700) 7%, var(--surface));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feed-commits-chevron {
+    transition: none;
+  }
+}
+
+.feed-commits-toggle:focus-visible,
+.feed-read-button:focus-visible {
+  border-radius: var(--radius-button);
+  outline: 1px solid var(--navy-700);
+  outline-offset: 3px;
+}
+
+.feed-commit-details {
+  padding: 8px 16px 12px 40px;
+  border-top: var(--border-subtle);
+  border-radius: 0 0 calc(var(--radius-panel) - 1px) calc(var(--radius-panel) - 1px);
+  background: var(--surface);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.feed-commit-list {
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.feed-commit-list li {
+  padding: 10px 0;
+  border-top: var(--border-subtle);
+}
+
+.feed-commit-link {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.feed-commit-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--navy-700);
+  opacity: 0.65;
+}
+
+.feed-commit-list li:first-child {
+  border-top: 0;
+}
+
+.feed-commit-list p {
+  margin: 4px 0 4px 24px;
+  color: var(--text-secondary);
+}
+
+.feed-commit-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 8px 16px;
+}
+
+.feed-commit-list time {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+@container (max-width: 760px) {
+  .feed-commit-heading {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .feed-commit-heading time {
+    margin-left: 24px;
+  }
+}
+
+.feed-coverage-message {
+  margin: 0 0 16px;
+  color: var(--text-secondary);
+}
+
+.feed-commit-error {
+  margin-top: 12px;
 }

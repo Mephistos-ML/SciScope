@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 import json
+from http.client import HTTPException
 import logging
 import time
 from time import monotonic
@@ -15,6 +16,7 @@ from app.__version__ import __version__
 from app.integrations.repositories.common.models import JsonResponse
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.integrations.repositories.common.deadlines import read_remaining_timeout_seconds
+from app.integrations.repositories.common.response_body import read_response_body
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +45,12 @@ class GitLabClient:
         url: str,
         *,
         deadline_monotonic: float | None = None,
+        max_response_bytes: int | None = None,
     ) -> JsonResponse:
         """Fetch JSON and the provider URL after any HTTP redirect."""
 
+        if max_response_bytes is not None and max_response_bytes <= 0:
+            raise ValueError("Response byte budget must be positive.")
         headers = {
             "Accept": "application/json",
             "User-Agent": build_user_agent(),
@@ -66,10 +71,27 @@ class GitLabClient:
                 )
                 with urlopen(request, timeout=request_timeout_seconds) as response:
                     final_url = getattr(response, "geturl", lambda: url)()
-                    return JsonResponse(payload=json.load(response), url=str(final_url))
+                    if max_response_bytes is None and deadline_monotonic is None:
+                        payload = json.load(response)
+                    else:
+                        body = read_response_body(response, source="gitlab",
+                                                  deadline_monotonic=deadline_monotonic,
+                                                  max_response_bytes=max_response_bytes)
+                        try:
+                            payload = json.loads(body)
+                        except (ValueError, UnicodeDecodeError, RecursionError) as error:
+                            raise RepositorySourceError(source="gitlab", status="error",
+                                                        public_message="Provider returned invalid JSON.") from error
+                    return JsonResponse(payload=payload, url=str(final_url))
             except HTTPError as exc:
-                message = _read_error_message(exc)
-                if attempt < GITLAB_REQUEST_RETRIES and 500 <= exc.code < 600:
+                try:
+                    message = _read_error_message(exc, deadline_monotonic=deadline_monotonic)
+                except TimeoutError as error:
+                    raise _build_transport_source_error(error) from error
+                finally:
+                    exc.close()
+                if (attempt < GITLAB_REQUEST_RETRIES and 500 <= exc.code < 600
+                        and (deadline_monotonic is None or monotonic() + GITLAB_RETRY_BACKOFF_SECONDS * attempt < deadline_monotonic)):
                     logger.warning(
                         (
                             "GitLab API request returned retryable HTTP error "
@@ -95,7 +117,7 @@ class GitLabClient:
                     message,
                 )
                 raise _build_source_error(exc) from exc
-            except (TimeoutError, URLError, OSError) as exc:
+            except (HTTPException, TimeoutError, URLError, OSError) as exc:
                 last_error = exc
                 logger.warning(
                     (
@@ -110,7 +132,7 @@ class GitLabClient:
                 )
                 if attempt == GITLAB_REQUEST_RETRIES:
                     break
-                if deadline_monotonic is not None and monotonic() >= deadline_monotonic:
+                if deadline_monotonic is not None and monotonic() + GITLAB_RETRY_BACKOFF_SECONDS * attempt >= deadline_monotonic:
                     break
                 time.sleep(GITLAB_RETRY_BACKOFF_SECONDS * attempt)
 
@@ -167,10 +189,16 @@ def _is_timeout_error(exc: Exception) -> bool:
     return "timed out" in str(exc).casefold()
 
 
-def _read_error_message(exc: HTTPError) -> str:
+def _read_error_message(exc: HTTPError, *, deadline_monotonic: float | None = None) -> str:
     try:
-        payload = json.load(exc)
-    except Exception:
+        if deadline_monotonic is None or exc.fp is None:
+            payload = json.load(exc)
+        else:
+            payload = json.loads(read_response_body(exc, source="gitlab",
+                                                   deadline_monotonic=deadline_monotonic, max_response_bytes=64 * 1024))
+    except TimeoutError:
+        raise
+    except (HTTPException, ValueError, TypeError, OSError, RepositorySourceError):
         return str(exc.reason)
 
     if isinstance(payload, dict):

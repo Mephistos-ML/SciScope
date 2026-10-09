@@ -6,6 +6,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
+from functools import partial
 import logging
 
 from app.models.monitoring import (
@@ -16,6 +17,9 @@ from app.models.monitoring import (
 from app.models.repository import Repository
 from app.models.signal import Signal
 from app.services.feed.service import build_feed_event
+from app.services.feed.publications import build_feed_update_groups
+from app.services.monitoring.releases import enrich_release_events
+from app.storage.feed.events import get_existing_feed_event_ids
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.services.monitoring.capabilities import RepositoryMonitor
 from app.storage.monitoring.state import (
@@ -175,6 +179,10 @@ def _scan_repository(
         if (signal.kind == "commit" and commit_after_sha is not None)
         or _is_after_subscription(signal.published_at, subscription.created_at)
     ]
+    release_ids = [event.event_id for event in events if event.kind == "release"]
+    existing_ids = get_existing_feed_event_ids(release_ids, database_url=database_url) if release_ids else set()
+    publication = enrich_release_events(events, activity.signals, subscriptions, repository, monitor,
+                                   existing_ids=existing_ids, ensure_lease=ensure_lease)
     checkpoint_updates: dict[str, str] = {}
     if activity.releases_complete:
         checkpoint_updates[REPOSITORY_RELEASE_CHECKPOINT_KEY] = _latest(
@@ -187,8 +195,11 @@ def _scan_repository(
             activity.signals, "commit", commit_after,
         ).isoformat()
     persist_repository_monitoring_result(
-        repository.repository_id, events, checkpoint_updates, database_url=database_url,
+        repository.repository_id, publication.events, checkpoint_updates, database_url=database_url,
+        supplemental_events=publication.supplemental_events,
         lease=lease, refreshed_repository=refreshed_repository,
+        group_new_events=partial(build_feed_update_groups,
+                                 publication_key=lease.holder_id, created_at=datetime.now(UTC)),
     )
     return activity.releases_complete and activity.commits_complete
 

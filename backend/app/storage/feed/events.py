@@ -9,8 +9,9 @@ from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.database.records.feed import FeedEventRecordModel
+from app.models.persistence import PersistenceError
 from app.storage.transaction import persistence_session
-from app.models.feed import FeedCursor, FeedEvent
+from app.models.feed import FeedCursor, FeedEvent, RELEASE_COMMIT_METADATA_KEY, read_feed_release_commit_details
 
 
 def upsert_feed_events(
@@ -76,7 +77,14 @@ def write_feed_events(session: Session, events: Sequence[FeedEvent]) -> None:
         record.published_at = normalized_published_at
         record.raw_text = event.raw_text
         record.normalized_text = event.normalized_text
-        record.metadata_json = dict(event.metadata)
+        metadata = dict(event.metadata)
+        if record.kind == "release":
+            # Comparison references describe the first publication. A provider
+            # refresh must not replace or reconstruct its historical membership.
+            metadata.pop(RELEASE_COMMIT_METADATA_KEY, None)
+            if RELEASE_COMMIT_METADATA_KEY in record.metadata_json:
+                metadata[RELEASE_COMMIT_METADATA_KEY] = record.metadata_json[RELEASE_COMMIT_METADATA_KEY]
+        record.metadata_json = metadata
 
 
 def list_feed_events_for_user(
@@ -110,7 +118,7 @@ def list_feed_events_for_user(
 
     with persistence_session(database_url) as session:
         rows = session.scalars(statement).all()
-    return [_to_feed_event(row) for row in rows]
+    return [to_feed_event(row) for row in rows]
 
 
 def _events_after_cursor(cursor: FeedCursor):
@@ -163,7 +171,7 @@ def get_feed_event_for_user(
         row = session.scalars(statement).first()
     if row is None:
         return None
-    return _to_feed_event(row)
+    return to_feed_event(row)
 
 
 def count_feed_events(*, database_url: str) -> int:
@@ -212,7 +220,7 @@ def mark_feed_event_read_for_user(
         if record.read_at is None:
             record.read_at = datetime.now(UTC)
             session.flush()
-        return _to_feed_event(record)
+        return to_feed_event(record)
 
 
 def mark_all_feed_events_read_for_user(
@@ -233,7 +241,14 @@ def mark_all_feed_events_read_for_user(
     return int(result.rowcount or 0)
 
 
-def _to_feed_event(record: FeedEventRecordModel) -> FeedEvent:
+def to_feed_event(record: FeedEventRecordModel) -> FeedEvent:
+    """Map persisted event facts for event and publication queries."""
+    metadata = dict(record.metadata_json or {})
+    if record.kind == "release":
+        try:
+            read_feed_release_commit_details(metadata)
+        except ValueError as error:
+            raise PersistenceError("Stored release comparison data is invalid.") from error
     return FeedEvent(
         event_id=record.event_id,
         user_id=record.user_id,
@@ -253,7 +268,7 @@ def _to_feed_event(record: FeedEventRecordModel) -> FeedEvent:
         ),
         raw_text=record.raw_text,
         normalized_text=record.normalized_text,
-        metadata=dict(record.metadata_json or {}),
+        metadata=metadata,
         created_at=_ensure_utc(record.created_at),
         read_at=(
             _ensure_utc(record.read_at) if record.read_at is not None else None
@@ -265,3 +280,14 @@ def _ensure_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+def get_existing_feed_event_ids(event_ids: Sequence[str], *, database_url: str) -> set[str]:
+    """Avoid provider enrichment for previously published per-subscription facts."""
+    found: set[str] = set()
+    with persistence_session(database_url) as session:
+        for offset in range(0, len(event_ids), 500):
+            found.update(session.scalars(select(FeedEventRecordModel.event_id).where(
+                FeedEventRecordModel.event_id.in_(event_ids[offset:offset + 500]),
+            )))
+    return found

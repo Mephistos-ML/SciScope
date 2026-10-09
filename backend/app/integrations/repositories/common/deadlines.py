@@ -25,7 +25,7 @@ def read_remaining_timeout_seconds(
     remaining_seconds = deadline_monotonic - monotonic()
     if remaining_seconds <= 0:
         raise TimeoutError("The request budget has expired.")
-    return min(fallback_seconds, max(remaining_seconds, 0.1))
+    return min(fallback_seconds, remaining_seconds)
 
 
 def raise_source_timeout_error(*, source: str, operation: str) -> None:

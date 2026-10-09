@@ -4,14 +4,9 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-import sys
 import tempfile
 
 import pytest
-
-BACKEND_ROOT = Path(__file__).resolve().parents[1]
-if str(BACKEND_ROOT) not in sys.path:
-    sys.path.insert(0, str(BACKEND_ROOT))
 
 # Tests select their own deployment configuration before importing app modules.
 # SCISCOPE_TEST_POSTGRES_URL is the explicit opt-in test-server configuration.

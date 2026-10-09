@@ -15,7 +15,7 @@ from app.database.records.auth import (
     UserSessionRecordModel,
 )
 from app.database.records.explore import ExploreSearchEventRecordModel
-from app.database.records.feed import FeedEventRecordModel
+from app.database.records.feed import FeedEventRecordModel, FeedUpdateGroupRecordModel, FeedUpdateGroupMemberRecordModel
 from app.database.records.repositories import (
     RepositoryRecordModel,
     SubscriptionRecordModel,
@@ -37,6 +37,8 @@ REGISTERED_MODELS = (
     SubscriptionRecordModel,
     ExploreSearchEventRecordModel,
     FeedEventRecordModel,
+    FeedUpdateGroupRecordModel,
+    FeedUpdateGroupMemberRecordModel,
     SearchRunRecordModel,
     SearchRunOperationRecordModel,
     SearchRunStageRecordModel,

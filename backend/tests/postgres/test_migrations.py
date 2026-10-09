@@ -18,11 +18,13 @@ pytestmark = pytest.mark.postgres
 def test_clean_upgrade_creates_real_vector_schema_and_coordination_state(postgres_url):
     engine = get_engine(postgres_url)
     inspector = sa.inspect(engine)
+    assert inspector.has_table("user_feed_update_groups")
+    assert inspector.has_table("user_feed_update_group_members")
     assert inspector.has_table("search_access_lock")
     assert inspector.has_table("repository_monitoring_cursors")
     assert inspector.has_table("repository_subscriptions")
     with engine.connect() as connection:
-        assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == "0016_guest_run_access"
+        assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == "0017_feed_update_groups"
         assert connection.execute(sa.text("SELECT lock_id FROM search_access_lock")).scalars().all() == [1]
         assert connection.scalar(sa.text("SELECT extversion FROM pg_extension WHERE extname='vector'"))
         columns = dict(connection.execute(sa.text("""

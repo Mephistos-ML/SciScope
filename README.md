@@ -36,7 +36,7 @@ Public service: `https://sciscope.uk/`
 4. SciScope deduplicates candidates, applies admission, and ranks the retained pool.
 5. Explore shows repositories above the relevance cutoff.
 6. The user explicitly subscribes to repositories worth monitoring.
-7. New releases and default-branch commits appear in the user's Feed.
+7. Feed shows release cards with confirmed commits, and groups other commits from each scan. Opening commit details preserves unread state; reading is explicit.
 
 Explore does not require sign-in. Subscriptions and Feed access require Google sign-in because they are user-owned.
 
@@ -79,8 +79,10 @@ process-local clients. The package map and product flows are in the
 - `GET /api/subscriptions`
 - `POST /api/subscriptions`
 - `DELETE /api/subscriptions/{id}`
-- `GET /api/feed`
-- `GET /api/feed/{id}`
+- `GET /api/feed/groups`
+- `GET /api/feed/groups/{id}`
+- `PATCH /api/feed/groups/{id}`
+- `POST /api/feed/read-all`
 
 ## Operations
 
@@ -106,7 +108,7 @@ Backend setup and operations are documented in [backend/README.md](backend/READM
 - Backend tests: `pytest -q`
 - Backend coverage: `pytest --cov=app --cov-report=term-missing`
 - Frontend checks (from `frontend/`): `npm test`, `npm run build`
-- Guest Explore browser journey: [setup and execution](frontend/e2e/README.md)
+- Explore and grouped Feed browser journeys: [setup and execution](frontend/e2e/README.md)
 - Backend import boundaries, lint and scoped strict types: [quality gates](docs/contracts/backend-quality-gates.md)
 - Database-specific integration checks: [PostgreSQL correctness](docs/contracts/postgresql-correctness.md)
 - Pull requests are validated through GitHub Actions.

@@ -1,6 +1,6 @@
 # Repository Monitoring
 
-Feed events and completed-stream checkpoints are committed in one database
+Feed events, immutable publication groups and completed-stream checkpoints commit in one database
 transaction per repository. Redirected profiles join that transaction.
 Writes lock the current lease and validate its token and database expiry before
 and after flushing; loss of ownership rolls back the entire write. A write or commit failure rolls back both, including
@@ -8,7 +8,16 @@ updates to existing events. Retried scans remain idempotent and preserve read
 status. Partial scans may persist collected events, but only completed streams
 advance their checkpoints in that same transaction.
 
-`subscription watch -> source checkpoints -> releases and default-branch commits -> append-only Feed events`
+`subscription watch -> source checkpoints -> releases and default-branch commits -> Feed facts and publication groups`
+
+Fresh releases each receive a card. Provider-confirmed, uniquely related fresh
+commits join that release; other fresh commits form one scan batch per subscription.
+Release comparisons have separate bounded IO and report complete, partial or
+unavailable details. Optional comparison failures preserve useful release content
+and do not prevent completed activity streams from advancing their checkpoints.
+Read requests use only stored facts, without provider IO. The
+[Feed publication contract](../contracts/feed-update-groups.md) defines snapshot
+coverage, limits, read semantics and migration/rollback order.
 
 Adapters report completeness separately for releases and commits. Only a fully
 read stream may advance its checkpoint; incomplete streams retain their previous

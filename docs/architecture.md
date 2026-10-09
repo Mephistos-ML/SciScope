@@ -42,7 +42,7 @@ not schema compatibility, worker progress, Feed freshness or provider availabili
 | Explore execution | Worker claims an operation; `storage/search_runs.py` publishes response, execution JSON, reports and statuses together | Unfinished work replays from the last committed baseline |
 | Repository catalog | Catalog ingestion and validated profile lookup through repository storage | Optional ingestion can fail independently of delivered search results |
 | Subscriptions | User-owned watch, unique by user and repository | Repeated creation returns the winning watch |
-| Monitoring results | Feed upserts and completed-stream cursors commit per repository | Incomplete streams retain their boundary; retries preserve event IDs/read state |
+| Monitoring results | Feed facts, immutable publications and completed-stream cursors commit per repository | Incomplete streams retain their boundary; retries preserve event IDs/read state |
 | Monitoring summaries/checks | Separate transactions from repository results | A crash can leave a `running` summary after some repositories committed |
 | Sessions | Durable token hash with expiry/revocation | Process restart does not revoke sessions |
 
@@ -63,7 +63,10 @@ wall time before and after flushing writes. Superseded scans cannot publish Feed
 events, profiles, checkpoints, checks or run completion. Commit bootstrap uses timestamps;
 subsequent scans track newly reachable commits by SHA, including old-dated commits.
 Rewritten/unreadable history stays partial. Details and limits are in
-[Repository Monitoring](operations/repository-monitoring.md).
+[Repository Monitoring](operations/repository-monitoring.md). The browser lists
+publication cards and lazily pages stored commit details; only explicit read
+actions change member read state. Publication and coverage semantics are in the
+[Feed contract](contracts/feed-update-groups.md).
 
 ## Code Boundaries
 

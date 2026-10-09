@@ -28,17 +28,46 @@ export type FeedEventItem = {
   readAt: string | null;
 };
 
-export type FeedEventListPayload = {
-  items: FeedEventItem[];
+export type FeedReleasePayload = FeedEventItem & {
+  rawText: string;
+  normalizedText: string;
+  metadata: Record<string, unknown>;
+};
+
+export type FeedGroupItem = {
+  groupId: string;
+  subscriptionId: string;
+  repositoryId: string;
+  repositoryFullName: string;
+  repositorySource: string;
+  repositoryUrl: string;
+  selectedQuery: string | null;
+  kind: "release" | "commits";
+  title: string;
+  summary: string;
+  url: string;
+  publishedAt: string | null;
+  createdAt: string;
+  eventCount: number;
+  commitCount: number | null;
+  totalCommitCount: number | null;
+  commitDetailsStatus: "complete" | "partial" | "unavailable";
+  unreadEventCount: number;
+  isRead: boolean;
+};
+
+export type FeedGroupListPayload = {
+  items: FeedGroupItem[];
   nextCursor: string | null;
   hasMore: boolean;
   unreadCount: number;
 };
 
-export type FeedEventDetailPayload = FeedEventItem & {
-  rawText: string;
-  normalizedText: string;
-  metadata: Record<string, unknown>;
+export type FeedGroupDetailPayload = FeedGroupItem & {
+  release: FeedReleasePayload | null;
+  commits: FeedEventItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
 };
 
 export type RepositorySummary = {
@@ -53,7 +82,7 @@ export type SubscriptionItem = {
   repository: RepositorySummary;
   selectedQuery: string | null;
   createdAt: string;
-  unreadEventCount: number;
+  unreadGroupCount: number;
 };
 
 export type SubscriptionListPayload = {

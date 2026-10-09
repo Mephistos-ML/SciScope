@@ -6,6 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import ClassVar
 import json
+from http.client import HTTPException
 import logging
 from math import ceil
 import time
@@ -19,6 +20,7 @@ from app.integrations.repositories.github.http import (
 from app.integrations.repositories.common.models import JsonResponse
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.integrations.repositories.common.deadlines import read_remaining_timeout_seconds
+from app.integrations.repositories.common.response_body import read_response_body
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +39,12 @@ class GitHubClient:
         url: str,
         *,
         deadline_monotonic: float | None = None,
+        max_response_bytes: int | None = None,
     ) -> JsonResponse:
         """Fetch JSON and the provider URL after any HTTP redirect."""
 
+        if max_response_bytes is not None and max_response_bytes <= 0:
+            raise ValueError("Response byte budget must be positive.")
         headers = {
             "Accept": "application/vnd.github+json",
             "User-Agent": build_user_agent(),
@@ -61,10 +66,27 @@ class GitHubClient:
                 )
                 with urlopen(request, timeout=request_timeout_seconds) as response:
                     final_url = getattr(response, "geturl", lambda: url)()
-                    return JsonResponse(payload=json.load(response), url=str(final_url))
+                    if max_response_bytes is None and deadline_monotonic is None:
+                        payload = json.load(response)
+                    else:
+                        body = read_response_body(response, source="github",
+                                                  deadline_monotonic=deadline_monotonic,
+                                                  max_response_bytes=max_response_bytes)
+                        try:
+                            payload = json.loads(body)
+                        except (ValueError, UnicodeDecodeError, RecursionError) as error:
+                            raise RepositorySourceError(source="github", status="error",
+                                                        public_message="Provider returned invalid JSON.") from error
+                    return JsonResponse(payload=payload, url=str(final_url))
             except HTTPError as exc:
-                message = read_error_message(exc)
-                if attempt < GITHUB_REQUEST_RETRIES and 500 <= exc.code < 600:
+                try:
+                    message = read_error_message(exc, deadline_monotonic=deadline_monotonic)
+                except TimeoutError as error:
+                    raise _build_transport_source_error(error) from error
+                finally:
+                    exc.close()
+                if (attempt < GITHUB_REQUEST_RETRIES and 500 <= exc.code < 600
+                        and (deadline_monotonic is None or monotonic() + GITHUB_RETRY_BACKOFF_SECONDS * attempt < deadline_monotonic)):
                     logger.warning(
                         (
                             "GitHub API request returned retryable HTTP error "
@@ -90,7 +112,7 @@ class GitHubClient:
                     message,
                 )
                 raise _build_source_error(exc, message=message) from exc
-            except (TimeoutError, URLError, OSError) as exc:
+            except (HTTPException, TimeoutError, URLError, OSError) as exc:
                 last_error = exc
                 logger.warning(
                     (
@@ -105,7 +127,7 @@ class GitHubClient:
                 )
                 if attempt == GITHUB_REQUEST_RETRIES:
                     break
-                if deadline_monotonic is not None and monotonic() >= deadline_monotonic:
+                if deadline_monotonic is not None and monotonic() + GITHUB_RETRY_BACKOFF_SECONDS * attempt >= deadline_monotonic:
                     break
                 time.sleep(GITHUB_RETRY_BACKOFF_SECONDS * attempt)
 

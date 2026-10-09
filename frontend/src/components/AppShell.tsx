@@ -182,7 +182,7 @@ export function AppShell({
             <img alt="" className="sidebar-nav-icon" src={feedIcon} />
             <span>Feed</span>
             {unreadFeedCount > 0 ? (
-              <span aria-label={`${unreadFeedCount} unread feed events`} className="sidebar-nav-badge">
+              <span aria-label={`${unreadFeedCount} unread feed updates`} className="sidebar-nav-badge">
                 {unreadFeedCount > 99 ? "99+" : unreadFeedCount}
               </span>
             ) : null}
