@@ -9,7 +9,6 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.pool import NullPool
 
-from app.database.session import get_engine
 from tests.fixtures.database import migrate_test_database
 
 
@@ -47,6 +46,8 @@ def postgres_admin():
 
 @pytest.fixture
 def postgres_database_url(postgres_admin):
+    from app.database.session import get_engine
+
     # Only this newly generated database is ever migrated or dropped.
     name = f"sciscope_test_{uuid4().hex}"
     with postgres_admin.connect() as connection:
@@ -64,6 +65,8 @@ def postgres_database_url(postgres_admin):
 
 @pytest.fixture
 def postgres_url(postgres_database_url):
+    from app.database.session import get_engine
+
     migrate_test_database(postgres_database_url)
     get_engine(postgres_database_url)
     return postgres_database_url
