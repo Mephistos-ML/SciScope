@@ -1,49 +1,78 @@
 # Browser journeys
 
-The Chromium journey creates a guest search, checks authenticated polling,
-reads results and expands the same run. It verifies retained results during
-expansion, disabled pending controls and durable operation/stage counts.
+Playwright tests exercise Explore, subscriptions and the grouped Feed in Chromium
+against the real API, worker and a disposable PostgreSQL database.
 
-The harness starts the real API and worker in separate processes, applies all
-migrations to a newly created PostgreSQL database, and drops that database on
-shutdown. Planner, retrieval and repository-monitor capabilities use fixed data.
-Provider gates keep initial retrieval and expansion pending until the browser
-has checked their loading states.
+## Run locally
 
-Failure tests additionally check rejected admission and expansion, failed worker
-execution, polling errors and partial coverage. HTTP rejection/error tests inject
-responses at the browser transport boundary; they verify client handling, not
-server quota or availability policy. Worker failure and provider outage tests use
-real API snapshots and PostgreSQL state. Successful journeys mock no API
-responses. Feed tests create a real session and subscriptions in the disposable
-database, then publish release comparisons and independent commits through the
-real monitoring scan. Older closed groups exercise list pagination. They check
-lazy commit loading, keyboard disclosure, mobile layout, commit/card pagination,
-partial and unavailable coverage, explicit read actions, persistence after reload,
-repository filters, retry feedback and stale responses during navigation.
-OAuth and live provider protocols remain outside this suite; the test harness
-creates sessions instead of performing Google sign-in.
+Prerequisites:
 
-Each test starts with empty run, catalog, admission, user and monitoring data. Teardown closes the
-page, releases provider gates, waits for the worker to commit pending operations,
-and clears data even when assertions fail. Reset rejects pending work. This keeps
-failed scenarios from changing the next test;
-within a test, admission waits respect the real backend cooldown.
-The external font stylesheet is replaced with empty CSS to avoid network access.
+- Backend development dependencies installed in the repository's `.venv`;
+  see [backend setup](../../backend/README.md#local-quick-start).
+- Node.js 24, npm 11 and installed [frontend dependencies](../README.md).
+- A disposable PostgreSQL server with pgvector and a role allowed to create
+  databases; see [PostgreSQL test setup](../../docs/contracts/postgresql-correctness.md).
+- Free ports 5174, 8011 and 8012. The harness starts its own frontend, API and worker.
 
-Install backend development dependencies and frontend dependencies first.
-Use a disposable PostgreSQL server with pgvector and a role allowed to create
-databases (see [PostgreSQL test setup](../../docs/contracts/postgresql-correctness.md)).
-Ports 5174, 8011 and 8012 must be free.
+From the repository root, with the test server running on port 55432 as in the
+PostgreSQL setup:
 
 ```sh
 cd frontend
 npx playwright install chromium
-SCISCOPE_TEST_POSTGRES_URL=postgresql+psycopg://sciscope_test:sciscope_test@127.0.0.1:5432/postgres npm run test:e2e
+SCISCOPE_TEST_POSTGRES_URL='postgresql+psycopg://sciscope_test:sciscope_test@127.0.0.1:55432/postgres' npm run test:e2e
 ```
 
-CI installs Chromium with its system dependencies and runs the same command.
-Failures retain screenshots and traces under `test-results/` and an HTML report
-under `playwright-report/`; CI retains these artifacts for seven days. Traces
-contain disposable guest tokens and session cookies. Open a failure trace with
-`npx playwright show-trace <trace.zip>`.
+Adjust the URL for your disposable server. The harness creates and migrates a new
+database, then drops it on shutdown. CI installs Chromium with its system
+dependencies and runs the same suite against its PostgreSQL service.
+
+## Coverage
+
+- **Explore:** guest search, token-authorized polling, result delivery and expansion
+  of the same run; retained results, pending controls and durable operation counts.
+- **Feed and subscriptions:** grouped updates, repository filters, lazy commit
+  loading, card and commit pagination, keyboard disclosure and mobile layout.
+- **Read state:** opening details preserves unread state; explicit card read
+  actions persist after reload.
+- **Failure handling:** rejected admission and expansion, failed worker execution,
+  polling errors, partial and unavailable coverage, retry feedback and stale
+  responses during navigation.
+
+Feed scenarios create real sessions and subscriptions, then publish releases and
+commits through the monitoring scan. Older closed groups exercise list pagination.
+
+## Verification boundaries
+
+Planner, retrieval and repository-monitor capabilities use fixed data. OAuth and
+live provider protocols are outside this suite; the harness creates sessions
+instead of performing Google sign-in.
+
+Successful journeys mock no API responses. HTTP rejection/error scenarios inject
+responses at the browser transport boundary to check client handling, not server
+quota or availability policy. Worker failure and provider outage scenarios use
+real API snapshots and PostgreSQL state.
+
+## Test isolation
+
+The API and worker run in separate processes. Provider gates hold initial
+retrieval and expansion pending until the browser checks their loading states.
+Each test starts with empty run, catalog, admission, user and monitoring data.
+
+Teardown closes the page, releases provider gates, waits for pending worker
+operations to commit, and clears data even when assertions fail. Reset rejects
+pending work; within a test, admission waits respect the real backend cooldown.
+The external font stylesheet is replaced with empty CSS to avoid network access.
+
+## Inspect failures
+
+Failures retain screenshots and traces under `frontend/test-results/` and an HTML
+report under `frontend/playwright-report/`. CI retains these artifacts for seven
+days. Traces contain disposable guest tokens and session cookies.
+
+From `frontend/`:
+
+```sh
+npx playwright show-report
+npx playwright show-trace path/to/trace.zip
+```
