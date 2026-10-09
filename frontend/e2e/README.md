@@ -8,7 +8,7 @@ against the real API, worker and a disposable PostgreSQL database.
 Prerequisites:
 
 - Backend development dependencies installed in the repository's `.venv`;
-  see [backend setup](../../backend/README.md#local-quick-start).
+  see [backend setup](../../backend/README.md#development-checks).
 - Node.js 24, npm 11 and installed [frontend dependencies](../README.md).
 - A disposable PostgreSQL server with pgvector and a role allowed to create
   databases; see [PostgreSQL test setup](../../docs/contracts/postgresql-correctness.md).
