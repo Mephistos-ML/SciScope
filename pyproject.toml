@@ -50,6 +50,7 @@ files = [
     "backend/app/models",
     "backend/app/services/ai",
     "backend/app/services/monitoring/capabilities.py",
+    "backend/app/services/feed/publications.py",
     "backend/app/services/search/retrieval/models.py",
     "backend/app/services/search/explore/dependencies.py",
     "backend/app/services/search/explore/execution.py",

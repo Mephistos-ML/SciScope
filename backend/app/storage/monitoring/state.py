@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from uuid import uuid4
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -18,7 +18,9 @@ from app.database.records.monitoring import (
     RepositoryMonitoringCursorRecordModel,
 )
 from app.storage.transaction import persistence_session
-from app.models.feed import FeedEvent
+from app.models.feed import FeedEvent, FeedUpdateGroup
+from app.database.records.feed import FeedEventRecordModel
+from app.storage.feed.groups import write_feed_update_groups
 from app.models.monitoring import (
     MonitoringRun,
     RepositoryMonitoringCheck,
@@ -202,16 +204,35 @@ def persist_repository_monitoring_result(
     events: Sequence[FeedEvent],
     checkpoint_updates: dict[str, str],
     *,
+    group_new_events: Callable[[Sequence[FeedEvent]], Sequence[FeedUpdateGroup]],
     refreshed_repository: Repository | None = None,
     lease: MonitoringLease,
     database_url: str,
 ) -> None:
-    """Commit Feed events and completed-stream checkpoints atomically."""
+    """Publish fresh events through pure grouping policy inside the fenced transaction.
+
+    The callback performs no IO. Existing facts may be refreshed, but never
+    republished into another group. Completed checkpoints commit with publication.
+    """
 
     with _owned_monitoring_session(lease, database_url=database_url) as session:
         if refreshed_repository is not None:
             write_repositories(session, (refreshed_repository,))
-        write_feed_events(session, events)
+        unique_events = {event.event_id: event for event in events}
+        if any(event.repository_id != repository_id for event in events):
+            raise ValueError("Monitoring events must belong to the scanned repository.")
+        event_ids = list(unique_events)
+        existing_ids: set[str] = set()
+        for offset in range(0, len(event_ids), 500):
+            existing_ids.update(session.scalars(
+                select(FeedEventRecordModel.event_id).where(
+                    FeedEventRecordModel.event_id.in_(event_ids[offset:offset + 500])
+                )
+            ))
+        new_events = [event for key, event in unique_events.items() if key not in existing_ids]
+        write_feed_events(session, list(unique_events.values()))
+        session.flush()
+        write_feed_update_groups(session, group_new_events(new_events))
         _write_repository_monitoring_cursors(session, repository_id, checkpoint_updates)
 
 

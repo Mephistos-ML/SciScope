@@ -22,8 +22,18 @@ identity, scope, kind, and first-publication time;
   use the scan publication identity. Display text and scan frequency are not IDs.
 - Retrying an identical group preserves its original creation time and event read
   state. Reusing its ID for different scope, kind, or membership is a conflict.
-- Events and groups are committed in one transaction. Monitoring can write groups
-  in its existing fenced transaction alongside checkpoints.
+- Monitoring commits events, groups, profile refreshes, and completed-stream
+  checkpoints in one fenced transaction. Fresh event IDs are determined after
+  locking the monitoring lease; the application grouping callback is pure and
+  performs no external IO while the lock is held.
+- Each fresh release gets its own publication. Fresh commits form one publication
+  per subscription and scan, identified by the monitoring run ID. Release and
+  commit events remain separate until their relationship is confirmed.
+- Incomplete scans publish discovered events immediately and retain unfinished
+  stream checkpoints. Recovery publishes only newly discovered IDs. Repeated
+  facts can refresh event content without regrouping them or resetting read state.
+  A scan with no fresh events creates no publication. Losing the lease or failing
+  any publication write rolls back events, groups, and checkpoint advancement.
 - Composite foreign keys enforce matching user, subscription, and repository
   scopes. Event membership uniqueness prevents two publications claiming the same
   event; a rejected write rolls back its group and any associated event writes.

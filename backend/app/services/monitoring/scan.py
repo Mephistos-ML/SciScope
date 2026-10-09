@@ -6,6 +6,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
+from functools import partial
 import logging
 
 from app.models.monitoring import (
@@ -16,6 +17,7 @@ from app.models.monitoring import (
 from app.models.repository import Repository
 from app.models.signal import Signal
 from app.services.feed.service import build_feed_event
+from app.services.feed.publications import build_feed_update_groups
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.services.monitoring.capabilities import RepositoryMonitor
 from app.storage.monitoring.state import (
@@ -189,6 +191,8 @@ def _scan_repository(
     persist_repository_monitoring_result(
         repository.repository_id, events, checkpoint_updates, database_url=database_url,
         lease=lease, refreshed_repository=refreshed_repository,
+        group_new_events=partial(build_feed_update_groups,
+                                 publication_key=lease.holder_id, created_at=datetime.now(UTC)),
     )
     return activity.releases_complete and activity.commits_complete
 

@@ -12,6 +12,7 @@ import pytest
 from sqlalchemy import select
 
 from tests.fixtures.database import build_test_database_url, migrate_test_database
+from app.database.records.feed import FeedUpdateGroupRecordModel, FeedUpdateGroupMemberRecordModel
 from app.database.records.monitoring import (
     MonitoringRunRecordModel,
     RepositoryMonitoringCheckRecordModel,
@@ -416,6 +417,8 @@ def test_incomplete_scan_retains_each_checkpoint_and_retries_without_duplicates(
     job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
     first_events = list_feed_events_for_user(user.user_id, database_url=database_url)
     assert len(first_events) == 2
+    first_publication = _publications(database_url)
+    assert len(first_publication) == 2
     from app.storage.feed import mark_feed_event_read_for_user
     mark_feed_event_read_for_user(user.user_id, first_events[0].event_id, database_url=database_url)
     partial_cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
@@ -437,6 +440,7 @@ def test_incomplete_scan_retains_each_checkpoint_and_retries_without_duplicates(
     job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
     assert set(get_repository_monitoring_cursors(repository.repository_id, database_url=database_url).values()) == {published_at.isoformat()}
     assert len(list_feed_events_for_user(user.user_id, database_url=database_url)) == 2
+    assert _publications(database_url) == first_publication
 
 
 def test_provider_error_keeps_checkpoints_for_retry(monkeypatch):
@@ -569,7 +573,7 @@ def test_sha_checkpoint_preserves_backdated_commits_and_retries(tmp_path, monkey
     assert checks[-1].status == "partial"
 
 
-@pytest.mark.parametrize("failure_stage", ["feed", "cursors", "commit"])
+@pytest.mark.parametrize("failure_stage", ["feed", "groups", "cursors", "commit"])
 def test_scan_rolls_back_events_and_checkpoints_then_retries(tmp_path, monkeypatch, failure_stage):
     from sqlalchemy import event
     from sqlalchemy.orm import Session
@@ -598,6 +602,7 @@ def test_scan_rolls_back_events_and_checkpoints_then_retries(tmp_path, monkeypat
     job.run_repository_monitoring_scan(resolve_monitor=resolve_monitor, database_url=database_url)
     baseline_cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
     baseline_event = list_feed_events_for_user(user.user_id, database_url=database_url)[0]
+    baseline_groups = _publications(database_url)
     marked = mark_feed_event_read_for_user(user.user_id, baseline_event.event_id, database_url=database_url)
 
     from dataclasses import replace
@@ -624,7 +629,8 @@ def test_scan_rolls_back_events_and_checkpoints_then_retries(tmp_path, monkeypat
                     event.remove(Session, "before_commit", fail_commit)
             fault.setattr(scan, "persist_repository_monitoring_result", fail_persist)
         else:
-            attribute = "write_feed_events" if failure_stage == "feed" else "_write_repository_monitoring_cursors"
+            attribute = {"feed": "write_feed_events", "groups": "write_feed_update_groups",
+                         "cursors": "_write_repository_monitoring_cursors"}[failure_stage]
             original_write = getattr(state, attribute)
             def fail_write(session, *args):
                 original_write(session, *args)
@@ -638,6 +644,7 @@ def test_scan_rolls_back_events_and_checkpoints_then_retries(tmp_path, monkeypat
     assert len(items) == 1
     assert items[0].title == baseline_event.title
     assert items[0].read_at == marked.read_at
+    assert _publications(database_url) == baseline_groups
     with session_scope(database_url) as session:
         checks = session.scalars(select(RepositoryMonitoringCheckRecordModel)).all()
         assert [check.status for check in checks].count("failed") == 1
@@ -649,6 +656,7 @@ def test_scan_rolls_back_events_and_checkpoints_then_retries(tmp_path, monkeypat
     updated = next(item for item in items if item.event_id == baseline_event.event_id)
     assert updated.title == "Updated title"
     assert updated.read_at == marked.read_at
+    assert len(_publications(database_url)) == 2
     cursors = get_repository_monitoring_cursors(repository.repository_id, database_url=database_url)
     assert cursors[REPOSITORY_MAIN_COMMIT_SHA_CHECKPOINT_KEY] == "new-head"
     assert cursors[REPOSITORY_RELEASE_CHECKPOINT_KEY] == signals[1].published_at.isoformat()
@@ -668,3 +676,62 @@ def test_scan_start_failure_releases_lease_and_preserves_failure_status(tmp_path
     with session_scope(database_url) as session:
         runs = session.scalars(select(MonitoringRunRecordModel)).all()
     assert [run.status for run in runs] == ([] if failure == "create" else ["failed"])
+
+
+def _publications(database_url):
+    with session_scope(database_url) as session:
+        groups = session.scalars(select(FeedUpdateGroupRecordModel)).all()
+        members = session.scalars(select(FeedUpdateGroupMemberRecordModel)).all()
+        return {
+            group.group_id: (group.user_id, group.kind, group.created_at,
+                             frozenset(member.event_id for member in members if member.group_id == group.group_id))
+            for group in groups
+        }
+
+
+def test_scan_publishes_per_subscription_batches_without_regrouping_old_commits(tmp_path):
+    from dataclasses import replace
+
+    database_url = build_test_database_url(tmp_path / "publications.sqlite3")
+    migrate_test_database(database_url)
+    repository = _repository()
+    upsert_repositories((repository,), database_url=database_url)
+    for user_id in ("alice", "bob"):
+        auth_storage.create_user(user_id=user_id, email=f"{user_id}@example.com",
+                                 display_name=user_id, database_url=database_url)
+        create_subscription(user_id=user_id, repository_id=repository.repository_id,
+                            selected_query="monitor", database_url=database_url)
+    published = datetime.now(UTC) + timedelta(minutes=1)
+    commits = tuple(replace(_signal(f"commit-{index}", published), kind="commit") for index in range(3))
+    # Incomplete coverage retries the same provider facts, including a duplicate.
+    activity = RepositoryActivity(signals=commits + (commits[0],), releases_complete=False,
+                                  commits_complete=False)
+    monitor = _Monitor(lambda *_args, **_kwargs: activity)
+    def run():
+        job.run_repository_monitoring_scan(resolve_monitor=lambda _source: monitor, database_url=database_url)
+    run()
+    first = _publications(database_url)
+    assert len(first) == 2
+    assert {value[0] for value in first.values()} == {"alice", "bob"}
+    assert all(value[1] == "commits" and len(value[3]) == 3 for value in first.values())
+    run()
+    assert _publications(database_url) == first
+    # A later scan receives overlapping facts, one fresh commit, and a release.
+    # No unconfirmed release relationship is invented; old groups stay immutable.
+    activity = replace(activity, signals=commits + (
+        replace(_signal("commit-3", published), kind="commit"),
+        _signal("release-1", published),
+    ))
+    run()
+    after = _publications(database_url)
+    assert {key: after[key] for key in first} == first
+    fresh = [value for key, value in after.items() if key not in first]
+    assert sorted((value[0], value[1], len(value[3])) for value in fresh) == [
+        ("alice", "commits", 1), ("alice", "release", 1),
+        ("bob", "commits", 1), ("bob", "release", 1),
+    ]
+    assert len(set().union(*(value[3] for value in after.values()))) == 10
+    run()
+    activity = replace(activity, signals=(), releases_complete=True, commits_complete=True)
+    run()
+    assert _publications(database_url) == after

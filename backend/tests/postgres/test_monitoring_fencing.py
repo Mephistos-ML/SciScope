@@ -1,5 +1,6 @@
 """Monitoring ownership is enforced by real PostgreSQL locks and transactions."""
 
+from functools import partial
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from threading import Barrier, Event
@@ -10,6 +11,7 @@ from sqlalchemy import event, select, update, text
 from sqlalchemy.orm import Session
 
 from app.database.session import database_now, get_engine, session_scope
+from app.database.records.feed import FeedUpdateGroupRecordModel, FeedUpdateGroupMemberRecordModel
 from app.database.records.monitoring import (
     MonitoringJobLeaseRecordModel,
     MonitoringRunRecordModel,
@@ -26,6 +28,7 @@ from app.models.monitoring import (
 from app.models.repository import Repository
 from app.models.signal import Signal
 from app.services.feed.service import build_feed_event
+from app.services.feed.publications import build_feed_update_groups
 from app.storage.monitoring import state
 from app.storage.auth.users import create_user
 from app.storage.repositories.repositories import upsert_repositories, get_repository
@@ -112,6 +115,7 @@ def test_superseded_scan_cannot_publish_any_facts_or_release_replacement(
                 repository.repository_id, "github", "science/stale", repository.url, {}
             ),
             lease=old,
+            group_new_events=partial(build_feed_update_groups, publication_key=old.holder_id, created_at=datetime.now(UTC)),
             database_url=postgres_url,
         ),
         lambda: state.record_repository_monitoring_check(
@@ -155,11 +159,15 @@ def test_superseded_scan_cannot_publish_any_facts_or_release_replacement(
         == {}
     )
     assert list_feed_events_for_user("owner", database_url=postgres_url) == []
+    with session_scope(postgres_url) as session:
+        assert session.scalars(select(FeedUpdateGroupRecordModel)).all() == []
+        assert session.scalars(select(FeedUpdateGroupMemberRecordModel)).all() == []
     state.persist_repository_monitoring_result(
         repository.repository_id,
         (feed_event,),
         {"latest_main_commit_sha": "current"},
         lease=current,
+        group_new_events=partial(build_feed_update_groups, publication_key=current.holder_id, created_at=datetime.now(UTC)),
         database_url=postgres_url,
     )
     assert (
@@ -169,6 +177,9 @@ def test_superseded_scan_cannot_publish_any_facts_or_release_replacement(
         == "current"
     )
     assert len(list_feed_events_for_user("owner", database_url=postgres_url)) == 1
+    with session_scope(postgres_url) as session:
+        assert len(session.scalars(select(FeedUpdateGroupRecordModel)).all()) == 1
+        assert session.scalars(select(FeedUpdateGroupMemberRecordModel.event_id)).all() == [feed_event.event_id]
 
 
 def test_expiry_after_flush_rolls_back_feed_profile_and_checkpoint(
@@ -207,11 +218,15 @@ def test_expiry_after_flush_rolls_back_feed_profile_and_checkpoint(
                     {},
                 ),
                 lease=lease,
+                group_new_events=partial(build_feed_update_groups, publication_key=lease.holder_id, created_at=datetime.now(UTC)),
                 database_url=postgres_url,
             )
     finally:
         event.remove(Session, "after_flush", expire_during_flush)
     assert list_feed_events_for_user("owner", database_url=postgres_url) == []
+    with session_scope(postgres_url) as session:
+        assert session.scalars(select(FeedUpdateGroupRecordModel)).all() == []
+        assert session.scalars(select(FeedUpdateGroupMemberRecordModel)).all() == []
     assert (
         state.get_repository_monitoring_cursors(
             repository.repository_id, database_url=postgres_url
@@ -381,6 +396,9 @@ def test_heartbeat_renews_during_io_and_takeover_discards_old_results(
             release.set()
         future.result(timeout=10)
     assert list_feed_events_for_user("owner", database_url=postgres_url) == []
+    with session_scope(postgres_url) as session:
+        assert session.scalars(select(FeedUpdateGroupRecordModel)).all() == []
+        assert session.scalars(select(FeedUpdateGroupMemberRecordModel)).all() == []
     assert (
         state.get_repository_monitoring_cursors(
             repository.repository_id, database_url=postgres_url
