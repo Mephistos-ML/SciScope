@@ -14,8 +14,6 @@ Discover scientific software for your research topic and follow repository updat
 
 ## See it in action
 
-[Watch the SciScope demo](docs/assets/showcase.mp4)
-
 ## From a research topic to software you can follow
 
 Scientific software is spread across repositories, and finding relevant tools often requires several searches with different terminology.
