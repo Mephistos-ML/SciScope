@@ -14,6 +14,8 @@ Discover scientific software for your research topic and follow repository updat
 
 ## See it in action
 
+https://github.com/user-attachments/assets/29c90665-9847-4a54-a493-ed8516fa1a54
+
 ## From a research topic to software you can follow
 
 Scientific software is spread across repositories, and finding relevant tools often requires several searches with different terminology.
