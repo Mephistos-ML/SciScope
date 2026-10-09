@@ -1,3 +1,11 @@
+## [1.21.1](https://github.com/Mephistos-ML/SciScope/compare/v1.21.0...v1.21.1) (2026-10-09)
+
+
+### Bug Fixes
+
+* correct release commit message line breaks ([a9a1786](https://github.com/Mephistos-ML/SciScope/commit/a9a17863900c9e579ff6b85769556f91cecce025))
+* simplify commit entries in feed dropdowns ([429261a](https://github.com/Mephistos-ML/SciScope/commit/429261a451aeba127b690aa2a0ed08cb26406568))
+
 # [1.21.0](https://github.com/Mephistos-ML/SciScope/compare/v1.20.3...v1.21.0) (2026-10-09)
 
 
