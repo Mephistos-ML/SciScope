@@ -41,7 +41,7 @@ test("grouped updates page commits, preserve read state on opening, and mark who
   await expect(commits.getByRole("link", { name: "Release commit 22", exact: true })).toHaveAttribute(
     "href", /^https:\/\/github\.com\/science\/tool\/commit\/[0-9a-f]{40}$/,
   );
-  await expect(commits.getByText("Improve numerical accuracy and simulation reproducibility.", { exact: true })).toHaveCount(10);
+  await expect(commits.getByText("Improve numerical accuracy and simulation reproducibility.", { exact: true })).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
   await release.scrollIntoViewIfNeeded();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

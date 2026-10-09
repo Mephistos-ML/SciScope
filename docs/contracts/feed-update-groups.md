@@ -178,7 +178,9 @@ and [GitLab repository comparisons](https://docs.gitlab.com/api/repositories/#co
 ## Browser behavior and rollout
 
 Feed and subscription previews use the grouped endpoints. Cards disclose stored
-commit previews on request, initially ten at a time. Loading more commits retains
+commit entries on request, initially ten at a time. Entries display linked commit
+subjects and dates without message bodies; descriptions appear only on update
+cards. Loading more commits retains
 the current page; collapsing preserves loaded details. Closing or leaving a card
 cancels its pending detail request and ignores late responses. Failed pages offer
 retry without discarding confirmed commits. Missing provider dates remain unknown;
