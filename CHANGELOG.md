@@ -1,3 +1,23 @@
+# [1.21.0](https://github.com/Mephistos-ML/SciScope/compare/v1.20.3...v1.21.0) (2026-10-09)
+
+
+### Bug Fixes
+
+* align feed content with provider messages and enforce text limits ([6bb5072](https://github.com/Mephistos-ML/SciScope/commit/6bb5072ca1d1ca9886313c169f7cecd9fc066574))
+* enforce provider response deadlines and isolate comparison failures ([6e3722b](https://github.com/Mephistos-ML/SciScope/commit/6e3722b50bf4e074b0aff86c1b86bf29c218e458))
+* migrate conftest ([c51e59a](https://github.com/Mephistos-ML/SciScope/commit/c51e59a647857a6abdb3a4185336b5b4c99757f9))
+* prevent stale feed requests from overriding navigation ([290c97c](https://github.com/Mephistos-ML/SciScope/commit/290c97ca4f47f200243096b7f5e6a157339991f8))
+
+
+### Features
+
+* display grouped feed updates with expandable commits ([e410553](https://github.com/Mephistos-ML/SciScope/commit/e410553141ede532ed84abe071f19ef47f73c5c9))
+* display grouped feed updates with expandable commits ([f834e47](https://github.com/Mephistos-ML/SciScope/commit/f834e47d8fdd34024f0a038806edf866c3ceecc4))
+* expose paginated grouped feed API ([cf9f551](https://github.com/Mephistos-ML/SciScope/commit/cf9f5513f68990fd66d12caf6d54752a1e034d25))
+* link release updates to confirmed commit details ([ac6db8f](https://github.com/Mephistos-ML/SciScope/commit/ac6db8fba6bc35b39f28dc6107ae147cc9b39534))
+* persist immutable feed update groups ([a8ec35d](https://github.com/Mephistos-ML/SciScope/commit/a8ec35dc4248ac0129a69c1ed29ab78501abe45a))
+* publish monitoring update groups atomically ([72f8aef](https://github.com/Mephistos-ML/SciScope/commit/72f8aefaade5e9ad8f6e94fdb1e9935799cecbb4))
+
 ## [1.20.3](https://github.com/Mephistos-ML/SciScope/compare/v1.20.2...v1.20.3) (2026-10-08)
 
 
