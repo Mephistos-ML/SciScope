@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Public search lifecycle contract shared by HTTP responses and the client."""
 
 from pathlib import Path

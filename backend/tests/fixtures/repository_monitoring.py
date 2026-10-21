@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Provider HTTP fixtures shared by commit adapter and monitoring integration tests."""
 
 

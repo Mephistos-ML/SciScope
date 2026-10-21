@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Lease fencing and atomic recovery against the real persistence adapter."""
 
 from datetime import UTC, datetime, timedelta

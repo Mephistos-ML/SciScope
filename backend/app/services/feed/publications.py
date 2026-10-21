@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Publication policy for newly discovered subscription events."""
 
 from collections.abc import Sequence

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Provider monitoring must distinguish complete and truncated activity reads."""
 
 from tests.fixtures.repository_clients import make_repository_monitor

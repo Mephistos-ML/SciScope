@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Regression coverage for canonical subscription profiles and catalog repair."""
 
 from __future__ import annotations

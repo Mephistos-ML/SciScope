@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Publication identities and immutable membership have domain-owned invariants."""
 
 from dataclasses import replace

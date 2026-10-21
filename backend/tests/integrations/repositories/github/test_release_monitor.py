@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Tests for the live GitHub release monitoring adapter."""
 
 from __future__ import annotations

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Release grouping policy and the repository enrichment resource budget."""
 
 from dataclasses import replace

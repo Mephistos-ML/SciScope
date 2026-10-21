@@ -85,3 +85,12 @@ Multilingual support is not yet available.
 ## Author
 
 Designed and built end-to-end by **Ernest Borysenko**.
+
+## License
+
+Copyright 2026 Ernest Borysenko.
+
+SciScope's original code and documentation are licensed under the
+[Apache License, Version 2.0](LICENSE).
+
+Third-party components and downloaded datasets retain their respective licenses and attribution requirements.

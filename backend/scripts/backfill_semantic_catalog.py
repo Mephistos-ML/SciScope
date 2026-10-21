@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Populate pgvector embeddings for the current repository catalog."""
 
 from __future__ import annotations

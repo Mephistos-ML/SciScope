@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Persistence helpers for auth-owned records."""
 
 from app.storage.auth.oauth_accounts import (

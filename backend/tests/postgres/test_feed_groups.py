@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Production-database migration, ownership constraints, and publication races."""
 
 from concurrent.futures import ThreadPoolExecutor

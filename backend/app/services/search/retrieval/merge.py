@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Merge helpers for deduplicated repository candidate pools."""
 
 from __future__ import annotations

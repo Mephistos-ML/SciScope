@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Deterministic external capabilities with an explicitly released IO boundary."""
 
 from collections.abc import Sequence

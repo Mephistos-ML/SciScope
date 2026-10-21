@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Ernest Borysenko
+// SPDX-License-Identifier: Apache-2.0
+
 import type { ExploreSearchRunPayload, ExploreSearchRunStatus } from "../types/api";
 
 type SearchRunPresentation =

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Provider-native profile lookup, identity validation and complete field mapping."""
 
 from __future__ import annotations

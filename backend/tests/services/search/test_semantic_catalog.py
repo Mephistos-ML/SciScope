@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Tests for source-agnostic semantic catalog candidates."""
 
 from __future__ import annotations

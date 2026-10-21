@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Google identity verification with real signatures and mocked external IO."""
 
 from contextlib import contextmanager

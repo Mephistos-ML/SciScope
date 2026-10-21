@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Release monitoring pagination, partial reads, and timestamp boundaries."""
 
 from tests.fixtures.repository_clients import make_repository_monitor

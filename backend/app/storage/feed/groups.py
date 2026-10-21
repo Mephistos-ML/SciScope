@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Immutable Feed publication persistence; member events own content and read state."""
 
 from collections.abc import Sequence

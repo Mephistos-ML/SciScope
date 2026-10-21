@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Recovery and cancellation at worker and application IO boundaries."""
 
 from concurrent.futures import ThreadPoolExecutor

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """HTTP errors expose application categories without provider SQL or parameters."""
 
 import psycopg.errors

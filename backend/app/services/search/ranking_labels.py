@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Application service for human labels on immutable ranking snapshots."""
 
 from __future__ import annotations

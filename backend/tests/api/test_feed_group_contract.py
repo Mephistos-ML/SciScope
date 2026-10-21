@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Check the grouped Feed client DTOs against the actual HTTP response schemas."""
 
 from pathlib import Path

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Transport-independent authentication and session use cases."""
 
 from datetime import UTC, datetime, timedelta

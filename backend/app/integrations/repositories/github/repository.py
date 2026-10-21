@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Canonical GitHub repository profiles addressed by immutable provider ID."""
 
 from __future__ import annotations

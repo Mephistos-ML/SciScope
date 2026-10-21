@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """HTTP client address extraction for the deployed proxy contract."""
 
 from fastapi import Request

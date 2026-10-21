@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Embedding responses must preserve input identity and reject unusable vectors."""
 
 import httpx2 as httpx

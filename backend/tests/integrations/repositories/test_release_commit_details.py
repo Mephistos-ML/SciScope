@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Release ranges use pinned ancestral Git comparisons, with bounded IO."""
 
 from datetime import UTC, datetime, timedelta

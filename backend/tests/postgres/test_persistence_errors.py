@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Real PostgreSQL driver failures preserve atomic rollback and error categories."""
 
 from concurrent.futures import ThreadPoolExecutor

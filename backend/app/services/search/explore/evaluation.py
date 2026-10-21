@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Shared evaluation built from one retrieved Explore candidate pool."""
 
 from __future__ import annotations

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """User-scoped, bounded publication reads and explicit member read updates."""
 
 from collections.abc import Sequence

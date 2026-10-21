@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Authentication invariants through explicit credentials and callback facts."""
 
 from datetime import UTC, datetime, timedelta

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Ernest Borysenko
+// SPDX-License-Identifier: Apache-2.0
+
 import type { Response } from "@playwright/test";
 import { expect, test } from "./fixtures";
 
