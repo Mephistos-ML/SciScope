@@ -1,6 +1,7 @@
 [project]
 name = "sciscope"
 description = "Scientific signal monitoring for narrow research topics."
+license = {file = "LICENSE"}
 requires-python = ">=3.11"
 dynamic = ["version"]
 dependencies = [
