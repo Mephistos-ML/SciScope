@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Preview or apply conditional provider refreshes for damaged catalog profiles."""
 
 from __future__ import annotations

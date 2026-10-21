@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Internal HTTP transport for durable Explore run reports."""
 
 from __future__ import annotations

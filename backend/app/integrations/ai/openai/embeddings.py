@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """OpenAI embedding protocol and validated, ordered vector mapping."""
 
 from collections.abc import Sequence

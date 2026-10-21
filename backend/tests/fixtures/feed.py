@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Canonical Feed facts for publication and migration tests."""
 
 from datetime import UTC, datetime

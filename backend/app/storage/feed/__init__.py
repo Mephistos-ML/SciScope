@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Persistence helpers for durable user feed events."""
 
 from app.models.feed import FeedEvent

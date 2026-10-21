@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Bounded optional release enrichment before the fenced publication transaction."""
 
 from collections.abc import Callable, Sequence

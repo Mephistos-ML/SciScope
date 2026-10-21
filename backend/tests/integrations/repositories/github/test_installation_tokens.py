@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Installation credentials and synchronized token reuse stay instance-scoped."""
 
 from concurrent.futures import ThreadPoolExecutor

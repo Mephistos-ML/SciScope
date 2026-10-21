@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Admission and queue invariants across independent PostgreSQL connections."""
 
 from concurrent.futures import ThreadPoolExecutor

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """HTTP cookie extraction and response representation for authentication."""
 
 from urllib.parse import urlencode, urlsplit, urlunsplit

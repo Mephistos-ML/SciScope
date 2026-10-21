@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Persistence helpers for explore-related records."""
 
 from app.storage.explore.search_events import (

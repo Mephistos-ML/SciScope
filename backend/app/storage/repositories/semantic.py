@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Postgres pgvector persistence and lookup for catalog semantics."""
 
 from __future__ import annotations

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Inspect and repair catalog profiles using authoritative provider facts."""
 
 from __future__ import annotations

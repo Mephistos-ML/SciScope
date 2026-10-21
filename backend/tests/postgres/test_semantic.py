@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Exercise real pgvector operators, model isolation, upserts and batch rollback."""
 
 from hashlib import sha256

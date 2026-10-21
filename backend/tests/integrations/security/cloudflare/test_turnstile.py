@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Siteverify request contract and fail-closed response handling."""
 
 from contextlib import contextmanager

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Representative repository search results for transport and application tests."""
 
 from app.models.ai import AiSearchPlan

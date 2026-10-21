@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Own a disposable PostgreSQL database, API/worker processes and provider gates."""
 
 import json

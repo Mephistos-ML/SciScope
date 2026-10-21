@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Grouped Feed payloads and scoped keyset pagination contracts."""
 
 import base64

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Real HTTP framing obeys deadlines and classifies interrupted response bodies."""
 
 from http.client import HTTPResponse, IncompleteRead

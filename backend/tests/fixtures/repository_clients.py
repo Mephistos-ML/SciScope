@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Explicit provider IO doubles; unexpected network access fails immediately."""
 
 from types import SimpleNamespace

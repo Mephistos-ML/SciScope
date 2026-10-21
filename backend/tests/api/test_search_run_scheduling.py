@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Atomic admission and initial scheduling through the public search API."""
 
 from types import SimpleNamespace

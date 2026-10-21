@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Internal state retained for one incrementally executed Explore search plan."""
 
 from __future__ import annotations

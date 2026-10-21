@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Policy for accepting and verifying anti-abuse proof."""
 
 from collections.abc import Callable

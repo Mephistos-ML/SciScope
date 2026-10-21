@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 from app.models.signal import Signal
 from app.services.search.admission import run_repository_admission
 from app.services.search.retrieval.models import (

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Ernest Borysenko
+// SPDX-License-Identifier: Apache-2.0
+
 import githubLogo from "../assets/sources/github/invertocat-black.svg";
 import gitlabLogo from "../assets/sources/gitlab/gitlab-logo-600-rgb.svg";
 

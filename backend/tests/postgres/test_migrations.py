@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Real PostgreSQL migration paths preserve persisted run and replay facts."""
 
 from datetime import UTC, datetime

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Select and configure the identity provider at the API entrypoint."""
 
 from jwt import PyJWKClient

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Isolated migrated PostgreSQL databases and observable contention helpers."""
 
 import os

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Application capability and provenance for an already selected planner."""
 
 from dataclasses import dataclass

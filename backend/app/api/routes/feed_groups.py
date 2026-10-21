@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Authenticated grouped Feed transport and explicit response schemas."""
 
 from datetime import datetime

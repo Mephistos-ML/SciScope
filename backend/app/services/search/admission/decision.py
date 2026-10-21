@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Cheap repository admission decision logic."""
 
 from app.services.search.admission.facts import build_candidate_facts

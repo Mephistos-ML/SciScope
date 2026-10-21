@@ -1,4 +1,6 @@
 /// <reference types="vite/client" />
+// SPDX-FileCopyrightText: 2026 Ernest Borysenko
+// SPDX-License-Identifier: Apache-2.0
 
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL: string;

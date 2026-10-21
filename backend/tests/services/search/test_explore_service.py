@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Explore application policy with real ranking, catalog and durable worker execution."""
 
 from dataclasses import replace

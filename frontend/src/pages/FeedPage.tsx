@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Ernest Borysenko
+// SPDX-License-Identifier: Apache-2.0
+
 import { FeedUpdateCard } from "../components/FeedUpdateCard";
 import feedEmptyIllustration from "../assets/states/feed/feed-empty.svg";
 import type { FeedGroupItem, ViewerPayload } from "../types/api";

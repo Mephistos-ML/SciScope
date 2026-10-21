@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Repeated watches preserve their query and remain scoped to one user."""
 
 from app.models.repository import Repository

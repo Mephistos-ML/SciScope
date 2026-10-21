@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Pytest configuration, deployment isolation and resource fixtures."""
 
 from __future__ import annotations

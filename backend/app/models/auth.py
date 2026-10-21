@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Application identities, OAuth flow values, and stable authentication errors."""
 
 from dataclasses import dataclass, field

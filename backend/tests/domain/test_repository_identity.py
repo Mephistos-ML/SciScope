@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Canonical identities obey the same native-ID contract at creation and parsing."""
 
 import pytest

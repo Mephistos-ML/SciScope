@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Seed durable run state without executing a new-search use case."""
 
 from datetime import UTC, datetime

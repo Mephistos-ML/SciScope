@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Ernest Borysenko
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect, useId, useRef, useState } from "react";
 
 import dropdownIcon from "../assets/buttons/sciscope-dropdown.svg";

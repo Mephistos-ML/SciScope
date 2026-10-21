@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Ernest Borysenko
+# SPDX-License-Identifier: Apache-2.0
+
 """Bind one process's repository adapters and their credential/cache lifetimes."""
 
 from collections.abc import Callable, Mapping
