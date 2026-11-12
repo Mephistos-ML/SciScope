@@ -217,6 +217,7 @@ in [Backend quality gates](../docs/contracts/backend-quality-gates.md).
 | `EXPLORE_SEARCH_REPOSITORY_LANE_TIMEOUT_SECONDS`, `EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS` | Retrieval lane budgets |
 | `EXPLORE_ADMISSION_MODE`, `EXPLORE_SEARCH_LOG_MATCH_CUTOFF` | Candidate and delivery policy; log-score cutoff defaults to 0 |
 | `EXPLORE_RANKING_POPULARITY_MAX_BONUS`, `EXPLORE_RANKING_POPULARITY_REFERENCE_STARS` | Popularity bonus cap (default 0) and fixed star reference (default 1000) |
+| `APP_REVISION` | Full source Git SHA; required for production images, resolved from Git for local checkouts |
 | `SEMANTIC_CATALOG_ENABLED`, `SEMANTIC_EMBEDDING_MODEL`, `SEMANTIC_CATALOG_MIN_SIMILARITY` | Optional semantic catalog retrieval |
 | `SEARCH_DIAGNOSTICS_USER_EMAILS`, `SEARCH_QUOTA_BYPASS_USER_EMAILS` | Restricted product capabilities |
 

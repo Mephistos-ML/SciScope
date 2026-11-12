@@ -34,6 +34,11 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Check release metadata and generated contracts
+        run: |
+          python scripts/check_release_versions.py
+          python scripts/generate_search_contracts.py --check
+
       - name: Run semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

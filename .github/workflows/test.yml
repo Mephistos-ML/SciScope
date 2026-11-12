@@ -33,9 +33,13 @@ jobs:
         env:
           PYTHONPATH: backend
       - name: Lint backend
-        run: ruff check backend
+        run: ruff check backend scripts/check_release_versions.py scripts/generate_search_contracts.py scripts/deploy_backend.py
       - name: Check domain and capability types
         run: mypy
+      - name: Check release metadata and generated contracts
+        run: |
+          python scripts/check_release_versions.py
+          python scripts/generate_search_contracts.py --check
 
   backend:
     name: Backend tests

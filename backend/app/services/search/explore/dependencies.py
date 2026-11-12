@@ -18,3 +18,4 @@ class ExploreDependencies:
     embeddings: EmbeddingProvider | None
     score_threshold: float = 0.0
     popularity_boost: PopularityBoostParameters = PopularityBoostParameters()
+    backend_revision: str = "unavailable"

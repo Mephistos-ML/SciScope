@@ -5,10 +5,12 @@
 
 import logging
 from functools import partial
+from pathlib import Path
 from urllib.parse import urlparse
 
 from app import config
 from app.composition.repositories import RepositoryAdapters
+from app.composition.revision import resolve_backend_revision
 from app.models.ai import AiPlannerIdentity
 from app.integrations.ai.openai.planner import OpenAiSearchPlanner
 from app.integrations.ai.openai.embeddings import OpenAiTextEmbedder
@@ -66,6 +68,9 @@ def build_explore_dependencies(*, repositories: RepositoryAdapters) -> ExploreDe
         popularity_boost=PopularityBoostParameters(
             max_bonus=config.EXPLORE_RANKING_POPULARITY_MAX_BONUS,
             reference_stars=config.EXPLORE_RANKING_POPULARITY_REFERENCE_STARS,
+        ),
+        backend_revision=resolve_backend_revision(
+            config.APP_REVISION, repository_root=Path(__file__).resolve().parents[3],
         ),
     )
 

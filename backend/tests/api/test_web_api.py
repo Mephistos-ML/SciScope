@@ -805,6 +805,9 @@ def test_explore_search_run_returns_completed_snapshot(
         ),
     )
 
+    monkeypatch.setattr(app.state, "explore_dependencies", replace(
+        app.state.explore_dependencies, backend_revision="a" * 40,
+    ))
     with TestClient(app) as client:
         response = client.post(
             "/api/explore/search-runs",
@@ -814,6 +817,11 @@ def test_explore_search_run_returns_completed_snapshot(
         assert response.status_code == 202
         assert response.json()["status"] == "queued"
         client.headers['X-Search-Run-Token'] = response.json()['guestAccessToken']
+        # A stage records the executing worker's revision independently of
+        # the API revision recorded when the run was created.
+        monkeypatch.setattr(app.state, "explore_dependencies", replace(
+            app.state.explore_dependencies, backend_revision="b" * 40,
+        ))
         _process_next_search_run_operation(explore_run_database)
         created = client.get(f"/api/explore/search-runs/{response.json()['runId']}").json()
         assert created["status"] == "completed"
@@ -840,6 +848,12 @@ def test_explore_search_run_returns_completed_snapshot(
         database_url=explore_run_database,
     )
     assert report is not None
+    assert report["run"]["backendRevision"] == "a" * 40
+    provenance = report["rankingSnapshots"][0]["candidateFacts"]["evaluation_provenance"]
+    assert provenance["backend_revision"] == "b" * 40
+    assert provenance["configuration_fingerprint"].startswith("sha256:")
+    assert provenance["ranking_configuration"]["popularity"]["max_bonus"] == 0
+    assert provenance["ranking_configuration"]["score_threshold"] == 0
     assert report["run"]["rankingPolicyVersion"] == "location_weighted_log_matches_v3"
     evidence = report["rankingSnapshots"][0]["retrievalFacts"]["match_evidence"][0]
     assert evidence["channel"] == "repository_search"

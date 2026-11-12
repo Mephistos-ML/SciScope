@@ -71,7 +71,7 @@ def create_explore_search_run(
         planner_model=dependencies.planner.identity.model,
         planner_reasoning_effort=dependencies.planner.identity.reasoning_effort,
         ranking_policy_version=RANKING_POLICY_VERSION,
-        backend_revision="unknown",
+        backend_revision=dependencies.backend_revision,
         created_at=now,
         guest_access_token_hash=(
             _hash_guest_token(guest_access_token) if guest_access_token else None

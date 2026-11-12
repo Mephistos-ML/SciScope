@@ -15,16 +15,22 @@ const { outputText } = ts.transpileModule(source, {
     target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.React,
   },
 });
-const code = `import React from ${JSON.stringify(import.meta.resolve("react"))};\n${outputText}`;
+const contractSource = await readFile(new URL("../src/types/searchContracts.generated.ts", import.meta.url), "utf8");
+const contractCode = ts.transpileModule(contractSource, {
+  compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ESNext },
+}).outputText;
+const contractUrl = `data:text/javascript;base64,${Buffer.from(contractCode).toString("base64")}`;
+const compiled = outputText.replace('"../types/searchContracts.generated"', JSON.stringify(contractUrl));
+const code = `import React from ${JSON.stringify(import.meta.resolve("react"))};\n${compiled}`;
 const { SearchDiagnosticsRepositoryDetails } = await import(
   `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`
 );
 
-function render(scoreBreakdown, finalScore, rankingFeatures = {}) {
+function render(scoreBreakdown, finalScore, rankingFeatures = {}, candidateFacts = {}) {
   return renderToStaticMarkup(React.createElement(SearchDiagnosticsRepositoryDetails, {
     snapshot: {
       rankPosition: 1, finalScore, rankingFeatures, admissionFacts: {},
-      retrievalFacts: {}, scoreBreakdown,
+      retrievalFacts: {}, scoreBreakdown, candidateFacts,
     },
   }));
 }
@@ -97,4 +103,20 @@ test("explains a disabled popularity boost with unavailable stars", () => {
   } }, 0);
   assert.match(html, /Popularity boost \(disabled\)/);
   assert.match(html, /Star count<\/dt><dd>—/);
+});
+
+test("does not reinterpret unknown snapshot schemas as historical 0-100 scores", () => {
+  const html = render({ schema_version: 999 }, 1.5);
+  assert.match(html, /Unsupported ranking snapshot format/);
+  assert.doesNotMatch(html, /\/ 100/);
+});
+
+test("renders recorded code/configuration identities without guessing missing historical values", () => {
+  const html = render({ schema_version: 4, locations: [] }, 0, {}, {
+    evaluation_provenance: { backend_revision: "a".repeat(40), configuration_fingerprint: "sha256:" + "b".repeat(64) },
+  });
+  assert.match(html, /Backend revision/);
+  assert.match(html, new RegExp("a".repeat(40)));
+  assert.match(html, new RegExp("sha256:" + "b".repeat(64)));
+  assert.match(render({}, 10), /Not recorded/);
 });

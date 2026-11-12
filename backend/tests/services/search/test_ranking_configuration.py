@@ -22,6 +22,7 @@ def _load_config(
         "EXPLORE_SEARCH_LOG_MATCH_CUTOFF",
         "EXPLORE_RANKING_POPULARITY_MAX_BONUS",
         "EXPLORE_RANKING_POPULARITY_REFERENCE_STARS",
+        "APP_REVISION",
     ):
         env.pop(key, None)
     env.update(settings)
@@ -90,3 +91,14 @@ def test_configured_and_default_popularity_parameters():
     )
     assert configured.returncode == 0, configured.stderr
     assert configured.stdout.strip() == "0.05 500"
+
+
+def test_production_requires_an_explicit_full_source_sha():
+    missing = _load_config(APP_ENV="production")
+    assert missing.returncode != 0
+    assert "APP_REVISION is required in production" in missing.stderr
+    invalid = _load_config(APP_ENV="production", APP_REVISION="abc123")
+    assert invalid.returncode != 0
+    assert "full Git commit SHA" in invalid.stderr
+    valid = _load_config(APP_ENV="production", APP_REVISION="a" * 40)
+    assert valid.returncode == 0, valid.stderr

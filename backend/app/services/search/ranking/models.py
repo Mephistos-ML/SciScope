@@ -16,6 +16,10 @@ from app.services.search.retrieval.models import RetrievalMatchLocation
 RANKING_POLICY_VERSION: Literal["location_weighted_log_matches_v3"] = (
     "location_weighted_log_matches_v3"
 )
+# Explicit retained contracts; adding support is a compatibility decision.
+LEGACY_RANKING_POLICY_VERSIONS = ("location_weighted_log_matches_v1", "location_weighted_log_matches_v2")
+RANKING_BREAKDOWN_SCHEMA_VERSION: Literal[4] = 4
+LEGACY_LOG_MATCH_BREAKDOWN_SCHEMA_VERSIONS = (2, 3)
 
 
 @dataclass(frozen=True)
@@ -92,7 +96,7 @@ class RankingScoreBreakdown:
 
     locations: tuple[LocationScoreContribution, ...]
     popularity: PopularityScoreContribution
-    schema_version: Literal[4] = 4
+    schema_version: Literal[4] = RANKING_BREAKDOWN_SCHEMA_VERSION
     formula: Literal["location_weighted_log_matches_v3"] = RANKING_POLICY_VERSION
 
 

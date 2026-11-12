@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Ernest Borysenko
 // SPDX-License-Identifier: Apache-2.0
 
+import type { RankingPolicyVersion } from "./searchContracts.generated";
+
 export type Viewer = {
   userId: string;
   email: string;
@@ -104,7 +106,7 @@ export type ExploreResultItem = {
   query: string | null;
   score: number;
   // Absent on historical 0-100 responses. Current scores are unbounded log sums.
-  scoreFormula?: "location_weighted_log_matches_v1" | "location_weighted_log_matches_v2" | "location_weighted_log_matches_v3";
+  scoreFormula?: RankingPolicyVersion;
   reason: string;
 };
 

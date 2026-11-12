@@ -33,6 +33,7 @@ from app.services.search.catalog import (
     retrieve_catalog_candidates,
 )
 from app.services.search.explore.evaluation import build_explore_search_evaluation
+from app.services.search.explore.provenance import build_evaluation_provenance
 from app.services.search.explore.response import (
     build_empty_explore_search_payload,
     build_explore_search_payload,
@@ -210,6 +211,8 @@ def run_explore_search(
             if stage_report_callback is not None:
                 stage_report_callback(
                     _build_stage_report(
+                        backend_revision=dependencies.backend_revision,
+                        popularity_boost=dependencies.popularity_boost,
                         evaluation=evaluation,
                         executed_queries=execution.executed_queries,
                         retrieved=retrieved,
@@ -271,6 +274,8 @@ def run_explore_search(
         if stage_report_callback is not None:
             stage_report_callback(
                 _build_stage_report(
+                    backend_revision=dependencies.backend_revision,
+                    popularity_boost=dependencies.popularity_boost,
                     evaluation=evaluation,
                     executed_queries=execution.executed_queries,
                     retrieved=retrieved,
@@ -413,6 +418,8 @@ def expand_explore_search(
     if stage_report_callback is not None:
         stage_report_callback(
             _build_stage_report(
+                backend_revision=dependencies.backend_revision,
+                popularity_boost=dependencies.popularity_boost,
                 evaluation=evaluation,
                 executed_queries=retrieval_sequence.executed_queries,
                 retrieved=retrieved,
@@ -440,6 +447,8 @@ def expand_explore_search(
 def _build_stage_report(
     *,
     evaluation,
+    backend_revision: str,
+    popularity_boost: PopularityBoostParameters,
     executed_queries: tuple[str, ...],
     retrieved: RetrievedCandidates,
     admitted_candidate_count: int,
@@ -489,13 +498,22 @@ def _build_stage_report(
         ),
         ranking_candidates=_build_ranking_candidate_reports(
             evaluation,
+            backend_revision=backend_revision,
+            popularity_boost=popularity_boost,
         ),
     )
 
 
 def _build_ranking_candidate_reports(
     evaluation,
+    *,
+    backend_revision: str,
+    popularity_boost: PopularityBoostParameters,
 ) -> tuple[SearchRankingCandidateReport, ...]:
+    provenance = build_evaluation_provenance(
+        backend_revision=backend_revision, popularity_boost=popularity_boost,
+        score_threshold=evaluation.score_threshold,
+    )
     admission_by_repository_id = {
         item.candidate.repository_id: item.admission
         for item in evaluation.admission.evaluated_candidates
@@ -507,6 +525,7 @@ def _build_ranking_candidate_reports(
             rank_position=position,
             final_score=ranked.score,
             candidate_facts={
+                "evaluation_provenance": provenance,
                 "full_name": ranked.candidate.signal.title,
                 "language": ranked.candidate.signal.payload.get("language"),
                 "stars": ranked.candidate.signal.payload.get("stars"),

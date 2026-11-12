@@ -7,6 +7,13 @@ credentials, guest/session tokens or lease tokens during diagnosis.
 
 ## Diagnose
 
+Production images now require a source SHA build argument. Use
+`python scripts/deploy_backend.py --dry-run` to inspect the command from a clean
+checkout, then `python scripts/deploy_backend.py` to deploy when authorized.
+Direct builds need `--build-arg APP_REVISION=<full-source-sha>`. Missing or invalid
+identity fails early; do not label an image with an unrelated SHA. See
+[versioning and provenance](../contracts/versioning-and-provenance.md).
+
 | Symptom | Check |
 | --- | --- |
 | API unavailable | `/health`, Machine/process state and logs |

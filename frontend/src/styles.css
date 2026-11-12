@@ -1520,6 +1520,16 @@ input::placeholder {
   list-style: none;
 }
 
+.repository-diagnostics-provenance dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.repository-diagnostics-provenance dt {
+  flex-shrink: 0;
+  max-width: 45%;
+}
+
 .repository-diagnostics-evidence li {
   display: flex;
   align-items: baseline;

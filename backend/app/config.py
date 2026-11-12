@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import os
+import re
 from math import isfinite
 
 DEFAULT_EXPLORE_QUOTA_WINDOW_SECONDS = 86400  # 24 hours
@@ -92,6 +93,11 @@ def _read_optional_csv_env(name: str) -> tuple[str, ...]:
 
 
 APP_ENV = _read_required_env("APP_ENV")
+APP_REVISION = _read_optional_env("APP_REVISION")
+if APP_REVISION and re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", APP_REVISION) is None:
+    raise RuntimeError("APP_REVISION must be a full Git commit SHA")
+if APP_ENV == "production" and not APP_REVISION:
+    raise RuntimeError("APP_REVISION is required in production; supply the source SHA at image build")
 APP_LOG_LEVEL = (_read_optional_env("APP_LOG_LEVEL") or "INFO").upper()
 SEARCH_DIAGNOSTICS_USER_EMAILS = _read_optional_csv_env(
     "SEARCH_DIAGNOSTICS_USER_EMAILS"

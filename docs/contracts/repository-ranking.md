@@ -184,6 +184,11 @@ recording the resulting policy and contributions per stage.
 
 ## Validation and quality
 
+Ranking snapshots retain a versioned configuration manifest, SHA-256 fingerprint,
+and worker revision in their `candidateFacts` extension. See
+[versioning and provenance](versioning-and-provenance.md) for the canonical format,
+generated TypeScript contracts, and limitations.
+
 Regression checks cover location weights, count saturation and monotonicity,
 query/file deduplication, current-query scope, deterministic ranking, cutoff
 validation, provider-file classification, and serialized/UI score explanations.
