@@ -26,5 +26,11 @@ frontend/*.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts
 
-# Downloaded benchmark datasets
-/benchmarks/data/
+# Local benchmark datasets (tracked documentation and manifests live alongside)
+/benchmarks/data/raw/
+/benchmarks/data/interim/
+/benchmarks/data/processed/
+
+# Reproducible experiment output
+/benchmarks/results/runs/
+/benchmarks/results/exports/
