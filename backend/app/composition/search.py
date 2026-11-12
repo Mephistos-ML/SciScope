@@ -59,7 +59,10 @@ def build_explore_dependencies(*, repositories: RepositoryAdapters) -> ExploreDe
     else:
         logger.info("GitLab global code-search lane is unavailable for configured host=%s", hostname)
     embeddings = build_embedding_provider() if config.SEMANTIC_CATALOG_ENABLED else None
-    return ExploreDependencies(planner=planner, lanes=tuple(lanes), embeddings=embeddings)
+    return ExploreDependencies(
+        planner=planner, lanes=tuple(lanes), embeddings=embeddings,
+        relevance_cutoff=config.EXPLORE_SEARCH_LOG_MATCH_CUTOFF,
+    )
 
 
 def build_embedding_provider() -> EmbeddingProvider:

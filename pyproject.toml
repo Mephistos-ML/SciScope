@@ -58,6 +58,7 @@ files = [
     "backend/app/services/search/explore/dependencies.py",
     "backend/app/services/search/explore/execution.py",
     "backend/app/services/search/admission/models.py",
+    "backend/app/services/search/ranking",
 ]
 follow_imports = "silent"
 strict = true

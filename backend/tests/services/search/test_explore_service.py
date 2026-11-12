@@ -4,6 +4,7 @@
 """Explore application policy with real ranking, catalog and durable worker execution."""
 
 from dataclasses import replace
+from math import log1p
 import pytest
 from app.models.signal import Signal
 from app.models.ai import AiSearchPlan
@@ -219,12 +220,13 @@ def test_explore_search_keeps_retrieved_candidate_without_literal_query_phrase(
 
     assert len(payload["items"]) == 1
     assert payload["items"][0]["itemId"] == "github:repo:115"
-    assert payload["items"][0]["score"] >= 50.0
+    assert payload["items"][0]["score"] == pytest.approx(0.6 * log1p(1))
 
 
 def test_explore_search_applies_ranking_order_and_relevance_cutoff(
     monkeypatch, database_url, dependencies
 ) -> None:
+    dependencies = replace(dependencies, relevance_cutoff=0.5)
     queries = (
         "lammps feynman-hibbs",
         "feynman-hibbs mie potential",

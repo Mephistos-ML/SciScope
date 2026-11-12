@@ -24,6 +24,8 @@ export function SearchDiagnosticsRepositoryDetails({
   const admission = snapshot.admissionFacts;
   const retrieval = snapshot.retrievalFacts;
   const scoreBreakdown = snapshot.scoreBreakdown;
+  const isLogMatchScore = scoreBreakdown.schema_version === 2;
+  const locations = readLocationContributions(scoreBreakdown.locations);
   const matchedQueryCount = readNumber(features, "matched_query_count");
   const totalQueryCount = readNumber(features, "total_query_count");
   const evidenceCount = readNumber(features, "evidence_count");
@@ -39,7 +41,7 @@ export function SearchDiagnosticsRepositoryDetails({
         </div>
         <div className="repository-diagnostics-score">
           <span>Backend rank #{snapshot.rankPosition}</span>
-          <strong>{formatScore(snapshot.finalScore)}</strong>
+          <strong>{formatScore(snapshot.finalScore, isLogMatchScore)}</strong>
         </div>
       </div>
 
@@ -56,6 +58,21 @@ export function SearchDiagnosticsRepositoryDetails({
       <div className="repository-diagnostics-columns">
         <section>
           <h5>Score breakdown</h5>
+          {isLogMatchScore ? (
+            <>
+              <p>Weighted log matches</p>
+              <dl className="repository-diagnostics-definition-list">
+                {locations.map((item) => (
+                  <Definition
+                    key={item.location}
+                    label={formatLabel(item.location)}
+                    value={`${item.count} matches × weight ${item.weight.toFixed(2)} → ${item.points.toFixed(4)} pts`}
+                  />
+                ))}
+              </dl>
+              {!locations.length ? <p>No current-query matches.</p> : null}
+            </>
+          ) : (
           <dl className="repository-diagnostics-definition-list">
             <Definition
               label="Strongest match"
@@ -74,6 +91,7 @@ export function SearchDiagnosticsRepositoryDetails({
               value={formatDecimal(readNumber(features, "corroboration_quality"))}
             />
           </dl>
+          )}
         </section>
 
         <section>
@@ -171,8 +189,25 @@ function readKnownString(value: Record<string, unknown>, key: string): string | 
   return candidate && candidate !== "unknown" ? candidate : null;
 }
 
-function formatScore(value: number): string {
-  return `${value.toFixed(2)} / 100`;
+function formatScore(value: number, isLogMatchScore: boolean): string {
+  return isLogMatchScore ? value.toFixed(4) : `${value.toFixed(2)} / 100`;
+}
+
+function readLocationContributions(value: unknown): {
+  location: string; count: number; weight: number; points: number;
+}[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const candidate = item as Record<string, unknown>;
+    const location = readString(candidate, "location");
+    const count = readNumber(candidate, "count");
+    const weight = readNumber(candidate, "weight");
+    const points = readNumber(candidate, "points");
+    return location && count !== null && weight !== null && points !== null
+      ? [{ location, count, weight, points }]
+      : [];
+  });
 }
 
 function formatRatio(numerator: number | null, denominator: number | null): string {

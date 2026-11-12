@@ -6,8 +6,27 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from app.services.search.retrieval import RepositoryCandidate
+from app.services.search.retrieval.models import RetrievalMatchLocation
+
+
+RANKING_POLICY_VERSION: Literal["location_weighted_log_matches_v1"] = (
+    "location_weighted_log_matches_v1"
+)
+
+
+@dataclass(frozen=True)
+class LocationMatchCount:
+    """Number of distinct observed matches in one repository location."""
+
+    location: RetrievalMatchLocation
+    count: int
+
+    def __post_init__(self) -> None:
+        if type(self.count) is not int or self.count < 0:
+            raise ValueError("Match count must be a nonnegative integer")
 
 
 @dataclass(frozen=True)
@@ -18,18 +37,29 @@ class RankingFeatures:
     total_query_count: int
     hit_count: int
     evidence_count: int
-    strongest_match_quality: float
-    corroboration_quality: float
+    location_counts: tuple[LocationMatchCount, ...]
+
+
+@dataclass(frozen=True)
+class LocationScoreContribution:
+    """An observed count, its policy weight and its unrounded score contribution."""
+
+    location: RetrievalMatchLocation
+    count: int
+    weight: float
+    points: float
 
 
 @dataclass(frozen=True)
 class RankingScoreBreakdown:
-    """Normalized ranking inputs and their weighted score contributions."""
+    """Versioned snapshot of the formula and per-location contributions.
 
-    strongest_match_quality: float
-    strongest_match_points: float
-    corroboration_quality: float
-    corroboration_points: float
+    Unversioned persisted breakdowns belong to the historical 0-100 heuristic.
+    """
+
+    locations: tuple[LocationScoreContribution, ...]
+    schema_version: Literal[2] = 2
+    formula: Literal["location_weighted_log_matches_v1"] = RANKING_POLICY_VERSION
 
 
 @dataclass(frozen=True)

@@ -103,6 +103,8 @@ export type ExploreResultItem = {
   providerUpdatedAt: string | null;
   query: string | null;
   score: number;
+  // Absent on historical 0-100 responses. Current scores are unbounded log sums.
+  scoreFormula?: "location_weighted_log_matches_v1";
   reason: string;
 };
 

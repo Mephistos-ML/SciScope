@@ -78,11 +78,16 @@ def build_retrieval_match_evidence(hit: RetrievalHit) -> RetrievalMatchEvidence:
 
     signal = hit.signal
     query = hit.query.strip()
-    location = _classify_metadata_location(signal, query)
     path = str(signal.payload.get("matched_path") or "").strip()
-
+    # A file hit is evidence in that file even when its repository metadata also
+    # contains the query. Do not turn many code hits into description matches.
+    location = (
+        classify_match_path(path, fallback=hit.channel)
+        if path
+        else _classify_metadata_location(signal, query)
+    )
     if location is None:
-        location = _classify_path_location(path, fallback=hit.channel)
+        location = classify_match_path(path, fallback=hit.channel)
 
     return RetrievalMatchEvidence(
         query=query,
@@ -141,12 +146,14 @@ def _classify_metadata_location(
     return None
 
 
-def _classify_path_location(
+def classify_match_path(
     path: str,
     *,
     fallback: str,
 ) -> RetrievalMatchLocation:
-    normalized_path = path.replace("\\", "/").casefold()
+    """Classify a provider file path, also when replaying historical evidence."""
+
+    normalized_path = path.strip().replace("\\", "/").casefold()
     path_parts = tuple(part for part in normalized_path.split("/") if part)
     filename = path_parts[-1] if path_parts else ""
 

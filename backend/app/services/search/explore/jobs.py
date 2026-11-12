@@ -25,6 +25,7 @@ from app.services.search.access.service import hash_explore_topic, record_explor
 from app.services.search.access.errors import ExploreAccessDeniedError
 from app.storage.search_admission import explore_admission_transaction
 from app.services.search.explore.dependencies import ExploreDependencies
+from app.services.search.ranking.models import RANKING_POLICY_VERSION
 from app.services.search.explore.execution import (
     ExploreSearchExecution,
     ExploreExecutionStateError,
@@ -69,7 +70,7 @@ def create_explore_search_run(
         planner_mode=dependencies.planner.identity.mode,
         planner_model=dependencies.planner.identity.model,
         planner_reasoning_effort=dependencies.planner.identity.reasoning_effort,
-        ranking_policy_version="heuristic-v1",
+        ranking_policy_version=RANKING_POLICY_VERSION,
         backend_revision="unknown",
         created_at=now,
         guest_access_token_hash=(

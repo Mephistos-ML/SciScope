@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from time import monotonic
 
 from app import config
@@ -158,6 +158,7 @@ def run_explore_search(
         retrieval_sequence = _retrieve_planned_queries(
             lanes=dependencies.lanes,
             embeddings=dependencies.embeddings,
+            relevance_cutoff=dependencies.relevance_cutoff,
             queries=planned_queries,
             topic_description=topic_description,
             ai_search_plan_payload=ai_search_plan_payload,
@@ -172,6 +173,7 @@ def run_explore_search(
         evaluation = build_explore_search_evaluation(
             retrieved,
             queries=executed_queries,
+            relevance_cutoff=dependencies.relevance_cutoff,
             log_context=log_context,
         )
         admitted_repository_ids = {
@@ -351,6 +353,7 @@ def expand_explore_search(
     retrieval_sequence = _retrieve_planned_queries(
         lanes=dependencies.lanes,
         embeddings=dependencies.embeddings,
+        relevance_cutoff=dependencies.relevance_cutoff,
         queries=next_queries,
         topic_description=topic_description,
         ai_search_plan_payload=ai_search_plan_payload,
@@ -366,6 +369,7 @@ def expand_explore_search(
     evaluation = build_explore_search_evaluation(
         retrieved,
         queries=executed_queries,
+        relevance_cutoff=dependencies.relevance_cutoff,
         log_context=log_context,
     )
     admitted_repository_ids = {
@@ -542,8 +546,8 @@ def _build_ranking_candidate_reports(
                     ).items()
                 },
             },
-            ranking_features=vars(ranked.features),
-            score_breakdown=vars(ranked.score_breakdown),
+            ranking_features=asdict(ranked.features),
+            score_breakdown=asdict(ranked.score_breakdown),
         )
         for position, ranked in enumerate(evaluation.ranking.ranked_candidates, start=1)
     )
@@ -559,6 +563,7 @@ def _retrieve_planned_queries(
     progress_callback: ExploreSearchProgressCallback | None,
     log_context: SearchLogContext | None,
     database_url: str,
+    relevance_cutoff: float,
 ) -> _RetrievalSequence:
     """Retrieve planned queries until one completes or every timeout fallback is exhausted."""
 
@@ -581,6 +586,7 @@ def _retrieve_planned_queries(
             _retrieve_query_with_timeout_retries(
                 lanes=lanes,
                 embeddings=embeddings,
+                relevance_cutoff=relevance_cutoff,
                 query=query,
                 topic_description=topic_description,
                 ai_search_plan_payload=ai_search_plan_payload,
@@ -622,6 +628,7 @@ def _retrieve_query_with_timeout_retries(
     progress_callback: ExploreSearchProgressCallback | None,
     log_context: SearchLogContext | None,
     database_url: str,
+    relevance_cutoff: float,
 ) -> tuple[RetrievedCandidates, tuple[ExploreQueryAttempt, ...], tuple, bool, int, int]:
     """Retry one timed-out query before the plan moves to another angle."""
 
@@ -638,6 +645,7 @@ def _retrieve_query_with_timeout_retries(
         external_retrieved = _run_external_retrieval(
             (query,),
             lanes=lanes,
+            relevance_cutoff=relevance_cutoff,
             local_candidates=local_candidates,
             topic_description=topic_description,
             ai_search_plan_payload=ai_search_plan_payload,
@@ -742,6 +750,7 @@ def _run_external_retrieval(
     soft_deadline_monotonic: float | None,
     hard_deadline_monotonic: float | None,
     log_context: SearchLogContext | None,
+    relevance_cutoff: float,
 ) -> RetrievedCandidates:
     retrieval_options: dict[str, object] = {"log_context": log_context}
     if soft_deadline_monotonic is not None:
@@ -765,6 +774,7 @@ def _run_external_retrieval(
                     warnings=partial.warnings,
                 ),
                 queries=queries,
+                relevance_cutoff=relevance_cutoff,
             )
         )
     return run_external_repository_retrieval(queries, lanes=lanes, **retrieval_options)
@@ -776,10 +786,12 @@ def _build_explore_search_progress_payload(
     ai_search_plan_payload: dict[str, object],
     retrieved,
     queries: tuple[str, ...],
+    relevance_cutoff: float,
 ) -> dict[str, object]:
     evaluation = build_explore_search_evaluation(
         retrieved,
         queries=queries,
+        relevance_cutoff=relevance_cutoff,
     )
     return build_explore_search_payload(
         topic_description=topic_description,

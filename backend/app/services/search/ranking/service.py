@@ -6,8 +6,8 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from math import isfinite
 
-from app.config import EXPLORE_SEARCH_RELEVANCE_CUTOFF
 from app.services.search.ranking.features import build_ranking_features
 from app.services.search.ranking.models import (
     RankedRepositoryCandidate,
@@ -24,12 +24,12 @@ def rank_repository_candidates(
     candidates: Sequence[RepositoryCandidate],
     *,
     queries: Sequence[str],
-    relevance_cutoff: float = EXPLORE_SEARCH_RELEVANCE_CUTOFF,
+    relevance_cutoff: float = 0.0,
 ) -> RankingResult:
     """Rank one admitted candidate pool using source-agnostic evidence."""
 
-    if not 0.0 <= relevance_cutoff <= 100.0:
-        raise ValueError("relevance_cutoff must be between 0 and 100")
+    if not isfinite(relevance_cutoff) or relevance_cutoff < 0.0:
+        raise ValueError("relevance_cutoff must be finite and nonnegative")
 
     ranked_candidates = [
         RankedRepositoryCandidate(
@@ -45,6 +45,7 @@ def rank_repository_candidates(
         key=lambda ranked: (
             -ranked.score,
             ranked.candidate.signal.title.casefold(),
+            ranked.candidate.repository_id,
         )
     )
 

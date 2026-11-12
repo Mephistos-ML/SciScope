@@ -23,6 +23,7 @@ def build_repository_item(ranked_candidate: RankedRepositoryCandidate) -> dict[s
         "providerUpdatedAt": signal.payload.get("provider_updated_at"),
         "query": signal.payload.get("query"),
         "score": ranked_candidate.score,
+        "scoreFormula": ranked_candidate.score_breakdown.formula,
         "reason": "Matched by SciScope search.",
     }
 

@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 from threading import Event
+from math import log1p
+import pytest
 
 from app.services.search.retrieval import timeouts
 from dataclasses import replace
@@ -14,6 +16,7 @@ from app.models.signal import Signal
 from app.services.search.retrieval.models import RetrievalLane
 from app.services.search.retrieval.merge import merge_retrieval_hits
 from app.services.search.retrieval.service import run_external_repository_retrieval
+from app.services.search.ranking import rank_repository_candidates
 from app.integrations.repositories.common.source_status import RepositorySourceError
 
 
@@ -106,6 +109,26 @@ def test_merge_retrieval_hits_accumulates_candidate_provenance() -> None:
     assert candidate.provenance.match_evidence[1].origin == "provider"
     assert candidate.provenance.match_evidence[1].retrieval_rank == 3
     assert candidate.provenance.match_evidence[1].path == "src/orto/parser.py"
+
+
+def test_file_hits_keep_their_location_and_count_once_despite_metadata_overlap():
+    signal = _build_repository_signal("github:repo:1", query="orca python")
+    # Both file hits also match the repository description. Their file paths
+    # remain authoritative; a retried page must not count the first file twice.
+    hits = tuple(
+        _build_hit(
+            source="github", channel="code_search", query="orca python", rank=rank,
+            signal=replace(signal, payload={**signal.payload, "matched_path": path}),
+        )
+        for rank, path in enumerate(("src/a.py", "src/b.py", "src/a.py", "README.md"), 1)
+    )
+    candidates = merge_retrieval_hits(hits)
+    result = rank_repository_candidates(candidates, queries=("orca python",))
+    ranked = result.ranked_candidates[0]
+    assert {item.location: item.count for item in ranked.features.location_counts} == {
+        "code": 2, "readme": 1,
+    }
+    assert ranked.score == pytest.approx(.6 * log1p(2) + .65 * log1p(1))
 
 
 def test_run_external_repository_retrieval_merges_duplicate_repo_hits() -> None:

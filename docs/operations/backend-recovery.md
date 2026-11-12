@@ -16,6 +16,31 @@ credentials, guest/session tokens or lease tokens during diagnosis.
 | Stale Feed | Scheduler, monitoring lease, scan summaries and repository checks |
 | Terminal failed run | Error code; restart does not requeue terminal work |
 
+## Log-match ranking rollout and recovery
+
+The new ranking policy is `location_weighted_log_matches_v1`. Deploy the diagnostic
+frontend first: it understands both historical unversioned 0--100 snapshots and
+new version-2 per-location breakdowns. The earlier UI would mislabel new values
+as a score out of 100.
+
+Remove `EXPLORE_SEARCH_RELEVANCE_CUTOFF` from API and worker configuration when
+deploying the new backend; a nonempty retired setting prevents startup. Use
+`EXPLORE_SEARCH_LOG_MATCH_CUTOFF=0` initially to disable the additional score
+filter while retaining admission. A nonzero threshold requires evaluation on the
+new scale. Reconstruct dependencies/restart processes after changing the setting.
+
+Coordinate the API and worker upgrade to avoid different ranking policies being
+selected by workers in the same deployment. Previously completed responses and
+reports stay unchanged. Existing queued work and resumed/expanded runs use their
+stored retrieval evidence with the new formula when evaluated; new per-stage
+breakdowns identify that policy even when a run's creation metadata is older.
+
+No database migration or backfill is required. If rolling back backend code,
+restore the former deployment's cutoff configuration and restart API/workers
+together. The new UI can remain deployed because it reads both score formats.
+Rollback does not revert results or snapshots already delivered by the new
+formula; preserve them for audit rather than rewriting scores.
+
 Inside the API container:
 
 ```sh

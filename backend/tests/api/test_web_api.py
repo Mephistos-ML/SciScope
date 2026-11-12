@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from math import log1p
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 import tempfile
@@ -818,6 +819,7 @@ def test_explore_search_run_returns_completed_snapshot(
         assert created["status"] == "completed"
         assert created["canExpand"] is True
         assert created["items"][0]["itemId"] == "github:repo:102"
+        assert created["items"][0]["scoreFormula"] == "location_weighted_log_matches_v1"
         assert "ownerUserId" not in created
 
         follow_up = client.get(f"/api/explore/search-runs/{created['runId']}")
@@ -838,10 +840,18 @@ def test_explore_search_run_returns_completed_snapshot(
         database_url=explore_run_database,
     )
     assert report is not None
+    assert report["run"]["rankingPolicyVersion"] == "location_weighted_log_matches_v1"
     evidence = report["rankingSnapshots"][0]["retrievalFacts"]["match_evidence"][0]
     assert evidence["channel"] == "repository_search"
     assert evidence["origin"] == "provider"
     assert evidence["retrieval_rank"] == 1
+    breakdown = report["rankingSnapshots"][0]["scoreBreakdown"]
+    assert breakdown["schema_version"] == 2
+    assert breakdown["formula"] == "location_weighted_log_matches_v1"
+    assert breakdown["locations"] == [
+        {"location": "description", "count": 1, "weight": 0.85,
+         "points": pytest.approx(0.85 * log1p(1))},
+    ]
     stage = get_search_run_stage(
         created["runId"],
         1,

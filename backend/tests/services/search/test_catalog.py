@@ -135,7 +135,7 @@ def test_catalog_evidence_keeps_its_location_for_a_case_variant_current_query(tm
         queries=("Paramagnetic NMR",),
     )
 
-    assert ranked.ranked_candidates[0].features.strongest_match_quality == 0.85
+    assert [(item.location, item.count) for item in ranked.ranked_candidates[0].features.location_counts] == [("description", 1)]
 
 
 def test_expected_catalog_outage_preserves_external_retrieval_path(monkeypatch):

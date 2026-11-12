@@ -15,3 +15,4 @@ class ExploreDependencies:
     planner: AiSearchPlanner
     lanes: tuple[RetrievalLane, ...]
     embeddings: EmbeddingProvider | None
+    relevance_cutoff: float = 0.0
