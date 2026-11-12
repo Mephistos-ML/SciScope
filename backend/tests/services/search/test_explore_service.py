@@ -12,6 +12,7 @@ from app.models.explore_access import ExploreActor, ExploreAdmission, ExploreTie
 from app.services.ai.planner import AiSearchPlanner, AiPlannerIdentity
 from app.services.search.explore.dependencies import ExploreDependencies
 from app.services.search.explore.service import run_explore_search
+from app.services.search.ranking.models import PopularityBoostParameters
 from app.services.search.explore.jobs import create_explore_search_run
 from app.jobs.process_search_runs import process_next_search_run_operation
 from app.storage.search_runs import get_search_run
@@ -47,6 +48,34 @@ def dependencies():
         (),
         None,
     )
+
+
+def test_popularity_parameters_apply_to_partial_and_final_results(monkeypatch, database_url, dependencies):
+    dependencies = replace(
+        dependencies,
+        planner=replace(dependencies.planner, build_search_plan=lambda topic_description: build_ready_repository_ai_plan("paramagnetic nmr")),
+        popularity_boost=PopularityBoostParameters(max_bonus=.05, reference_stars=14),
+    )
+
+    def retrieve(queries, progress_callback=None, **kwargs):
+        result = build_retrieved_candidates(
+            build_explore_repository_signal("github:repo:123", query=queries[0]),
+            source_statuses=(), successful_source_count=1,
+        )
+        if progress_callback is not None:
+            progress_callback(result)
+        return result
+
+    monkeypatch.setattr("app.services.search.explore.service.run_external_repository_retrieval", retrieve)
+    progress = []
+    final = run_explore_search(
+        topic_description="Paramagnetic NMR software", dependencies=dependencies,
+        database_url=database_url, progress_callback=progress.append,
+    )
+    snapshots = [item for item in progress if item.get("items")]
+    assert snapshots
+    for payload in [*snapshots, final]:
+        assert payload["items"][0]["score"] == pytest.approx(.85 * log1p(1) + .05)
 
 
 def test_explore_search_returns_partial_results_when_one_source_fails(

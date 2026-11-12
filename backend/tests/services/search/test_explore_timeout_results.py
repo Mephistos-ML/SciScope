@@ -8,6 +8,7 @@ from __future__ import annotations
 import pytest
 
 from app.models.signal import Signal
+from app.services.search.ranking.models import PopularityBoostParameters
 from app.services.search.explore import service
 from app.services.search.retrieval.models import (
     CandidateProvenance,
@@ -67,6 +68,7 @@ def test_timeout_fallback_retains_results_and_diagnostics(monkeypatch, next_resu
     queries = ("first", "second") if next_result == "timeout" else ("first", "second", "unused")
     sequence = service._retrieve_planned_queries(
         score_threshold=0.0,
+        popularity_boost=PopularityBoostParameters(),
         lanes=(), embeddings=None,
         queries=queries, topic_description="Scientific tools",
         ai_search_plan_payload={"status": "ready", "queries": list(queries)},

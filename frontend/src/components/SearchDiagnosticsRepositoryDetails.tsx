@@ -25,14 +25,17 @@ export function SearchDiagnosticsRepositoryDetails({
   const retrieval = snapshot.retrievalFacts;
   const scoreBreakdown = snapshot.scoreBreakdown;
   const snapshotVersion = scoreBreakdown.schema_version;
-  const isLogMatchScore = snapshotVersion === 2 || snapshotVersion === 3;
+  const isLogMatchScore = snapshotVersion === 2 || snapshotVersion === 3 || snapshotVersion === 4;
+  const hasNamedDiagnostics = snapshotVersion === 3 || snapshotVersion === 4;
+  const popularity = scoreBreakdown.popularity && typeof scoreBreakdown.popularity === "object"
+    ? scoreBreakdown.popularity as Record<string, unknown> : null;
   const locations = readLocationContributions(scoreBreakdown.locations, snapshotVersion);
   const matchedQueryCount = readNumber(features, "matched_query_count");
   const totalQueryCount = readNumber(features, "total_query_count");
   const evidenceRecordCount = readNumber(
-    features, snapshotVersion === 3 ? "evidence_record_count" : "evidence_count",
+    features, hasNamedDiagnostics ? "evidence_record_count" : "evidence_count",
   );
-  const rawHitCount = readNumber(features, snapshotVersion === 3 ? "raw_hit_count" : "hit_count");
+  const rawHitCount = readNumber(features, hasNamedDiagnostics ? "raw_hit_count" : "hit_count");
   const evidence = readMatchEvidence(retrieval.match_evidence);
 
   return (
@@ -74,6 +77,18 @@ export function SearchDiagnosticsRepositoryDetails({
                 ))}
               </dl>
               {!locations.length ? <p>No current-query matches.</p> : null}
+              {snapshotVersion === 4 && popularity ? (
+                <>
+                  <p>Popularity boost{readNumber(popularity, "max_bonus") === 0 ? " (disabled)" : ""}</p>
+                  <dl className="repository-diagnostics-definition-list">
+                    <Definition label="Star count" value={formatCount(readNumber(popularity, "stars"), "stars")} />
+                    <Definition label="Reference stars" value={formatCount(readNumber(popularity, "reference_stars"), "stars")} />
+                    <Definition label="Maximum bonus" value={formatContribution(readNumber(popularity, "max_bonus"))} />
+                    <Definition label="Normalized popularity" value={formatContribution(readNumber(popularity, "normalized_popularity"))} />
+                    <Definition label="Popularity contribution" value={formatContribution(readNumber(popularity, "contribution"))} />
+                  </dl>
+                </>
+              ) : null}
             </>
           ) : (
           <dl className="repository-diagnostics-definition-list">
@@ -206,7 +221,7 @@ function readLocationContributions(value: unknown, snapshotVersion: unknown): {
     const location = readString(candidate, "location");
     const count = readNumber(candidate, "count");
     const weight = readNumber(candidate, "weight");
-    const contribution = readNumber(candidate, snapshotVersion === 3 ? "contribution" : "points");
+    const contribution = readNumber(candidate, snapshotVersion === 2 ? "points" : "contribution");
     return location && count !== null && weight !== null && contribution !== null
       ? [{ location, count, weight, contribution }]
       : [];
@@ -216,6 +231,10 @@ function readLocationContributions(value: unknown, snapshotVersion: unknown): {
 function formatRatio(numerator: number | null, denominator: number | null): string {
   if (numerator === null || denominator === null) return "—";
   return `${numerator} / ${denominator}`;
+}
+
+function formatContribution(value: number | null): string {
+  return value === null ? "—" : value.toFixed(4);
 }
 
 function formatCount(value: number | null, noun: string): string {

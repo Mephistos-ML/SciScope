@@ -48,8 +48,8 @@ def test_score_matches_the_agreed_multilocation_example():
         ("description", 2, 0.85),
         ("readme", 5, 0.65),
     ]
-    assert breakdown.schema_version == 3
-    assert breakdown.formula == "location_weighted_log_matches_v2"
+    assert breakdown.schema_version == 4
+    assert breakdown.formula == "location_weighted_log_matches_v3"
 
 
 @pytest.mark.parametrize(

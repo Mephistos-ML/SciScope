@@ -29,16 +29,16 @@ function render(scoreBreakdown, finalScore, rankingFeatures = {}) {
   }));
 }
 
-for (const version of [2, 3]) {
+for (const version of [2, 3, 4]) {
 test(`renders version ${version} counts and log contributions without a percentage scale`, () => {
-  const contributionKey = version === 3 ? "contribution" : "points";
+  const contributionKey = version >= 3 ? "contribution" : "points";
   const html = render({
     schema_version: version,
     formula: "location_weighted_log_matches_v1",
     locations: [{ location: "code", count: 3, weight: 0.6, [contributionKey]: 0.6 * Math.log(4) }],
   }, 0.6 * Math.log(4), {
-    [version === 3 ? "raw_hit_count" : "hit_count"]: 7,
-    [version === 3 ? "evidence_record_count" : "evidence_count"]: 4,
+    [version >= 3 ? "raw_hit_count" : "hit_count"]: 7,
+    [version >= 3 ? "evidence_record_count" : "evidence_count"]: 4,
     matched_query_count: 1, total_query_count: 2,
   });
   assert.match(html, /Weighted log matches/);
@@ -76,4 +76,25 @@ test("renders the expanded taxonomy with its own policy identifier", () => {
     assert.match(html, new RegExp(label));
   }
   assert.doesNotMatch(html, /\/ 100/);
+});
+
+test("renders bounded popularity separately from match contributions", () => {
+  const html = render({
+    schema_version: 4, formula: "location_weighted_log_matches_v3", locations: [],
+    popularity: { stars: 1000, reference_stars: 1000, max_bonus: 0.05,
+      normalized_popularity: 1, contribution: 0.05 },
+  }, 0.05, { raw_hit_count: 1, evidence_record_count: 1 });
+  for (const label of ["Popularity boost", "Star count", "1000 stars", "Maximum bonus",
+    "Normalized popularity", "Popularity contribution", "0.0500"]) {
+    assert.match(html, new RegExp(label));
+  }
+  assert.doesNotMatch(html, /\/ 100|disabled/);
+});
+
+test("explains a disabled popularity boost with unavailable stars", () => {
+  const html = render({ schema_version: 4, locations: [], popularity: {
+    stars: null, reference_stars: 1000, max_bonus: 0, normalized_popularity: 0, contribution: 0,
+  } }, 0);
+  assert.match(html, /Popularity boost \(disabled\)/);
+  assert.match(html, /Star count<\/dt><dd>—/);
 });

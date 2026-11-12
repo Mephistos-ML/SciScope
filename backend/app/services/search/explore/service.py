@@ -22,6 +22,7 @@ from app.models.ai import AiDependencyError
 from app.services.ai.planner import AiSearchPlanner
 from app.services.search.explore.dependencies import ExploreDependencies
 from app.services.search.retrieval.models import RetrievalLane
+from app.services.search.ranking.models import PopularityBoostParameters
 from app.services.ai.search_plans import (
     serialize_ai_search_plan,
 )
@@ -159,6 +160,7 @@ def run_explore_search(
             lanes=dependencies.lanes,
             embeddings=dependencies.embeddings,
             score_threshold=dependencies.score_threshold,
+            popularity_boost=dependencies.popularity_boost,
             queries=planned_queries,
             topic_description=topic_description,
             ai_search_plan_payload=ai_search_plan_payload,
@@ -174,6 +176,7 @@ def run_explore_search(
             retrieved,
             queries=executed_queries,
             score_threshold=dependencies.score_threshold,
+            popularity_boost=dependencies.popularity_boost,
             log_context=log_context,
         )
         admitted_repository_ids = {
@@ -354,6 +357,7 @@ def expand_explore_search(
         lanes=dependencies.lanes,
         embeddings=dependencies.embeddings,
         score_threshold=dependencies.score_threshold,
+        popularity_boost=dependencies.popularity_boost,
         queries=next_queries,
         topic_description=topic_description,
         ai_search_plan_payload=ai_search_plan_payload,
@@ -370,6 +374,7 @@ def expand_explore_search(
         retrieved,
         queries=executed_queries,
         score_threshold=dependencies.score_threshold,
+        popularity_boost=dependencies.popularity_boost,
         log_context=log_context,
     )
     admitted_repository_ids = {
@@ -564,6 +569,7 @@ def _retrieve_planned_queries(
     log_context: SearchLogContext | None,
     database_url: str,
     score_threshold: float,
+    popularity_boost: PopularityBoostParameters,
 ) -> _RetrievalSequence:
     """Retrieve planned queries until one completes or every timeout fallback is exhausted."""
 
@@ -587,6 +593,7 @@ def _retrieve_planned_queries(
                 lanes=lanes,
                 embeddings=embeddings,
                 score_threshold=score_threshold,
+                popularity_boost=popularity_boost,
                 query=query,
                 topic_description=topic_description,
                 ai_search_plan_payload=ai_search_plan_payload,
@@ -629,6 +636,7 @@ def _retrieve_query_with_timeout_retries(
     log_context: SearchLogContext | None,
     database_url: str,
     score_threshold: float,
+    popularity_boost: PopularityBoostParameters,
 ) -> tuple[RetrievedCandidates, tuple[ExploreQueryAttempt, ...], tuple, bool, int, int]:
     """Retry one timed-out query before the plan moves to another angle."""
 
@@ -646,6 +654,7 @@ def _retrieve_query_with_timeout_retries(
             (query,),
             lanes=lanes,
             score_threshold=score_threshold,
+            popularity_boost=popularity_boost,
             local_candidates=local_candidates,
             topic_description=topic_description,
             ai_search_plan_payload=ai_search_plan_payload,
@@ -751,6 +760,7 @@ def _run_external_retrieval(
     hard_deadline_monotonic: float | None,
     log_context: SearchLogContext | None,
     score_threshold: float,
+    popularity_boost: PopularityBoostParameters,
 ) -> RetrievedCandidates:
     retrieval_options: dict[str, object] = {"log_context": log_context}
     if soft_deadline_monotonic is not None:
@@ -775,6 +785,7 @@ def _run_external_retrieval(
                 ),
                 queries=queries,
                 score_threshold=score_threshold,
+                popularity_boost=popularity_boost,
             )
         )
     return run_external_repository_retrieval(queries, lanes=lanes, **retrieval_options)
@@ -787,11 +798,13 @@ def _build_explore_search_progress_payload(
     retrieved,
     queries: tuple[str, ...],
     score_threshold: float,
+    popularity_boost: PopularityBoostParameters,
 ) -> dict[str, object]:
     evaluation = build_explore_search_evaluation(
         retrieved,
         queries=queries,
         score_threshold=score_threshold,
+        popularity_boost=popularity_boost,
     )
     return build_explore_search_payload(
         topic_description=topic_description,

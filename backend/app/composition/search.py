@@ -16,6 +16,7 @@ from app.services.ai.embeddings import EmbeddingProvider
 from app.services.ai.planner import AiSearchPlanner
 from app.services.ai.search_plans import build_bootstrap_ai_search_plan
 from app.services.search.explore.dependencies import ExploreDependencies
+from app.services.search.ranking.models import PopularityBoostParameters
 from app.services.search.retrieval.models import RetrievalLane
 from app.integrations.repositories.github.search.repository import discover_repository_candidates as github_repositories
 from app.integrations.repositories.github.search.code import discover_repository_candidates_from_code as github_code
@@ -62,6 +63,10 @@ def build_explore_dependencies(*, repositories: RepositoryAdapters) -> ExploreDe
     return ExploreDependencies(
         planner=planner, lanes=tuple(lanes), embeddings=embeddings,
         score_threshold=config.EXPLORE_SEARCH_LOG_MATCH_CUTOFF,
+        popularity_boost=PopularityBoostParameters(
+            max_bonus=config.EXPLORE_RANKING_POPULARITY_MAX_BONUS,
+            reference_stars=config.EXPLORE_RANKING_POPULARITY_REFERENCE_STARS,
+        ),
     )
 
 

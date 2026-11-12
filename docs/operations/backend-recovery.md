@@ -18,10 +18,11 @@ credentials, guest/session tokens or lease tokens during diagnosis.
 
 ## Log-match ranking rollout and recovery
 
-The current ranking policy is `location_weighted_log_matches_v2`. Deploy the diagnostic
+The current ranking policy is `location_weighted_log_matches_v3`. Deploy the diagnostic
 frontend first: it understands historical unversioned 0--100 snapshots, version-2
 per-location breakdowns using `points`, and version-3 breakdowns using
-`contribution`. The earlier UI would mislabel an unsupported format as a score
+`contribution`, plus version-4 breakdowns with a separate popularity contribution.
+The earlier UI would mislabel an unsupported format as a score
 out of 100. Version 3 renames diagnostic fields without changing numeric scores.
 
 Remove `EXPLORE_SEARCH_RELEVANCE_CUTOFF` from API and worker configuration when
@@ -60,6 +61,22 @@ After schema-2 states or new catalog locations exist, backend rollback requires
 code that understands that vocabulary and schema; a rollback to the old reader
 alone is unsafe. Prefer a forward fix. Do not discard or relabel durable user
 state to force an old reader to accept it. No table migration/backfill is needed.
+
+### Popularity v3 rollout
+
+Deploy the diagnostic frontend supporting breakdown schema 4 before the backend.
+Leave `EXPLORE_RANKING_POPULARITY_MAX_BONUS=0` for the match-only baseline; the
+default `EXPLORE_RANKING_POPULARITY_REFERENCE_STARS=1000` is provisional. Enable
+a nonzero cap only with an evaluated configuration. Restart API/workers together
+after parameter changes so reconstructed dependencies agree.
+
+Initial, partial, and expanded results use the supplied configuration. Reports
+snapshot its parameters and actual contribution per candidate. Existing completed
+scores are not rewritten. Execution schema remains 2; no database migration is
+needed. Rolling back only this popularity change to the preceding taxonomy-v2
+backend leaves execution state readable; retain the new frontend to display
+saved schema-4 reports. Different parameter settings are different experiments
+even when their policy identifiers match.
 
 Inside the API container:
 

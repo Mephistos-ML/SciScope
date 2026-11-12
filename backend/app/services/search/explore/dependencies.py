@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from app.services.ai.embeddings import EmbeddingProvider
 from app.services.ai.planner import AiSearchPlanner
 from app.services.search.retrieval.models import RetrievalLane
+from app.services.search.ranking.models import PopularityBoostParameters
 
 
 @dataclass(frozen=True)
@@ -16,3 +17,4 @@ class ExploreDependencies:
     lanes: tuple[RetrievalLane, ...]
     embeddings: EmbeddingProvider | None
     score_threshold: float = 0.0
+    popularity_boost: PopularityBoostParameters = PopularityBoostParameters()

@@ -113,4 +113,4 @@ def test_historical_other_hits_are_recounted_by_the_current_taxonomy():
         "data": 1,
     }
     assert ranked.score == pytest.approx(0.5 * log1p(1))
-    assert ranked.score_breakdown.formula == "location_weighted_log_matches_v2"
+    assert ranked.score_breakdown.formula == "location_weighted_log_matches_v3"
