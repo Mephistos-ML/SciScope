@@ -244,7 +244,7 @@ def run_explore_search(
                 candidate_count=len(retrieved.candidates),
                 admitted_candidate_count=len(evaluation.admission.visible_candidates),
                 visible_result_count=len(visible_candidates),
-                score_threshold=evaluation.ranking.score_threshold,
+                score_threshold=evaluation.score_threshold,
                 top_score=(
                     evaluation.ranking.ranked_candidates[0].score
                     if evaluation.ranking.ranked_candidates
@@ -299,7 +299,7 @@ def run_explore_search(
                 candidate_count=len(retrieved.candidates),
                 admitted_candidate_count=len(evaluation.admission.visible_candidates),
                 visible_result_count=len(visible_candidates),
-                score_threshold=evaluation.ranking.score_threshold,
+                score_threshold=evaluation.score_threshold,
                 ai_planning_duration_ms=planning_duration_ms,
                 retrieval_duration_ms=retrieval_duration_ms,
                 evaluation_duration_ms=evaluation_duration_ms,

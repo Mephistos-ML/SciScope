@@ -115,11 +115,13 @@ def test_counts_include_multiple_files_and_locations_for_the_same_query():
         "readme": 1,
         "code": 2,
     }
-    ranked = rank_repository_candidates((candidate,), queries=("science",)).ranked_candidates[0]
+    ranked = rank_repository_candidates(
+        (candidate,), queries=("science",)
+    ).ranked_candidates[0]
     assert ranked.score == pytest.approx(log(2) + 0.65 * log(2) + 0.6 * log(3))
-    assert ranked.score == pytest.approx(sum(
-        item.contribution for item in ranked.score_breakdown.locations
-    ))
+    assert ranked.score == pytest.approx(
+        sum(item.contribution for item in ranked.score_breakdown.locations)
+    )
 
 
 def test_duplicate_delivery_does_not_inflate_counts_or_score():
@@ -259,9 +261,7 @@ def test_full_precision_and_stable_identity_tie_break():
     )
     b = replace(a, repository_id="gitlab:repo:b")
     for candidates in ((a, b), (b, a)):
-        result = rank_repository_candidates(
-            candidates, queries=("science",), score_threshold=0
-        )
+        result = rank_repository_candidates(candidates, queries=("science",))
         assert result.ranked_candidates[0].candidate.repository_id == a.repository_id
         assert result.ranked_candidates[0].score == pytest.approx(log(2), abs=1e-14)
     # Ranking values retain small differences even when display rounding ties.
@@ -273,18 +273,6 @@ def test_full_precision_and_stable_identity_tie_break():
     )
     assert higher > lower
     assert round(higher, 2) == round(lower, 2)
-
-
-@pytest.mark.parametrize("cutoff", [-1, float("nan"), float("inf"), -float("inf")])
-def test_invalid_cutoff_is_rejected(cutoff):
-    with pytest.raises(ValueError, match="finite and nonnegative"):
-        rank_repository_candidates((), queries=(), score_threshold=cutoff)
-
-
-def test_score_threshold_has_no_upper_bound():
-    result = rank_repository_candidates((), queries=(), score_threshold=101)
-    assert result.ranked_candidates == ()
-    assert result.score_threshold == 101
 
 
 def _build_candidate(

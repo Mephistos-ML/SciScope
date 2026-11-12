@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from math import fsum, isfinite
+from math import fsum
 
 from app.services.search.ranking.features import build_ranking_features
 from app.services.search.ranking.models import (
@@ -21,12 +21,8 @@ def rank_repository_candidates(
     candidates: Sequence[RepositoryCandidate],
     *,
     queries: Sequence[str],
-    score_threshold: float = 0.0,
 ) -> RankingResult:
     """Rank one admitted candidate pool using source-agnostic evidence."""
-
-    if not isfinite(score_threshold) or score_threshold < 0.0:
-        raise ValueError("score_threshold must be finite and nonnegative")
 
     ranked_candidates = []
     for candidate in candidates:
@@ -50,5 +46,4 @@ def rank_repository_candidates(
 
     return RankingResult(
         ranked_candidates=tuple(ranked_candidates),
-        score_threshold=score_threshold,
     )

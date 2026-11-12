@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from math import isfinite
 from time import monotonic
 
 from app.services.search.admission import AdmissionResult, run_repository_admission
@@ -22,6 +23,7 @@ class ExploreSearchEvaluation:
     retrieved: RetrievedCandidates
     admission: AdmissionResult
     ranking: RankingResult
+    score_threshold: float
     admission_duration_ms: int
     ranking_duration_ms: int
 
@@ -35,6 +37,9 @@ def build_explore_search_evaluation(
 ) -> ExploreSearchEvaluation:
     """Evaluate every retrieved candidate once for all response modes."""
 
+    if not isfinite(score_threshold) or score_threshold < 0.0:
+        raise ValueError("score_threshold must be finite and nonnegative")
+
     admission_started_at = monotonic()
     admission = run_repository_admission(
         retrieved.candidates,
@@ -44,13 +49,15 @@ def build_explore_search_evaluation(
     admission_duration_ms = max(0, int((monotonic() - admission_started_at) * 1000))
     ranking_started_at = monotonic()
     ranking = rank_repository_candidates(
-        retrieved.candidates, queries=queries, score_threshold=score_threshold,
+        retrieved.candidates,
+        queries=queries,
     )
     ranking_duration_ms = max(0, int((monotonic() - ranking_started_at) * 1000))
     return ExploreSearchEvaluation(
         retrieved=retrieved,
         admission=admission,
         ranking=ranking,
+        score_threshold=score_threshold,
         admission_duration_ms=admission_duration_ms,
         ranking_duration_ms=ranking_duration_ms,
     )

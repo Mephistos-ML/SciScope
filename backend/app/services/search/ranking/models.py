@@ -75,7 +75,6 @@ class RankedRepositoryCandidate:
 
 @dataclass(frozen=True)
 class RankingResult:
-    """Ranked candidates and the configured output eligibility threshold."""
+    """Repository candidates ordered by their computed ranking scores."""
 
     ranked_candidates: tuple[RankedRepositoryCandidate, ...]
-    score_threshold: float

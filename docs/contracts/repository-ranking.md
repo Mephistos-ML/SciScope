@@ -15,8 +15,9 @@ provisional policy values, not learned relevance probabilities.
 `score.py` constructs the per-location breakdown once per candidate; ranking
 orchestration sums those contributions for the score. Final visibility is owned
 by `explore.canonical.select_canonical_candidates`, which combines admission with
-the score threshold. `RankingResult` carries the sorted candidates and threshold;
-it does not expose a separate visibility projection.
+the score threshold. `RankingResult` carries only the sorted candidates;
+`ExploreSearchEvaluation` owns the validated visibility threshold. The ranker
+does not accept a threshold or expose a separate visibility projection.
 
 Scores are nonnegative, retain full floating-point precision, and have no fixed
 upper bound. Sorting is descending by score, then case-folded title, then

@@ -19,6 +19,28 @@ from tests.fixtures.explore import (
 )
 
 
+@pytest.mark.parametrize("threshold", [-1, float("nan"), float("inf"), -float("inf")])
+def test_invalid_visibility_threshold_is_rejected(threshold):
+    retrieved = build_retrieved_candidates(
+        source_statuses=(), successful_source_count=0
+    )
+    with pytest.raises(ValueError, match="finite and nonnegative"):
+        build_explore_search_evaluation(
+            retrieved, queries=(), score_threshold=threshold
+        )
+
+
+def test_visibility_threshold_has_no_upper_bound():
+    retrieved = build_retrieved_candidates(
+        source_statuses=(), successful_source_count=0
+    )
+    evaluation = build_explore_search_evaluation(
+        retrieved, queries=(), score_threshold=101
+    )
+    assert evaluation.score_threshold == 101
+    assert build_canonical_items(evaluation) == []
+
+
 @pytest.mark.parametrize(
     "threshold,expected_count",
     [
@@ -39,6 +61,9 @@ def test_public_selection_includes_threshold_equality(threshold, expected_count)
         score_threshold=threshold,
     )
     assert evaluation.admission.kept_count == 1
+    assert evaluation.score_threshold == threshold
+    assert len(evaluation.ranking.ranked_candidates) == 1
+    assert evaluation.ranking.ranked_candidates[0].score == pytest.approx(0.85 * log1p(1))
     assert len(select_canonical_candidates(evaluation)) == expected_count
     assert len(build_canonical_items(evaluation)) == expected_count
 
