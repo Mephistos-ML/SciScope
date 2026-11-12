@@ -5,6 +5,11 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+from math import log1p
+
+import pytest
+
 from app.models.signal import Signal
 from app.services.search.catalog import (
     persist_catalog_candidates,
@@ -17,6 +22,32 @@ from app.services.search.retrieval import (
     RetrievalMatchEvidence,
 )
 from tests.fixtures.database import build_test_database_url, migrate_test_database
+from tests.fixtures.explore import build_explore_repository_signal, build_retrieved_candidates
+
+
+@pytest.mark.parametrize("location,path", [
+    ("notebook", "study.ipynb"), ("data", "results.csv"),
+    ("configuration", "settings.yaml"), ("project_metadata", "pyproject.toml"),
+    ("legal", "LICENSE"),
+])
+def test_extended_file_locations_survive_catalog_storage_and_retrieval(tmp_path, location, path):
+    database_url = build_test_database_url(tmp_path / "taxonomy.sqlite3")
+    migrate_test_database(database_url)
+    candidate = build_retrieved_candidates(
+        build_explore_repository_signal("github:repo:123", query="paramagnetic nmr"),
+        source_statuses=(), successful_source_count=1,
+        matched_channels=("repository_search", "code_search"),
+    ).candidates[0]
+    candidate = replace(candidate, provenance=replace(candidate.provenance, match_evidence=(
+        RetrievalMatchEvidence("paramagnetic nmr", location, path=path),
+    )))
+    persist_catalog_candidates((candidate,), database_url=database_url, embeddings=None)
+    restored = retrieve_catalog_candidates(("paramagnetic nmr",), database_url=database_url, embeddings=None)
+    assert len(restored) == 1
+    evidence = restored[0].provenance.match_evidence[0]
+    assert (evidence.location, evidence.path, evidence.channel) == (location, path, "code_search")
+    ranked = rank_repository_candidates(restored, queries=("paramagnetic nmr",)).ranked_candidates[0]
+    assert ranked.score == pytest.approx(0.25 * log1p(1))
 
 
 def test_catalog_retrieval_keeps_query_specific_evidence(tmp_path) -> None:

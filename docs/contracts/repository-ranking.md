@@ -9,7 +9,8 @@ counting, and `score.py` owns location weights and the calculation:
 `score = sum(location_weight * ln(1 + distinct_match_count))`.
 
 Initial weights are name 1.00, description 0.85, topic 0.75, README 0.65,
-documentation 0.55, code 0.60, other 0.25, and metadata fallback 0.65. They are
+documentation 0.55, code 0.60, and metadata fallback 0.65. Notebook, data,
+configuration, project metadata, legal, and other each initially use 0.25. They are
 provisional policy values, not learned relevance probabilities.
 
 `score.py` constructs the per-location breakdown once per candidate; ranking
@@ -54,6 +55,39 @@ The formula does not correct for differences in provider coverage or query count
 Future span-level counting requires a separate evidence contract and persistence
 plan rather than interpreting historical hits as occurrence counts.
 
+### File taxonomy and precedence (ranking policy v2)
+
+Rules use case-insensitive names/extensions and normalized separators, without
+reading file contents or inferring unreported matches. Apply them in this order:
+
+1. Explicit legal names (`LICENSE`, `LICENCE`, `COPYING`, `NOTICE`, `COPYRIGHT`,
+   with optional document/TXT suffixes) and project manifests/citation files
+   (`pyproject.toml`, `setup.py`, `package.json`, `CITATION.cff`, dependency
+   lockfiles, requirements TXT files, and environment YAML manifests).
+2. Recognized README names.
+3. Files in `doc/`, `docs/`, or `documentation/` directories.
+4. Notebooks (`.ipynb`, `.qmd`, `.Rmd`).
+5. Recognized source-code extensions.
+6. Configuration (`Dockerfile`, `Dockerfile.*`, `compose.json`, YAML, TOML, INI,
+   CFG, CONF, and properties files) excluding the manifests already classified.
+7. Data formats (CSV, TSV, Parquet, HDF5, FITS, NetCDF, NumPy arrays, XYZ, PDB,
+   SDF, MOL/MOL2, CIF).
+8. Other recognized documentation: Markdown, reStructuredText, AsciiDoc, and
+   named documents such as CHANGELOG/CONTRIBUTING, including their TXT forms.
+9. `other` for an unrecognized path or an unidentified non-repository-search hit.
+
+For example, `docs/tutorial.ipynb` is documentation; `docs/LICENSE` is legal;
+`pyproject.toml` is project metadata; `examples/input.yaml` is configuration.
+Arbitrary JSON/XML/TXT files remain `other` because extension alone does not
+identify their role. File categories identify observed evidence, not intrinsic
+relevance or whether a repository should pass admission.
+
+Taxonomy expansion is policy `location_weighted_log_matches_v2`. The logarithmic
+formula is unchanged, but splitting one count across categories changes its
+aggregate score even with equal weights. Do not combine v1 and v2 evaluations
+without recording the policy. Path-bearing cached/v1 evidence is reclassified
+when scored; original stored evidence and completed reports remain unchanged.
+
 ## Visibility and explicit configuration
 
 Admission still governs candidate eligibility. The additional score filter is
@@ -69,7 +103,8 @@ nonempty. It cannot silently carry a 0--100 threshold onto the new scale.
 
 ## Serialized contracts and historical data
 
-New public result items include `scoreFormula: location_weighted_log_matches_v1`.
+New public result items include `scoreFormula: location_weighted_log_matches_v2`.
+Historical log-match items may identify `location_weighted_log_matches_v1`.
 Historical response payloads may omit this field and keep their delivered scores.
 New run creation records this policy version. An existing run retains its
 creation-time policy metadata; if expanded after deployment, its new stage is
@@ -87,14 +122,18 @@ Historical version-2 breakdowns retain `points`; their features retain
 `location_counts`, `hit_count`, and `evidence_count`. Unversioned historical
 breakdowns retain strongest-match/corroboration fields. The diagnostic UI reads
 all three representations without rewriting history. This is a representation
-change only: the scoring policy identifier and numeric formula are unchanged.
+change only between breakdown schemas 2 and 3; taxonomy versions are identified
+independently by the scoring policy field.
 
 Internal provenance and admission contracts use `raw_hit_count`. Durable catalog
 observation counts keep their existing `hit_count` storage contract, and resumable
 execution JSON keeps its existing `hitCount` key with an explicit mapping to the
-renamed application field. No database or execution-state migration is needed.
-There is no table migration or backfill. Resumable retrieval evidence retains
-its existing schema and is recounted on subsequent evaluation. Counting uses the
+renamed application field. The taxonomy extension writes execution schema 2 and
+explicitly reads/upgrades schema 1; see the
+[execution-state contract](explore-execution-state.md). No table migration or bulk
+backfill is needed. Match-evidence fields retain their shape while execution
+schema 2 extends their allowed vocabulary. Evidence is recounted on subsequent
+evaluation. Counting uses the
 public `retrieval.evidence.classify_match_path` contract to classify path-bearing
 evidence, including historical hits previously labeled by overlapping metadata.
 Raw stored evidence stays unchanged; old/new deliveries of the same file cannot

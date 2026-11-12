@@ -4,15 +4,16 @@
 Explore run. Its contract is owned by `app/services/search/explore/execution.py`.
 It describes committed search progress, independently of the HTTP response and
 provider payload formats. `serialize_execution` and `deserialize_execution` use
-one validator and accept only the current schema.
+one validator. Writers emit schema 2; readers accept schema 2 and explicitly
+upgrade the historical schema-1 vocabulary in memory.
 
-## Version 1
+## Versions 1 and 2
 
 The root contains exactly these fields:
 
 | Field | Meaning |
 | --- | --- |
-| `schemaVersion` | Integer `1`; a boolean, string, or missing value is invalid |
+| `schemaVersion` | Integer `1` (historical) or `2` (current); other versions, booleans, strings, or missing values are rejected |
 | `plan` | Plan status and ordered queries |
 | `executedQueries` | The executed prefix of that ordered plan |
 | `retrieved` | Candidates, source statuses, successful-source count, partial coverage, warnings, and lane outcomes |
@@ -30,8 +31,16 @@ extension fields; their contents must remain JSON-compatible and finite.
 
 The [version 1 fixture](../../backend/tests/fixtures/explore_execution_v1.json)
 records the exact persisted shape and verifies full round trips, including lane
-outcomes. Structural changes require a schema-version change and an explicit data
-migration, rather than permissive field defaults or a permanent legacy reader.
+outcomes. Version 1 permits the original eight match locations. Version 2 adds
+`notebook`, `data`, `configuration`, `project_metadata`, and `legal`; its object
+shape is unchanged. The reader rejects those additional locations in a v1
+payload. A v1 read preserves every fact; the next write emits version 2.
+
+This explicit compatibility transition keeps existing resumable work readable.
+Remove the v1 reader only after all still-expandable/replayable states have been
+converted or retired under the product's retention policy and that condition has
+been verified. Unknown versions remain unsupported. No historical migration is
+rewritten, and there is no automatic bulk backfill in this change.
 
 ## Recovery Behavior
 

@@ -23,7 +23,9 @@ from app.services.search.retrieval.models import (
 )
 
 
-EXECUTION_SCHEMA_VERSION = 1
+EXECUTION_SCHEMA_VERSION = 2
+# Frozen vocabulary of the persisted v1 contract, not the current taxonomy.
+_V1_MATCH_LOCATIONS = ("name", "description", "topic", "readme", "documentation", "code", "other", "metadata")
 ExploreQueryAttemptStatus = Literal["completed", "timed_out"]
 ExecutionStateErrorCode = Literal[
     "execution_state_missing", "execution_state_invalid", "execution_state_unsupported",
@@ -129,7 +131,7 @@ def serialize_execution(execution: ExploreSearchExecution) -> dict[str, object]:
 
 
 def deserialize_execution(state: object) -> ExploreSearchExecution:
-    """Validate and decode only the current durable execution contract."""
+    """Validate current state or explicitly upgrade the v1 match vocabulary."""
     if state is None:
         raise ExploreExecutionStateError("execution_state_missing", "Search execution state is unavailable.")
     if not isinstance(state, dict) or "schemaVersion" not in state:
@@ -137,7 +139,7 @@ def deserialize_execution(state: object) -> ExploreSearchExecution:
     version = state["schemaVersion"]
     if type(version) is not int:
         _invalid("schemaVersion")
-    if version != EXECUTION_SCHEMA_VERSION:
+    if version not in (1, EXECUTION_SCHEMA_VERSION):
         raise ExploreExecutionStateError(
             "execution_state_unsupported", "Search execution state version is unsupported.",
         )
@@ -152,7 +154,9 @@ def deserialize_execution(state: object) -> ExploreSearchExecution:
         "candidates", "sourceStatuses", "successfulSourceCount", "partial", "warnings", "laneOutcomes",
     })
     candidates = tuple(
-        _deserialize_candidate(value)
+        _deserialize_candidate(
+            value, locations=_V1_MATCH_LOCATIONS if version == 1 else get_args(RetrievalMatchLocation),
+        )
         for value in _list(retrieved["candidates"], "candidates")
     )
     if len({candidate.repository_id for candidate in candidates}) != len(candidates):
@@ -186,7 +190,7 @@ def deserialize_execution(state: object) -> ExploreSearchExecution:
     )
 
 
-def _deserialize_candidate(value: object) -> RepositoryCandidate:
+def _deserialize_candidate(value: object, *, locations: tuple[str, ...]) -> RepositoryCandidate:
     value = _object(value, "candidate", {"repositoryId", "signal", "provenance"})
     signal = _object(value["signal"], "signal", {
         "source", "kind", "itemId", "title", "url", "publishedAt", "rawText", "normalizedText", "payload",
@@ -233,7 +237,7 @@ def _deserialize_candidate(value: object) -> RepositoryCandidate:
             },
             raw_hit_count=_count(provenance["hitCount"], "hitCount"),
             match_evidence=tuple(
-                _deserialize_evidence(item)
+                _deserialize_evidence(item, locations=locations)
                 for item in _list(provenance["matchEvidence"], "matchEvidence")
             ),
             origins=tuple(
@@ -244,7 +248,7 @@ def _deserialize_candidate(value: object) -> RepositoryCandidate:
     )
 
 
-def _deserialize_evidence(value: object) -> RetrievalMatchEvidence:
+def _deserialize_evidence(value: object, *, locations: tuple[str, ...]) -> RetrievalMatchEvidence:
     value = _object(value, "matchEvidence", {
         "query", "location", "path", "alignment", "channel", "origin", "retrieval_rank",
     })
@@ -254,7 +258,7 @@ def _deserialize_evidence(value: object) -> RetrievalMatchEvidence:
     rank = value["retrieval_rank"]
     return RetrievalMatchEvidence(
         query=_text(value["query"], "matchEvidence.query", nonempty=True),
-        location=_choice(value["location"], "matchEvidence.location", get_args(RetrievalMatchLocation)),
+        location=_choice(value["location"], "matchEvidence.location", locations),
         path=_text(value["path"], "matchEvidence.path"),
         alignment=alignment,
         channel=_text(value["channel"], "matchEvidence.channel", nonempty=True),

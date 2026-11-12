@@ -63,3 +63,17 @@ test("renders persisted unversioned scores with their historical scale and break
 test("renders a zero-evidence snapshot explicitly", () => {
   assert.match(render({ schema_version: 2, locations: [] }, 0), /No current-query matches/);
 });
+
+test("renders the expanded taxonomy with its own policy identifier", () => {
+  const html = render({
+    schema_version: 3,
+    formula: "location_weighted_log_matches_v2",
+    locations: ["notebook", "data", "configuration", "project_metadata", "legal"].map((location) => ({
+      location, count: 1, weight: 0.25, contribution: 0.25 * Math.log(2),
+    })),
+  }, 5 * 0.25 * Math.log(2));
+  for (const label of ["Notebook", "Data", "Configuration", "Project Metadata", "Legal"]) {
+    assert.match(html, new RegExp(label));
+  }
+  assert.doesNotMatch(html, /\/ 100/);
+});

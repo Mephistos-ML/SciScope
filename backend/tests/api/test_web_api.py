@@ -819,7 +819,7 @@ def test_explore_search_run_returns_completed_snapshot(
         assert created["status"] == "completed"
         assert created["canExpand"] is True
         assert created["items"][0]["itemId"] == "github:repo:102"
-        assert created["items"][0]["scoreFormula"] == "location_weighted_log_matches_v1"
+        assert created["items"][0]["scoreFormula"] == "location_weighted_log_matches_v2"
         assert "ownerUserId" not in created
 
         follow_up = client.get(f"/api/explore/search-runs/{created['runId']}")
@@ -840,7 +840,7 @@ def test_explore_search_run_returns_completed_snapshot(
         database_url=explore_run_database,
     )
     assert report is not None
-    assert report["run"]["rankingPolicyVersion"] == "location_weighted_log_matches_v1"
+    assert report["run"]["rankingPolicyVersion"] == "location_weighted_log_matches_v2"
     evidence = report["rankingSnapshots"][0]["retrievalFacts"]["match_evidence"][0]
     assert evidence["channel"] == "repository_search"
     assert evidence["origin"] == "provider"
@@ -853,7 +853,7 @@ def test_explore_search_run_returns_completed_snapshot(
     assert ranking_features["match_counts_by_location"] == [
         {"location": "description", "count": 1},
     ]
-    assert breakdown["formula"] == "location_weighted_log_matches_v1"
+    assert breakdown["formula"] == "location_weighted_log_matches_v2"
     assert breakdown["locations"] == [
         {"location": "description", "count": 1, "weight": 0.85,
          "contribution": pytest.approx(0.85 * log1p(1))},

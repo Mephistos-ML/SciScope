@@ -18,7 +18,7 @@ credentials, guest/session tokens or lease tokens during diagnosis.
 
 ## Log-match ranking rollout and recovery
 
-The new ranking policy is `location_weighted_log_matches_v1`. Deploy the diagnostic
+The current ranking policy is `location_weighted_log_matches_v2`. Deploy the diagnostic
 frontend first: it understands historical unversioned 0--100 snapshots, version-2
 per-location breakdowns using `points`, and version-3 breakdowns using
 `contribution`. The earlier UI would mislabel an unsupported format as a score
@@ -41,6 +41,25 @@ restore the former deployment's cutoff configuration and restart API/workers
 together. The new UI can remain deployed because it reads both score formats.
 Rollback does not revert results or snapshots already delivered by the new
 formula; preserve them for audit rather than rewriting scores.
+
+### Taxonomy v2 cutover
+
+The expanded file taxonomy writes execution schema 2 and accepts historical
+schema 1 through an explicit read upgrade. Stop/drain old workers before enabling
+the new writer, and upgrade API and workers together. Old code does not understand
+schema 2 or the new location vocabulary. New workers can resume v1 states and
+publish them as v2 atomically through the existing fenced completion path.
+
+New file categories inherit weight 0.25; separate logarithmic aggregation can
+still increase scores. Root-level documents newly recognized as documentation
+use the existing documentation weight 0.55. Re-evaluate any nonzero cutoff.
+Completed scores and reports are not recomputed; cached path evidence is
+classified under the active policy when a new evaluation runs.
+
+After schema-2 states or new catalog locations exist, backend rollback requires
+code that understands that vocabulary and schema; a rollback to the old reader
+alone is unsafe. Prefer a forward fix. Do not discard or relabel durable user
+state to force an old reader to accept it. No table migration/backfill is needed.
 
 Inside the API container:
 

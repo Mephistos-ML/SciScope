@@ -19,6 +19,11 @@ RetrievalMatchLocation = Literal[
     "readme",
     "documentation",
     "code",
+    "notebook",
+    "data",
+    "configuration",
+    "project_metadata",
+    "legal",
     "other",
     "metadata",
 ]

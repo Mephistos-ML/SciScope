@@ -12,8 +12,8 @@ from app.services.search.retrieval import RepositoryCandidate
 from app.services.search.retrieval.models import RetrievalMatchLocation
 
 
-RANKING_POLICY_VERSION: Literal["location_weighted_log_matches_v1"] = (
-    "location_weighted_log_matches_v1"
+RANKING_POLICY_VERSION: Literal["location_weighted_log_matches_v2"] = (
+    "location_weighted_log_matches_v2"
 )
 
 
@@ -60,7 +60,7 @@ class RankingScoreBreakdown:
 
     locations: tuple[LocationScoreContribution, ...]
     schema_version: Literal[3] = 3
-    formula: Literal["location_weighted_log_matches_v1"] = RANKING_POLICY_VERSION
+    formula: Literal["location_weighted_log_matches_v2"] = RANKING_POLICY_VERSION
 
 
 @dataclass(frozen=True)

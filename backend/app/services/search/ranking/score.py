@@ -27,8 +27,13 @@ LOCATION_WEIGHTS: Mapping[RetrievalMatchLocation, float] = MappingProxyType(
         "readme": 0.65,
         "documentation": 0.55,
         "code": 0.60,
-        "other": 0.25,
+        "notebook": 0.25,
+        "data": 0.25,
+        "configuration": 0.25,
+        "project_metadata": 0.25,
+        "legal": 0.25,
         "metadata": 0.65,
+        "other": 0.25,
     }
 )
 

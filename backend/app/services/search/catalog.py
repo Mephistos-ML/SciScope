@@ -237,7 +237,7 @@ def _channel_for_location(
     channels: tuple[str, ...],
     default_channel: str,
 ) -> str:
-    if evidence.location in {"code", "readme", "documentation", "other"}:
+    if evidence.location not in {"name", "description", "topic", "metadata"}:
         return next((channel for channel in channels if channel == "code_search"), default_channel)
     return next((channel for channel in channels if channel == "repository_search"), default_channel)
 

@@ -104,7 +104,7 @@ export type ExploreResultItem = {
   query: string | null;
   score: number;
   // Absent on historical 0-100 responses. Current scores are unbounded log sums.
-  scoreFormula?: "location_weighted_log_matches_v1";
+  scoreFormula?: "location_weighted_log_matches_v1" | "location_weighted_log_matches_v2";
   reason: string;
 };
 

@@ -25,15 +25,15 @@ def snapshot():
     return json.loads(path.read_text())
 
 
-def test_current_snapshot_round_trips_every_persisted_fact(snapshot):
+def test_v1_snapshot_upgrades_without_losing_persisted_facts(snapshot):
     restored = deserialize_execution(snapshot)
     assert restored.pending_queries == ("second",)
     assert len(restored.retrieved.lane_outcomes) == 1
     assert restored.retrieved.lane_outcomes[0].query == "first"
-    assert serialize_execution(restored) == snapshot
+    assert serialize_execution(restored) == {**snapshot, "schemaVersion": 2}
 
 
-@pytest.mark.parametrize("version", [0, 2, -1, 999])
+@pytest.mark.parametrize("version", [0, 3, -1, 999])
 def test_unknown_integer_versions_are_not_guessed(snapshot, version):
     snapshot["schemaVersion"] = version
     with pytest.raises(ExploreExecutionStateError) as error:
@@ -125,3 +125,18 @@ def test_serializer_rejects_invalid_domain_progress_before_persistence(snapshot)
     with pytest.raises(ExploreExecutionStateError) as error:
         serialize_execution(invalid)
     assert error.value.code == "execution_state_invalid"
+
+
+@pytest.mark.parametrize("location,path", [
+    ("notebook", "analysis.ipynb"), ("data", "results.csv"),
+    ("configuration", "settings.yaml"), ("project_metadata", "pyproject.toml"),
+    ("legal", "LICENSE"),
+])
+def test_extended_locations_round_trip_in_v2_but_are_rejected_in_v1(snapshot, location, path):
+    evidence = snapshot["retrieved"]["candidates"][0]["provenance"]["matchEvidence"][0]
+    evidence.update(location=location, path=path)
+    with pytest.raises(ExploreExecutionStateError) as error:
+        deserialize_execution(snapshot)
+    assert error.value.code == "execution_state_invalid"
+    snapshot["schemaVersion"] = 2
+    assert serialize_execution(deserialize_execution(snapshot)) == snapshot
