@@ -79,11 +79,3 @@ class RankingResult:
 
     ranked_candidates: tuple[RankedRepositoryCandidate, ...]
     score_threshold: float
-
-    @property
-    def visible_candidates(self) -> tuple[RankedRepositoryCandidate, ...]:
-        return tuple(
-            candidate
-            for candidate in self.ranked_candidates
-            if candidate.score >= self.score_threshold
-        )

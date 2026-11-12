@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from math import fsum, log1p
+from math import log1p
 from types import MappingProxyType
 from typing import Mapping
 
@@ -31,14 +31,6 @@ LOCATION_WEIGHTS: Mapping[RetrievalMatchLocation, float] = MappingProxyType(
         "metadata": 0.65,
     }
 )
-
-
-def calculate_ranking_score(features: RankingFeatures) -> float:
-    """Return sum(w_location * ln(1 + count)) at full ranking precision."""
-
-    return fsum(
-        item.contribution for item in build_ranking_score_breakdown(features).locations
-    )
 
 
 def build_ranking_score_breakdown(

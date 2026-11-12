@@ -12,6 +12,12 @@ Initial weights are name 1.00, description 0.85, topic 0.75, README 0.65,
 documentation 0.55, code 0.60, other 0.25, and metadata fallback 0.65. They are
 provisional policy values, not learned relevance probabilities.
 
+`score.py` constructs the per-location breakdown once per candidate; ranking
+orchestration sums those contributions for the score. Final visibility is owned
+by `explore.canonical.select_canonical_candidates`, which combines admission with
+the score threshold. `RankingResult` carries the sorted candidates and threshold;
+it does not expose a separate visibility projection.
+
 Scores are nonnegative, retain full floating-point precision, and have no fixed
 upper bound. Sorting is descending by score, then case-folded title, then
 canonical repository ID. Rounding belongs to display. Query position, alignment,

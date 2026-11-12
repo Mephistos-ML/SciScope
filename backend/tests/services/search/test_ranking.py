@@ -4,7 +4,7 @@
 """Observable ranking/counting behavior for logarithmic match scoring."""
 
 from dataclasses import replace
-from math import log, log1p
+from math import log
 
 import pytest
 
@@ -14,7 +14,6 @@ from app.services.search.ranking.features import build_ranking_features
 from app.services.search.ranking.models import LocationMatchCount, RankingFeatures
 from app.services.search.ranking.score import (
     build_ranking_score_breakdown,
-    calculate_ranking_score,
 )
 from app.services.search.retrieval import (
     CandidateProvenance,
@@ -38,9 +37,10 @@ def _features(**counts):
 def test_score_matches_the_agreed_multilocation_example():
     features = _features(name=1, description=2, readme=5)
     expected = log(2) + 0.85 * log(3) + 0.65 * log(6)
-    assert calculate_ranking_score(features) == pytest.approx(expected)
     breakdown = build_ranking_score_breakdown(features)
-    assert sum(item.contribution for item in breakdown.locations) == pytest.approx(expected)
+    assert sum(item.contribution for item in breakdown.locations) == pytest.approx(
+        expected
+    )
     assert [
         (item.location, item.count, item.weight) for item in breakdown.locations
     ] == [
@@ -66,7 +66,12 @@ def test_score_matches_the_agreed_multilocation_example():
     ],
 )
 def test_location_weights_and_diminishing_positive_increments(location, weight):
-    scores = [calculate_ranking_score(_features(**{location: n})) for n in range(5)]
+    scores = [
+        build_ranking_score_breakdown(_features(**{location: n}))
+        .locations[0]
+        .contribution
+        for n in range(5)
+    ]
     assert scores[0] == 0
     assert scores[1] == pytest.approx(weight * log(2))
     increments = [b - a for a, b in zip(scores, scores[1:])]
@@ -75,8 +80,11 @@ def test_location_weights_and_diminishing_positive_increments(location, weight):
 
 
 def test_empty_evidence_and_zero_counts_score_zero():
-    assert calculate_ranking_score(_features()) == 0
-    assert calculate_ranking_score(_features(code=0, readme=0)) == 0
+    assert build_ranking_score_breakdown(_features()).locations == ()
+    assert all(
+        item.contribution == 0
+        for item in build_ranking_score_breakdown(_features(code=0, readme=0)).locations
+    )
 
 
 @pytest.mark.parametrize("count", [-1, 1.5, True])
@@ -100,14 +108,18 @@ def test_counts_include_multiple_files_and_locations_for_the_same_query():
         match_evidence=evidence,
     )
     features = build_ranking_features(candidate, ("science",))
-    assert {item.location: item.count for item in features.match_counts_by_location} == {
+    assert {
+        item.location: item.count for item in features.match_counts_by_location
+    } == {
         "name": 1,
         "readme": 1,
         "code": 2,
     }
-    assert calculate_ranking_score(features) == pytest.approx(
-        log(2) + 0.65 * log(2) + 0.6 * log(3)
-    )
+    ranked = rank_repository_candidates((candidate,), queries=("science",)).ranked_candidates[0]
+    assert ranked.score == pytest.approx(log(2) + 0.65 * log(2) + 0.6 * log(3))
+    assert ranked.score == pytest.approx(sum(
+        item.contribution for item in ranked.score_breakdown.locations
+    ))
 
 
 def test_duplicate_delivery_does_not_inflate_counts_or_score():
@@ -150,7 +162,9 @@ def test_duplicate_delivery_does_not_inflate_counts_or_score():
     single = build_ranking_features(candidate, (original.query,))
     repeated = build_ranking_features(duplicate, (original.query,))
     assert single.match_counts_by_location == repeated.match_counts_by_location
-    assert calculate_ranking_score(single) == calculate_ranking_score(repeated)
+    assert build_ranking_score_breakdown(single) == build_ranking_score_breakdown(
+        repeated
+    )
     assert repeated.raw_hit_count == 20  # Delivery diagnostics remain independent.
 
 
@@ -179,7 +193,9 @@ def test_counts_only_current_queries_and_ignores_query_order():
     assert first.matched_query_count == 2
     assert first.total_query_count == 3
     assert first.match_counts_by_location == (LocationMatchCount("description", 2),)
-    assert calculate_ranking_score(first) == pytest.approx(0.85 * log(3))
+    assert build_ranking_score_breakdown(first).locations[
+        0
+    ].contribution == pytest.approx(0.85 * log(3))
 
 
 def test_alignment_does_not_change_the_count_formula():
@@ -200,9 +216,9 @@ def test_alignment_does_not_change_the_count_formula():
             ),
         ),
     )
-    assert calculate_ranking_score(
+    assert build_ranking_score_breakdown(
         build_ranking_features(candidate, ("science",))
-    ) == (calculate_ranking_score(build_ranking_features(direct, ("science",))))
+    ) == build_ranking_score_breakdown(build_ranking_features(direct, ("science",)))
 
 
 def test_more_file_matches_can_outweigh_a_higher_weight_location():
@@ -221,16 +237,17 @@ def test_more_file_matches_can_outweigh_a_higher_weight_location():
             for i in range(3)
         ),
     )
-    result = rank_repository_candidates(
-        (one_name, three_files), queries=("science",), score_threshold=0.7
-    )
+    result = rank_repository_candidates((one_name, three_files), queries=("science",))
     assert [item.candidate.repository_id for item in result.ranked_candidates] == [
         three_files.repository_id,
         one_name.repository_id,
     ]
-    assert [item.candidate.repository_id for item in result.visible_candidates] == [
-        three_files.repository_id
-    ]
+    assert result.ranked_candidates[0].score == pytest.approx(0.6 * log(4))
+    assert result.ranked_candidates[1].score == pytest.approx(log(2))
+    for ranked in result.ranked_candidates:
+        assert ranked.score == pytest.approx(
+            sum(item.contribution for item in ranked.score_breakdown.locations)
+        )
 
 
 def test_full_precision_and_stable_identity_tie_break():
@@ -248,8 +265,12 @@ def test_full_precision_and_stable_identity_tie_break():
         assert result.ranked_candidates[0].candidate.repository_id == a.repository_id
         assert result.ranked_candidates[0].score == pytest.approx(log(2), abs=1e-14)
     # Ranking values retain small differences even when display rounding ties.
-    lower = calculate_ranking_score(_features(code=10000))
-    higher = calculate_ranking_score(_features(code=10001))
+    lower = (
+        build_ranking_score_breakdown(_features(code=10000)).locations[0].contribution
+    )
+    higher = (
+        build_ranking_score_breakdown(_features(code=10001)).locations[0].contribution
+    )
     assert higher > lower
     assert round(higher, 2) == round(lower, 2)
 
@@ -260,23 +281,10 @@ def test_invalid_cutoff_is_rejected(cutoff):
         rank_repository_candidates((), queries=(), score_threshold=cutoff)
 
 
-def test_cutoff_has_no_upper_bound_and_equality_is_visible():
-    assert (
-        rank_repository_candidates(
-            (), queries=(), score_threshold=101
-        ).visible_candidates
-        == ()
-    )
-    candidate = _build_candidate(
-        item_id="github:repo:a",
-        source="github",
-        raw_text="science/tool",
-        match_evidence=(RetrievalMatchEvidence("science", "name"),),
-    )
-    result = rank_repository_candidates(
-        (candidate,), queries=("science",), score_threshold=log1p(1)
-    )
-    assert len(result.visible_candidates) == 1
+def test_score_threshold_has_no_upper_bound():
+    result = rank_repository_candidates((), queries=(), score_threshold=101)
+    assert result.ranked_candidates == ()
+    assert result.score_threshold == 101
 
 
 def _build_candidate(

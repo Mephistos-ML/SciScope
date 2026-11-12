@@ -6,17 +6,14 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from math import isfinite
+from math import fsum, isfinite
 
 from app.services.search.ranking.features import build_ranking_features
 from app.services.search.ranking.models import (
     RankedRepositoryCandidate,
     RankingResult,
 )
-from app.services.search.ranking.score import (
-    build_ranking_score_breakdown,
-    calculate_ranking_score,
-)
+from app.services.search.ranking.score import build_ranking_score_breakdown
 from app.services.search.retrieval import RepositoryCandidate
 
 
@@ -31,16 +28,18 @@ def rank_repository_candidates(
     if not isfinite(score_threshold) or score_threshold < 0.0:
         raise ValueError("score_threshold must be finite and nonnegative")
 
-    ranked_candidates = [
-        RankedRepositoryCandidate(
-            candidate=candidate,
-            features=features,
-            score=calculate_ranking_score(features),
-            score_breakdown=build_ranking_score_breakdown(features),
+    ranked_candidates = []
+    for candidate in candidates:
+        features = build_ranking_features(candidate, queries)
+        breakdown = build_ranking_score_breakdown(features)
+        ranked_candidates.append(
+            RankedRepositoryCandidate(
+                candidate=candidate,
+                features=features,
+                score=fsum(item.contribution for item in breakdown.locations),
+                score_breakdown=breakdown,
+            )
         )
-        for candidate in candidates
-        for features in (build_ranking_features(candidate, queries),)
-    ]
     ranked_candidates.sort(
         key=lambda ranked: (
             -ranked.score,
