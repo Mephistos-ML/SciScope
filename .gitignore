@@ -26,10 +26,17 @@ frontend/*.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts
 
-# Local benchmark datasets (tracked documentation and manifests live alongside)
-/benchmarks/data/raw/
-/benchmarks/data/interim/
-/benchmarks/data/processed/
+# Local NASA source bytes; provenance and small study tables are tracked
+/benchmarks/data/nasa/*
+!/benchmarks/data/nasa/manifest.json
+/benchmarks/data/study/repositories.jsonl
+/benchmarks/data/study/evidence.jsonl
+/benchmarks/data/study/features.jsonl
+/benchmarks/data/study/.generation.lock
+/benchmarks/data/study/.generation-checkpoint.json
+/benchmarks/data/study/.queries.jsonl-*
+/benchmarks/data/study/.manifest.json-*
+/benchmarks/data/study/..generation-checkpoint.json-*
 
 # Reproducible experiment output
 /benchmarks/results/runs/
