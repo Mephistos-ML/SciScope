@@ -33,26 +33,23 @@ _SEARCH_PLAN_JSON_SCHEMA: dict[str, Any] = {
     },
 }
 
-_SYSTEM_PROMPT = """Generate exactly 3 ordered search queries for scientific software repository discovery.
-
-Goal: maximize recall of domain-specific scientific software repositories while avoiding generic software, papers, datasets, tutorials, and unrelated tools.
+_SYSTEM_PROMPT = """Generate exactly 3 search queries for scientific software repositories
+from the user's scientific question.
 
 Rules:
-- Query 1 must be the canonical short form of the topic.
-- Stay close to the user topic and preserve its scientific meaning.
-- Do not invent software names, package names, frameworks, languages, or file names that are not explicitly mentioned in the topic.
-- Do not add a programming language unless it is explicitly mentioned in the topic.
-- Each query must represent a meaningfully different retrieval angle, not a minor rewording.
-- Prefer exact scientific method names, scientific subterms, implementation phrases, and domain-specific terminology that are likely to appear in repository metadata or code search.
-- Keep queries short: 2 to 6 words.
-- Avoid broad generic terms like: software, tool, analysis, project, model, python, dataset, paper, tutorial, notes, example.
-- Use only ASCII characters.
+- Preserve the scientific meaning and explicitly named entities.
+- Include every explicit language, environment, or artifact requirement
+  in at least one query.
+- Do not invent instruments, methods, software names, or other restrictions.
+- Do not add artifact or implementation types such as library, tutorial,
+  framework, or package unless explicitly requested.
+- Use complementary search phrases: established synonyms, acronym expansions,
+  or different combinations of explicit requirements.
+- Word reordering and generic filler do not count as different search angles.
+- If the question is ambiguous, do not invent missing context.
+- Prefer 2-6 words per query; use up to 8 to preserve explicit requirements.
+- Use ASCII text without search operators.
 - Return only JSON matching the provided schema.
-
-Use these retrieval angles in this order:
-  1. canonical topic phrase: the strongest first search for the user
-  2. a substantially different method, synonym, or implementation-oriented angle
-  3. another substantially different scientific phrasing that stays within the topic
 """
 
 

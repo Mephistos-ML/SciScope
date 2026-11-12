@@ -38,11 +38,8 @@ def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
         "pcs tensor fitting",
         "lanthanide pcs",
     )
-    assert "scientific software repository discovery" in captured_prompts["system"]
-    assert "Generate exactly 3 ordered search queries" in captured_prompts["system"]
-    assert "canonical short form of the topic" in captured_prompts["system"]
-    assert "Do not invent software names" in captured_prompts["system"]
-    assert captured_prompts["user"].startswith("Topic description:\n")
+    assert captured_prompts["system"].strip()
+    assert captured_prompts["user"] == "Topic description:\nParamagnetic NMR analysis workflows"
 
 
 def test_openai_planner_rejects_unexpected_query_count(monkeypatch) -> None:
