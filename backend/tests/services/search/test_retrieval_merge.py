@@ -99,7 +99,7 @@ def test_merge_retrieval_hits_accumulates_candidate_provenance() -> None:
         "repository_search": 7,
         "code_search": 3,
     }
-    assert candidate.provenance.hit_count == 2
+    assert candidate.provenance.raw_hit_count == 2
     assert candidate.provenance.match_evidence[0].location == "description"
     assert candidate.provenance.match_evidence[0].channel == "repository_search"
     assert candidate.provenance.match_evidence[0].origin == "provider"
@@ -125,7 +125,7 @@ def test_file_hits_keep_their_location_and_count_once_despite_metadata_overlap()
     candidates = merge_retrieval_hits(hits)
     result = rank_repository_candidates(candidates, queries=("orca python",))
     ranked = result.ranked_candidates[0]
-    assert {item.location: item.count for item in ranked.features.location_counts} == {
+    assert {item.location: item.count for item in ranked.features.match_counts_by_location} == {
         "code": 2, "readme": 1,
     }
     assert ranked.score == pytest.approx(.6 * log1p(2) + .65 * log1p(1))
@@ -161,7 +161,7 @@ def test_run_external_repository_retrieval_merges_duplicate_repo_hits() -> None:
     assert dict(candidate.provenance.best_rank_by_channel) == {
         "repository_search": 1,
     }
-    assert candidate.provenance.hit_count == 2
+    assert candidate.provenance.raw_hit_count == 2
     assert len(candidate.provenance.match_evidence) == 2
 
 

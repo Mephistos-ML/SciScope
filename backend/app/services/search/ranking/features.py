@@ -48,9 +48,9 @@ def build_ranking_features(
     return RankingFeatures(
         matched_query_count=count_current_query_matches(candidate, normalized_queries),
         total_query_count=len(normalized_queries),
-        hit_count=candidate.provenance.hit_count,
-        evidence_count=len(evidence),
-        location_counts=tuple(
+        raw_hit_count=candidate.provenance.raw_hit_count,
+        evidence_record_count=len(evidence),
+        match_counts_by_location=tuple(
             LocationMatchCount(location=location, count=count)
             for location, count in sorted(counts.items())
         ),

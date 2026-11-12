@@ -33,15 +33,15 @@ LOCATION_WEIGHTS: Mapping[RetrievalMatchLocation, float] = MappingProxyType(
 )
 
 
-def calculate_relevance_score(features: RankingFeatures) -> float:
+def calculate_ranking_score(features: RankingFeatures) -> float:
     """Return sum(w_location * ln(1 + count)) at full ranking precision."""
 
     return fsum(
-        item.points for item in build_relevance_score_breakdown(features).locations
+        item.contribution for item in build_ranking_score_breakdown(features).locations
     )
 
 
-def build_relevance_score_breakdown(
+def build_ranking_score_breakdown(
     features: RankingFeatures,
 ) -> RankingScoreBreakdown:
     """Capture counts, weights and contributions for reproducible diagnostics."""
@@ -52,8 +52,8 @@ def build_relevance_score_breakdown(
                 location=item.location,
                 count=item.count,
                 weight=LOCATION_WEIGHTS[item.location],
-                points=LOCATION_WEIGHTS[item.location] * log1p(item.count),
+                contribution=LOCATION_WEIGHTS[item.location] * log1p(item.count),
             )
-            for item in features.location_counts
+            for item in features.match_counts_by_location
         ),
     )

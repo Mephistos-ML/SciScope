@@ -20,25 +20,36 @@ const { SearchDiagnosticsRepositoryDetails } = await import(
   `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`
 );
 
-function render(scoreBreakdown, finalScore) {
+function render(scoreBreakdown, finalScore, rankingFeatures = {}) {
   return renderToStaticMarkup(React.createElement(SearchDiagnosticsRepositoryDetails, {
     snapshot: {
-      rankPosition: 1, finalScore, rankingFeatures: {}, admissionFacts: {},
+      rankPosition: 1, finalScore, rankingFeatures, admissionFacts: {},
       retrievalFacts: {}, scoreBreakdown,
     },
   }));
 }
 
-test("renders location counts, weights and log contributions without a percentage scale", () => {
+for (const version of [2, 3]) {
+test(`renders version ${version} counts and log contributions without a percentage scale`, () => {
+  const contributionKey = version === 3 ? "contribution" : "points";
   const html = render({
-    schema_version: 2,
+    schema_version: version,
     formula: "location_weighted_log_matches_v1",
-    locations: [{ location: "code", count: 3, weight: 0.6, points: 0.6 * Math.log(4) }],
-  }, 0.6 * Math.log(4));
+    locations: [{ location: "code", count: 3, weight: 0.6, [contributionKey]: 0.6 * Math.log(4) }],
+  }, 0.6 * Math.log(4), {
+    [version === 3 ? "raw_hit_count" : "hit_count"]: 7,
+    [version === 3 ? "evidence_record_count" : "evidence_count"]: 4,
+    matched_query_count: 1, total_query_count: 2,
+  });
   assert.match(html, /Weighted log matches/);
-  assert.match(html, /3 matches × weight 0.60 → 0.8318 pts/);
+  assert.match(html, /3 matches; weight 0.60; contribution 0.8318/);
+  assert.match(html, /7 hits/);
+  assert.match(html, /4 records/);
+  assert.match(html, /Matched queries/);
+  assert.doesNotMatch(html, /Query coverage/);
   assert.doesNotMatch(html, /\/ 100|Corroboration/);
 });
+}
 
 test("renders persisted unversioned scores with their historical scale and breakdown", () => {
   const html = render({ strongest_match_points: 72.25, corroboration_points: 0 }, 72.25);

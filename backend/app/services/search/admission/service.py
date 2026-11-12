@@ -56,7 +56,7 @@ def run_repository_admission(
                             if queries is not None
                             else candidate.provenance.matched_queries,
                         ),
-                        hit_count=candidate.provenance.hit_count,
+                        raw_hit_count=candidate.provenance.raw_hit_count,
                         path_strength="none",
                         has_language=bool(str(candidate.signal.payload.get("language") or "").strip()),
                         software_term_hits=(),

@@ -22,7 +22,7 @@ def build_candidate_admission_decision(facts: CandidateFacts) -> AdmissionDecisi
         facts.has_language
         or bool(facts.software_term_hits)
         or facts.matched_query_count >= 2
-        or facts.hit_count >= 2
+        or facts.raw_hit_count >= 2
     ):
         return AdmissionDecision(
             decision="keep",
@@ -34,7 +34,7 @@ def build_candidate_admission_decision(facts: CandidateFacts) -> AdmissionDecisi
         facts.has_language
         or bool(facts.software_term_hits)
         or facts.matched_query_count >= 2
-        or facts.hit_count >= 2
+        or facts.raw_hit_count >= 2
     ):
         return AdmissionDecision(
             decision="keep",
@@ -43,7 +43,7 @@ def build_candidate_admission_decision(facts: CandidateFacts) -> AdmissionDecisi
         )
 
     if bool(facts.software_term_hits) and (
-        facts.has_language or facts.matched_query_count >= 2 or facts.hit_count >= 2
+        facts.has_language or facts.matched_query_count >= 2 or facts.raw_hit_count >= 2
     ):
         return AdmissionDecision(
             decision="keep",
@@ -51,7 +51,7 @@ def build_candidate_admission_decision(facts: CandidateFacts) -> AdmissionDecisi
             evidence=facts.evidence,
         )
 
-    if facts.has_language and (facts.matched_query_count >= 2 or facts.hit_count >= 2):
+    if facts.has_language and (facts.matched_query_count >= 2 or facts.raw_hit_count >= 2):
         return AdmissionDecision(
             decision="keep",
             bucket="language_overlap_keep",
@@ -113,7 +113,7 @@ def _has_strong_software_evidence(facts: CandidateFacts) -> bool:
     if facts.has_code_search and (facts.has_language or bool(facts.software_term_hits)):
         return True
     if bool(facts.software_term_hits) and (
-        facts.has_language or facts.matched_query_count >= 2 or facts.hit_count >= 2
+        facts.has_language or facts.matched_query_count >= 2 or facts.raw_hit_count >= 2
     ):
         return True
     return False

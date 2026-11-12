@@ -35,9 +35,9 @@ class RankingFeatures:
 
     matched_query_count: int
     total_query_count: int
-    hit_count: int
-    evidence_count: int
-    location_counts: tuple[LocationMatchCount, ...]
+    raw_hit_count: int
+    evidence_record_count: int
+    match_counts_by_location: tuple[LocationMatchCount, ...]
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,7 @@ class LocationScoreContribution:
     location: RetrievalMatchLocation
     count: int
     weight: float
-    points: float
+    contribution: float
 
 
 @dataclass(frozen=True)
@@ -55,10 +55,11 @@ class RankingScoreBreakdown:
     """Versioned snapshot of the formula and per-location contributions.
 
     Unversioned persisted breakdowns belong to the historical 0-100 heuristic.
+    Version 2 used ``points``; version 3 names the same value ``contribution``.
     """
 
     locations: tuple[LocationScoreContribution, ...]
-    schema_version: Literal[2] = 2
+    schema_version: Literal[3] = 3
     formula: Literal["location_weighted_log_matches_v1"] = RANKING_POLICY_VERSION
 
 
@@ -77,12 +78,12 @@ class RankingResult:
     """Ranked candidates and the configured output eligibility threshold."""
 
     ranked_candidates: tuple[RankedRepositoryCandidate, ...]
-    relevance_cutoff: float
+    score_threshold: float
 
     @property
     def visible_candidates(self) -> tuple[RankedRepositoryCandidate, ...]:
         return tuple(
             candidate
             for candidate in self.ranked_candidates
-            if candidate.score >= self.relevance_cutoff
+            if candidate.score >= self.score_threshold
         )

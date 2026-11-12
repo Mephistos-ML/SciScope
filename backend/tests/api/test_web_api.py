@@ -846,11 +846,17 @@ def test_explore_search_run_returns_completed_snapshot(
     assert evidence["origin"] == "provider"
     assert evidence["retrieval_rank"] == 1
     breakdown = report["rankingSnapshots"][0]["scoreBreakdown"]
-    assert breakdown["schema_version"] == 2
+    assert breakdown["schema_version"] == 3
+    ranking_features = report["rankingSnapshots"][0]["rankingFeatures"]
+    assert ranking_features["raw_hit_count"] == 1
+    assert ranking_features["evidence_record_count"] == 1
+    assert ranking_features["match_counts_by_location"] == [
+        {"location": "description", "count": 1},
+    ]
     assert breakdown["formula"] == "location_weighted_log_matches_v1"
     assert breakdown["locations"] == [
         {"location": "description", "count": 1, "weight": 0.85,
-         "points": pytest.approx(0.85 * log1p(1))},
+         "contribution": pytest.approx(0.85 * log1p(1))},
     ]
     stage = get_search_run_stage(
         created["runId"],

@@ -19,9 +19,10 @@ credentials, guest/session tokens or lease tokens during diagnosis.
 ## Log-match ranking rollout and recovery
 
 The new ranking policy is `location_weighted_log_matches_v1`. Deploy the diagnostic
-frontend first: it understands both historical unversioned 0--100 snapshots and
-new version-2 per-location breakdowns. The earlier UI would mislabel new values
-as a score out of 100.
+frontend first: it understands historical unversioned 0--100 snapshots, version-2
+per-location breakdowns using `points`, and version-3 breakdowns using
+`contribution`. The earlier UI would mislabel an unsupported format as a score
+out of 100. Version 3 renames diagnostic fields without changing numeric scores.
 
 Remove `EXPLORE_SEARCH_RELEVANCE_CUTOFF` from API and worker configuration when
 deploying the new backend; a nonempty retired setting prevents startup. Use

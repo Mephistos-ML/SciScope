@@ -189,7 +189,7 @@ def test_explore_search_keeps_retrieved_candidate_without_literal_query_phrase(
                         matched_queries=(queries[0],),
                         matched_channels=("code_search",),
                         best_rank_by_channel={"code_search": 1},
-                        hit_count=1,
+                        raw_hit_count=1,
                         match_evidence=(
                             RetrievalMatchEvidence(
                                 query=queries[0],
@@ -223,10 +223,10 @@ def test_explore_search_keeps_retrieved_candidate_without_literal_query_phrase(
     assert payload["items"][0]["score"] == pytest.approx(0.6 * log1p(1))
 
 
-def test_explore_search_applies_ranking_order_and_relevance_cutoff(
+def test_explore_search_applies_ranking_order_and_score_threshold(
     monkeypatch, database_url, dependencies
 ) -> None:
-    dependencies = replace(dependencies, relevance_cutoff=0.5)
+    dependencies = replace(dependencies, score_threshold=0.5)
     queries = (
         "lammps feynman-hibbs",
         "feynman-hibbs mie potential",

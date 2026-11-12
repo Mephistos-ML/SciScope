@@ -128,7 +128,7 @@ def retrieve_catalog_candidates(
                     matched_queries=match.matched_queries,
                     matched_channels=matched_channels,
                     best_rank_by_channel=best_rank_by_channel,
-                    hit_count=max(1, sum(item.hit_count for item in match.evidence)),
+                    raw_hit_count=max(1, sum(item.hit_count for item in match.evidence)),
                     match_evidence=evidence,
                     origins=("catalog",),
                 ),

@@ -31,7 +31,7 @@ def merge_retrieval_hits(hits: tuple[RetrievalHit, ...]) -> tuple[RepositoryCand
                     matched_queries=(hit.query,),
                     matched_channels=(hit.channel,),
                     best_rank_by_channel={hit.channel: hit.rank},
-                    hit_count=1,
+                    raw_hit_count=1,
                     match_evidence=(build_retrieval_match_evidence(hit),),
                 ),
             )
@@ -85,7 +85,7 @@ def merge_repository_candidates(
                         *candidate.provenance.best_rank_by_channel,
                     )
                 },
-                hit_count=existing.provenance.hit_count + candidate.provenance.hit_count,
+                raw_hit_count=existing.provenance.raw_hit_count + candidate.provenance.raw_hit_count,
                 match_evidence=_append_many_unique_evidence(
                     existing.provenance.match_evidence,
                     candidate.provenance.match_evidence,
@@ -115,7 +115,7 @@ def _merge_provenance(
         matched_queries=matched_queries,
         matched_channels=matched_channels,
         best_rank_by_channel=best_rank_by_channel,
-        hit_count=existing.hit_count + 1,
+        raw_hit_count=existing.raw_hit_count + 1,
         match_evidence=_append_unique_evidence(
             existing.match_evidence,
             build_retrieval_match_evidence(incoming),

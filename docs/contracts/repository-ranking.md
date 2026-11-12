@@ -50,7 +50,7 @@ plan rather than interpreting historical hits as occurrence counts.
 ## Visibility and explicit configuration
 
 Admission still governs candidate eligibility. The additional score filter is
-`score >= relevance_cutoff`. Composition reads and validates
+`score >= score_threshold`. Composition reads and validates
 `EXPLORE_SEARCH_LOG_MATCH_CUTOFF` and supplies it through `ExploreDependencies` to
 initial, partial, and expanded search evaluation. It must be finite and
 nonnegative. The default is 0, disabling additional score-based exclusion while
@@ -69,11 +69,23 @@ creation-time policy metadata; if expanded after deployment, its new stage is
 evaluated using the new formula. Each stage's score breakdown identifies the
 policy that actually produced it.
 
-New ranking breakdown JSON has `schema_version: 2`, `formula`, and `locations`,
-where each location has `location`, `count`, `weight`, and unrounded `points`.
-Ranking features contain `location_counts` alongside retrieval diagnostics.
-Unversioned historical breakdowns retain strongest-match/corroboration fields.
-The diagnostic UI handles both representations without rewriting history.
+New ranking breakdown JSON has `schema_version: 3`, `formula`, and `locations`,
+where each location has `location`, `count`, `weight`, and unrounded `contribution`.
+Ranking features contain `match_counts_by_location`, `raw_hit_count`, and
+`evidence_record_count` alongside query diagnostics. Counts of raw deliveries and
+retained evidence records are distinct from the deduplicated scoring counts.
+The UI labels query coverage as "Matched queries"; this fraction is not Recall.
+
+Historical version-2 breakdowns retain `points`; their features retain
+`location_counts`, `hit_count`, and `evidence_count`. Unversioned historical
+breakdowns retain strongest-match/corroboration fields. The diagnostic UI reads
+all three representations without rewriting history. This is a representation
+change only: the scoring policy identifier and numeric formula are unchanged.
+
+Internal provenance and admission contracts use `raw_hit_count`. Durable catalog
+observation counts keep their existing `hit_count` storage contract, and resumable
+execution JSON keeps its existing `hitCount` key with an explicit mapping to the
+renamed application field. No database or execution-state migration is needed.
 There is no table migration or backfill. Resumable retrieval evidence retains
 its existing schema and is recounted on subsequent evaluation. Counting uses the
 public `retrieval.evidence.classify_match_path` contract to classify path-bearing

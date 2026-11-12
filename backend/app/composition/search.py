@@ -61,7 +61,7 @@ def build_explore_dependencies(*, repositories: RepositoryAdapters) -> ExploreDe
     embeddings = build_embedding_provider() if config.SEMANTIC_CATALOG_ENABLED else None
     return ExploreDependencies(
         planner=planner, lanes=tuple(lanes), embeddings=embeddings,
-        relevance_cutoff=config.EXPLORE_SEARCH_LOG_MATCH_CUTOFF,
+        score_threshold=config.EXPLORE_SEARCH_LOG_MATCH_CUTOFF,
     )
 
 

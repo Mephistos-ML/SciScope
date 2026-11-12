@@ -15,4 +15,4 @@ class ExploreDependencies:
     planner: AiSearchPlanner
     lanes: tuple[RetrievalLane, ...]
     embeddings: EmbeddingProvider | None
-    relevance_cutoff: float = 0.0
+    score_threshold: float = 0.0

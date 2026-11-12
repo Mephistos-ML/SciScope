@@ -48,7 +48,7 @@ def test_catalog_retrieval_keeps_query_specific_evidence(tmp_path) -> None:
             matched_queries=("paramagnetic nmr", "paramagnetic relaxation"),
             matched_channels=("repository_search", "code_search"),
             best_rank_by_channel={"repository_search": 1, "code_search": 3},
-            hit_count=2,
+            raw_hit_count=2,
             match_evidence=(
                 RetrievalMatchEvidence(
                     query="paramagnetic nmr",
@@ -114,7 +114,7 @@ def test_catalog_evidence_keeps_its_location_for_a_case_variant_current_query(tm
             matched_queries=("paramagnetic nmr shifts",),
             matched_channels=("repository_search",),
             best_rank_by_channel={"repository_search": 1},
-            hit_count=1,
+            raw_hit_count=1,
             match_evidence=(
                 RetrievalMatchEvidence(
                     query="paramagnetic nmr shifts",
@@ -135,7 +135,7 @@ def test_catalog_evidence_keeps_its_location_for_a_case_variant_current_query(tm
         queries=("Paramagnetic NMR",),
     )
 
-    assert [(item.location, item.count) for item in ranked.ranked_candidates[0].features.location_counts] == [("description", 1)]
+    assert [(item.location, item.count) for item in ranked.ranked_candidates[0].features.match_counts_by_location] == [("description", 1)]
 
 
 def test_expected_catalog_outage_preserves_external_retrieval_path(monkeypatch):

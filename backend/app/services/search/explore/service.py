@@ -158,7 +158,7 @@ def run_explore_search(
         retrieval_sequence = _retrieve_planned_queries(
             lanes=dependencies.lanes,
             embeddings=dependencies.embeddings,
-            relevance_cutoff=dependencies.relevance_cutoff,
+            score_threshold=dependencies.score_threshold,
             queries=planned_queries,
             topic_description=topic_description,
             ai_search_plan_payload=ai_search_plan_payload,
@@ -173,7 +173,7 @@ def run_explore_search(
         evaluation = build_explore_search_evaluation(
             retrieved,
             queries=executed_queries,
-            relevance_cutoff=dependencies.relevance_cutoff,
+            score_threshold=dependencies.score_threshold,
             log_context=log_context,
         )
         admitted_repository_ids = {
@@ -244,7 +244,7 @@ def run_explore_search(
                 candidate_count=len(retrieved.candidates),
                 admitted_candidate_count=len(evaluation.admission.visible_candidates),
                 visible_result_count=len(visible_candidates),
-                relevance_cutoff=evaluation.ranking.relevance_cutoff,
+                score_threshold=evaluation.ranking.score_threshold,
                 top_score=(
                     evaluation.ranking.ranked_candidates[0].score
                     if evaluation.ranking.ranked_candidates
@@ -299,7 +299,7 @@ def run_explore_search(
                 candidate_count=len(retrieved.candidates),
                 admitted_candidate_count=len(evaluation.admission.visible_candidates),
                 visible_result_count=len(visible_candidates),
-                relevance_cutoff=evaluation.ranking.relevance_cutoff,
+                score_threshold=evaluation.ranking.score_threshold,
                 ai_planning_duration_ms=planning_duration_ms,
                 retrieval_duration_ms=retrieval_duration_ms,
                 evaluation_duration_ms=evaluation_duration_ms,
@@ -353,7 +353,7 @@ def expand_explore_search(
     retrieval_sequence = _retrieve_planned_queries(
         lanes=dependencies.lanes,
         embeddings=dependencies.embeddings,
-        relevance_cutoff=dependencies.relevance_cutoff,
+        score_threshold=dependencies.score_threshold,
         queries=next_queries,
         topic_description=topic_description,
         ai_search_plan_payload=ai_search_plan_payload,
@@ -369,7 +369,7 @@ def expand_explore_search(
     evaluation = build_explore_search_evaluation(
         retrieved,
         queries=executed_queries,
-        relevance_cutoff=dependencies.relevance_cutoff,
+        score_threshold=dependencies.score_threshold,
         log_context=log_context,
     )
     admitted_repository_ids = {
@@ -516,7 +516,7 @@ def _build_ranking_candidate_reports(
                 "best_rank_by_channel": dict(
                     ranked.candidate.provenance.best_rank_by_channel
                 ),
-                "hit_count": ranked.candidate.provenance.hit_count,
+                "raw_hit_count": ranked.candidate.provenance.raw_hit_count,
                 "match_evidence": [
                     {
                         "query": evidence.query,
@@ -563,7 +563,7 @@ def _retrieve_planned_queries(
     progress_callback: ExploreSearchProgressCallback | None,
     log_context: SearchLogContext | None,
     database_url: str,
-    relevance_cutoff: float,
+    score_threshold: float,
 ) -> _RetrievalSequence:
     """Retrieve planned queries until one completes or every timeout fallback is exhausted."""
 
@@ -586,7 +586,7 @@ def _retrieve_planned_queries(
             _retrieve_query_with_timeout_retries(
                 lanes=lanes,
                 embeddings=embeddings,
-                relevance_cutoff=relevance_cutoff,
+                score_threshold=score_threshold,
                 query=query,
                 topic_description=topic_description,
                 ai_search_plan_payload=ai_search_plan_payload,
@@ -628,7 +628,7 @@ def _retrieve_query_with_timeout_retries(
     progress_callback: ExploreSearchProgressCallback | None,
     log_context: SearchLogContext | None,
     database_url: str,
-    relevance_cutoff: float,
+    score_threshold: float,
 ) -> tuple[RetrievedCandidates, tuple[ExploreQueryAttempt, ...], tuple, bool, int, int]:
     """Retry one timed-out query before the plan moves to another angle."""
 
@@ -645,7 +645,7 @@ def _retrieve_query_with_timeout_retries(
         external_retrieved = _run_external_retrieval(
             (query,),
             lanes=lanes,
-            relevance_cutoff=relevance_cutoff,
+            score_threshold=score_threshold,
             local_candidates=local_candidates,
             topic_description=topic_description,
             ai_search_plan_payload=ai_search_plan_payload,
@@ -750,7 +750,7 @@ def _run_external_retrieval(
     soft_deadline_monotonic: float | None,
     hard_deadline_monotonic: float | None,
     log_context: SearchLogContext | None,
-    relevance_cutoff: float,
+    score_threshold: float,
 ) -> RetrievedCandidates:
     retrieval_options: dict[str, object] = {"log_context": log_context}
     if soft_deadline_monotonic is not None:
@@ -774,7 +774,7 @@ def _run_external_retrieval(
                     warnings=partial.warnings,
                 ),
                 queries=queries,
-                relevance_cutoff=relevance_cutoff,
+                score_threshold=score_threshold,
             )
         )
     return run_external_repository_retrieval(queries, lanes=lanes, **retrieval_options)
@@ -786,12 +786,12 @@ def _build_explore_search_progress_payload(
     ai_search_plan_payload: dict[str, object],
     retrieved,
     queries: tuple[str, ...],
-    relevance_cutoff: float,
+    score_threshold: float,
 ) -> dict[str, object]:
     evaluation = build_explore_search_evaluation(
         retrieved,
         queries=queries,
-        relevance_cutoff=relevance_cutoff,
+        score_threshold=score_threshold,
     )
     return build_explore_search_payload(
         topic_description=topic_description,

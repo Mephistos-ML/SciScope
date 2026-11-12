@@ -14,8 +14,8 @@ from app.services.search.ranking.models import (
     RankingResult,
 )
 from app.services.search.ranking.score import (
-    build_relevance_score_breakdown,
-    calculate_relevance_score,
+    build_ranking_score_breakdown,
+    calculate_ranking_score,
 )
 from app.services.search.retrieval import RepositoryCandidate
 
@@ -24,19 +24,19 @@ def rank_repository_candidates(
     candidates: Sequence[RepositoryCandidate],
     *,
     queries: Sequence[str],
-    relevance_cutoff: float = 0.0,
+    score_threshold: float = 0.0,
 ) -> RankingResult:
     """Rank one admitted candidate pool using source-agnostic evidence."""
 
-    if not isfinite(relevance_cutoff) or relevance_cutoff < 0.0:
-        raise ValueError("relevance_cutoff must be finite and nonnegative")
+    if not isfinite(score_threshold) or score_threshold < 0.0:
+        raise ValueError("score_threshold must be finite and nonnegative")
 
     ranked_candidates = [
         RankedRepositoryCandidate(
             candidate=candidate,
             features=features,
-            score=calculate_relevance_score(features),
-            score_breakdown=build_relevance_score_breakdown(features),
+            score=calculate_ranking_score(features),
+            score_breakdown=build_ranking_score_breakdown(features),
         )
         for candidate in candidates
         for features in (build_ranking_features(candidate, queries),)
@@ -51,5 +51,5 @@ def rank_repository_candidates(
 
     return RankingResult(
         ranked_candidates=tuple(ranked_candidates),
-        relevance_cutoff=relevance_cutoff,
+        score_threshold=score_threshold,
     )

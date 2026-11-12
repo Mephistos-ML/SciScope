@@ -28,7 +28,7 @@ def _candidate(name: str, query: str) -> RepositoryCandidate:
         ),
         provenance=CandidateProvenance(
             matched_queries=(query,), matched_channels=("repository_search",),
-            best_rank_by_channel={"repository_search": 1}, hit_count=1,
+            best_rank_by_channel={"repository_search": 1}, raw_hit_count=1,
         ),
     )
 
@@ -66,7 +66,7 @@ def test_timeout_fallback_retains_results_and_diagnostics(monkeypatch, next_resu
     monkeypatch.setattr(service, "_run_external_retrieval", retrieve)
     queries = ("first", "second") if next_result == "timeout" else ("first", "second", "unused")
     sequence = service._retrieve_planned_queries(
-        relevance_cutoff=0.0,
+        score_threshold=0.0,
         lanes=(), embeddings=None,
         queries=queries, topic_description="Scientific tools",
         ai_search_plan_payload={"status": "ready", "queries": list(queries)},

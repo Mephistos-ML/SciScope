@@ -24,12 +24,15 @@ export function SearchDiagnosticsRepositoryDetails({
   const admission = snapshot.admissionFacts;
   const retrieval = snapshot.retrievalFacts;
   const scoreBreakdown = snapshot.scoreBreakdown;
-  const isLogMatchScore = scoreBreakdown.schema_version === 2;
-  const locations = readLocationContributions(scoreBreakdown.locations);
+  const snapshotVersion = scoreBreakdown.schema_version;
+  const isLogMatchScore = snapshotVersion === 2 || snapshotVersion === 3;
+  const locations = readLocationContributions(scoreBreakdown.locations, snapshotVersion);
   const matchedQueryCount = readNumber(features, "matched_query_count");
   const totalQueryCount = readNumber(features, "total_query_count");
-  const evidenceCount = readNumber(features, "evidence_count");
-  const hitCount = readNumber(features, "hit_count");
+  const evidenceRecordCount = readNumber(
+    features, snapshotVersion === 3 ? "evidence_record_count" : "evidence_count",
+  );
+  const rawHitCount = readNumber(features, snapshotVersion === 3 ? "raw_hit_count" : "hit_count");
   const evidence = readMatchEvidence(retrieval.match_evidence);
 
   return (
@@ -47,11 +50,11 @@ export function SearchDiagnosticsRepositoryDetails({
 
       <div className="repository-diagnostics-metrics">
         <Metric
-          label="Query coverage"
+          label="Matched queries"
           value={formatRatio(matchedQueryCount, totalQueryCount)}
         />
-        <Metric label="Evidence" value={formatCount(evidenceCount, "items")} />
-        <Metric label="Raw hits" value={formatCount(hitCount, "hits")} />
+        <Metric label="Evidence records" value={formatCount(evidenceRecordCount, "records")} />
+        <Metric label="Raw hits" value={formatCount(rawHitCount, "hits")} />
         <Metric label="Admission" value={formatLabel(readString(admission, "decision") ?? "unknown")} />
       </div>
 
@@ -66,7 +69,7 @@ export function SearchDiagnosticsRepositoryDetails({
                   <Definition
                     key={item.location}
                     label={formatLabel(item.location)}
-                    value={`${item.count} matches × weight ${item.weight.toFixed(2)} → ${item.points.toFixed(4)} pts`}
+                    value={`${item.count} matches; weight ${item.weight.toFixed(2)}; contribution ${item.contribution.toFixed(4)}`}
                   />
                 ))}
               </dl>
@@ -193,8 +196,8 @@ function formatScore(value: number, isLogMatchScore: boolean): string {
   return isLogMatchScore ? value.toFixed(4) : `${value.toFixed(2)} / 100`;
 }
 
-function readLocationContributions(value: unknown): {
-  location: string; count: number; weight: number; points: number;
+function readLocationContributions(value: unknown, snapshotVersion: unknown): {
+  location: string; count: number; weight: number; contribution: number;
 }[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
@@ -203,9 +206,9 @@ function readLocationContributions(value: unknown): {
     const location = readString(candidate, "location");
     const count = readNumber(candidate, "count");
     const weight = readNumber(candidate, "weight");
-    const points = readNumber(candidate, "points");
-    return location && count !== null && weight !== null && points !== null
-      ? [{ location, count, weight, points }]
+    const contribution = readNumber(candidate, snapshotVersion === 3 ? "contribution" : "points");
+    return location && count !== null && weight !== null && contribution !== null
+      ? [{ location, count, weight, contribution }]
       : [];
   });
 }

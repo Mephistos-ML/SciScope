@@ -35,7 +35,7 @@ class AdmissionEvidence:
 
     matched_channels: tuple[str, ...]
     matched_query_count: int
-    hit_count: int
+    raw_hit_count: int
     path_strength: AdmissionPathStrength
     has_language: bool
     software_term_hits: tuple[str, ...]
@@ -92,7 +92,7 @@ class CandidateFacts:
 
     has_code_search: bool
     matched_query_count: int
-    hit_count: int
+    raw_hit_count: int
     has_language: bool
     language: str
     repo_name_negative_hits: tuple[str, ...]

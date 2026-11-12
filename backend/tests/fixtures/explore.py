@@ -77,7 +77,7 @@ def build_retrieved_candidates(
     partial: bool = False,
     warnings: tuple[str, ...] = (),
     matched_channels: tuple[str, ...] = ("repository_search",),
-    hit_count: int = 1,
+    raw_hit_count: int = 1,
     match_locations: tuple[RetrievalMatchLocation, ...] | None = None,
 ) -> RetrievedCandidates:
     return RetrievedCandidates(
@@ -91,7 +91,7 @@ def build_retrieved_candidates(
                     best_rank_by_channel={
                         channel_name: 1 for channel_name in matched_channels
                     },
-                    hit_count=hit_count,
+                    raw_hit_count=raw_hit_count,
                     match_evidence=(
                         RetrievalMatchEvidence(
                             query=str(signal.payload.get("query") or ""),

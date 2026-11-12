@@ -58,7 +58,7 @@ class CandidateProvenance:
     matched_queries: tuple[str, ...]
     matched_channels: tuple[str, ...]
     best_rank_by_channel: Mapping[str, int]
-    hit_count: int
+    raw_hit_count: int
     match_evidence: tuple[RetrievalMatchEvidence, ...] = ()
     origins: tuple[RetrievalMatchOrigin, ...] = ("provider",)
 

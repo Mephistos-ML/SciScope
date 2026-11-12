@@ -258,7 +258,7 @@ def _build_candidate(
                     default=1,
                 )
             },
-            hit_count=len(evidence),
+            raw_hit_count=len(evidence),
             match_evidence=evidence,
             origins=("catalog",),
         ),

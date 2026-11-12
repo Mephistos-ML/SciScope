@@ -96,7 +96,7 @@ def serialize_execution(execution: ExploreSearchExecution) -> dict[str, object]:
                         "matchedQueries": list(candidate.provenance.matched_queries),
                         "matchedChannels": list(candidate.provenance.matched_channels),
                         "bestRankByChannel": dict(candidate.provenance.best_rank_by_channel),
-                        "hitCount": candidate.provenance.hit_count,
+                        "hitCount": candidate.provenance.raw_hit_count,
                         "matchEvidence": [
                             {
                                 "query": evidence.query,
@@ -231,7 +231,7 @@ def _deserialize_candidate(value: object) -> RepositoryCandidate:
                 _count(rank, "bestRankByChannel", minimum=1)
                 for key, rank in ranks.items()
             },
-            hit_count=_count(provenance["hitCount"], "hitCount"),
+            raw_hit_count=_count(provenance["hitCount"], "hitCount"),
             match_evidence=tuple(
                 _deserialize_evidence(item)
                 for item in _list(provenance["matchEvidence"], "matchEvidence")

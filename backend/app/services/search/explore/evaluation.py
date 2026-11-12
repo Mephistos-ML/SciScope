@@ -30,7 +30,7 @@ def build_explore_search_evaluation(
     retrieved: RetrievedCandidates,
     *,
     queries: Sequence[str],
-    relevance_cutoff: float = 0.0,
+    score_threshold: float = 0.0,
     log_context: SearchLogContext | None = None,
 ) -> ExploreSearchEvaluation:
     """Evaluate every retrieved candidate once for all response modes."""
@@ -44,7 +44,7 @@ def build_explore_search_evaluation(
     admission_duration_ms = max(0, int((monotonic() - admission_started_at) * 1000))
     ranking_started_at = monotonic()
     ranking = rank_repository_candidates(
-        retrieved.candidates, queries=queries, relevance_cutoff=relevance_cutoff,
+        retrieved.candidates, queries=queries, score_threshold=score_threshold,
     )
     ranking_duration_ms = max(0, int((monotonic() - ranking_started_at) * 1000))
     return ExploreSearchEvaluation(
