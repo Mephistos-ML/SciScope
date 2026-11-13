@@ -28,7 +28,7 @@ def discover_repository_candidates_from_code(
     client: GitHubClient,
     deadline_monotonic: float | None = None,
     per_query_limit: int = 100,
-    max_pages: int = 2,
+    max_pages: int = 10,
 ) -> list[Signal]:
     """Search GitHub code and lift matched repositories into candidates."""
 

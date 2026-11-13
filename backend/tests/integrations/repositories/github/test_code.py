@@ -117,6 +117,39 @@ def repository_client():
     return make_repository_client("github")
 
 
+def test_default_code_search_stops_at_ten_full_pages(monkeypatch, repository_client):
+    pages = []
+
+    def fetch(url):
+        pages.append(int(parse_qs(urlsplit(url).query)["page"][0]))
+        return JsonResponse({"items": [{}] * 100}, url)
+
+    monkeypatch.setattr(repository_client, "fetch_json", fetch)
+    github_code_search.discover_repository_candidates_from_code(
+        ["scientific software"], client=repository_client,
+    )
+    assert pages == list(range(1, 11))
+
+
+@pytest.mark.parametrize("last_page_size, expected_pages", [(30, [1, 2]), (100, [1, 2, 3])])
+def test_default_code_search_stops_when_results_end(
+    monkeypatch, repository_client, last_page_size, expected_pages,
+):
+    pages = []
+
+    def fetch(url):
+        page = int(parse_qs(urlsplit(url).query)["page"][0])
+        pages.append(page)
+        size = 100 if page == 1 else last_page_size if page == 2 else 0
+        return JsonResponse({"items": [{}] * size}, url)
+
+    monkeypatch.setattr(repository_client, "fetch_json", fetch)
+    github_code_search.discover_repository_candidates_from_code(
+        ["scientific software"], client=repository_client,
+    )
+    assert pages == expected_pages
+
+
 @pytest.mark.parametrize("query", ["paramagnetic nmr", "x" * 185, 'method "quoted"', r"method\file"])
 def test_code_search_sends_one_filtered_request_with_a_literal_phrase(
     monkeypatch, repository_client, query,
