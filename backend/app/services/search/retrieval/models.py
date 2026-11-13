@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from typing import Literal, Mapping, Protocol
 
 from app.models.signal import Signal
+from app.integrations.repositories.common.models import RepositoryDiscoveryBatch
 
 
 RetrievalMatchLocation = Literal[
@@ -108,7 +109,7 @@ class RetrievedCandidates:
 class RepositoryDiscoverer(Protocol):
     def __call__(
         self, queries: Sequence[str], *, deadline_monotonic: float | None,
-    ) -> list[Signal]: ...
+    ) -> list[Signal] | RepositoryDiscoveryBatch: ...
 
 
 @dataclass(frozen=True)

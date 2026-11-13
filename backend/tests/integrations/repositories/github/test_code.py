@@ -117,6 +117,17 @@ def repository_client():
     return make_repository_client("github")
 
 
+def test_result_count_reported_even_for_an_empty_page(monkeypatch, repository_client):
+    monkeypatch.setattr(repository_client, "fetch_json", lambda url: JsonResponse({
+        "total_count": 1001, "items": [],
+    }, url))
+    counts = []
+    assert github_code_search.discover_repository_candidates_from_code(
+        ["science"], client=repository_client, report_result_count=counts.append,
+    ) == []
+    assert counts == [1001]
+
+
 def test_default_code_search_stops_at_ten_full_pages(monkeypatch, repository_client):
     pages = []
 

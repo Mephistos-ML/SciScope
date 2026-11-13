@@ -4,6 +4,7 @@
 """Select concrete search implementations at application startup."""
 
 import logging
+from collections.abc import Sequence
 from functools import partial
 from pathlib import Path
 from urllib.parse import urlparse
@@ -19,12 +20,25 @@ from app.services.ai.planner import AiSearchPlanner
 from app.services.ai.search_plans import build_bootstrap_ai_search_plan
 from app.services.search.explore.dependencies import ExploreDependencies
 from app.services.search.retrieval.models import RetrievalLane
+from app.integrations.repositories.common.models import RepositoryDiscoveryBatch
+from app.integrations.repositories.github.client import GitHubClient
 from app.integrations.repositories.github.search.repository import discover_repository_candidates as github_repositories
 from app.integrations.repositories.github.search.code import discover_repository_candidates_from_code as github_code
 from app.integrations.repositories.gitlab.search.repository import discover_repository_candidates as gitlab_repositories
 from app.integrations.repositories.gitlab.search.code import discover_repository_candidates_from_code as gitlab_code
 
 logger = logging.getLogger(__name__)
+
+
+def _github_code_with_coverage(
+    queries: Sequence[str], *, client: GitHubClient, deadline_monotonic: float | None,
+) -> RepositoryDiscoveryBatch:
+    counts: list[int] = []
+    signals = github_code(
+        queries, client=client, deadline_monotonic=deadline_monotonic,
+        report_result_count=counts.append,
+    )
+    return RepositoryDiscoveryBatch(tuple(signals), tuple(counts))
 
 
 def build_explore_dependencies(*, repositories: RepositoryAdapters) -> ExploreDependencies:
@@ -52,7 +66,7 @@ def build_explore_dependencies(*, repositories: RepositoryAdapters) -> ExploreDe
 
     lanes = [
         RetrievalLane("github", "repository_search", partial(github_repositories, client=repositories.github)),
-        RetrievalLane("github", "code_search", partial(github_code, client=repositories.github)),
+        RetrievalLane("github", "code_search", partial(_github_code_with_coverage, client=repositories.github)),
         RetrievalLane("gitlab", "repository_search", partial(gitlab_repositories, client=repositories.gitlab)),
     ]
     hostname = (urlparse(repositories.gitlab.base_url).hostname or "").casefold()

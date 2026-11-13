@@ -253,7 +253,7 @@ export function App() {
               turnstileRequired: false,
             });
             setIsExpandingSearch(false);
-          } else if (snapshot.status === "completed_partial" && snapshot.message) {
+          } else if (snapshot.message) {
             setExploreSearchFeedback({
               message: snapshot.message,
               retryUntilEpochMs: null,

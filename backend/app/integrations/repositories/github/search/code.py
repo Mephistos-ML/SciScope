@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 import logging
 from time import monotonic
 from urllib.parse import quote_plus
@@ -29,6 +29,7 @@ def discover_repository_candidates_from_code(
     deadline_monotonic: float | None = None,
     per_query_limit: int = 100,
     max_pages: int = 10,
+    report_result_count: Callable[[int], None] | None = None,
 ) -> list[Signal]:
     """Search GitHub code and lift matched repositories into candidates."""
 
@@ -70,6 +71,10 @@ def discover_repository_candidates_from_code(
                 raise
             if not isinstance(payload, dict):
                 break
+
+            total = payload.get("total_count")
+            if report_result_count is not None and type(total) is int and total >= 0:
+                report_result_count(total)
 
             items = payload.get("items")
             if not isinstance(items, list) or not items:

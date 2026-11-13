@@ -32,6 +32,8 @@ from app.integrations.repositories.common.source_status import (
     build_source_status,
 )
 
+from app.integrations.repositories.common.models import RepositoryDiscoveryBatch
+
 logger = logging.getLogger(__name__)
 
 RetrievalProgressCallback = Callable[[RetrievedCandidates], None]
@@ -52,6 +54,15 @@ class LaneResult:
     query_failures: tuple["QueryFailure", ...] = ()
     completed_query_count: int | None = None
     crashed: bool = False
+    broad_query: bool = False
+
+
+@dataclass(frozen=True)
+class LaneDiscoveryResult:
+    signals: list[Signal]
+    query_failures: tuple["QueryFailure", ...]
+    completed_query_count: int | None
+    broad_query: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -373,7 +384,7 @@ def _run_lane_worker(
     )
     lane_started_at = monotonic()
     try:
-        source_candidates, query_failures, completed_query_count = _run_lane_discoverer(
+        discovery = _run_lane_discoverer(
             channel_name=channel_name,
             discover_candidates=discover_candidates,
             queries=queries,
@@ -422,9 +433,10 @@ def _run_lane_worker(
             source_name=source_name,
             channel_name=channel_name,
             started_at_monotonic=lane_started_at,
-            source_candidates=source_candidates,
-            query_failures=query_failures,
-            completed_query_count=completed_query_count,
+            source_candidates=discovery.signals,
+            query_failures=discovery.query_failures,
+            completed_query_count=discovery.completed_query_count,
+            broad_query=discovery.broad_query,
         )
     )
 
@@ -435,30 +447,34 @@ def _run_lane_discoverer(
     discover_candidates: RepositoryDiscoverer,
     queries: Sequence[str],
     lane_deadline_monotonic: float | None,
-) -> tuple[list[Signal], tuple[QueryFailure, ...], int | None]:
+) -> LaneDiscoveryResult:
     """Run a lane, retaining completed code-search queries after local failures."""
 
     if channel_name != "code_search":
-        return (
-            discover_candidates(
-                queries,
-                deadline_monotonic=lane_deadline_monotonic,
-            ),
-            (),
-            None,
+        result = discover_candidates(
+            queries,
+            deadline_monotonic=lane_deadline_monotonic,
+        )
+        return LaneDiscoveryResult(
+            list(result.signals) if isinstance(result, RepositoryDiscoveryBatch) else result,
+            (), None,
         )
 
     source_candidates: list[Signal] = []
     query_failures: list[QueryFailure] = []
     completed_query_count = 0
+    broad_query = False
     for query in queries:
         try:
-            source_candidates.extend(
-                discover_candidates(
-                    (query,),
-                    deadline_monotonic=lane_deadline_monotonic,
-                )
+            result = discover_candidates(
+                (query,),
+                deadline_monotonic=lane_deadline_monotonic,
             )
+            if isinstance(result, RepositoryDiscoveryBatch):
+                broad_query = broad_query or any(count > 1000 for count in result.reported_result_counts)
+                source_candidates.extend(result.signals)
+            else:
+                source_candidates.extend(result)
             completed_query_count += 1
         except RepositorySourceError as exc:
             query_failures.append(QueryFailure(query=query, error=exc))
@@ -467,7 +483,9 @@ def _run_lane_discoverer(
             ):
                 break
 
-    return source_candidates, tuple(query_failures), completed_query_count
+    return LaneDiscoveryResult(
+        source_candidates, tuple(query_failures), completed_query_count, broad_query,
+    )
 
 
 def _build_query_failure_warning(

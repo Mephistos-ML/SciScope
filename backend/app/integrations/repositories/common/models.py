@@ -20,6 +20,14 @@ class JsonResponse:
 
 
 @dataclass(frozen=True)
+class RepositoryDiscoveryBatch:
+    """Candidates and provider-reported result counts for one discovery call."""
+
+    signals: tuple[Signal, ...]
+    reported_result_counts: tuple[int, ...] = ()
+
+
+@dataclass(frozen=True)
 class RepositoryActivityBatch:
     """Mapped events and completeness of one provider activity stream."""
 

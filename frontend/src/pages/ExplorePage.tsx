@@ -201,7 +201,7 @@ export function ExplorePage({
             </p>
           ) : null}
           {exploreSearchFeedback ? (
-            <div className="query-feedback-panel">
+            <div className="query-feedback-panel" role="status">
               <p className="query-feedback-copy">{exploreSearchFeedback.message}</p>
               {requiresTurnstile ? (
                 <>

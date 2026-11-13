@@ -184,3 +184,12 @@ retains README files with allowed extensions. Existing catalog evidence is not
 retroactively removed or rewritten. Research collection records this scope in its
 identity and rejects incompatible resume/replay; see
 [the file-scope contract](../../benchmarks/research/github-code-file-policy.md).
+
+When GitHub reports a code-search pool above its retrieval cap, Explore returns
+one refinement suggestion through its existing message field. The suggestion
+asks for a more specific method, tool or scientific task without displaying
+provider names, file counts or API limits. Provider counts travel as discovery
+diagnostics independently of candidate signals, including empty responses.
+The suggestion does not change scores or redefine the `partial` flag; it is
+shown for completed searches as well as partial searches and is preserved in
+the existing resumable warning contract.
