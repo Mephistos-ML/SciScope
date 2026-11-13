@@ -37,7 +37,6 @@ def build_explore_repository_signal(
             "query": query,
             "topics": ["paramagnetic-nmr", "pcs"],
             "language": "Python",
-            "stars": 14,
         },
     )
 
@@ -65,7 +64,6 @@ def build_code_only_explore_repository_signal(
             "query": query,
             "topics": ["lammps", "molecular-simulation"],
             "language": "C++",
-            "stars": 4,
         },
     )
 

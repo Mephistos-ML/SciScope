@@ -58,7 +58,6 @@ def discover(
                 "author": "science",
                 "description": f"{query} simulation software",
                 "language": "Python",
-                "stars": 100,
                 "topics": [query],
                 "query": query,
             },

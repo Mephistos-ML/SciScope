@@ -177,13 +177,6 @@ def _merge_signals(existing: Signal, incoming: Signal) -> Signal:
     if merged_language:
         merged_payload["language"] = merged_language
 
-    merged_stars = _prefer_larger_int(
-        preferred.payload.get("stars"),
-        secondary.payload.get("stars"),
-    )
-    if merged_stars is not None:
-        merged_payload["stars"] = merged_stars
-
     merged_repo = _prefer_non_empty_string(
         preferred.payload.get("repo"),
         secondary.payload.get("repo"),
@@ -241,18 +234,6 @@ def _prefer_non_empty_string(first_value: object, second_value: object) -> str:
         if text:
             return text
     return ""
-
-
-def _prefer_larger_int(first_value: object, second_value: object) -> int | None:
-    values: list[int] = []
-    for raw_value in (first_value, second_value):
-        try:
-            values.append(int(raw_value))
-        except (TypeError, ValueError):
-            continue
-    if not values:
-        return None
-    return max(values)
 
 
 def _prefer_richer_raw_text(first_value: str, second_value: str) -> str:

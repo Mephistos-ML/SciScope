@@ -24,7 +24,6 @@ def test_discover_repository_candidates_builds_raw_signals(monkeypatch, reposito
                     "description": "Paramagnetic NMR tooling for PCS fitting.",
                     "topics": ["paramagnetic-nmr", "pcs"],
                     "language": "Python",
-                    "stargazers_count": 14,
                     "updated_at": "2026-09-03T12:30:00Z",
                     "owner": {"login": "Mephistos-ML"},
                 }
@@ -43,7 +42,6 @@ def test_discover_repository_candidates_builds_raw_signals(monkeypatch, reposito
     assert signal.kind == "repository"
     assert signal.item_id == "github:repo:123"
     assert signal.payload["repo"] == "Mephistos-ML/paranmr"
-    assert signal.payload["stars"] == 14
     assert signal.payload["provider_updated_at"] == "2026-09-03T12:30:00+00:00"
     assert "Paramagnetic NMR tooling" in signal.raw_text
 

@@ -67,7 +67,6 @@ def render(root: Path) -> str:
         "LocationMatchCount",
         "RankingFeatures",
         "LocationScoreContribution",
-        "PopularityScoreContribution",
         "RankingScoreBreakdown",
     }
 

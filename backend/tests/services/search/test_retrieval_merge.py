@@ -40,7 +40,6 @@ def _build_repository_signal(
             "description": "A python package for working with ORCA.",
             "topics": ["orca", "chemistry"],
             "language": "Python",
-            "stars": 12,
         },
     )
 
@@ -183,7 +182,6 @@ def test_merge_retrieval_hits_preserves_language_from_richer_duplicate_signal() 
             "query": "pair potential",
             "topics": [],
             "language": "",
-            "stars": 0,
         },
     )
 
@@ -209,7 +207,6 @@ def test_merge_retrieval_hits_preserves_language_from_richer_duplicate_signal() 
     assert len(candidates) == 1
     candidate = candidates[0]
     assert candidate.signal.payload["language"] == "Python"
-    assert candidate.signal.payload["stars"] == 12
     assert candidate.signal.payload["topics"] == ["orca", "chemistry"]
     assert "Matched code path:" in candidate.signal.raw_text
 

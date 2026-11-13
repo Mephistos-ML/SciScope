@@ -138,7 +138,6 @@ def _profile_values(repository: Repository, timestamp: datetime) -> dict[str, ob
         "owner_login": repository.owner_login,
         "description": repository.description,
         "language": repository.language,
-        "stars": repository.stars,
         "topics_json": list(repository.topics),
         "search_text": _build_search_text(repository),
         "last_seen_at": repository.last_seen_at or timestamp,
@@ -235,7 +234,7 @@ def find_catalog_repository_matches(
     statement = (
         select(RepositoryRecordModel)
         .where(or_(*profile_conditions, evidence_matches))
-        .order_by(RepositoryRecordModel.stars.desc(), RepositoryRecordModel.full_name.asc())
+        .order_by(RepositoryRecordModel.full_name.asc(), RepositoryRecordModel.repository_id.asc())
         .limit(limit)
     )
     with persistence_session(database_url) as session:
@@ -360,7 +359,6 @@ def _to_repository(record: RepositoryRecordModel) -> Repository:
         owner_login=record.owner_login,
         description=record.description,
         language=record.language,
-        stars=record.stars,
         topics=tuple(record.topics_json or []),
         first_seen_at=_ensure_utc(record.first_seen_at),
         last_seen_at=_ensure_utc(record.last_seen_at),

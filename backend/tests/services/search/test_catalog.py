@@ -70,7 +70,6 @@ def test_catalog_retrieval_keeps_query_specific_evidence(tmp_path) -> None:
                 "description": "Paramagnetic NMR fitting toolkit.",
                 "language": "Python",
                 "topics": ["paramagnetic-nmr"],
-                "stars": 14,
                 "provider_updated_at": "2026-09-03T12:30:00+00:00",
                 "matched_excerpt": "Fits paramagnetic relaxation rates.",
             },

@@ -41,7 +41,6 @@ class RepositoryCandidate:
     description: str = ""
     owner_login: str = ""
     language: str = ""
-    stars: int = 0
     topics: tuple[str, ...] = ()
     matched_path: str = ""
     matched_excerpt: str = ""

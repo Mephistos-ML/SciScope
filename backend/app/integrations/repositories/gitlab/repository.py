@@ -56,10 +56,6 @@ def map_repository_profile(payload: object, *, base_url: str) -> Repository:
     ):
         raise _invalid_profile()
     topics = payload.get("topics")
-    try:
-        stars = int(payload.get("star_count") or 0)
-    except (TypeError, ValueError) as exc:
-        raise _invalid_profile() from exc
     return Repository(
         repository_id=build_repository_id("gitlab", provider_id),
         source="gitlab",
@@ -68,7 +64,6 @@ def map_repository_profile(payload: object, *, base_url: str) -> Repository:
         url=url,
         owner_login=full_name.split("/", 1)[0],
         description=str(payload.get("description") or ""),
-        stars=stars,
         topics=tuple(str(topic) for topic in topics) if isinstance(topics, list) else (),
         provider_updated_at=parse_provider_updated_at(payload.get("last_activity_at")),
         metadata={"repo": full_name},

@@ -45,10 +45,6 @@ def build_ranking_features(
         if normalize_query(item.query) in current_queries
     }
     counts = Counter(location for _, location, _ in distinct_matches)
-    reported_stars = candidate.signal.payload.get("stars")
-    stars = (
-        reported_stars if type(reported_stars) is int and reported_stars >= 0 else None
-    )
     return RankingFeatures(
         matched_query_count=count_current_query_matches(candidate, normalized_queries),
         total_query_count=len(normalized_queries),
@@ -58,5 +54,4 @@ def build_ranking_features(
             LocationMatchCount(location=location, count=count)
             for location, count in sorted(counts.items())
         ),
-        stars=stars,
     )

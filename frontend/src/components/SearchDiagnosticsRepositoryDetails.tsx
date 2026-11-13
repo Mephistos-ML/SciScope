@@ -3,7 +3,7 @@
 
 import type { SearchDiagnosticsRankingSnapshot } from "../types/api";
 import { SUPPORTED_LOG_MATCH_BREAKDOWN_SCHEMA_VERSIONS, RETRIEVAL_MATCH_LOCATIONS } from "../types/searchContracts.generated";
-import type { LocationScoreContribution, PopularityScoreContribution, RankingFeatures, RetrievalMatchLocation } from "../types/searchContracts.generated";
+import type { LocationScoreContribution, RankingFeatures, RetrievalMatchLocation } from "../types/searchContracts.generated";
 
 type SearchDiagnosticsRepositoryDetailsProps = {
   snapshot: SearchDiagnosticsRankingSnapshot;
@@ -30,7 +30,6 @@ export function SearchDiagnosticsRepositoryDetails({
   const isLogMatchScore = SUPPORTED_LOG_MATCH_BREAKDOWN_SCHEMA_VERSIONS.some((version) => version === snapshotVersion);
   const isHistoricalHeuristic = snapshotVersion === undefined;
   const hasNamedDiagnostics = isLogMatchScore && snapshotVersion !== 2;
-  const popularity = readPopularityContribution(scoreBreakdown.popularity);
   const locations = readLocationContributions(scoreBreakdown.locations, snapshotVersion);
   const matchedQueryCount = readNumber(features, "matched_query_count" satisfies keyof RankingFeatures);
   const totalQueryCount = readNumber(features, "total_query_count" satisfies keyof RankingFeatures);
@@ -82,18 +81,6 @@ export function SearchDiagnosticsRepositoryDetails({
                 ))}
               </dl>
               {!locations.length ? <p>No current-query matches.</p> : null}
-              {popularity ? (
-                <>
-                  <p>Popularity boost{popularity.max_bonus === 0 ? " (disabled)" : ""}</p>
-                  <dl className="repository-diagnostics-definition-list">
-                    <Definition label="Star count" value={formatCount(popularity.stars, "stars")} />
-                    <Definition label="Reference stars" value={formatCount(popularity.reference_stars, "stars")} />
-                    <Definition label="Maximum bonus" value={formatContribution(popularity.max_bonus)} />
-                    <Definition label="Normalized popularity" value={formatContribution(popularity.normalized_popularity)} />
-                    <Definition label="Popularity contribution" value={formatContribution(popularity.contribution)} />
-                  </dl>
-                </>
-              ) : null}
             </>
           ) : isHistoricalHeuristic ? (
           <dl className="repository-diagnostics-definition-list">
@@ -235,17 +222,6 @@ function readLocationContributions(value: unknown, snapshotVersion: unknown): Lo
 
 function isMatchLocation(value: string): value is RetrievalMatchLocation {
   return RETRIEVAL_MATCH_LOCATIONS.some((location) => location === value);
-}
-
-function readPopularityContribution(value: unknown): PopularityScoreContribution | null {
-  if (!value || typeof value !== "object") return null;
-  const candidate = value as Record<string, unknown>;
-  const reference_stars = readNumber(candidate, "reference_stars");
-  const max_bonus = readNumber(candidate, "max_bonus");
-  const normalized_popularity = readNumber(candidate, "normalized_popularity");
-  const contribution = readNumber(candidate, "contribution");
-  if (reference_stars === null || max_bonus === null || normalized_popularity === null || contribution === null) return null;
-  return { stars: readNumber(candidate, "stars"), reference_stars, max_bonus, normalized_popularity, contribution };
 }
 
 function formatRatio(numerator: number | null, denominator: number | null): string {

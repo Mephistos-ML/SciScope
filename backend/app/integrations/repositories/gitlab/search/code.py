@@ -116,7 +116,6 @@ def discover_repository_candidates_from_code(
                 description=str(project.get("description") or ""),
                 owner_login=owner_login,
                 language="",
-                stars=int(project.get("star_count") or 0),
                 topics=tuple(topic_list),
                 matched_path=str(item.get("path") or ""),
                 matched_excerpt=str(item.get("data") or ""),

@@ -48,8 +48,8 @@ def test_score_matches_the_agreed_multilocation_example():
         ("description", 2, 0.85),
         ("readme", 5, 0.65),
     ]
-    assert breakdown.schema_version == 4
-    assert breakdown.formula == "location_weighted_log_matches_v3"
+    assert breakdown.schema_version == 5
+    assert breakdown.formula == "location_weighted_log_matches_v4"
 
 
 @pytest.mark.parametrize(
@@ -299,7 +299,7 @@ def _build_candidate(
         url=f"https://example.test/{title}",
         published_at=None,
         raw_text=raw_text,
-        payload={"repo": title, "topics": [], "language": "", "stars": 0},
+        payload={"repo": title, "topics": [], "language": ""},
     )
     return RepositoryCandidate(
         repository_id=item_id,

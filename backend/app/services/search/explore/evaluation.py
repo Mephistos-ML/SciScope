@@ -13,7 +13,6 @@ from time import monotonic
 from app.services.search.admission import AdmissionResult, run_repository_admission
 from app.services.search.observability.context import SearchLogContext
 from app.services.search.ranking import RankingResult, rank_repository_candidates
-from app.services.search.ranking.models import PopularityBoostParameters
 from app.services.search.retrieval import RetrievedCandidates
 
 
@@ -34,7 +33,6 @@ def build_explore_search_evaluation(
     *,
     queries: Sequence[str],
     score_threshold: float = 0.0,
-    popularity_boost: PopularityBoostParameters = PopularityBoostParameters(),
     log_context: SearchLogContext | None = None,
 ) -> ExploreSearchEvaluation:
     """Evaluate every retrieved candidate once for all response modes."""
@@ -53,7 +51,7 @@ def build_explore_search_evaluation(
     ranking = rank_repository_candidates(
         retrieved.candidates,
         queries=queries,
-        popularity_boost=popularity_boost,
+
     )
     ranking_duration_ms = max(0, int((monotonic() - ranking_started_at) * 1000))
     return ExploreSearchEvaluation(

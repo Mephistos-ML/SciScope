@@ -35,7 +35,7 @@ function render(scoreBreakdown, finalScore, rankingFeatures = {}, candidateFacts
   }));
 }
 
-for (const version of [2, 3, 4]) {
+for (const version of [2, 3, 5]) {
 test(`renders version ${version} counts and log contributions without a percentage scale`, () => {
   const contributionKey = version >= 3 ? "contribution" : "points";
   const html = render({
@@ -84,27 +84,6 @@ test("renders the expanded taxonomy with its own policy identifier", () => {
   assert.doesNotMatch(html, /\/ 100/);
 });
 
-test("renders bounded popularity separately from match contributions", () => {
-  const html = render({
-    schema_version: 4, formula: "location_weighted_log_matches_v3", locations: [],
-    popularity: { stars: 1000, reference_stars: 1000, max_bonus: 0.05,
-      normalized_popularity: 1, contribution: 0.05 },
-  }, 0.05, { raw_hit_count: 1, evidence_record_count: 1 });
-  for (const label of ["Popularity boost", "Star count", "1000 stars", "Maximum bonus",
-    "Normalized popularity", "Popularity contribution", "0.0500"]) {
-    assert.match(html, new RegExp(label));
-  }
-  assert.doesNotMatch(html, /\/ 100|disabled/);
-});
-
-test("explains a disabled popularity boost with unavailable stars", () => {
-  const html = render({ schema_version: 4, locations: [], popularity: {
-    stars: null, reference_stars: 1000, max_bonus: 0, normalized_popularity: 0, contribution: 0,
-  } }, 0);
-  assert.match(html, /Popularity boost \(disabled\)/);
-  assert.match(html, /Star count<\/dt><dd>—/);
-});
-
 test("does not reinterpret unknown snapshot schemas as historical 0-100 scores", () => {
   const html = render({ schema_version: 999 }, 1.5);
   assert.match(html, /Unsupported ranking snapshot format/);
@@ -112,7 +91,7 @@ test("does not reinterpret unknown snapshot schemas as historical 0-100 scores",
 });
 
 test("renders recorded code/configuration identities without guessing missing historical values", () => {
-  const html = render({ schema_version: 4, locations: [] }, 0, {}, {
+  const html = render({ schema_version: 5, locations: [] }, 0, {}, {
     evaluation_provenance: { backend_revision: "a".repeat(40), configuration_fingerprint: "sha256:" + "b".repeat(64) },
   });
   assert.match(html, /Backend revision/);

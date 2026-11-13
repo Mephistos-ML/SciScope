@@ -10,7 +10,7 @@
         "title": "science/example", "url": "https://github.com/science/example",
         "publishedAt": "2026-10-07T00:00:00+00:00",
         "rawText": "scientific tooling", "normalizedText": "science/example\nscientific tooling",
-        "payload": {"stars": 12, "topics": ["science"], "archived": false}
+        "payload": {"topics": ["science"], "archived": false}
       },
       "provenance": {
         "matchedQueries": ["first"], "matchedChannels": ["code_search"],

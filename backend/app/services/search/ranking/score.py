@@ -5,14 +5,12 @@
 
 from __future__ import annotations
 
-from math import log, log1p
+from math import log1p
 from types import MappingProxyType
 from typing import Mapping
 
 from app.services.search.ranking.models import (
     LocationScoreContribution,
-    PopularityBoostParameters,
-    PopularityScoreContribution,
     RankingFeatures,
     RankingScoreBreakdown,
 )
@@ -42,19 +40,9 @@ LOCATION_WEIGHTS: Mapping[RetrievalMatchLocation, float] = MappingProxyType(
 
 def build_ranking_score_breakdown(
     features: RankingFeatures,
-    *,
-    popularity_boost: PopularityBoostParameters = PopularityBoostParameters(),
 ) -> RankingScoreBreakdown:
     """Capture counts, weights and contributions for reproducible diagnostics."""
 
-    # Clip before taking logs. Integer log handles even unusually large reported
-    # counts without a float-conversion overflow; no candidate-pool normalization.
-    normalized_popularity = (
-        log(1 + min(features.stars, popularity_boost.reference_stars))
-        / log(1 + popularity_boost.reference_stars)
-        if features.stars is not None and features.stars > 0
-        else 0.0
-    )
     return RankingScoreBreakdown(
         locations=tuple(
             LocationScoreContribution(
@@ -64,12 +52,5 @@ def build_ranking_score_breakdown(
                 contribution=LOCATION_WEIGHTS[item.location] * log1p(item.count),
             )
             for item in features.match_counts_by_location
-        ),
-        popularity=PopularityScoreContribution(
-            stars=features.stars,
-            reference_stars=popularity_boost.reference_stars,
-            max_bonus=popularity_boost.max_bonus,
-            normalized_popularity=normalized_popularity,
-            contribution=popularity_boost.max_bonus * normalized_popularity,
         ),
     )

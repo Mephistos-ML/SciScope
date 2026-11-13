@@ -11,7 +11,6 @@ from math import fsum
 from app.services.search.ranking.features import build_ranking_features
 from app.services.search.ranking.models import (
     RankedRepositoryCandidate,
-    PopularityBoostParameters,
     RankingResult,
 )
 from app.services.search.ranking.score import build_ranking_score_breakdown
@@ -22,26 +21,18 @@ def rank_repository_candidates(
     candidates: Sequence[RepositoryCandidate],
     *,
     queries: Sequence[str],
-    popularity_boost: PopularityBoostParameters = PopularityBoostParameters(),
 ) -> RankingResult:
     """Rank one admitted candidate pool using source-agnostic evidence."""
 
     ranked_candidates = []
     for candidate in candidates:
         features = build_ranking_features(candidate, queries)
-        breakdown = build_ranking_score_breakdown(
-            features, popularity_boost=popularity_boost
-        )
+        breakdown = build_ranking_score_breakdown(features)
         ranked_candidates.append(
             RankedRepositoryCandidate(
                 candidate=candidate,
                 features=features,
-                score=fsum(
-                    [
-                        *(item.contribution for item in breakdown.locations),
-                        breakdown.popularity.contribution,
-                    ]
-                ),
+                score=fsum(item.contribution for item in breakdown.locations),
                 score_breakdown=breakdown,
             )
         )

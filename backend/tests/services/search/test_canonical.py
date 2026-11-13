@@ -86,7 +86,6 @@ def test_public_selection_requires_admission_and_score_threshold(monkeypatch):
             "query": query,
             "topics": ["metadata"],
             "language": "",
-            "stars": 0,
         },
     )
     retrieved = build_retrieved_candidates(

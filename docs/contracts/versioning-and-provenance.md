@@ -67,8 +67,8 @@ which can differ after deployment. Historical `unknown` values are preserved.
 ranking snapshot `candidateFacts`. It contains:
 
 - `backend_revision`: the worker's source identity;
-- `ranking_configuration`: schema version 1, ranking policy ID, all location
-  weights, popularity cap/reference, and the Explore score threshold;
+- `ranking_configuration`: schema version 2, ranking policy ID, all location
+  weights and the Explore score threshold;
 - `configuration_fingerprint`: `sha256:<hex>` of that configuration.
 
 Canonical encoding is UTF-8 JSON with sorted keys, no whitespace, finite numbers,
@@ -85,7 +85,8 @@ Metadata is stored for candidates actually scored. Empty/planning-only runs have
 no ranking candidate snapshot: their creation revision exists, but a research
 runner must save the configuration independently before executing an experiment.
 
-The existing JSON extension stores this metadata. Scores, breakdown schema 4, and
-execution schema 2 are unchanged. No table migration/backfill is needed. Historical
+The JSON extension stores configuration schema 2. New scores use breakdown schema 5
+and policy v4; execution schema 2 is unchanged. The separate repository-profile
+schema migration and coordinated cutover are documented in backend recovery. Historical
 reports can omit the extension. Restart API/workers after configuration changes;
 each new scored stage records what it used.

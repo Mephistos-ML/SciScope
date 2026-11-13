@@ -66,7 +66,6 @@ def discover_repository_candidates(
                 description=profile.description,
                 owner_login=profile.owner_login,
                 language=profile.language,
-                stars=profile.stars,
                 topics=profile.topics,
                 provider_updated_at=profile.provider_updated_at,
             )

@@ -10,7 +10,7 @@ python -m scripts.repair_repository_profiles --dry-run --limit 100
 
 Default selection targets profiles whose metadata contains
 `query`, with empty owner, description, language, topics and provider timestamp,
-and zero stars. This is a candidate signal, not proof of corruption. Legitimately
+and missing topics. This is a candidate signal, not proof of corruption. Legitimately
 sparse profiles without that signature are skipped. To inspect a specific catalog
 record regardless of that signature, use `--repository-id` (repeatable).
 

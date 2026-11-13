@@ -33,7 +33,6 @@ def test_discover_repository_candidates_from_code_builds_repository_signal(
             "web_url": "https://gitlab.com/kragskow-group/orto",
             "description": "",
             "topics": ["orca", "chemistry"],
-            "star_count": 19,
             "last_activity_at": "2026-09-03T12:30:00Z",
         }, url=url)
 
@@ -50,7 +49,6 @@ def test_discover_repository_candidates_from_code_builds_repository_signal(
     assert signal.item_id == "gitlab:repo:42"
     assert signal.payload["provider_repository_id"] == "42"
     assert signal.payload["query"] == "orca python package"
-    assert signal.payload["stars"] == 19
     assert signal.payload["provider_updated_at"] == "2026-09-03T12:30:00+00:00"
     assert "Matched code path: src/orto/io/orca_output.py" in signal.raw_text
 
@@ -86,8 +84,7 @@ def test_discover_repository_candidates_from_code_skips_project_when_metadata_fa
             "web_url": "https://gitlab.com/thermotools/lammps_mie_fh",
             "description": "",
             "topics": ["lammps", "molecular-simulation"],
-            "star_count": 7,
-        }, url=url)
+            }, url=url)
 
     monkeypatch.setattr(repository_client, "fetch_json", fake_fetch_json)
 

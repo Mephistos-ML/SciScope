@@ -69,7 +69,6 @@ def retrieve_catalog_candidates(
                 "description": repository.description,
                 "topics": list(repository.topics),
                 "language": repository.language,
-                "stars": repository.stars,
                 "provider_updated_at": (
                     repository.provider_updated_at.isoformat()
                     if repository.provider_updated_at is not None
@@ -187,7 +186,6 @@ def _build_repository(candidate: RepositoryCandidate, *, now: datetime) -> Repos
         owner_login=str(payload.get("author") or ""),
         description=str(payload.get("description") or ""),
         language=str(payload.get("language") or ""),
-        stars=int(payload.get("stars") or 0),
         topics=tuple(str(topic) for topic in topics if str(topic).strip()) if isinstance(topics, list) else (),
         first_seen_at=now,
         last_seen_at=now,

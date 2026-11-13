@@ -101,7 +101,6 @@ export type ExploreResultItem = {
   url: string;
   description: string;
   language: string | null;
-  stars: number | null;
   providerUpdatedAt: string | null;
   query: string | null;
   score: number;

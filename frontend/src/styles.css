@@ -1159,7 +1159,7 @@ input::placeholder {
 .repository-table-head,
 .repository-row {
   display: grid;
-  grid-template-columns: minmax(0, 2.5fr) minmax(88px, 0.65fr) minmax(80px, 0.55fr) minmax(120px, 0.8fr) minmax(112px, 0.65fr);
+  grid-template-columns: minmax(0, 2.5fr) minmax(88px, 0.65fr) minmax(120px, 0.8fr) minmax(112px, 0.65fr);
   gap: 16px;
   align-items: center;
   min-width: 760px;

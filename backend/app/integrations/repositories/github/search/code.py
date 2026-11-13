@@ -103,7 +103,6 @@ def discover_repository_candidates_from_code(
                     description=str(repository.get("description") or ""),
                     owner_login=owner_login,
                     language=str(repository.get("language") or ""),
-                    stars=int(repository.get("stargazers_count") or 0),
                     topics=(),
                     matched_path=str(item.get("path") or ""),
                     provider_updated_at=parse_provider_updated_at(

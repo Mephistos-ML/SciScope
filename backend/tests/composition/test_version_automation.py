@@ -84,12 +84,12 @@ def test_generated_contracts_are_current_and_stale_edits_fail(tmp_path):
     model = tmp_path / "backend/app/services/search/ranking/models.py"
     model.write_text(
         model.read_text().replace(
-            "stars: int | None = None", "star_count: int | None = None"
+            "raw_hit_count: int", "provider_hit_count: int"
         )
     )
     with pytest.raises(ValueError, match="stale"):
         generator.generate(tmp_path, check=True)
-    assert "star_count: number | null" in generator.render(tmp_path)
+    assert "provider_hit_count: number" in generator.render(tmp_path)
 
 
 def test_deployment_command_embeds_a_clean_checkout_sha(checkout):

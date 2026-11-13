@@ -24,7 +24,7 @@ type ExploreSearchFeedback = {
   turnstileRequired: boolean;
 };
 
-type ExploreSortOption = "relevance" | "recent_activity" | "stars";
+type ExploreSortOption = "relevance" | "recent_activity";
 type SearchDiagnosticsStatus = "idle" | "loading" | "ready" | "unavailable";
 
 type ExplorePageProps = {
@@ -297,7 +297,6 @@ export function ExplorePage({
                   >
                     <option value="relevance">Relevance</option>
                     <option value="recent_activity">Recent activity</option>
-                    <option value="stars">Stars</option>
                   </select>
                 </label>
               </div>
@@ -309,7 +308,6 @@ export function ExplorePage({
                   <div className="repository-table-head">
                     <span>Repository</span>
                     <span>Source</span>
-                    <span>Stars</span>
                     <span>Activity</span>
                     <span>Actions</span>
                   </div>
@@ -336,13 +334,6 @@ export function ExplorePage({
 
                         <div
                           className="repository-cell repository-metadata-cell"
-                          data-label="Stars"
-                        >
-                          <span className="repository-skeleton-meta repository-skeleton-meta-short skeleton-shimmer" />
-                        </div>
-
-                        <div
-                          className="repository-cell repository-metadata-cell"
                           data-label="Activity"
                         >
                           <span className="repository-skeleton-meta skeleton-shimmer" />
@@ -365,7 +356,6 @@ export function ExplorePage({
                   <div className="repository-table-head">
                     <span>Repository</span>
                     <span>Source</span>
-                    <span>Stars</span>
                     <span>Activity</span>
                     <span>Actions</span>
                   </div>
@@ -391,13 +381,6 @@ export function ExplorePage({
 
                             <div className="repository-cell" data-label="Source">
                               <SourceBadge href={result.url} source={result.source} />
-                            </div>
-
-                            <div
-                              className="repository-cell repository-metadata-cell"
-                              data-label="Stars"
-                            >
-                              {result.stars !== null ? formatCompactNumber(result.stars) : "-"}
                             </div>
 
                             <div
@@ -551,15 +534,6 @@ export function ExplorePage({
 const LOADING_REPOSITORY_ROW_COUNT = [0, 1, 2, 3, 4] as const;
 const RESULTS_PER_PAGE = 10;
 
-function formatCompactNumber(value: number): string {
-  if (value >= 1000) {
-    const compactValue = value / 1000;
-    return compactValue >= 10 ? `${Math.round(compactValue)}k` : `${compactValue.toFixed(1)}k`;
-  }
-
-  return `${value}`;
-}
-
 function formatProviderActivity(value: string | null): string {
   if (!value) return "-";
   const date = new Date(value);
@@ -579,9 +553,7 @@ function sortExploreResults(
     const primaryDifference =
       sortOption === "recent_activity"
         ? compareProviderActivity(left.providerUpdatedAt, right.providerUpdatedAt)
-        : sortOption === "stars"
-          ? (right.stars ?? -1) - (left.stars ?? -1)
-          : right.score - left.score;
+        : right.score - left.score;
 
     if (primaryDifference !== 0) return primaryDifference;
 

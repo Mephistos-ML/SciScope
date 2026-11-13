@@ -236,7 +236,6 @@ def _build_candidate(
                 "description": repository.description,
                 "topics": list(repository.topics),
                 "language": repository.language,
-                "stars": repository.stars,
                 "provider_updated_at": (
                     repository.provider_updated_at.isoformat()
                     if repository.provider_updated_at is not None

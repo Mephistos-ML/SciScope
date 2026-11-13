@@ -63,7 +63,7 @@ def _build_subscription_watch() -> SubscriptionWatchRecord:
             source="github",
             full_name="Mephistos-ML/paranmr",
             url="https://github.com/Mephistos-ML/paranmr",
-            metadata={"repo": "Mephistos-ML/paranmr", "stars": 14},
+            metadata={"repo": "Mephistos-ML/paranmr"},
         ),
         selected_query="paramagnetic nmr",
         created_at="2026-08-14T10:00:00+00:00",
@@ -827,7 +827,7 @@ def test_explore_search_run_returns_completed_snapshot(
         assert created["status"] == "completed"
         assert created["canExpand"] is True
         assert created["items"][0]["itemId"] == "github:repo:102"
-        assert created["items"][0]["scoreFormula"] == "location_weighted_log_matches_v3"
+        assert created["items"][0]["scoreFormula"] == "location_weighted_log_matches_v4"
         assert "ownerUserId" not in created
 
         follow_up = client.get(f"/api/explore/search-runs/{created['runId']}")
@@ -852,27 +852,21 @@ def test_explore_search_run_returns_completed_snapshot(
     provenance = report["rankingSnapshots"][0]["candidateFacts"]["evaluation_provenance"]
     assert provenance["backend_revision"] == "b" * 40
     assert provenance["configuration_fingerprint"].startswith("sha256:")
-    assert provenance["ranking_configuration"]["popularity"]["max_bonus"] == 0
     assert provenance["ranking_configuration"]["score_threshold"] == 0
-    assert report["run"]["rankingPolicyVersion"] == "location_weighted_log_matches_v3"
+    assert report["run"]["rankingPolicyVersion"] == "location_weighted_log_matches_v4"
     evidence = report["rankingSnapshots"][0]["retrievalFacts"]["match_evidence"][0]
     assert evidence["channel"] == "repository_search"
     assert evidence["origin"] == "provider"
     assert evidence["retrieval_rank"] == 1
     breakdown = report["rankingSnapshots"][0]["scoreBreakdown"]
-    assert breakdown["schema_version"] == 4
+    assert breakdown["schema_version"] == 5
     ranking_features = report["rankingSnapshots"][0]["rankingFeatures"]
     assert ranking_features["raw_hit_count"] == 1
     assert ranking_features["evidence_record_count"] == 1
     assert ranking_features["match_counts_by_location"] == [
         {"location": "description", "count": 1},
     ]
-    assert breakdown["formula"] == "location_weighted_log_matches_v3"
-    assert breakdown["popularity"] == {
-        "stars": 14, "reference_stars": 1000, "max_bonus": 0.0,
-        "normalized_popularity": pytest.approx(log1p(14) / log1p(1000)),
-        "contribution": 0.0,
-    }
+    assert breakdown["formula"] == "location_weighted_log_matches_v4"
     assert breakdown["locations"] == [
         {"location": "description", "count": 1, "weight": 0.85,
          "contribution": pytest.approx(0.85 * log1p(1))},

@@ -8,7 +8,6 @@ import json
 from math import isfinite
 
 from app.services.search.ranking.models import (
-    PopularityBoostParameters,
     RANKING_POLICY_VERSION,
 )
 from app.services.search.ranking.score import LOCATION_WEIGHTS
@@ -17,7 +16,6 @@ from app.services.search.ranking.score import LOCATION_WEIGHTS
 def build_evaluation_provenance(
     *,
     backend_revision: str,
-    popularity_boost: PopularityBoostParameters,
     score_threshold: float,
 ) -> dict[str, object]:
     """Serialize the complete ranking/visibility configuration and hash its values.
@@ -28,17 +26,11 @@ def build_evaluation_provenance(
     if not isfinite(score_threshold) or score_threshold < 0:
         raise ValueError("score_threshold must be finite and nonnegative")
     configuration = {
-        "schema_version": 1,
+        "schema_version": 2,
         "ranking_policy_version": RANKING_POLICY_VERSION,
         "location_weights": {
             key: float(value) if value else 0.0
             for key, value in LOCATION_WEIGHTS.items()
-        },
-        "popularity": {
-            "max_bonus": float(popularity_boost.max_bonus)
-            if popularity_boost.max_bonus
-            else 0.0,
-            "reference_stars": popularity_boost.reference_stars,
         },
         "score_threshold": float(score_threshold) if score_threshold else 0.0,
     }

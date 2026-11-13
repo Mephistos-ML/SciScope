@@ -27,7 +27,7 @@ def test_clean_upgrade_creates_real_vector_schema_and_coordination_state(postgre
     assert inspector.has_table("repository_monitoring_cursors")
     assert inspector.has_table("repository_subscriptions")
     with engine.connect() as connection:
-        assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == "0017_feed_update_groups"
+        assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == "0018_repository_profile_fields"
         assert connection.execute(sa.text("SELECT lock_id FROM search_access_lock")).scalars().all() == [1]
         assert connection.scalar(sa.text("SELECT extversion FROM pg_extension WHERE extname='vector'"))
         columns = dict(connection.execute(sa.text("""
@@ -96,3 +96,14 @@ def test_0016_upgrade_batches_data_and_roundtrip_preserves_run_facts(postgres_da
         restored = dict(connection.execute(sa.select(runs.c.run_id, runs.c.execution_state_json)).all())
         assert restored == expected_states
         assert connection.scalar(sa.text("SELECT count(*) FROM search_access_lock")) == 1
+
+
+def test_repository_columns_match_current_contract(postgres_url):
+    from app.database.records.repositories import RepositoryRecordModel
+    engine = get_engine(postgres_url)
+    assert {column["name"] for column in sa.inspect(engine).get_columns("repositories")} == set(RepositoryRecordModel.__table__.columns.keys())
+
+
+def test_profile_migration_preserves_unrelated_metadata(postgres_database_url):
+    from tests.fixtures.migrations import verify_profile_metadata_migration
+    verify_profile_metadata_migration(postgres_database_url)

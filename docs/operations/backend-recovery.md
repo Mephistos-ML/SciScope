@@ -25,10 +25,10 @@ identity fails early; do not label an image with an unrelated SHA. See
 
 ## Log-match ranking rollout and recovery
 
-The current ranking policy is `location_weighted_log_matches_v3`. Deploy the diagnostic
+The current ranking policy is `location_weighted_log_matches_v4`. Deploy the diagnostic
 frontend first: it understands historical unversioned 0--100 snapshots, version-2
 per-location breakdowns using `points`, and version-3 breakdowns using
-`contribution`, plus version-4 breakdowns with a separate popularity contribution.
+`contribution`, plus the current version-5 breakdowns.
 The earlier UI would mislabel an unsupported format as a score
 out of 100. Version 3 renames diagnostic fields without changing numeric scores.
 
@@ -69,21 +69,23 @@ code that understands that vocabulary and schema; a rollback to the old reader
 alone is unsafe. Prefer a forward fix. Do not discard or relabel durable user
 state to force an old reader to accept it. No table migration/backfill is needed.
 
-### Popularity v3 rollout
+### Ranking/profile cutover
 
-Deploy the diagnostic frontend supporting breakdown schema 4 before the backend.
-Leave `EXPLORE_RANKING_POPULARITY_MAX_BONUS=0` for the match-only baseline; the
-default `EXPLORE_RANKING_POPULARITY_REFERENCE_STARS=1000` is provisional. Enable
-a nonzero cap only with an evaluated configuration. Restart API/workers together
-after parameter changes so reconstructed dependencies agree.
+The current backend writes ranking breakdown schema 5, policy v4 and configuration
+schema 2. Deploy the frontend reader first; unsupported historical schema 4 remains
+explicitly unsupported rather than being reinterpreted. Stored reports are not rewritten.
 
-Initial, partial, and expanded results use the supplied configuration. Reports
-snapshot its parameters and actual contribution per candidate. Existing completed
-scores are not rewritten. Execution schema remains 2; no database migration is
-needed. Rolling back only this popularity change to the preceding taxonomy-v2
-backend leaves execution state readable; retain the new frontend to display
-saved schema-4 reports. Different parameter settings are different experiments
-even when their policy identifiers match.
+Revision `0018_repository_profile_fields` removes a retired repository column and
+its redundant keys from current profile JSON, preserving unrelated metadata. JSON
+cleanup uses keyset batches of 500 within the migration transaction; duration and
+row locking scale with the catalog size. Historical run reports are not rewritten.
+Quiesce the API and workers before applying it: previous binaries select that
+column, and the new binaries cannot insert into the prior NOT NULL schema. Take
+a recoverable backup, migrate, then start the new binaries together. Fly's default
+release-command overlap alone is not a safe coordinated cutover for this revision.
+No production migration was executed as part of this patch. Downgrade restores the
+column shape with zero defaults, not the former values; restore from backup to
+recover those facts. Prefer a tested forward fix.
 
 Inside the API container:
 

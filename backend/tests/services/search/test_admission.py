@@ -424,7 +424,6 @@ def _build_candidate(
             "query": "orca parser",
             "topics": list(topics),
             "language": language,
-            "stars": 0,
         },
     )
     return RepositoryCandidate(
