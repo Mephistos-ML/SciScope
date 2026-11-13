@@ -100,7 +100,7 @@ def test_openai_planner_raises_for_invalid_payload(monkeypatch) -> None:
     [None, "second", "third"],
     ["first", "FIRST", "third"],
     ["", "second", "third"],
-    ["x" * 501, "second", "third"],
+    ["x" * 186, "second", "third"],
 ])
 def test_untrusted_queries_cannot_become_an_execution_plan(monkeypatch, queries):
     from app.models.ai import AiResponseError
@@ -109,3 +109,52 @@ def test_untrusted_queries_cannot_become_an_execution_plan(monkeypatch, queries)
     with pytest.raises(AiResponseError):
         planner.build_search_plan(topic_description="scientific topic")
     assert "secret" not in repr(planner)
+
+
+@pytest.mark.parametrize("length", [185, 186])
+def test_generated_query_length_is_enforced_before_normalization(monkeypatch, length):
+    from app.models.ai import AiResponseError
+
+    query = "x" * length
+    captured = {}
+
+    def response(**kwargs):
+        captured.update(kwargs)
+        return {"queries": [query, "second", "third"]}
+
+    monkeypatch.setattr(
+        "app.integrations.ai.openai.planner.build_openai_json_response", response
+    )
+    planner = OpenAiSearchPlanner(
+        api_key="test-key", base_url="https://example.test/v1", timeout_seconds=20,
+        model="test-model", reasoning_effort="low",
+    )
+    # The limit applies to generated queries, not the input scientific question.
+    topic = "scientific requirement " * 30
+    if length == 185:
+        assert planner.build_search_plan(topic_description=topic).queries == (
+            query, "second", "third",
+        )
+    else:
+        with pytest.raises(AiResponseError, match="bounded string queries"):
+            planner.build_search_plan(topic_description=topic)
+    assert captured["user_prompt"] == f"Topic description:\n{topic.strip()}"
+    schema = captured["json_schema"]["properties"]["queries"]
+    assert schema["items"]["maxLength"] == 185
+    assert schema["minItems"] == schema["maxItems"] == 3
+    assert "at most 185 characters, including spaces" in captured["system_prompt"]
+
+
+def test_whitespace_does_not_hide_an_overlength_generated_query(monkeypatch):
+    from app.models.ai import AiResponseError
+
+    monkeypatch.setattr(
+        "app.integrations.ai.openai.planner.build_openai_json_response",
+        lambda **_: {"queries": ["x" * 185 + " ", "second", "third"]},
+    )
+    planner = OpenAiSearchPlanner(
+        api_key="test-key", base_url="https://example.test/v1", timeout_seconds=20,
+        model="test-model", reasoning_effort="low",
+    )
+    with pytest.raises(AiResponseError, match="bounded string queries"):
+        planner.build_search_plan(topic_description="scientific topic")

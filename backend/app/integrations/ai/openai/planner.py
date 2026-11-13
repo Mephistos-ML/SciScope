@@ -14,6 +14,7 @@ from app.models.ai import normalize_search_queries
 from app.models.ai import AiResponseError
 
 SEARCH_QUERY_COUNT = 3
+MAX_GENERATED_QUERY_LENGTH = 185
 
 _SEARCH_PLAN_JSON_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -27,13 +28,13 @@ _SEARCH_PLAN_JSON_SCHEMA: dict[str, Any] = {
             "items": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 500,
+                "maxLength": MAX_GENERATED_QUERY_LENGTH,
             },
         },
     },
 }
 
-_SYSTEM_PROMPT = """Generate exactly 3 search queries for scientific software repositories
+_SYSTEM_PROMPT = f"""Generate exactly 3 search queries for scientific software repositories
 from the user's scientific question.
 
 Rules:
@@ -48,6 +49,7 @@ Rules:
 - Word reordering and generic filler do not count as different search angles.
 - If the question is ambiguous, do not invent missing context.
 - Prefer 2-6 words per query; use up to 8 to preserve explicit requirements.
+- Each query must contain at most {MAX_GENERATED_QUERY_LENGTH} characters, including spaces.
 - Use ASCII text without search operators.
 - Return only JSON matching the provided schema.
 """
@@ -97,10 +99,15 @@ def _parse_ai_search_plan(
         raise AiResponseError("OpenAI planner returned invalid queries")
 
     if len(raw_queries) != SEARCH_QUERY_COUNT or any(
-        not isinstance(query, str) or not query.strip() or len(query) > 500
+        not isinstance(query, str)
+        or not query.strip()
+        or len(query) > MAX_GENERATED_QUERY_LENGTH
         for query in raw_queries
     ):
-        raise AiResponseError("AI planner must return 3 nonempty bounded string queries")
+        raise AiResponseError(
+            "AI planner must return 3 nonempty bounded string queries "
+            f"(at most {MAX_GENERATED_QUERY_LENGTH} characters each)"
+        )
     queries = normalize_search_queries(raw_queries)
     if len(queries) != SEARCH_QUERY_COUNT:
         raise AiResponseError("OpenAI planner must return 3 unique queries")
