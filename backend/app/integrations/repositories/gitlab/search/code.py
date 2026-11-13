@@ -12,6 +12,7 @@ from urllib.parse import quote_plus
 
 from app.models.repository import parse_provider_updated_at
 from app.models.signal import Signal
+from app.integrations.repositories.common.search_query import quote_search_phrase
 from app.integrations.repositories.common.models import RepositoryCandidate
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.integrations.repositories.common.factories import build_repository_candidate_signal
@@ -129,7 +130,7 @@ def discover_repository_candidates_from_code(
 
 
 def _build_blob_search_url(query: str, *, client: GitLabClient, per_query_limit: int) -> str:
-    encoded_query = quote_plus(query)
+    encoded_query = quote_plus(quote_search_phrase(query))
     return (
         f"{client.api_base}/search"
         f"?scope=blobs&search={encoded_query}&per_page={per_query_limit}"
