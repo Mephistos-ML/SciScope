@@ -11,6 +11,7 @@ from typing import ClassVar
 import json
 from http.client import HTTPException
 import logging
+import random
 from math import ceil
 import time
 from time import monotonic
@@ -88,8 +89,14 @@ class GitHubClient:
                     raise _build_transport_source_error(error) from error
                 finally:
                     exc.close()
-                if (attempt < GITHUB_REQUEST_RETRIES and 500 <= exc.code < 600
-                        and (deadline_monotonic is None or monotonic() + GITHUB_RETRY_BACKOFF_SECONDS * attempt < deadline_monotonic)):
+                retry_delay = GITHUB_RETRY_BACKOFF_SECONDS * attempt
+                if exc.code == 408 and attempt < GITHUB_REQUEST_RETRIES:
+                    retry_delay = (
+                        GITHUB_RETRY_BACKOFF_SECONDS * (2 ** (attempt - 1))
+                        + random.uniform(0, 0.5)
+                    )
+                if (attempt < GITHUB_REQUEST_RETRIES and (exc.code == 408 or 500 <= exc.code < 600)
+                        and (deadline_monotonic is None or monotonic() + retry_delay < deadline_monotonic)):
                     logger.warning(
                         (
                             "GitHub API request returned retryable HTTP error "
@@ -101,7 +108,7 @@ class GitHubClient:
                         exc.code,
                         message,
                     )
-                    time.sleep(GITHUB_RETRY_BACKOFF_SECONDS * attempt)
+                    time.sleep(retry_delay)
                     continue
                 logger.warning(
                     (
@@ -141,6 +148,12 @@ class GitHubClient:
 
 
 def _build_source_error(exc: HTTPError, *, message: str) -> RepositorySourceError:
+    if exc.code == 408:
+        return RepositorySourceError(
+            source="github",
+            status="timed_out",
+            public_message="GitHub search timed out right now.",
+        )
     if exc.code in (401, 403):
         lowered = message.casefold()
         if (

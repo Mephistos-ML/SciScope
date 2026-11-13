@@ -8,10 +8,72 @@ from __future__ import annotations
 from urllib.error import HTTPError, URLError
 
 import pytest
+from io import BytesIO
+from time import monotonic
 
 from app.integrations.repositories.common.source_status import RepositorySourceError
 from app.integrations.repositories.github import auth as github_auth
 from app.integrations.repositories.github import client as github_client
+
+
+@pytest.mark.parametrize("failures", [1, 2, 3])
+def test_http_408_has_bounded_retries_with_backoff(monkeypatch, failures):
+    calls = []
+    sleeps = []
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def read(self, *args):
+            return b'{"items": []}'
+
+    def fetch(request, timeout):
+        calls.append(request.full_url)
+        if len(calls) <= failures:
+            raise HTTPError(request.full_url, 408, "Request Timeout", {},
+                            BytesIO(b'{"message":"Request timed out"}'))
+        return Response()
+
+    monkeypatch.setattr(github_client, "urlopen", fetch)
+    monkeypatch.setattr(github_client.time, "sleep", sleeps.append)
+    monkeypatch.setattr(github_client.random, "uniform", lambda low, high: 0.25)
+    client = github_client.GitHubClient(lambda: {})
+    url = "https://api.github.com/search/code?q=science"
+    if failures == 3:
+        with pytest.raises(RepositorySourceError) as error:
+            client.fetch_json(url)
+        assert error.value.status == "timed_out"
+        assert "repository search" not in error.value.public_message
+    else:
+        assert client.fetch_json(url).payload == {"items": []}
+    assert calls == [url] * min(failures + 1, 3)
+    assert sleeps == [1.75, 3.25][:min(failures, 2)]
+
+
+def test_http_408_does_not_retry_beyond_deadline(monkeypatch):
+    calls = []
+    sleeps = []
+    now = monotonic()
+
+    def fetch(request, timeout):
+        calls.append(request.full_url)
+        raise HTTPError(request.full_url, 408, "Request Timeout", {},
+                        BytesIO(b'{"message":"Request timed out"}'))
+
+    monkeypatch.setattr(github_client, "urlopen", fetch)
+    monkeypatch.setattr(github_client.time, "sleep", sleeps.append)
+    monkeypatch.setattr(github_client.random, "uniform", lambda low, high: 0.25)
+    with pytest.raises(RepositorySourceError) as error:
+        github_client.GitHubClient(lambda: {}).fetch_json(
+            "https://api.github.com/search/code?q=science", deadline_monotonic=now + 1,
+        )
+    assert error.value.status == "timed_out"
+    assert len(calls) == 1
+    assert sleeps == []
 
 
 def test_build_auth_headers_fails_when_github_source_is_disabled(monkeypatch) -> None:
