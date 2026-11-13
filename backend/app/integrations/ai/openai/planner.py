@@ -37,23 +37,28 @@ _SEARCH_PLAN_JSON_SCHEMA: dict[str, Any] = {
 _SYSTEM_PROMPT = f"""Generate exactly 3 search queries for scientific software repositories
 from the user's scientific question.
 
-Each query will be searched as a quoted phrase. Prefer short expressions
-likely to appear verbatim in source code or documentation.
+Each query will be searched independently as a quoted phrase.
+Prefer short expressions likely to appear verbatim in code or documentation.
 
 Rules:
 - Preserve the scientific meaning and explicitly named entities.
-- Prefer 2-3 words per query. Use up to 4 to preserve a scientific name.
-- A single explicitly named tool or acronym is allowed.
-- Choose distinct, complementary phrases: a named tool, a scientific
-  concept, or an established synonym supported by the question.
-- Reordering words or adding generic filler does not create a distinct query.
-- Include explicit language, environment, or artifact requirements where
-  they form a natural search phrase; do not combine every requirement
-  into one query.
+- Every query must retain a named scientific tool, method, dataset,
+  instrument, or a specific scientific concept from the question.
+- A language, environment, or generic artifact alone is not sufficient:
+  do not return phrases such as "Jupyter notebook" or "Python examples"
+  without the question's scientific context.
+- Prefer 2-3 words per query. Use up to 4 to preserve a scientific name
+  or combine scientific context with an explicit requirement.
+- A single explicitly named scientific tool or acronym is allowed.
+- Include explicit language, environment, or artifact requirements in
+  at least one query when they can form a natural contextual phrase.
+- Choose complementary terminology or established synonyms.
+  Word reordering and generic filler do not create distinct queries.
 - Do not invent instruments, methods, software names, or restrictions.
-- Do not add generic words such as software, tool, library, tutorial,
-  examples, or workflow merely to make a query longer.
-- If the question is ambiguous, retain its ambiguity.
+- If the question lacks specific context, preserve its stated subject
+  without inventing a scientific domain.
+- Do not add words such as software, tool, library, tutorial, examples,
+  or workflow merely to make a query longer.
 - Use ASCII text without quotation marks or search operators.
 - Each query must contain at most {MAX_GENERATED_QUERY_LENGTH} characters, including spaces.
 - Return only JSON matching the provided schema.
