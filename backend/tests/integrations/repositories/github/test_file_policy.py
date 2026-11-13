@@ -1,8 +1,11 @@
 """The agreed GitHub file scope and its fixed request-size budget."""
 
+import pytest
+
 from app.integrations.repositories.github.search.file_policy import (
     CODE_SEARCH_EXTENSIONS,
     CODE_SEARCH_EXTENSION_SUFFIX,
+    build_code_search_query,
 )
 
 
@@ -27,5 +30,17 @@ def test_rest_suffix_contains_only_the_allowed_extension_qualifiers():
 
 
 def test_fixed_suffix_leaves_185_characters_for_an_unescaped_ascii_phrase():
-    request_query = f'"{"a" * 185}" {CODE_SEARCH_EXTENSION_SUFFIX}'
+    request_query = build_code_search_query("a" * 185)
     assert len(request_query) == 1000
+
+
+@pytest.mark.parametrize("query", ["x" * 186, "x" * 184 + '"', "x" * 184 + "\\"])
+def test_escaped_request_cannot_exceed_the_fixed_budget(query):
+    with pytest.raises(ValueError, match="1000-character limit"):
+        build_code_search_query(query)
+
+
+def test_prequoted_phrase_does_not_get_an_extra_pair_of_quotes():
+    assert build_code_search_query('"paramagnetic nmr"') == (
+        f'"paramagnetic nmr" {CODE_SEARCH_EXTENSION_SUFFIX}'
+    )

@@ -1,12 +1,15 @@
 # SPDX-FileCopyrightText: 2026 Ernest Borysenko
 # SPDX-License-Identifier: Apache-2.0
 
-"""Allowed file extensions for the planned GitHub code-search restriction.
+"""Allowed files and request construction for GitHub REST code search.
 
 This module owns the ordered extension list and its REST qualifier suffix for
 product and research callers. It does not filter responses or perform IO.
-The search adapter does not apply this policy yet.
 """
+
+from app.integrations.repositories.common.search_query import quote_search_phrase
+
+MAX_CODE_SEARCH_QUERY_LENGTH = 1000
 
 CODE_SEARCH_EXTENSIONS: tuple[str, ...] = (
     # Python, Cython and notebooks.
@@ -30,3 +33,14 @@ CODE_SEARCH_EXTENSIONS: tuple[str, ...] = (
 CODE_SEARCH_EXTENSION_SUFFIX: str = " ".join(
     f"extension:{extension}" for extension in CODE_SEARCH_EXTENSIONS
 )
+
+
+def build_code_search_query(query: str) -> str:
+    """Build the decoded REST q value; reject overflow without changing scope."""
+    search_query = f"{quote_search_phrase(query)} {CODE_SEARCH_EXTENSION_SUFFIX}"
+    if len(search_query) > MAX_CODE_SEARCH_QUERY_LENGTH:
+        raise ValueError(
+            "GitHub code search query exceeds the 1000-character limit after "
+            "quoting and adding the allowed file extensions"
+        )
+    return search_query

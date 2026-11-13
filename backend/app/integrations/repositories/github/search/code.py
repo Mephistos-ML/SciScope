@@ -12,6 +12,7 @@ from urllib.parse import quote_plus
 
 from app.models.repository import parse_provider_updated_at
 from app.models.signal import Signal
+from app.integrations.repositories.github.search.file_policy import build_code_search_query
 from app.integrations.repositories.common.models import RepositoryCandidate
 from app.integrations.repositories.common.factories import build_repository_candidate_signal
 from app.integrations.repositories.common.deadlines import raise_source_timeout_error
@@ -118,7 +119,7 @@ def discover_repository_candidates_from_code(
 
 
 def _build_code_search_url(query: str, *, client: GitHubClient, per_query_limit: int, page: int) -> str:
-    encoded_query = quote_plus(query)
+    encoded_query = quote_plus(build_code_search_query(query))
     return (
         f"{client.api_base}/search/code"
         f"?q={encoded_query}&per_page={per_query_limit}&page={page}"

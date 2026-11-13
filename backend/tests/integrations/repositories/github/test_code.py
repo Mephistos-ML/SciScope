@@ -6,10 +6,12 @@
 from __future__ import annotations
 
 import pytest
+from urllib.parse import parse_qs, urlsplit
 from tests.fixtures.repository_clients import make_repository_client
 
 from app.integrations.repositories.github.search import code as github_code_search
 from app.integrations.repositories.common.models import JsonResponse
+from app.integrations.repositories.github.search.file_policy import CODE_SEARCH_EXTENSION_SUFFIX
 
 
 def test_discover_repository_candidates_from_code_builds_repository_signal(
@@ -107,3 +109,38 @@ def test_discover_repository_candidates_from_code_reads_second_page(
 @pytest.fixture
 def repository_client():
     return make_repository_client("github")
+
+
+@pytest.mark.parametrize("query", ["paramagnetic nmr", "x" * 185, 'method "quoted"', r"method\file"])
+def test_code_search_sends_one_filtered_request_with_a_literal_phrase(
+    monkeypatch, repository_client, query,
+):
+    requests = []
+
+    def fetch(url):
+        requests.append(url)
+        return JsonResponse({"items": []}, url)
+
+    monkeypatch.setattr(repository_client, "fetch_json", fetch)
+    assert github_code_search.discover_repository_candidates_from_code(
+        [query], client=repository_client,
+    ) == []
+    assert len(requests) == 1
+    params = parse_qs(urlsplit(requests[0]).query)
+    escaped = query.replace("\\", "\\\\").replace('"', '\\"')
+    assert params["q"] == [f'"{escaped}" {CODE_SEARCH_EXTENSION_SUFFIX}']
+    assert len(params["q"][0]) <= 1000
+
+
+@pytest.mark.parametrize("query", ["x" * 186, "x" * 184 + '"', "x" * 184 + "\\"])
+def test_code_search_rejects_overflow_before_network_io(
+    monkeypatch, repository_client, query,
+):
+    def fetch(url):
+        pytest.fail("An overlength request must not reach GitHub")
+
+    monkeypatch.setattr(repository_client, "fetch_json", fetch)
+    with pytest.raises(ValueError, match="1000-character limit"):
+        github_code_search.discover_repository_candidates_from_code(
+            [query], client=repository_client,
+        )
