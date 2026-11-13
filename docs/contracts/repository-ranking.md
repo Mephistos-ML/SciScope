@@ -155,3 +155,32 @@ The arithmetic and behavioral comparison is recorded in
 [`benchmarks/research/ranking-change-evaluation.md`](../../benchmarks/research/ranking-change-evaluation.md).
 These checks do not establish improved retrieval relevance on real user queries;
 held-out benchmark evaluation remains required before claiming that improvement.
+
+
+## External query expressions
+
+Provider search adapters send each complete query as a quoted phrase. Raw query
+text remains the canonical evidence identity; protocol quoting is owned by
+`integrations/repositories/common/search_query.py`. Both GitHub channels and both
+GitLab channels use this formatter without a broad-query fallback. This changes
+external candidate retrieval, not score aggregation. Existing catalog, semantic
+retrieval and metadata-location inference retain their documented behavior; this
+request-format change is not a new proof that every returned fragment contains
+an exact phrase. Provider engine behavior must be evaluated independently.
+
+GitHub code search alone appends the fixed file-extension suffix owned by
+`integrations/repositories/github/search/file_policy.py`. Its public
+`build_code_search_query` contract quotes the phrase, appends 59 allowed extensions
+and rejects a decoded expression longer than 1000 characters before URL encoding.
+The suffix occupies 812 ASCII characters. New AI queries have a 185-character
+bound; escaping can still make a complete expression too long, so the adapter's
+final validation is required. Overflow raises `ValueError` without truncation,
+request splitting or a broad-search fallback. GitHub repository search and GitLab
+do not receive this file restriction.
+
+This file scope controls external retrieval eligibility, independently of the
+path classifier's location taxonomy. It excludes extensionless README files but
+retains README files with allowed extensions. Existing catalog evidence is not
+retroactively removed or rewritten. Research collection records this scope in its
+identity and rejects incompatible resume/replay; see
+[the file-scope contract](../../benchmarks/research/github-code-file-policy.md).
