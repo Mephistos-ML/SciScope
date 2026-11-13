@@ -41,3 +41,13 @@ frontend/vite.config.d.ts
 # Reproducible experiment output
 /benchmarks/results/runs/
 /benchmarks/results/exports/
+
+# Local GitHub collection responses, resumable checkpoints and summaries
+/benchmarks/data/study/github/
+/benchmarks/data/study/.repositories.jsonl-*
+/benchmarks/data/study/.evidence.jsonl-*
+/benchmarks/data/study/.features.jsonl-*
+
+# Archived collection formats and temporary offline rebuilds
+/benchmarks/results/collection-archives/
+/benchmarks/data/study/.collection-rebuild-*/
