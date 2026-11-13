@@ -103,7 +103,13 @@ def test_discover_repository_candidates_from_code_reads_second_page(
     )
 
     assert len(signals) == 2
-    assert any("page=2" in url for url in requested_urls)
+    parameters = [parse_qs(urlsplit(url).query) for url in requested_urls]
+    assert [params["page"] for params in parameters] == [["1"], ["2"]]
+    assert all(params["per_page"] == ["1"] for params in parameters)
+    assert all(params["q"] == [
+        f'"orca python package" {CODE_SEARCH_EXTENSION_SUFFIX}'
+    ] for params in parameters)
+    assert all(signal.payload["query"] == "orca python package" for signal in signals)
 
 
 @pytest.fixture
