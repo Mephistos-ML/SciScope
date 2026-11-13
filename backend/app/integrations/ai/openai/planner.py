@@ -37,20 +37,25 @@ _SEARCH_PLAN_JSON_SCHEMA: dict[str, Any] = {
 _SYSTEM_PROMPT = f"""Generate exactly 3 search queries for scientific software repositories
 from the user's scientific question.
 
+Each query will be searched as a quoted phrase. Prefer short expressions
+likely to appear verbatim in source code or documentation.
+
 Rules:
 - Preserve the scientific meaning and explicitly named entities.
-- Include every explicit language, environment, or artifact requirement
-  in at least one query.
-- Do not invent instruments, methods, software names, or other restrictions.
-- Do not add artifact or implementation types such as library, tutorial,
-  framework, or package unless explicitly requested.
-- Use complementary search phrases: established synonyms, acronym expansions,
-  or different combinations of explicit requirements.
-- Word reordering and generic filler do not count as different search angles.
-- If the question is ambiguous, do not invent missing context.
-- Prefer 2-6 words per query; use up to 8 to preserve explicit requirements.
+- Prefer 2-3 words per query. Use up to 4 to preserve a scientific name.
+- A single explicitly named tool or acronym is allowed.
+- Choose distinct, complementary phrases: a named tool, a scientific
+  concept, or an established synonym supported by the question.
+- Reordering words or adding generic filler does not create a distinct query.
+- Include explicit language, environment, or artifact requirements where
+  they form a natural search phrase; do not combine every requirement
+  into one query.
+- Do not invent instruments, methods, software names, or restrictions.
+- Do not add generic words such as software, tool, library, tutorial,
+  examples, or workflow merely to make a query longer.
+- If the question is ambiguous, retain its ambiguity.
+- Use ASCII text without quotation marks or search operators.
 - Each query must contain at most {MAX_GENERATED_QUERY_LENGTH} characters, including spaces.
-- Use ASCII text without search operators.
 - Return only JSON matching the provided schema.
 """
 
