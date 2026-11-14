@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from copy import deepcopy
 from typing import Any
 
 from app.models.ai import AiSearchPlan
@@ -66,6 +67,23 @@ Rules:
 
 
 @dataclass(frozen=True)
+class SearchPlanRequest:
+    """Rendered provider input shared by production execution and offline research."""
+
+    system_prompt: str
+    user_prompt: str
+    json_schema: dict[str, Any]
+
+
+def build_search_plan_request(*, topic_description: str) -> SearchPlanRequest:
+    return SearchPlanRequest(
+        system_prompt=_SYSTEM_PROMPT,
+        user_prompt=f"Topic description:\n{topic_description.strip() or 'Untitled topic'}",
+        json_schema=deepcopy(_SEARCH_PLAN_JSON_SCHEMA),
+    )
+
+
+@dataclass(frozen=True)
 class OpenAiSearchPlanner:
     """Planner implementation backed by OpenAI."""
 
@@ -80,25 +98,18 @@ class OpenAiSearchPlanner:
         *,
         topic_description: str,
     ) -> AiSearchPlan:
-        user_prompt = _build_user_prompt(
+        request = build_search_plan_request(
             topic_description=topic_description,
         )
         payload = build_openai_json_response(
             api_key=self.api_key, base_url=self.base_url, timeout_seconds=self.timeout_seconds,
             model=self.model,
             reasoning_effort=self.reasoning_effort,
-            system_prompt=_SYSTEM_PROMPT,
-            user_prompt=user_prompt,
-            json_schema=_SEARCH_PLAN_JSON_SCHEMA,
+            system_prompt=request.system_prompt,
+            user_prompt=request.user_prompt,
+            json_schema=request.json_schema,
         )
         return _parse_ai_search_plan(payload)
-
-
-def _build_user_prompt(
-    *,
-    topic_description: str,
-) -> str:
-    return f"Topic description:\n{topic_description.strip() or 'Untitled topic'}"
 
 
 def _parse_ai_search_plan(

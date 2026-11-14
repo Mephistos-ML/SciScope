@@ -158,3 +158,26 @@ def test_whitespace_does_not_hide_an_overlength_generated_query(monkeypatch):
     )
     with pytest.raises(AiResponseError, match="bounded string queries"):
         planner.build_search_plan(topic_description="scientific topic")
+
+
+def test_rendered_request_matches_provider_input_and_schema_is_isolated(monkeypatch) -> None:
+    from app.integrations.ai.openai.planner import build_search_plan_request
+
+    topic = "Scientific domain: Earth science\n\nHow do I find satellite data?"
+    preview = build_search_plan_request(topic_description=topic)
+    captured = {}
+
+    def response(**kwargs):
+        captured.update(kwargs)
+        return {"queries": ["satellite data", "Earth observation", "data catalog"]}
+
+    monkeypatch.setattr("app.integrations.ai.openai.planner.build_openai_json_response", response)
+    planner = OpenAiSearchPlanner(api_key="offline", base_url="https://example.test", timeout_seconds=20,
+                                 model="test", reasoning_effort="low")
+    planner.build_search_plan(topic_description=topic)
+    assert captured["user_prompt"] == preview.user_prompt == f"Topic description:\n{topic}"
+    assert captured["system_prompt"] == preview.system_prompt
+    assert captured["json_schema"] == preview.json_schema
+    preview.json_schema.clear()
+    fresh = build_search_plan_request(topic_description=topic)
+    assert fresh.json_schema["properties"]["queries"]["minItems"] == 3
