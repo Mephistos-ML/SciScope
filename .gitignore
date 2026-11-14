@@ -29,25 +29,25 @@ frontend/vite.config.d.ts
 # Local NASA source bytes; provenance and small study tables are tracked
 /benchmarks/data/nasa/*
 !/benchmarks/data/nasa/manifest.json
-/benchmarks/data/study/repositories.jsonl
-/benchmarks/data/study/evidence.jsonl
-/benchmarks/data/study/features.jsonl
-/benchmarks/data/study/.generation.lock
-/benchmarks/data/study/.generation-checkpoint.json
-/benchmarks/data/study/.queries.jsonl-*
-/benchmarks/data/study/.manifest.json-*
-/benchmarks/data/study/..generation-checkpoint.json-*
+/benchmarks/data/study/run-*/repositories.jsonl
+/benchmarks/data/study/run-*/evidence.jsonl
+/benchmarks/data/study/run-*/features.jsonl
+/benchmarks/data/study/run-*/.generation.lock
+/benchmarks/data/study/run-*/.generation-checkpoint.json
+/benchmarks/data/study/run-*/.queries.jsonl-*
+/benchmarks/data/study/run-*/.manifest.json-*
+/benchmarks/data/study/run-*/..generation-checkpoint.json-*
 
 # Reproducible experiment output
 /benchmarks/results/runs/
 /benchmarks/results/exports/
 
 # Local GitHub collection responses, resumable checkpoints and summaries
-/benchmarks/data/study/github/
-/benchmarks/data/study/.repositories.jsonl-*
-/benchmarks/data/study/.evidence.jsonl-*
-/benchmarks/data/study/.features.jsonl-*
+/benchmarks/data/study/run-*/github/
+/benchmarks/data/study/run-*/.repositories.jsonl-*
+/benchmarks/data/study/run-*/.evidence.jsonl-*
+/benchmarks/data/study/run-*/.features.jsonl-*
 
 # Archived collection formats and temporary offline rebuilds
 /benchmarks/results/collection-archives/
-/benchmarks/data/study/.collection-rebuild-*/
+/benchmarks/data/study/run-*/.collection-rebuild-*/
