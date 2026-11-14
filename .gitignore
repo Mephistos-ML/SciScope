@@ -55,3 +55,7 @@ frontend/vite.config.d.ts
 # Local audit coordination and interrupted atomic writes
 /benchmarks/results/audits/*/*.lock
 /benchmarks/results/audits/*/.*.json-*
+
+# Paired domain generation coordination and atomic-write temporary files
+/benchmarks/data/study/run-*/.domain-generation.lock
+/benchmarks/data/study/run-*/.generation.json-*
