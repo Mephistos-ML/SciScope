@@ -51,3 +51,7 @@ frontend/vite.config.d.ts
 # Archived collection formats and temporary offline rebuilds
 /benchmarks/results/collection-archives/
 /benchmarks/data/study/run-*/.collection-rebuild-*/
+
+# Local audit coordination and interrupted atomic writes
+/benchmarks/results/audits/*/*.lock
+/benchmarks/results/audits/*/.*.json-*
