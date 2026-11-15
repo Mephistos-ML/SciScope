@@ -11,38 +11,45 @@ from tests.fixtures.repository_clients import make_repository_client
 
 from app.integrations.repositories.github.search import code as github_code_search
 from app.integrations.repositories.common.models import JsonResponse
-from app.integrations.repositories.github.search.file_policy import CODE_SEARCH_EXTENSION_SUFFIX
+from app.integrations.repositories.github.search.file_policy import (
+    CODE_SEARCH_EXTENSION_SUFFIX,
+)
 
 
 def test_discover_repository_candidates_from_code_builds_repository_signal(
-    monkeypatch, repository_client,
+    monkeypatch,
+    repository_client,
 ) -> None:
     def fake_fetch_json(url: str) -> JsonResponse:
         if "/search/code" in url:
             assert "orca+python+package" in url
             assert "page=1" in url
-            return JsonResponse(payload={
-                "items": [
-                    {
-                        "repository": {
-                            "id": 101,
-                            "full_name": "kragskow-group/orto",
-                            "html_url": "https://github.com/kragskow-group/orto",
-                            "description": "",
-                            "updated_at": "2026-09-03T12:30:00Z",
-                            "owner": {"login": "kragskow-group"},
-                        },
-                        "path": "src/orto/io/orca_output.py",
-                    }
-                ]
-            }, url=url)
+            return JsonResponse(
+                payload={
+                    "items": [
+                        {
+                            "repository": {
+                                "id": 101,
+                                "full_name": "kragskow-group/orto",
+                                "html_url": "https://github.com/kragskow-group/orto",
+                                "description": "",
+                                "updated_at": "2026-09-03T12:30:00Z",
+                                "owner": {"login": "kragskow-group"},
+                            },
+                            "path": "src/orto/io/orca_output.py",
+                        }
+                    ]
+                },
+                url=url,
+            )
 
         raise AssertionError(f"Unexpected URL: {url}")
 
     monkeypatch.setattr(repository_client, "fetch_json", fake_fetch_json)
 
-    signals = github_code_search.discover_repository_candidates_from_code(client=repository_client, queries=
-        ["orca python package"],
+    signals = github_code_search.discover_repository_candidates_from_code(
+        client=repository_client,
+        queries=["orca python package"],
         per_query_limit=5,
     )
 
@@ -56,48 +63,56 @@ def test_discover_repository_candidates_from_code_builds_repository_signal(
 
 
 def test_discover_repository_candidates_from_code_reads_second_page(
-    monkeypatch, repository_client,
+    monkeypatch,
+    repository_client,
 ) -> None:
     requested_urls: list[str] = []
 
     def fake_fetch_json(url: str) -> JsonResponse:
         requested_urls.append(url)
         if "page=1" in url:
-            return JsonResponse(payload={
-                "items": [
-                    {
-                        "repository": {
-                            "id": 101,
-                            "full_name": "kragskow-group/orto",
-                            "html_url": "https://github.com/kragskow-group/orto",
-                            "description": "",
-                            "owner": {"login": "kragskow-group"},
-                        },
-                        "path": "src/orto/io/orca_output.py",
-                    }
-                ]
-            }, url=url)
+            return JsonResponse(
+                payload={
+                    "items": [
+                        {
+                            "repository": {
+                                "id": 101,
+                                "full_name": "kragskow-group/orto",
+                                "html_url": "https://github.com/kragskow-group/orto",
+                                "description": "",
+                                "owner": {"login": "kragskow-group"},
+                            },
+                            "path": "src/orto/io/orca_output.py",
+                        }
+                    ]
+                },
+                url=url,
+            )
         if "page=2" in url:
-            return JsonResponse(payload={
-                "items": [
-                    {
-                        "repository": {
-                            "id": 202,
-                            "full_name": "thermotools/lammps_mie_fh",
-                            "html_url": "https://github.com/thermotools/lammps_mie_fh",
-                            "description": "",
-                            "owner": {"login": "thermotools"},
-                        },
-                        "path": "src/pair_mie_fh.cpp",
-                    }
-                ]
-            }, url=url)
+            return JsonResponse(
+                payload={
+                    "items": [
+                        {
+                            "repository": {
+                                "id": 202,
+                                "full_name": "thermotools/lammps_mie_fh",
+                                "html_url": "https://github.com/thermotools/lammps_mie_fh",
+                                "description": "",
+                                "owner": {"login": "thermotools"},
+                            },
+                            "path": "src/pair_mie_fh.cpp",
+                        }
+                    ]
+                },
+                url=url,
+            )
         raise AssertionError(f"Unexpected URL: {url}")
 
     monkeypatch.setattr(repository_client, "fetch_json", fake_fetch_json)
 
-    signals = github_code_search.discover_repository_candidates_from_code(client=repository_client, queries=
-        ["orca python package"],
+    signals = github_code_search.discover_repository_candidates_from_code(
+        client=repository_client,
+        queries=["orca python package"],
         per_query_limit=1,
         max_pages=2,
     )
@@ -106,9 +121,10 @@ def test_discover_repository_candidates_from_code_reads_second_page(
     parameters = [parse_qs(urlsplit(url).query) for url in requested_urls]
     assert [params["page"] for params in parameters] == [["1"], ["2"]]
     assert all(params["per_page"] == ["1"] for params in parameters)
-    assert all(params["q"] == [
-        f'"orca python package" {CODE_SEARCH_EXTENSION_SUFFIX}'
-    ] for params in parameters)
+    assert all(
+        params["q"] == [f'"orca python package" {CODE_SEARCH_EXTENSION_SUFFIX}']
+        for params in parameters
+    )
     assert all(signal.payload["query"] == "orca python package" for signal in signals)
 
 
@@ -118,13 +134,26 @@ def repository_client():
 
 
 def test_result_count_reported_even_for_an_empty_page(monkeypatch, repository_client):
-    monkeypatch.setattr(repository_client, "fetch_json", lambda url: JsonResponse({
-        "total_count": 1001, "items": [],
-    }, url))
+    monkeypatch.setattr(
+        repository_client,
+        "fetch_json",
+        lambda url: JsonResponse(
+            {
+                "total_count": 1001,
+                "items": [],
+            },
+            url,
+        ),
+    )
     counts = []
-    assert github_code_search.discover_repository_candidates_from_code(
-        ["science"], client=repository_client, report_result_count=counts.append,
-    ) == []
+    assert (
+        github_code_search.discover_repository_candidates_from_code(
+            ["science"],
+            client=repository_client,
+            report_result_count=counts.append,
+        )
+        == []
+    )
     assert counts == [1001]
 
 
@@ -137,14 +166,47 @@ def test_default_code_search_stops_at_ten_full_pages(monkeypatch, repository_cli
 
     monkeypatch.setattr(repository_client, "fetch_json", fetch)
     github_code_search.discover_repository_candidates_from_code(
-        ["scientific software"], client=repository_client,
+        ["scientific software"],
+        client=repository_client,
     )
     assert pages == list(range(1, 11))
 
 
-@pytest.mark.parametrize("last_page_size, expected_pages", [(30, [1, 2]), (100, [1, 2, 3])])
+@pytest.mark.parametrize("sha", [None, "", "bad", 42, "a" * 64])
+def test_optional_invalid_blob_sha_does_not_drop_production_search_results(
+    monkeypatch,
+    repository_client,
+    sha,
+):
+    payload = {
+        "items": [
+            {
+                "path": "src/science.py",
+                "sha": sha,
+                "repository": {"id": 101, "full_name": "org/science"},
+            }
+        ]
+    }
+    monkeypatch.setattr(
+        repository_client, "fetch_json", lambda url: JsonResponse(payload, url)
+    )
+    signals = github_code_search.discover_repository_candidates_from_code(
+        ["scientific method"],
+        client=repository_client,
+    )
+    assert len(signals) == 1
+    assert signals[0].item_id == "github:repo:101"
+    assert "src/science.py" in signals[0].raw_text
+
+
+@pytest.mark.parametrize(
+    "last_page_size, expected_pages", [(30, [1, 2]), (100, [1, 2, 3])]
+)
 def test_default_code_search_stops_when_results_end(
-    monkeypatch, repository_client, last_page_size, expected_pages,
+    monkeypatch,
+    repository_client,
+    last_page_size,
+    expected_pages,
 ):
     pages = []
 
@@ -156,14 +218,19 @@ def test_default_code_search_stops_when_results_end(
 
     monkeypatch.setattr(repository_client, "fetch_json", fetch)
     github_code_search.discover_repository_candidates_from_code(
-        ["scientific software"], client=repository_client,
+        ["scientific software"],
+        client=repository_client,
     )
     assert pages == expected_pages
 
 
-@pytest.mark.parametrize("query", ["paramagnetic nmr", "x" * 185, 'method "quoted"', r"method\file"])
+@pytest.mark.parametrize(
+    "query", ["paramagnetic nmr", "x" * 185, 'method "quoted"', r"method\file"]
+)
 def test_code_search_sends_one_filtered_request_with_a_literal_phrase(
-    monkeypatch, repository_client, query,
+    monkeypatch,
+    repository_client,
+    query,
 ):
     requests = []
 
@@ -172,9 +239,13 @@ def test_code_search_sends_one_filtered_request_with_a_literal_phrase(
         return JsonResponse({"items": []}, url)
 
     monkeypatch.setattr(repository_client, "fetch_json", fetch)
-    assert github_code_search.discover_repository_candidates_from_code(
-        [query], client=repository_client,
-    ) == []
+    assert (
+        github_code_search.discover_repository_candidates_from_code(
+            [query],
+            client=repository_client,
+        )
+        == []
+    )
     assert len(requests) == 1
     params = parse_qs(urlsplit(requests[0]).query)
     escaped = query.replace("\\", "\\\\").replace('"', '\\"')
@@ -184,7 +255,9 @@ def test_code_search_sends_one_filtered_request_with_a_literal_phrase(
 
 @pytest.mark.parametrize("query", ["x" * 186, "x" * 184 + '"', "x" * 184 + "\\"])
 def test_code_search_rejects_overflow_before_network_io(
-    monkeypatch, repository_client, query,
+    monkeypatch,
+    repository_client,
+    query,
 ):
     def fetch(url):
         pytest.fail("An overlength request must not reach GitHub")
@@ -192,5 +265,6 @@ def test_code_search_rejects_overflow_before_network_io(
     monkeypatch.setattr(repository_client, "fetch_json", fetch)
     with pytest.raises(ValueError, match="1000-character limit"):
         github_code_search.discover_repository_candidates_from_code(
-            [query], client=repository_client,
+            [query],
+            client=repository_client,
         )

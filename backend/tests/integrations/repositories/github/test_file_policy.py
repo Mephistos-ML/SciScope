@@ -35,12 +35,24 @@ def test_fixed_suffix_leaves_185_characters_for_an_unescaped_ascii_phrase():
 
 
 @pytest.mark.parametrize("query", ["x" * 186, "x" * 184 + '"', "x" * 184 + "\\"])
-def test_escaped_request_cannot_exceed_the_fixed_budget(query):
+def test_request_cannot_exceed_the_fixed_budget(query):
     with pytest.raises(ValueError, match="1000-character limit"):
         build_code_search_query(query)
 
 
-def test_prequoted_phrase_does_not_get_an_extra_pair_of_quotes():
+def test_search_terms_are_quoted_as_one_phrase():
+    assert build_code_search_query("paramagnetic nmr") == (
+        f'"paramagnetic nmr" {CODE_SEARCH_EXTENSION_SUFFIX}'
+    )
+
+
+def test_explicit_quotes_are_preserved_without_adding_quotes():
     assert build_code_search_query('"paramagnetic nmr"') == (
         f'"paramagnetic nmr" {CODE_SEARCH_EXTENSION_SUFFIX}'
     )
+
+
+@pytest.mark.parametrize("query", ["", " \t\n"])
+def test_empty_search_is_rejected(query):
+    with pytest.raises(ValueError, match="must not be empty"):
+        build_code_search_query(query)
