@@ -75,9 +75,15 @@ class SearchPlanRequest:
     json_schema: dict[str, Any]
 
 
-def build_search_plan_request(*, topic_description: str) -> SearchPlanRequest:
+def build_search_plan_request(
+    *, topic_description: str, system_prompt: str | None = None
+) -> SearchPlanRequest:
+    if system_prompt is not None and (
+        not system_prompt.strip() or len(system_prompt.encode()) > 16 * 1024
+    ):
+        raise ValueError("Research system prompt must be nonempty and at most 16 KiB")
     return SearchPlanRequest(
-        system_prompt=_SYSTEM_PROMPT,
+        system_prompt=_SYSTEM_PROMPT if system_prompt is None else system_prompt,
         user_prompt=f"Topic description:\n{topic_description.strip() or 'Untitled topic'}",
         json_schema=deepcopy(_SEARCH_PLAN_JSON_SCHEMA),
     )
@@ -97,12 +103,16 @@ class OpenAiSearchPlanner:
         self,
         *,
         topic_description: str,
+        system_prompt: str | None = None,
     ) -> AiSearchPlan:
         request = build_search_plan_request(
             topic_description=topic_description,
+            system_prompt=system_prompt,
         )
         payload = build_openai_json_response(
-            api_key=self.api_key, base_url=self.base_url, timeout_seconds=self.timeout_seconds,
+            api_key=self.api_key,
+            base_url=self.base_url,
+            timeout_seconds=self.timeout_seconds,
             model=self.model,
             reasoning_effort=self.reasoning_effort,
             system_prompt=request.system_prompt,
