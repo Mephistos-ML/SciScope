@@ -26,6 +26,9 @@ frontend/*.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts
 
+# Local generated graphics and design drafts; reusable sources live in docs/brand
+/output/
+
 # Local NASA source bytes; provenance and small study tables are tracked
 /benchmarks/data/nasa/*
 !/benchmarks/data/nasa/manifest.json
