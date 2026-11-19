@@ -127,6 +127,12 @@ are durable database state. PostgreSQL application engines use READ COMMITTED.
 | [Backend quality gates](contracts/backend-quality-gates.md) | Executable import/cycle, lint and type checks |
 | [Repository ranking](contracts/repository-ranking.md) | Match identity, logarithmic score, visibility and snapshot versions |
 | [Versions and provenance](contracts/versioning-and-provenance.md) | Generated contracts, release consistency, source SHA and configuration fingerprints |
+| [Research pipeline](contracts/research-pipeline.md) | Target study/execution contracts for the staged benchmark consolidation |
+
+Research execution currently has initial, prompt-study and deferred-validation
+entrypoints. Their responsibilities and persisted formats are mapped in the
+[migration review](reviews/research-pipeline-migration.md). The unified runner is
+planned; the contract link above does not imply that it is already available.
 
 [Backend recovery](operations/backend-recovery.md) contains operational commands.
 [AGENTS.md](../AGENTS.md) defines engineering policy.
