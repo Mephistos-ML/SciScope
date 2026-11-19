@@ -129,10 +129,13 @@ are durable database state. PostgreSQL application engines use READ COMMITTED.
 | [Versions and provenance](contracts/versioning-and-provenance.md) | Generated contracts, release consistency, source SHA and configuration fingerprints |
 | [Research pipeline](contracts/research-pipeline.md) | Target study/execution contracts for the staged benchmark consolidation |
 
-Research execution currently has initial, prompt-study and deferred-validation
-entrypoints. Their responsibilities and persisted formats are mapped in the
-[migration review](reviews/research-pipeline-migration.md). The unified runner is
-planned; the contract link above does not imply that it is already available.
+Research execution for the new study contract uses `benchmarks/scripts/run.py`
+and the shared pipeline. It composes production planner/GitHub components without
+starting the application or its database. Offline summaries consume saved pages
+and explicit labels. Initial, prompt-study and deferred-validation entrypoints
+coexist until caller migration; their persisted formats and removal gates are in
+the [migration review](reviews/research-pipeline-migration.md). Production does
+not depend on the research CLI or evaluation modules.
 
 [Backend recovery](operations/backend-recovery.md) contains operational commands.
 [AGENTS.md](../AGENTS.md) defines engineering policy.
