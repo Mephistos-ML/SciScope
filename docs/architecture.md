@@ -132,8 +132,8 @@ are durable database state. PostgreSQL application engines use READ COMMITTED.
 Research execution for the new study contract uses `benchmarks/scripts/run.py`
 and the shared pipeline. It composes production planner/GitHub components without
 starting the application or its database. Offline summaries consume saved pages
-and explicit labels. Initial, prompt-study and deferred-validation entrypoints
-coexist until caller migration; their persisted formats and removal gates are in
+and explicit labels. Superseded initial, prompt-study and deferred-validation live
+entrypoints are removed; historical read/replay formats and reproduction are in
 the [migration review](reviews/research-pipeline-migration.md). Production does
 not depend on the research CLI or evaluation modules.
 
