@@ -21,6 +21,7 @@ dev = [
     "ruff==0.16.10",
     "mypy==2.4.0",
     "import-linter==2.15",
+    "PyYAML==6.0.2",
 ]
 
 [build-system]
