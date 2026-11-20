@@ -93,9 +93,7 @@ class GitHubClient:
             except (json.JSONDecodeError, UnicodeDecodeError) as error:
                 # These GET requests are safe to repeat; a truncated or damaged
                 # response must never be interpreted as a complete empty result.
-                delay = GITHUB_RETRY_BACKOFF_SECONDS * (
-                    2 ** (attempt - 1)
-                ) + random.uniform(0, 0.5)
+                delay = _retry_delay(attempt)
                 if attempt < GITHUB_REQUEST_RETRIES and (
                     deadline_monotonic is None
                     or monotonic() + delay < deadline_monotonic
@@ -128,14 +126,12 @@ class GitHubClient:
                     raise _build_transport_source_error(error) from error
                 finally:
                     exc.close()
-                retry_delay = GITHUB_RETRY_BACKOFF_SECONDS * attempt
-                if exc.code == 408 and attempt < GITHUB_REQUEST_RETRIES:
-                    retry_delay = GITHUB_RETRY_BACKOFF_SECONDS * (
-                        2 ** (attempt - 1)
-                    ) + random.uniform(0, 0.5)
+                retry_after = _read_retry_after_seconds(exc) or 0
+                retry_delay = max(_retry_delay(attempt), retry_after)
                 if (
                     attempt < GITHUB_REQUEST_RETRIES
                     and (exc.code == 408 or 500 <= exc.code < 600)
+                    and retry_delay <= GITHUB_REQUEST_TIMEOUT_SECONDS
                     and (
                         deadline_monotonic is None
                         or monotonic() + retry_delay < deadline_monotonic
@@ -181,18 +177,19 @@ class GitHubClient:
                 )
                 if attempt == GITHUB_REQUEST_RETRIES:
                     break
-                if (
-                    deadline_monotonic is not None
-                    and monotonic() + GITHUB_RETRY_BACKOFF_SECONDS * attempt
-                    >= deadline_monotonic
-                ):
+                retry_delay = _retry_delay(attempt)
+                if deadline_monotonic is not None and monotonic() + retry_delay >= deadline_monotonic:
                     break
-                time.sleep(GITHUB_RETRY_BACKOFF_SECONDS * attempt)
+                time.sleep(retry_delay)
 
         if last_error is not None:
             raise _build_transport_source_error(last_error) from last_error
 
         raise RuntimeError("GitHub fetch failed without a captured error.")
+
+
+def _retry_delay(attempt: int) -> float:
+    return GITHUB_RETRY_BACKOFF_SECONDS * (2 ** (attempt - 1)) + random.uniform(0, 0.5)
 
 
 def _build_source_error(exc: HTTPError, *, message: str) -> RepositorySourceError:
@@ -201,6 +198,7 @@ def _build_source_error(exc: HTTPError, *, message: str) -> RepositorySourceErro
             source="github",
             status="timed_out",
             public_message="GitHub search timed out right now.",
+            retry_after_seconds=_read_retry_after_seconds(exc),
         )
     if exc.code in (401, 403):
         lowered = message.casefold()
@@ -233,6 +231,7 @@ def _build_source_error(exc: HTTPError, *, message: str) -> RepositorySourceErro
         source="github",
         status="error",
         public_message="GitHub repository search is unavailable right now.",
+        retry_after_seconds=_read_retry_after_seconds(exc),
     )
 
 
@@ -281,6 +280,6 @@ def _read_positive_seconds(raw_value: str | None) -> int | None:
 
     try:
         value = ceil(float(raw_value))
-    except ValueError:
+    except (ValueError, OverflowError):
         return None
     return value if value > 0 else None

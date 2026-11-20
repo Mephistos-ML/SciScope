@@ -99,7 +99,10 @@ External discovery runs for every search. Product GitHub code search requests
 up to three pages of 100 files per executed query, stopping early on empty or
 short pages and respecting lane deadlines. GitHub repository search and GitLab
 repository search remain parallel channels with their existing limits.
-Request retries can add HTTP attempts beyond the logical page count.
+Request retries can add HTTP attempts beyond the logical page count. Validated
+code-search pages survive later request errors, with incomplete coverage exposed
+as `partial`. Provider clients own HTTP retries; the application does not rerun
+a completed query fan-out after those retries are exhausted.
 
 Repository and code-search lanes have
 separate provider and timeout budgets. Candidate admission filters non-software

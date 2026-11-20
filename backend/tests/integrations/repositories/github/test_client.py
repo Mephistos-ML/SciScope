@@ -88,7 +88,8 @@ def test_decoder_resource_failure_is_not_retried(monkeypatch):
 
 
 @pytest.mark.parametrize("failures", [1, 2, 3])
-def test_http_408_has_bounded_retries_with_backoff(monkeypatch, failures):
+@pytest.mark.parametrize("status", [408, 500, 503])
+def test_transient_http_errors_have_one_bounded_retry_budget(monkeypatch, failures, status):
     calls = []
     sleeps = []
 
@@ -107,7 +108,7 @@ def test_http_408_has_bounded_retries_with_backoff(monkeypatch, failures):
         if len(calls) <= failures:
             raise HTTPError(
                 request.full_url,
-                408,
+                status,
                 "Request Timeout",
                 {},
                 BytesIO(b'{"message":"Request timed out"}'),
@@ -122,8 +123,9 @@ def test_http_408_has_bounded_retries_with_backoff(monkeypatch, failures):
     if failures == 3:
         with pytest.raises(RepositorySourceError) as error:
             client.fetch_json(url)
-        assert error.value.status == "timed_out"
-        assert "repository search" not in error.value.public_message
+        assert error.value.status == ("timed_out" if status == 408 else "error")
+        if status == 408:
+            assert "repository search" not in error.value.public_message
     else:
         assert client.fetch_json(url).payload == {"items": []}
     assert calls == [url] * min(failures + 1, 3)
@@ -268,6 +270,7 @@ def test_fetch_json_reads_rate_limit_retry_after(monkeypatch) -> None:
 def test_fetch_json_classifies_transport_timeouts(monkeypatch) -> None:
     sleeps = []
     monkeypatch.setattr(github_client.time, "sleep", sleeps.append)
+    monkeypatch.setattr(github_client.random, "uniform", lambda low, high: 0.25)
     attempts = []
     client = github_client.GitHubClient(lambda: {"Authorization": "Bearer token"})
 
@@ -284,7 +287,7 @@ def test_fetch_json_classifies_transport_timeouts(monkeypatch) -> None:
 
     assert len(attempts) == github_client.GITHUB_REQUEST_RETRIES
     assert sleeps == [
-        github_client.GITHUB_RETRY_BACKOFF_SECONDS * attempt
+        github_client.GITHUB_RETRY_BACKOFF_SECONDS * (2 ** (attempt - 1)) + 0.25
         for attempt in range(1, github_client.GITHUB_REQUEST_RETRIES)
     ]
 
@@ -357,3 +360,55 @@ def test_attempt_budget_rejection_cannot_issue_or_retry_transport(monkeypatch):
             "https://api.github.com/search/code?q=science"
         )
     assert calls == []
+
+
+@pytest.mark.parametrize("status", [401, 403, 429])
+def test_access_and_rate_limit_errors_do_not_trigger_hidden_retries(monkeypatch, status):
+    calls, sleeps = [], []
+
+    def fetch(request, timeout):
+        calls.append(request.full_url)
+        raise HTTPError(request.full_url, status, "Unavailable", {"Retry-After": "60"} if status != 401 else {}, BytesIO(b'{}'))
+
+    monkeypatch.setattr(github_client, "urlopen", fetch)
+    monkeypatch.setattr(github_client.time, "sleep", sleeps.append)
+    with pytest.raises(RepositorySourceError):
+        github_client.GitHubClient(lambda: {}).fetch_json("https://api.github.com/search/code")
+    assert len(calls) == 1
+    assert not sleeps
+
+
+@pytest.mark.parametrize("retry_after,deadline,expected_calls", [(5, 10, 3), (20, 10, 1), (600, None, 1)])
+def test_server_retry_window_is_respected_within_wait_and_deadline_budgets(
+    monkeypatch, retry_after, deadline, expected_calls,
+):
+    calls, sleeps = [], []
+    monkeypatch.setattr(github_client, "monotonic", lambda: 0)
+    monkeypatch.setattr(github_client, "read_remaining_timeout_seconds", lambda **kwargs: 1)
+    monkeypatch.setattr(github_client.random, "uniform", lambda *args: 0)
+    monkeypatch.setattr(github_client.time, "sleep", sleeps.append)
+
+    def fetch(request, timeout):
+        calls.append(request.full_url)
+        raise HTTPError(request.full_url, 503, "Unavailable", {"Retry-After": str(retry_after)}, BytesIO(b'{}'))
+
+    monkeypatch.setattr(github_client, "urlopen", fetch)
+    # Isolate header parsing from the bounded error-body reader's socket IO.
+    monkeypatch.setattr(github_client, "read_error_message", lambda *args, **kwargs: "Unavailable")
+    with pytest.raises(RepositorySourceError) as caught:
+        github_client.GitHubClient(lambda: {}).fetch_json("https://api.github.com/search/code", deadline_monotonic=deadline)
+    assert len(calls) == expected_calls
+    assert sleeps == [retry_after] * (expected_calls - 1)
+    assert caught.value.retry_after_seconds == retry_after
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf", "invalid"])
+def test_invalid_retry_header_does_not_crash_failure_classification(monkeypatch, value):
+    def fetch(request, timeout):
+        raise HTTPError(request.full_url, 429, "Unavailable", {"Retry-After": value}, BytesIO(b'{}'))
+
+    monkeypatch.setattr(github_client, "urlopen", fetch)
+    with pytest.raises(RepositorySourceError) as caught:
+        github_client.GitHubClient(lambda: {}).fetch_json("https://api.github.com/search/code")
+    assert caught.value.status == "rate_limited"
+    assert caught.value.retry_after_seconds is None

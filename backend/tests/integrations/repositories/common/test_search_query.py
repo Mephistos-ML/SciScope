@@ -51,7 +51,7 @@ def test_only_github_code_search_receives_the_file_scope(
     client = make_repository_client(source)
     requests = []
 
-    def fetch(url):
+    def fetch(url, **kwargs):
         requests.append(url)
         return JsonResponse({"items": []} if source == "github" else [], url)
 

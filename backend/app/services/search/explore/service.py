@@ -22,7 +22,7 @@ from app.services.ai.embeddings import EmbeddingProvider
 from app.models.ai import AiDependencyError
 from app.services.ai.planner import AiSearchPlanner
 from app.services.search.explore.dependencies import ExploreDependencies
-from app.services.search.retrieval.models import RetrievalLane
+from app.services.search.retrieval.models import RetrievalLane, RepositoryCandidate
 from app.services.ai.search_plans import (
     serialize_ai_search_plan,
     format_search_plan_topic,
@@ -55,7 +55,6 @@ logger = logging.getLogger(__name__)
 ExploreSearchProgressCallback = Callable[[dict[str, object]], None]
 ExploreSearchExecutionCallback = Callable[[ExploreSearchExecution], None]
 ExploreSearchStageReportCallback = Callable[[SearchStageReport], None]
-MAX_TIMEOUT_ATTEMPTS_PER_QUERY = 3
 
 
 @dataclass(frozen=True)
@@ -66,6 +65,16 @@ class _RetrievalSequence:
     external_candidates: tuple
     catalog_retrieval_duration_ms: int
     candidate_merge_duration_ms: int
+
+
+@dataclass(frozen=True)
+class _QueryRetrieval:
+    retrieved: RetrievedCandidates
+    attempt: ExploreQueryAttempt
+    external_candidates: tuple[RepositoryCandidate, ...]
+    timed_out: bool
+    catalog_duration_ms: int
+    merge_duration_ms: int
 
 
 class ExploreSearchUnavailableError(RuntimeError):
@@ -600,34 +609,20 @@ def _retrieve_planned_queries(
     candidate_merge_duration_ms = 0
 
     for query in queries:
-        (
-            step,
-            step_attempts,
-            step_external_candidates,
-            exhausted_timeouts,
-            step_catalog_retrieval_duration_ms,
-            step_candidate_merge_duration_ms,
-        ) = (
-            _retrieve_query_with_timeout_retries(
-                lanes=lanes,
-                embeddings=embeddings,
-                score_threshold=score_threshold,
-
-                query=query,
-                topic_description=topic_description,
-                ai_search_plan_payload=ai_search_plan_payload,
-                progress_callback=progress_callback if not attempts else None,
-                log_context=log_context,
-                database_url=database_url,
-            )
+        step = _retrieve_query(
+            lanes=lanes, embeddings=embeddings, score_threshold=score_threshold,
+            query=query, topic_description=topic_description,
+            ai_search_plan_payload=ai_search_plan_payload,
+            progress_callback=progress_callback if not attempts else None,
+            log_context=log_context, database_url=database_url,
         )
         executed_queries.append(query)
-        attempts.extend(step_attempts)
-        external_candidates.extend(step_external_candidates)
-        catalog_retrieval_duration_ms += step_catalog_retrieval_duration_ms
-        candidate_merge_duration_ms += step_candidate_merge_duration_ms
-        accumulated = step if accumulated is None else _merge_retrieved_candidates(accumulated, step)
-        if not exhausted_timeouts:
+        attempts.append(step.attempt)
+        external_candidates.extend(step.external_candidates)
+        catalog_retrieval_duration_ms += step.catalog_duration_ms
+        candidate_merge_duration_ms += step.merge_duration_ms
+        accumulated = step.retrieved if accumulated is None else _merge_retrieved_candidates(accumulated, step.retrieved)
+        if not step.timed_out:
             break
 
     if accumulated is None:
@@ -644,7 +639,7 @@ def _retrieve_planned_queries(
     )
 
 
-def _retrieve_query_with_timeout_retries(
+def _retrieve_query(
     *,
     lanes: tuple[RetrievalLane, ...],
     embeddings: EmbeddingProvider | None,
@@ -655,94 +650,45 @@ def _retrieve_query_with_timeout_retries(
     log_context: SearchLogContext | None,
     database_url: str,
     score_threshold: float,
-) -> tuple[RetrievedCandidates, tuple[ExploreQueryAttempt, ...], tuple, bool, int, int]:
-    """Retry one timed-out query before the plan moves to another angle."""
-
-    attempts: list[ExploreQueryAttempt] = []
-    external_candidates: list = []
-    accumulated_retrieved: RetrievedCandidates | None = None
-    catalog_retrieval_duration_ms = 0
-    candidate_merge_duration_ms = 0
-    for attempt_number in range(1, MAX_TIMEOUT_ATTEMPTS_PER_QUERY + 1):
-        attempt_started_at = monotonic()
-        catalog_retrieval_started_at = monotonic()
-        local_candidates = retrieve_catalog_candidates((query,), database_url=database_url, embeddings=embeddings)
-        catalog_retrieval_duration_ms += build_duration_ms(catalog_retrieval_started_at)
-        external_retrieved = _run_external_retrieval(
-            (query,),
-            lanes=lanes,
-            score_threshold=score_threshold,
-
-            local_candidates=local_candidates,
-            topic_description=topic_description,
-            ai_search_plan_payload=ai_search_plan_payload,
-            progress_callback=progress_callback if attempt_number == 1 else None,
-            soft_deadline_monotonic=(
-                attempt_started_at + config.EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS
-            ),
-            hard_deadline_monotonic=(
-                attempt_started_at + config.EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS
-            ),
-            log_context=log_context,
-        )
-        candidate_merge_started_at = monotonic()
-        merged_candidates = merge_repository_candidates(
-                (*local_candidates, *external_retrieved.candidates)
-        )
-        candidate_merge_duration_ms += build_duration_ms(candidate_merge_started_at)
-        attempt_retrieved = RetrievedCandidates(
-            candidates=merged_candidates,
-            source_statuses=external_retrieved.source_statuses,
-            successful_source_count=(
-                external_retrieved.successful_source_count + (1 if local_candidates else 0)
-            ),
-            partial=external_retrieved.partial,
-            warnings=external_retrieved.warnings,
-            lane_outcomes=tuple(
-                replace(outcome, query=query, attempt=attempt_number)
-                for outcome in external_retrieved.lane_outcomes
-            ),
-        )
-        timed_out = _query_attempt_timed_out(attempt_retrieved)
-        accumulated_retrieved = (
-            attempt_retrieved
-            if accumulated_retrieved is None
-            else _merge_retrieved_candidates(accumulated_retrieved, attempt_retrieved)
-        )
-        attempts.append(
-            ExploreQueryAttempt(
-                query=query,
-                attempt=attempt_number,
-                status="timed_out" if timed_out else "completed",
-                duration_ms=build_duration_ms(attempt_started_at),
-                candidate_count=len(attempt_retrieved.candidates),
-            )
-        )
-        external_candidates.extend(external_retrieved.candidates)
-        if not timed_out:
-            assert accumulated_retrieved is not None
-            return (
-                accumulated_retrieved,
-                tuple(attempts),
-                tuple(external_candidates),
-                False,
-                catalog_retrieval_duration_ms,
-                candidate_merge_duration_ms,
-            )
-
-    assert accumulated_retrieved is not None
-    return (
-        accumulated_retrieved,
-        tuple(attempts),
-        tuple(external_candidates),
-        True,
-        catalog_retrieval_duration_ms,
-        candidate_merge_duration_ms,
+) -> _QueryRetrieval:
+    """Execute one query once; adapters own transport retry budgets."""
+    started_at = monotonic()
+    local_candidates = retrieve_catalog_candidates((query,), database_url=database_url, embeddings=embeddings)
+    catalog_duration = build_duration_ms(started_at)
+    external = _run_external_retrieval(
+        (query,), lanes=lanes, score_threshold=score_threshold,
+        local_candidates=local_candidates, topic_description=topic_description,
+        ai_search_plan_payload=ai_search_plan_payload, progress_callback=progress_callback,
+        soft_deadline_monotonic=started_at + config.EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS,
+        hard_deadline_monotonic=started_at + config.EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS,
+        log_context=log_context,
+    )
+    merge_started = monotonic()
+    candidates = merge_repository_candidates((*local_candidates, *external.candidates))
+    merge_duration = build_duration_ms(merge_started)
+    retrieved = RetrievedCandidates(
+        candidates=candidates, source_statuses=external.source_statuses,
+        successful_source_count=external.successful_source_count + (1 if local_candidates else 0),
+        partial=external.partial, warnings=external.warnings,
+        lane_outcomes=tuple(replace(outcome, query=query, attempt=1) for outcome in external.lane_outcomes),
+    )
+    timed_out = _query_attempt_timed_out(retrieved)
+    attempt = ExploreQueryAttempt(
+        query=query, attempt=1, status="timed_out" if timed_out else "completed",
+        duration_ms=build_duration_ms(started_at), candidate_count=len(candidates),
+    )
+    return _QueryRetrieval(
+        retrieved=retrieved, attempt=attempt, external_candidates=external.candidates,
+        timed_out=timed_out, catalog_duration_ms=catalog_duration, merge_duration_ms=merge_duration,
     )
 
 
 def _query_attempt_timed_out(retrieved: RetrievedCandidates) -> bool:
-    """Treat partial provider timeouts as retryable query attempts."""
+    """Identify timeouts for fallback to a different planned query, never a repeat."""
+
+    if any(outcome.status == "timed_out" or outcome.error_code == "timed_out"
+           for outcome in retrieved.lane_outcomes):
+        return True
 
     if any(status.get("status") == "timed_out" for status in retrieved.source_statuses):
         return True

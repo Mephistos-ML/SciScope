@@ -74,7 +74,7 @@ def test_timeout_fallback_retains_results_and_diagnostics(monkeypatch, next_resu
         progress_callback=None, log_context=None, database_url="unused",
     )
 
-    retries = service.MAX_TIMEOUT_ATTEMPTS_PER_QUERY
+    retries = 1
     second_attempts = retries if next_result == "timeout" else 1
     assert calls == ["first"] * retries + ["second"] * second_attempts
     assert sequence.executed_queries == ("first", "second")

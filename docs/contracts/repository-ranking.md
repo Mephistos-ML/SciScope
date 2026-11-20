@@ -182,6 +182,33 @@ retains README files with allowed extensions. Existing catalog evidence is not
 retroactively removed or rewritten. The allowed extensions are owned by the
 [GitHub file policy](../../backend/app/integrations/repositories/github/search/file_policy.py).
 
+Product discovery consumes the GitHub adapter's `search_code` batch contract:
+validated signals, reported counts, incomplete-coverage reasons and an optional
+terminal source error. A later page failure retains the validated prefix. An
+empty validated result is distinct from first-page unavailability. Page-budget
+termination, provider incompleteness/truncation, unmappable items and missing
+coverage metadata all set product `partial`, independently of candidate count.
+Malformed page envelopes are classified as source errors; malformed individual
+items are skipped and mark coverage incomplete. Optional blob SHA is not used by
+product discovery and cannot invalidate a usable file match. Page bodies are
+bounded to 2 MiB, page size to 100 and page budget to 10 at the adapter boundary;
+production composition selects three pages.
+
+The parallel lane merger retains successful repository-search channels. Source
+status can remain `ok` when some observations are usable, while run `partial` and
+per-lane `partial`/failure status describe missing coverage. Existing lane outcome
+fields retain the first coverage reason as `error_code`, or a terminal IO error
+and retry hint; structured lane logs include all observed coverage reasons. These
+fields are serialized through the current execution-state contract without
+persisting exception objects. Historical reports are not rewritten.
+
+The existing strict `discover_repository_candidates_from_code` collector remains
+the contract for current offline callers that calculate coverage from saved pages
+and need terminal request failures to preserve interrupted checkpoints. It shares
+IO and mapping with `search_code`, and raises the returned terminal error rather
+than treating a prefix as a completed collection. Product composition directly
+binds the batch API; no second mapping or HTTP implementation is maintained.
+
 When GitHub reports a code-search pool above its retrieval cap, Explore returns
 one refinement suggestion through its existing message field. The suggestion
 asks for a more specific method, tool or scientific task without displaying

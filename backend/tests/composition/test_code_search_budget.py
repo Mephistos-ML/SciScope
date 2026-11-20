@@ -37,7 +37,7 @@ def test_product_code_budget_preserves_parallel_repository_search(monkeypatch, p
         if first:
             gate.wait(timeout=5)
 
-    def github_fetch(client, url, *, deadline_monotonic=None):
+    def github_fetch(client, url, *, deadline_monotonic=None, max_response_bytes=None):
         parsed = urlsplit(url)
         params = parse_qs(parsed.query)
         if parsed.path == "/search/code":
@@ -59,7 +59,7 @@ def test_product_code_budget_preserves_parallel_repository_search(monkeypatch, p
             "id": 2, "full_name": "science/github-repo", "html_url": "https://github.com/science/github-repo",
         }]}, url=url)
 
-    def gitlab_fetch(client, url, *, deadline_monotonic=None):
+    def gitlab_fetch(client, url, *, deadline_monotonic=None, max_response_bytes=None):
         parsed = urlsplit(url)
         params = parse_qs(parsed.query)
         assert parsed.path == "/api/v4/search"
@@ -87,3 +87,43 @@ def test_product_code_budget_preserves_parallel_repository_search(monkeypatch, p
         expected_ids.add("github:repo:1")
     assert {candidate.repository_id for candidate in result.candidates} == expected_ids
     assert result.successful_source_count == 2
+    assert result.partial == (page_sizes[-1] == 100)
+    outcome = next(item for item in result.lane_outcomes if item.channel == "code_search")
+    assert outcome.status == ("partial" if page_sizes[-1] == 100 else "ok")
+    assert outcome.error_code == ("page_budget" if page_sizes[-1] == 100 else None)
+
+
+@pytest.mark.parametrize("failure", ["timed_out", "rate_limited", "unauthorized", "error"])
+def test_code_page_failure_preserves_prefix_and_other_channels(monkeypatch, failure):
+    from app.integrations.repositories.common.source_status import RepositorySourceError
+
+    monkeypatch.setattr(config, "GITLAB_BASE_URL", "https://gitlab.com")
+    dependencies = build_explore_dependencies(repositories=build_repository_adapters())
+    pages = []
+
+    def github_fetch(client, url, **kwargs):
+        if urlsplit(url).path == "/search/repositories":
+            return JsonResponse({"items": [{"id": 2, "full_name": "science/repo", "html_url": "https://github.com/science/repo"}]}, url)
+        current = int(parse_qs(urlsplit(url).query)["page"][0])
+        pages.append(current)
+        if current == 2:
+            raise RepositorySourceError(source="github", status=failure, public_message="Unavailable", retry_after_seconds=60)
+        return JsonResponse({"total_count": 300, "incomplete_results": False, "items": [
+            {"path": f"src/{index}.py", "repository": {"id": 1, "full_name": "science/code"}}
+            for index in range(100)
+        ]}, url)
+
+    monkeypatch.setattr(GitHubClient, "fetch_json", github_fetch)
+    monkeypatch.setattr(GitLabClient, "fetch_json", lambda client, url, **kwargs: JsonResponse(
+        [{"id": 3, "path_with_namespace": "science/gitlab", "web_url": "https://gitlab.com/science/gitlab"}], url,
+    ))
+    result = run_external_repository_retrieval(["scientific phrase"], lanes=dependencies.lanes)
+    assert pages == [1, 2]
+    assert {candidate.repository_id for candidate in result.candidates} == {"github:repo:1", "github:repo:2", "gitlab:repo:3"}
+    assert result.successful_source_count == 2
+    assert result.partial is True
+    outcome = next(item for item in result.lane_outcomes if item.channel == "code_search")
+    assert outcome.status == "partial"
+    assert outcome.candidate_count == 100
+    assert outcome.error_code == failure
+    assert outcome.retry_after_seconds == 60

@@ -32,7 +32,7 @@ from app.integrations.repositories.common.source_status import (
     build_source_status,
 )
 
-from app.integrations.repositories.common.models import RepositoryDiscoveryBatch
+from app.integrations.repositories.common.models import RepositoryDiscoveryBatch, DiscoveryCoverageReason
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +55,7 @@ class LaneResult:
     completed_query_count: int | None = None
     crashed: bool = False
     broad_query: bool = False
+    coverage_reasons: tuple[DiscoveryCoverageReason, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,7 @@ class LaneDiscoveryResult:
     query_failures: tuple["QueryFailure", ...]
     completed_query_count: int | None
     broad_query: bool = False
+    coverage_reasons: tuple[DiscoveryCoverageReason, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,11 +201,12 @@ def consume_lane_result(
             duration_ms=build_duration_ms(lane_result.started_at_monotonic),
             source=source_name,
             channel=channel_name,
-            status="partial" if query_failures else "ok",
+            status="partial" if query_failures or lane_result.coverage_reasons else "ok",
             query_count=len(queries),
             candidate_count=len(lane_result.source_candidates),
             completed_query_count=completed_query_count,
             failed_query_count=len(query_failures),
+            coverage_reasons=lane_result.coverage_reasons,
         )
         for query_failure in query_failures:
             log_search_event(
@@ -219,7 +222,7 @@ def consume_lane_result(
                 error_code=query_failure.error.status,
                 error_message=query_failure.error.public_message,
             )
-    lane_succeeded = completed_query_count is None or completed_query_count > 0
+    lane_succeeded = bool(lane_result.source_candidates) or completed_query_count is None or completed_query_count > 0
     if lane_succeeded:
         successful_sources.add(source_name)
     candidates.extend(
@@ -254,7 +257,15 @@ def consume_lane_result(
             ),
         )
     if not query_failures:
+        if lane_result.coverage_reasons:
+            if any(reason in {"page_budget", "provider_truncated"} for reason in lane_result.coverage_reasons):
+                return True, "Try a more specific search: add a method, tool, or scientific task."
+            return True, "Some search results may be missing. Please try again later."
         return False, None
+    if lane_result.source_candidates and not completed_query_count:
+        return True, (
+            "Some search results are unavailable; results already found are included."
+        )
 
     warning = _build_query_failure_warning(
         source_name=source_name,
@@ -296,17 +307,25 @@ def build_lane_outcome(lane_result: LaneResult) -> RetrievalLaneOutcome:
     first_failure = (
         lane_result.query_failures[0].error if lane_result.query_failures else None
     )
+    if first_failure is not None:
+        status = "partial" if lane_result.source_candidates or lane_result.completed_query_count else first_failure.status
+        error_code = first_failure.status
+        error_message = first_failure.public_message
+    elif lane_result.coverage_reasons:
+        status = "partial"
+        error_code = lane_result.coverage_reasons[0]
+        error_message = "Search coverage is limited."
+    else:
+        status, error_code, error_message = "ok", None, None
     return RetrievalLaneOutcome(
         source=lane_result.source_name,
         channel=lane_result.channel_name,
-        status="partial" if lane_result.query_failures else "ok",
+        status=status,
         candidate_count=len(lane_result.source_candidates),
         duration_ms=duration_ms,
-        retry_after_seconds=(
-            first_failure.retry_after_seconds if first_failure else None
-        ),
-        error_code=first_failure.status if first_failure else None,
-        error_message=first_failure.public_message if first_failure else None,
+        retry_after_seconds=first_failure.retry_after_seconds if first_failure else None,
+        error_code=error_code,
+        error_message=error_message,
     )
 
 
@@ -412,7 +431,7 @@ def _run_lane_worker(
         )
         return
     except Exception:
-        logger.debug(
+        logger.exception(
             "Explore retrieval crashed for source=%s channel=%s queries=%s",
             source_name,
             channel_name,
@@ -437,6 +456,7 @@ def _run_lane_worker(
             query_failures=discovery.query_failures,
             completed_query_count=discovery.completed_query_count,
             broad_query=discovery.broad_query,
+            coverage_reasons=discovery.coverage_reasons,
         )
     )
 
@@ -464,6 +484,7 @@ def _run_lane_discoverer(
     query_failures: list[QueryFailure] = []
     completed_query_count = 0
     broad_query = False
+    coverage_reasons: list[DiscoveryCoverageReason] = []
     for query in queries:
         try:
             result = discover_candidates(
@@ -473,18 +494,22 @@ def _run_lane_discoverer(
             if isinstance(result, RepositoryDiscoveryBatch):
                 broad_query = broad_query or any(count > 1000 for count in result.reported_result_counts)
                 source_candidates.extend(result.signals)
+                coverage_reasons.extend(result.coverage_reasons)
+                if result.error is not None:
+                    raise result.error
             else:
                 source_candidates.extend(result)
             completed_query_count += 1
         except RepositorySourceError as exc:
             query_failures.append(QueryFailure(query=query, error=exc))
-            if exc.status == "rate_limited" or is_deadline_reached(
+            if exc.status in {"rate_limited", "unauthorized", "misconfigured", "disabled"} or is_deadline_reached(
                 lane_deadline_monotonic
             ):
                 break
 
     return LaneDiscoveryResult(
         source_candidates, tuple(query_failures), completed_query_count, broad_query,
+        tuple(dict.fromkeys(coverage_reasons)),
     )
 
 

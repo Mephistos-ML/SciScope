@@ -20,7 +20,7 @@ def test_discover_repository_candidates_from_code_builds_repository_signal(
     monkeypatch,
     repository_client,
 ) -> None:
-    def fake_fetch_json(url: str) -> JsonResponse:
+    def fake_fetch_json(url: str, **kwargs) -> JsonResponse:
         if "/search/code" in url:
             assert "orca+python+package" in url
             assert "page=1" in url
@@ -68,7 +68,7 @@ def test_discover_repository_candidates_from_code_reads_second_page(
 ) -> None:
     requested_urls: list[str] = []
 
-    def fake_fetch_json(url: str) -> JsonResponse:
+    def fake_fetch_json(url: str, **kwargs) -> JsonResponse:
         requested_urls.append(url)
         if "page=1" in url:
             return JsonResponse(
@@ -137,7 +137,7 @@ def test_result_count_reported_even_for_an_empty_page(monkeypatch, repository_cl
     monkeypatch.setattr(
         repository_client,
         "fetch_json",
-        lambda url: JsonResponse(
+        lambda url, **kwargs: JsonResponse(
             {
                 "total_count": 1001,
                 "items": [],
@@ -160,7 +160,7 @@ def test_result_count_reported_even_for_an_empty_page(monkeypatch, repository_cl
 def test_default_code_search_stops_at_ten_full_pages(monkeypatch, repository_client):
     pages = []
 
-    def fetch(url):
+    def fetch(url, **kwargs):
         pages.append(int(parse_qs(urlsplit(url).query)["page"][0]))
         return JsonResponse({"items": [{}] * 100}, url)
 
@@ -188,7 +188,7 @@ def test_optional_invalid_blob_sha_does_not_drop_production_search_results(
         ]
     }
     monkeypatch.setattr(
-        repository_client, "fetch_json", lambda url: JsonResponse(payload, url)
+        repository_client, "fetch_json", lambda url, **kwargs: JsonResponse(payload, url)
     )
     signals = github_code_search.discover_repository_candidates_from_code(
         ["scientific method"],
@@ -210,7 +210,7 @@ def test_default_code_search_stops_when_results_end(
 ):
     pages = []
 
-    def fetch(url):
+    def fetch(url, **kwargs):
         page = int(parse_qs(urlsplit(url).query)["page"][0])
         pages.append(page)
         size = 100 if page == 1 else last_page_size if page == 2 else 0
@@ -234,7 +234,7 @@ def test_code_search_sends_one_filtered_request_with_a_literal_phrase(
 ):
     requests = []
 
-    def fetch(url):
+    def fetch(url, **kwargs):
         requests.append(url)
         return JsonResponse({"items": []}, url)
 
@@ -259,7 +259,7 @@ def test_code_search_rejects_overflow_before_network_io(
     repository_client,
     query,
 ):
-    def fetch(url):
+    def fetch(url, **kwargs):
         pytest.fail("An overlength request must not reach GitHub")
 
     monkeypatch.setattr(repository_client, "fetch_json", fetch)

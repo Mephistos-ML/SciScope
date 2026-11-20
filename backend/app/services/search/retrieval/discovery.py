@@ -103,7 +103,7 @@ def discover_candidates_across_sources(
         )
         if lane_partial:
             partial = True
-        if lane_warning is not None:
+        if lane_warning is not None and lane_warning not in warnings:
             warnings.append(lane_warning)
         emit_retrieval_progress(
             candidates,

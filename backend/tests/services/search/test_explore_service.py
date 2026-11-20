@@ -386,7 +386,7 @@ def test_explore_search_enforced_mode_hides_rejected_candidates(
     assert "admission" not in payload
 
 
-def test_explore_search_retries_timeouts_before_advancing_to_next_query(
+def test_explore_search_advances_after_timeout_without_repeating_query(
     monkeypatch, database_url, dependencies
 ) -> None:
     dependencies = replace(
@@ -454,108 +454,39 @@ def test_explore_search_retries_timeouts_before_advancing_to_next_query(
     assert payload["canExpand"] is True
     assert attempted_queries == [
         "primary query",
-        "primary query",
-        "primary query",
         "fallback query",
     ]
 
 
-def test_explore_search_retries_partial_timeouts_and_merges_attempt_results(
-    monkeypatch, database_url, dependencies
-) -> None:
-    dependencies = replace(
-        dependencies,
-        planner=replace(
-            dependencies.planner,
-            build_search_plan=lambda topic_description: build_ready_repository_ai_plan(
-                "primary query",
-                "fallback query",
-            ),
-        ),
-    )
-    monkeypatch.setattr(
-        "app.services.search.explore.service.retrieve_catalog_candidates",
-        lambda *_, **__: (),
-    )
-    attempted_queries: list[str] = []
-    attempt_results = iter(
-        (
-            build_retrieved_candidates(
-                build_explore_repository_signal(
-                    "github:repo:112",
-                    query="primary query",
-                ),
-                source_statuses=(
-                    {
-                        "source": "github",
-                        "status": "ok",
-                        "candidateCount": 1,
-                        "error": None,
-                    },
-                ),
-                successful_source_count=1,
-                partial=True,
-                warnings=("GitHub search timed out after partial results.",),
-            ),
-            build_retrieved_candidates(
-                build_explore_repository_signal(
-                    "github:repo:113",
-                    query="primary query",
-                ),
-                source_statuses=(
-                    {
-                        "source": "github",
-                        "status": "ok",
-                        "candidateCount": 1,
-                        "error": None,
-                    },
-                ),
-                successful_source_count=1,
-                partial=True,
-                warnings=("GitHub search timed out after partial results.",),
-            ),
-            build_retrieved_candidates(
-                build_explore_repository_signal(
-                    "github:repo:106",
-                    query="primary query",
-                ),
-                source_statuses=(
-                    {
-                        "source": "github",
-                        "status": "ok",
-                        "candidateCount": 1,
-                        "error": None,
-                    },
-                ),
-                successful_source_count=1,
-            ),
+def test_partial_timeout_keeps_results_and_moves_to_a_distinct_query(
+    monkeypatch, database_url, dependencies,
+):
+    dependencies = replace(dependencies, planner=replace(dependencies.planner,
+        build_search_plan=lambda topic_description: build_ready_repository_ai_plan("primary query", "fallback query")))
+    monkeypatch.setattr("app.services.search.explore.service.retrieve_catalog_candidates", lambda *args, **kwargs: ())
+    calls = []
+
+    def retrieve(queries, **kwargs):
+        query = queries[0]
+        calls.append(query)
+        first = query == "primary query"
+        return build_retrieved_candidates(
+            build_explore_repository_signal("github:repo:112" if first else "github:repo:113", query=query),
+            source_statuses=({"source": "github", "status": "ok", "candidateCount": 1, "error": None},),
+            successful_source_count=1, partial=first,
+            warnings=("GitHub search timed out after partial results.",) if first else (),
         )
-    )
 
-    def _retrieve(queries, **_kwargs):
-        attempted_queries.append(queries[0])
-        return next(attempt_results)
-
-    monkeypatch.setattr(
-        "app.services.search.explore.service.run_external_repository_retrieval",
-        _retrieve,
-    )
-
-    payload = run_explore_search(
-        topic_description="Partial timeout workflow",
-        dependencies=dependencies,
-        database_url=database_url,
-    )
-
-    assert attempted_queries == ["primary query", "primary query", "primary query"]
-    assert {item["itemId"] for item in payload["items"]} == {
-        "github:repo:112",
-        "github:repo:113",
-        "github:repo:106",
-    }
+    monkeypatch.setattr("app.services.search.explore.service.run_external_repository_retrieval", retrieve)
+    payload = run_explore_search(topic_description="Partial timeout workflow", dependencies=dependencies,
+                                 database_url=database_url)
+    assert calls == ["primary query", "fallback query"]
+    assert {item["itemId"] for item in payload["items"]} == {"github:repo:112", "github:repo:113"}
+    assert payload["partial"] is True
 
 
-def test_explore_search_run_fails_after_all_timeout_retries_are_exhausted(
+
+def test_explore_search_run_fails_after_all_distinct_queries_time_out(
     monkeypatch, database_url, dependencies
 ) -> None:
     dependencies = replace(
@@ -619,12 +550,46 @@ def test_explore_search_run_fails_after_all_timeout_retries_are_exhausted(
     )
     assert attempted_queries == [
         "primary query",
-        "primary query",
-        "primary query",
         "fallback query",
-        "fallback query",
-        "fallback query",
-        "final query",
-        "final query",
         "final query",
     ]
+
+
+def test_http_retry_exhaustion_does_not_repeat_the_query_or_successful_lanes(
+    monkeypatch, database_url, dependencies,
+):
+    from io import BytesIO
+    from urllib.error import HTTPError
+    from app.integrations.repositories.github import client as github_client
+    from app.integrations.repositories.github.search.code import search_code
+    from app.services.search.retrieval.models import RetrievalLane
+
+    attempts = []
+    other_lane_calls = []
+
+    def fetch(request, timeout):
+        attempts.append(request.full_url)
+        raise HTTPError(request.full_url, 408, "Request Timeout", {}, BytesIO(b'{}'))
+
+    monkeypatch.setattr(github_client, "urlopen", fetch)
+    monkeypatch.setattr(github_client.time, "sleep", lambda _: None)
+    client = github_client.GitHubClient(lambda: {})
+
+    def code_search(queries, *, deadline_monotonic):
+        return search_code(queries, client=client, deadline_monotonic=deadline_monotonic, max_pages=3)
+
+    def other_search(queries, *, deadline_monotonic):
+        other_lane_calls.append(tuple(queries))
+        return [build_explore_repository_signal("github:repo:107", query=queries[0])]
+
+    dependencies = replace(dependencies, planner=replace(dependencies.planner,
+        build_search_plan=lambda topic_description: build_ready_repository_ai_plan("science")),
+        lanes=(RetrievalLane("github", "code_search", code_search),
+               RetrievalLane("github", "repository_search", other_search)))
+    result = run_explore_search(topic_description="Scientific software", dependencies=dependencies,
+                                database_url=database_url)
+    assert len(attempts) == 3
+    assert len(set(attempts)) == 1
+    assert other_lane_calls == [("science",)]
+    assert result["partial"] is True
+    assert result["items"][0]["itemId"] == "github:repo:107"
