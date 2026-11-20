@@ -51,9 +51,21 @@ compatible readers before new writers.
 ## Source identity
 
 `APP_REVISION` is a full source Git SHA (40 or 64 lowercase hexadecimal digits).
-Production requires it at startup. Docker requires it as a build argument and
-embeds it in the image environment; runtime images do not need `.git` or Git.
-For the existing Fly deployment:
+Production requires it at startup. Docker writes the identity to `app/_image_revision.txt`;
+startup configuration reads this file for API, workers, migration commands and SSH
+diagnostics. A conflicting runtime `APP_REVISION` fails startup. Runtime images
+contain neither `.git` nor Git.
+
+Fly Dashboard builds derive the SHA from the checkout without additional build
+arguments. The build context permits only `.git/HEAD`, `.git/refs/**` and
+`.git/packed-refs`; credentials in `.git/config`, objects and logs stay excluded.
+A read-only BuildKit mount exposes the filtered context only to the identity stage.
+Only the resulting SHA file is copied into the runtime application package,
+including the installed wheel used by API and worker entrypoints. Branch, detached-HEAD
+and packed-ref checkouts are supported. The checkout must be committed and clean;
+HEAD metadata alone does not prove that local source files are unmodified.
+
+For local deployment:
 
 ```sh
 python scripts/deploy_backend.py --dry-run
@@ -62,8 +74,17 @@ python scripts/deploy_backend.py
 
 This helper requires a clean committed checkout, derives its SHA, and passes
 `--build-arg APP_REVISION=<sha>` to Fly. It does not verify remote CI conclusions;
-deploy only revisions that passed required checks. Direct builds need the same
-argument. Do not override the embedded identity with an unrelated runtime value.
+deploy only revisions that passed required checks. Source archives and worktrees
+without usable in-context Git metadata still require the explicit build argument.
+An explicit SHA conflicting with available HEAD metadata fails the build. Missing
+or invalid identity also fails; it is never replaced by a placeholder.
+
+The Test workflow builds the complete image without arguments and compares the
+installed application configuration revision with the checked-out SHA. Fly Dashboard deployment remains separate
+from GitHub quality gates: deploy only a revision whose checks passed. Roll back
+using the prior compatible image; do not change its embedded revision. A stopped
+Machine may remain stopped after deployment; verify Machine state and readiness
+and explicitly start the updated Machine if necessary.
 
 Development composition resolves Git once at startup when no artifact identity
 is supplied. Dirty tracked/untracked source is marked `<sha>-dirty`. A source

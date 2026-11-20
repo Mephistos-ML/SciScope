@@ -42,6 +42,16 @@ jobs:
         run: |
           python scripts/check_release_versions.py
           python scripts/generate_search_contracts.py --check
+      - name: Verify automatic image revision without build arguments
+        run: |
+          docker build --file backend/Dockerfile --tag sciscope-image-check .
+          revision="$(docker run --rm \
+            --env APP_ENV=production --env APP_HOST=0.0.0.0 --env APP_PORT=8000 \
+            --env CORS_ORIGINS=https://sciscope.uk \
+            --env DATABASE_URL=sqlite+pysqlite:///:memory: --env AI_PLANNER_MODE=bootstrap \
+            sciscope-image-check python -c 'from app.config import APP_REVISION; print(APP_REVISION)')"
+          test "$revision" = "$(git rev-parse HEAD)"
+          docker run --rm sciscope-image-check sh -c 'test ! -e /source && test ! -e /app/.git'
 
   backend:
     name: Backend tests

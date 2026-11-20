@@ -1,16 +1,22 @@
-FROM python:3.13-slim
+# syntax=docker/dockerfile:1
+FROM python:3.13-slim AS source-identity
 
 WORKDIR /app
 
 ARG APP_REVISION
-ENV APP_REVISION=${APP_REVISION}
-RUN python -c 'import os, re, sys; re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", os.environ.get("APP_REVISION", "")) or sys.exit("Supply APP_REVISION as the full source Git SHA build argument")'
+RUN --mount=type=bind,target=/source \
+    python /source/backend/infra/build_revision.py --root /source --revision "${APP_REVISION}" > /app/REVISION
+
+FROM python:3.13-slim
+
+WORKDIR /app
 
 ARG SUPERCRONIC_VERSION=v0.2.48
 ARG SUPERCRONIC_SHA1SUM=016b7c9aebfc8d9fd9526e8ba33b191fc524485f
 
 COPY pyproject.toml ./
 COPY backend ./backend
+COPY --from=source-identity /app/REVISION /app/backend/app/_image_revision.txt
 
 RUN apt-get update \
     && apt-get install --no-install-recommends --yes curl supervisor \
