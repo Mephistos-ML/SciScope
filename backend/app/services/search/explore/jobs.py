@@ -14,6 +14,7 @@ import secrets
 from uuid import uuid4
 
 from app.models.explore_access import ExploreAdmission
+from app.models.scientific_domain import ScientificDomain
 from app.models.persistence import PersistenceError
 from app.models.search_run import (
     SearchRun,
@@ -52,6 +53,7 @@ logger = logging.getLogger(__name__)
 def create_explore_search_run(
     *,
     topic_description: str,
+    scientific_domain: ScientificDomain | None = None,
     admission: ExploreAdmission,
     dependencies: ExploreDependencies,
     database_url: str,
@@ -65,6 +67,7 @@ def create_explore_search_run(
         run_id=run_id,
         owner_user_id=owner_user_id,
         topic_description=topic_description,
+        scientific_domain=scientific_domain,
         topic_hash=hash_explore_topic(topic_description),
         status="queued",
         planner_mode=dependencies.planner.identity.mode,
@@ -132,6 +135,7 @@ def _build_run_snapshot(run: SearchRun) -> dict[str, object]:
     }
     payload.update(
         {
+            "scientificDomain": run.scientific_domain.value if run.scientific_domain else None,
             "runId": run.run_id,
             "status": run.status,
             "error": run.error_message,

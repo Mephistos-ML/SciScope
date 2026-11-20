@@ -10,6 +10,7 @@ import type {
   ExploreSearchRunPayload,
   ExploreSearchRunCreatedPayload,
   ExploreSearchPayload,
+  ExploreSearchRequest,
   SubscriptionItem,
   SubscriptionListPayload,
   ViewerPayload,
@@ -187,10 +188,7 @@ export async function deleteSubscription(subscriptionId: string): Promise<{ dele
   });
 }
 
-export async function runExploreSearch(payload: {
-  topicDescription: string;
-  turnstileToken?: string | null;
-}): Promise<ExploreSearchPayload> {
+export async function runExploreSearch(payload: ExploreSearchRequest): Promise<ExploreSearchPayload> {
   return requestJson<ExploreSearchPayload>("/api/explore/search", {
     method: "POST",
     headers: {
@@ -200,10 +198,7 @@ export async function runExploreSearch(payload: {
   });
 }
 
-export async function createExploreSearchRun(payload: {
-  topicDescription: string;
-  turnstileToken?: string | null;
-}): Promise<ExploreSearchRunCreatedPayload> {
+export async function createExploreSearchRun(payload: ExploreSearchRequest): Promise<ExploreSearchRunCreatedPayload> {
   return requestJson<ExploreSearchRunCreatedPayload>("/api/explore/search-runs", {
     method: "POST",
     headers: {

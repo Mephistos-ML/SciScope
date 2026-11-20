@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 
+from app.models.scientific_domain import ScientificDomain, parse_scientific_domain
+
 
 SearchRunStatus = Literal[
     "queued",
@@ -52,6 +54,10 @@ class SearchRun:
     response_payload: dict[str, Any] | None = None
     execution_state: dict[str, Any] | None = None
     guest_access_token_hash: str | None = field(default=None, repr=False)
+    scientific_domain: ScientificDomain | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "scientific_domain", parse_scientific_domain(self.scientific_domain))
 
 
 @dataclass(frozen=True)

@@ -779,8 +779,9 @@ def test_explore_search_accepts_verified_turnstile_token_for_suspicious_guest(
     assert response.json()["items"][0]["itemId"] == "github:repo:102"
 
 
+@pytest.mark.parametrize("domain", [None, "chemistry"])
 def test_explore_search_run_returns_completed_snapshot(
-    monkeypatch, explore_run_database
+    monkeypatch, explore_run_database, domain
 ) -> None:
     _allow_explore_access(monkeypatch)
     _use_search_plan_builder(
@@ -811,11 +812,12 @@ def test_explore_search_run_returns_completed_snapshot(
     with TestClient(app) as client:
         response = client.post(
             "/api/explore/search-runs",
-            json={"topicDescription": "Paramagnetic NMR analysis workflows"},
+            json={"topicDescription": "Paramagnetic NMR analysis workflows", "scientificDomain": domain},
         )
 
         assert response.status_code == 202
         assert response.json()["status"] == "queued"
+        assert response.json()["scientificDomain"] == domain
         client.headers['X-Search-Run-Token'] = response.json()['guestAccessToken']
         # A stage records the executing worker's revision independently of
         # the API revision recorded when the run was created.
@@ -825,6 +827,7 @@ def test_explore_search_run_returns_completed_snapshot(
         _process_next_search_run_operation(explore_run_database)
         created = client.get(f"/api/explore/search-runs/{response.json()['runId']}").json()
         assert created["status"] == "completed"
+        assert created["scientificDomain"] == domain
         assert created["canExpand"] is True
         assert created["items"][0]["itemId"] == "github:repo:102"
         assert created["items"][0]["scoreFormula"] == "location_weighted_log_matches_v4"
@@ -848,6 +851,7 @@ def test_explore_search_run_returns_completed_snapshot(
         database_url=explore_run_database,
     )
     assert report is not None
+    assert report["run"]["scientificDomain"] == domain
     assert report["run"]["backendRevision"] == "a" * 40
     provenance = report["rankingSnapshots"][0]["candidateFacts"]["evaluation_provenance"]
     assert provenance["backend_revision"] == "b" * 40
@@ -924,7 +928,7 @@ def test_explore_search_run_expands_one_pending_query_and_merges_candidates(
     with TestClient(app) as client:
         created = client.post(
             "/api/explore/search-runs",
-            json={"topicDescription": "Paramagnetic NMR analysis workflows"},
+            json={"topicDescription": "Paramagnetic NMR analysis workflows", "scientificDomain": "chemistry"},
         ).json()
         client.headers['X-Search-Run-Token'] = created['guestAccessToken']
         _process_next_search_run_operation(explore_run_database)
@@ -938,6 +942,7 @@ def test_explore_search_run_expands_one_pending_query_and_merges_candidates(
     assert expanded.status_code == 200
     payload = expanded.json()
     assert payload["status"] == "completed"
+    assert payload["scientificDomain"] == "chemistry"
     assert payload["canExpand"] is True
     assert {item["itemId"] for item in payload["items"]} == {
         "github:repo:111",
@@ -1149,3 +1154,17 @@ def test_explore_search_run_returns_completed_partial_snapshot(
     assert payload["status"] == "completed_partial"
     assert payload["items"][0]["itemId"] == "gitlab:repo:116"
     assert "partial coverage" in payload["message"]
+
+
+@pytest.mark.parametrize("endpoint", ["search", "search-runs"])
+@pytest.mark.parametrize("domain", ["", "unknown", "Chemistry", 1, True, [], {}])
+def test_invalid_scientific_domain_rejected_before_admission(monkeypatch, endpoint, domain):
+    def unexpected(*args, **kwargs):
+        pytest.fail("Invalid context must not consume quota or schedule work")
+
+    monkeypatch.setattr("app.api.routes.explore._prepare_explore_search_request", unexpected)
+    with TestClient(app) as client:
+        response = client.post(f"/api/explore/{endpoint}", json={
+            "topicDescription": "Scientific software", "scientificDomain": domain,
+        })
+    assert response.status_code == 422

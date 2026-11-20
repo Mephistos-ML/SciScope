@@ -41,3 +41,16 @@ def test_search_snapshot_exposes_each_lifecycle_status(tmp_path, monkeypatch, st
     assert response.status_code == 200
     assert response.json()["status"] == status
     assert response.json()["runId"] == created["runId"]
+    assert response.json()["scientificDomain"] is None
+
+
+def test_domain_vocabulary_matches_openapi_and_generated_client():
+    import json
+    from app.models.scientific_domain import ScientificDomain
+
+    expected = [domain.value for domain in ScientificDomain]
+    assert app.openapi()["components"]["schemas"]["ScientificDomain"]["enum"] == expected
+    source = (Path(__file__).resolve().parents[3] / "frontend/src/types/searchContracts.generated.ts").read_text()
+    declaration = re.search(r"export const SCIENTIFIC_DOMAINS = (\[.*?\]) as const;", source)
+    assert declaration is not None
+    assert json.loads(declaration.group(1)) == expected

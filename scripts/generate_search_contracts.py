@@ -108,6 +108,13 @@ def render(root: Path) -> str:
     location_values = [ast.literal_eval(item) for item in location.slice.elts]
     contracts += f"\nexport const RETRIEVAL_MATCH_LOCATIONS = {json.dumps(location_values)} as const;\n"
     contracts += "export type RetrievalMatchLocation = typeof RETRIEVAL_MATCH_LOCATIONS[number];\n"
+    domains = ast.parse((root / "backend/app/models/scientific_domain.py").read_text())
+    domain_enum = next(n for n in domains.body if isinstance(n, ast.ClassDef) and n.name == "ScientificDomain")
+    domain_values = [ast.literal_eval(n.value) for n in domain_enum.body if isinstance(n, ast.Assign)]
+    if not domain_values or len(set(domain_values)) != len(domain_values):
+        raise ValueError("ScientificDomain must declare distinct literal IDs")
+    contracts += f"\nexport const SCIENTIFIC_DOMAINS = {json.dumps(domain_values)} as const;\n"
+    contracts += "export type ScientificDomain = typeof SCIENTIFIC_DOMAINS[number];\n"
     found = set()
     for node in tree.body:
         if isinstance(node, ast.ClassDef) and node.name in names:

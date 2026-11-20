@@ -125,6 +125,7 @@ are durable database state. PostgreSQL application engines use READ COMMITTED.
 | [Persistence errors](contracts/persistence-errors.md) | Rollback, failure categories and retry decisions |
 | [PostgreSQL correctness](contracts/postgresql-correctness.md) | Database-specific guarantees and test setup |
 | [Backend quality gates](contracts/backend-quality-gates.md) | Executable import/cycle, lint and type checks |
+| [Scientific domain](contracts/scientific-domain.md) | Optional search context, stable vocabulary and durable run ownership |
 | [Repository ranking](contracts/repository-ranking.md) | Match identity, logarithmic score, visibility and snapshot versions |
 | [Versions and provenance](contracts/versioning-and-provenance.md) | Generated contracts, release consistency, source SHA and configuration fingerprints |
 

@@ -67,6 +67,7 @@ def test_generated_contracts_are_current_and_stale_edits_fail(tmp_path):
     for relative in (
         "backend/app/services/search/ranking/models.py",
         "backend/app/services/search/retrieval/models.py",
+        "backend/app/models/scientific_domain.py",
     ):
         destination = tmp_path / relative
         destination.parent.mkdir(parents=True, exist_ok=True)

@@ -23,6 +23,13 @@ identity fails early; do not label an image with an unrelated SHA. See
 | Stale Feed | Scheduler, monitoring lease, scan summaries and repository checks |
 | Terminal failed run | Error code; restart does not requeue terminal work |
 
+## Scientific domain schema rollout
+
+Apply revision `0019_search_scientific_domain` before deploying backend code that
+reads the optional run context. See the [domain contract](../contracts/scientific-domain.md)
+for overlap, worker compatibility and rollback limits. The existing coordinated
+`0018` cutover below still applies when upgrading from an earlier schema.
+
 ## Log-match ranking rollout and recovery
 
 The current ranking policy is `location_weighted_log_matches_v4`. Deploy the diagnostic

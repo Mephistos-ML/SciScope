@@ -30,6 +30,7 @@ from app.composition.security import build_turnstile_verifier
 from app.composition.search import build_explore_dependencies
 from app.database.session import check_database_connection
 from app.logging import configure_logging
+from app.models.scientific_domain import ScientificDomain
 from app.models.auth import AuthConfigurationError
 from app.models.persistence import PersistenceError, PersistenceConflictError, PersistenceUnavailableError
 from app.models.explore_access import ExploreLimitCode
@@ -47,6 +48,7 @@ class ExploreSearchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     topicDescription: str = ""
+    scientificDomain: ScientificDomain | None = None
     turnstileToken: str | None = None
 
 

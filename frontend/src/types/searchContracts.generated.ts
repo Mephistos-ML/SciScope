@@ -9,6 +9,9 @@ export type RankingPolicyVersion = typeof SUPPORTED_RANKING_POLICY_VERSIONS[numb
 export const RETRIEVAL_MATCH_LOCATIONS = ["name", "description", "topic", "readme", "documentation", "code", "notebook", "data", "configuration", "project_metadata", "legal", "other", "metadata"] as const;
 export type RetrievalMatchLocation = typeof RETRIEVAL_MATCH_LOCATIONS[number];
 
+export const SCIENTIFIC_DOMAINS = ["physics", "chemistry", "materials_science", "biology_bioinformatics", "earth_environmental_science", "astronomy_space_science", "mathematics_statistics", "computer_science"] as const;
+export type ScientificDomain = typeof SCIENTIFIC_DOMAINS[number];
+
 export type LocationMatchCount = {
   location: RetrievalMatchLocation;
   count: number;
