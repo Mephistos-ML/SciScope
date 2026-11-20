@@ -1,3 +1,45 @@
+# [1.22.0](https://github.com/Mephistos-ML/SciScope/compare/v1.21.1...v1.22.0) (2026-11-20)
+
+
+### Bug Fixes
+
+* **ai:** favor short phrases for repository search ([64bb6c3](https://github.com/Mephistos-ML/SciScope/commit/64bb6c35f03626bf35b0ad573b7916e8953d8d80))
+* **ai:** limit generated search queries to 185 characters ([3f7f5b7](https://github.com/Mephistos-ML/SciScope/commit/3f7f5b78fd19c9611df457efc69fa3f2fa43fd55))
+* **ai:** preserve scientific context in every search query ([5f20463](https://github.com/Mephistos-ML/SciScope/commit/5f20463f5dd163c2da6d1cd399521512dd4107b9))
+* **github:** harden retries and track request attempts ([8d178b7](https://github.com/Mephistos-ML/SciScope/commit/8d178b758d2a0e7c231714ff2e1323afe9657bb4))
+* **research:** preserve collection progress through GitHub timeouts ([9426d6a](https://github.com/Mephistos-ML/SciScope/commit/9426d6aa709ebcf68c01c85b1c61072cb0225f14))
+* **search:** preserve explicit requirements in generated queries ([830fe74](https://github.com/Mephistos-ML/SciScope/commit/830fe74fdde92003ac91574b745e7f4f536524f4))
+* **search:** preserve partial code results and bound retries ([d5b50b8](https://github.com/Mephistos-ML/SciScope/commit/d5b50b80453a3a692ca03e7de76f21d462f5faa8))
+* **search:** quote GitLab search phrases ([da72dee](https://github.com/Mephistos-ML/SciScope/commit/da72deec1454583d48f588cd4e3b90073459c5e2))
+
+
+### Features
+
+* **benchmarks:** add unified study CLI and offline summaries ([3fab85b](https://github.com/Mephistos-ML/SciScope/commit/3fab85bdc8cfc818457520ca8572dbaeadb815fb))
+* **explore:** add optional scientific domain selector ([fe2aa23](https://github.com/Mephistos-ML/SciScope/commit/fe2aa23d7aa1e66d2fbd20a120b22726c137e032))
+* **research:** add budgeted diagnostics and audit summaries ([da12828](https://github.com/Mephistos-ML/SciScope/commit/da12828bdcffc7fc216ef27c95515dc9c2653ced))
+* **research:** add checkpointed paired domain query generation ([17699f6](https://github.com/Mephistos-ML/SciScope/commit/17699f66eecb42fb7c8098a8d075a608efaacc59))
+* **research:** add reproducible dataset preparation and query generation ([c4abeaa](https://github.com/Mephistos-ML/SciScope/commit/c4abeaa9a7f03328ef42f049fdb084dec91dd7e2))
+* **research:** add resumable GitHub evidence collection ([964a3f4](https://github.com/Mephistos-ML/SciScope/commit/964a3f4218ba7379313563342e7884bcfe72f630))
+* **research:** automate contract checks and evaluation provenance ([a0e1628](https://github.com/Mephistos-ML/SciScope/commit/a0e162855fd684a93087cca05bc4e873519c9d3d))
+* **research:** freeze minimal-phrase prompt comparison ([accef75](https://github.com/Mephistos-ML/SciScope/commit/accef75d48bd252a0fd19956045a9e2a626df3a7))
+* **research:** freeze paired domain-context experiment inputs ([fc3adb8](https://github.com/Mephistos-ML/SciScope/commit/fc3adb86784adb9d8d677a639f4f5cf27601d184))
+* **search:** add a bounded star-popularity ranking boost ([bbf6d02](https://github.com/Mephistos-ML/SciScope/commit/bbf6d02398353a51a5bafe872a60d5ceac855f7e))
+* **search:** adopt entity-anchor planning with domain context ([8ca3d24](https://github.com/Mephistos-ML/SciScope/commit/8ca3d24c9a9b6561960c5c7d12123e242aaae044))
+* **search:** define GitHub code search file scope ([559f792](https://github.com/Mephistos-ML/SciScope/commit/559f7924eff2945f16c1704009f831ec4b505d2d))
+* **search:** filter GitHub code search by allowed file extensions ([168acd9](https://github.com/Mephistos-ML/SciScope/commit/168acd917498af6768d6f594b7273a492cd2722e))
+* **search:** persist optional scientific domain context ([66feea4](https://github.com/Mephistos-ML/SciScope/commit/66feea42726e08b12124c83cbe22a46cece191a3))
+* **search:** raise GitHub code search page limit to ten ([a972a16](https://github.com/Mephistos-ML/SciScope/commit/a972a16b4a877cd957c961b246b76fc817e76589))
+* **search:** rank repositories by weighted logarithmic match counts ([b22f315](https://github.com/Mephistos-ML/SciScope/commit/b22f31548a2a1d451d148e3ddc667f2076a74675))
+* **search:** refine repository match location taxonomy ([034b807](https://github.com/Mephistos-ML/SciScope/commit/034b8074a2ff80925326ccd7c61a4a3107a2611a))
+* **search:** remove repository popularity signals ([46b42be](https://github.com/Mephistos-ML/SciScope/commit/46b42beae9ec0201be23ce5774bf65f46cf3245f))
+* **search:** suggest refining broad search queries ([3301c5a](https://github.com/Mephistos-ML/SciScope/commit/3301c5a6cda9b8400c973a48c61f2a491f56b8d6))
+
+
+### Performance Improvements
+
+* **search:** limit production GitHub code search to three pages ([86c486f](https://github.com/Mephistos-ML/SciScope/commit/86c486f70fd353a72d381ccdd0693e99f6827a9e))
+
 ## [1.21.1](https://github.com/Mephistos-ML/SciScope/compare/v1.21.0...v1.21.1) (2026-10-09)
 
 
