@@ -1,3 +1,11 @@
+## [1.22.1](https://github.com/Mephistos-ML/SciScope/compare/v1.22.0...v1.22.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **deploy:** derive image revision from checkout metadata ([1d1d2b6](https://github.com/Mephistos-ML/SciScope/commit/1d1d2b6eba155994d058a18705afc7b504409766))
+* **web:** place scientific domain below topic description ([7e5e726](https://github.com/Mephistos-ML/SciScope/commit/7e5e726346232eab6c0482ad146250f475aaf0d1))
+
 # [1.22.0](https://github.com/Mephistos-ML/SciScope/compare/v1.21.1...v1.22.0) (2026-11-20)
 
 
