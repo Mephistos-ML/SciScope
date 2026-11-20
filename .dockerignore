@@ -11,3 +11,4 @@ data
 node_modules
 *.sqlite3
 backend/tests
+benchmarks

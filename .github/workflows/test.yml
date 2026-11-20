@@ -34,10 +34,6 @@ jobs:
           PYTHONPATH: backend
       - name: Lint backend
         run: ruff check backend scripts/check_release_versions.py scripts/generate_search_contracts.py scripts/deploy_backend.py
-      - name: Check research data preparation
-        run: |
-          ruff check benchmarks/scripts
-          python -m unittest discover -s benchmarks/scripts/tests -p 'test_*.py'
       - name: Check domain and capability types
         run: mypy
       - name: Check release metadata and generated contracts

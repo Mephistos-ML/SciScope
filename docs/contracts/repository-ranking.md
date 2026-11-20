@@ -151,8 +151,6 @@ generated TypeScript contracts, and limitations.
 Regression checks cover location weights, count saturation and monotonicity,
 query/file deduplication, current-query scope, deterministic ranking, cutoff
 validation, provider-file classification, and serialized/UI score explanations.
-The arithmetic and behavioral comparison is recorded in
-[`benchmarks/research/ranking-change-evaluation.md`](../../benchmarks/research/ranking-change-evaluation.md).
 These checks do not establish improved retrieval relevance on real user queries;
 held-out benchmark evaluation remains required before claiming that improvement.
 
@@ -181,9 +179,8 @@ do not receive this file restriction.
 This file scope controls external retrieval eligibility, independently of the
 path classifier's location taxonomy. It excludes extensionless README files but
 retains README files with allowed extensions. Existing catalog evidence is not
-retroactively removed or rewritten. Research collection records this scope in its
-identity and rejects incompatible resume/replay; see
-[the file-scope contract](../../benchmarks/research/github-code-file-policy.md).
+retroactively removed or rewritten. The allowed extensions are owned by the
+[GitHub file policy](../../backend/app/integrations/repositories/github/search/file_policy.py).
 
 When GitHub reports a code-search pool above its retrieval cap, Explore returns
 one refinement suggestion through its existing message field. The suggestion

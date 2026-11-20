@@ -78,7 +78,6 @@ Multilingual support is not yet available.
 - [Backend setup and package structure](backend/README.md)
 - [Frontend setup](frontend/README.md)
 - [Architecture and transaction guarantees](docs/architecture.md)
-- [LinkedIn visual style and reusable backgrounds](docs/brand/linkedin/README.md)
 - [Recovery instructions](docs/operations/backend-recovery.md)
 - [Browser test setup](frontend/e2e/README.md)
 - [Engineering contract](AGENTS.md)

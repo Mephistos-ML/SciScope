@@ -127,15 +127,6 @@ are durable database state. PostgreSQL application engines use READ COMMITTED.
 | [Backend quality gates](contracts/backend-quality-gates.md) | Executable import/cycle, lint and type checks |
 | [Repository ranking](contracts/repository-ranking.md) | Match identity, logarithmic score, visibility and snapshot versions |
 | [Versions and provenance](contracts/versioning-and-provenance.md) | Generated contracts, release consistency, source SHA and configuration fingerprints |
-| [Research pipeline](contracts/research-pipeline.md) | Target study/execution contracts for the staged benchmark consolidation |
-
-Research execution for the new study contract uses `benchmarks/scripts/run.py`
-and the shared pipeline. It composes production planner/GitHub components without
-starting the application or its database. Offline summaries consume saved pages
-and explicit labels. Superseded initial, prompt-study and deferred-validation live
-entrypoints are removed; historical read/replay formats and reproduction are in
-the [migration review](reviews/research-pipeline-migration.md). Production does
-not depend on the research CLI or evaluation modules.
 
 [Backend recovery](operations/backend-recovery.md) contains operational commands.
 [AGENTS.md](../AGENTS.md) defines engineering policy.
