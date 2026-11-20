@@ -12,6 +12,7 @@ from time import monotonic
 
 from app import config
 from app.models.ai import AiSearchPlan
+from app.models.scientific_domain import ScientificDomain, parse_scientific_domain
 from app.models.search_run import (
     SearchRankingCandidateReport,
     SearchProviderOutcomeReport,
@@ -24,6 +25,7 @@ from app.services.search.explore.dependencies import ExploreDependencies
 from app.services.search.retrieval.models import RetrievalLane
 from app.services.ai.search_plans import (
     serialize_ai_search_plan,
+    format_search_plan_topic,
 )
 from app.services.search.explore.canonical import select_canonical_candidates
 from app.services.search.explore.execution import ExploreQueryAttempt, ExploreSearchExecution
@@ -84,6 +86,7 @@ def run_explore_search(
     *,
     topic_description: str,
     dependencies: ExploreDependencies,
+    scientific_domain: ScientificDomain | None = None,
     progress_callback: ExploreSearchProgressCallback | None = None,
     execution_callback: ExploreSearchExecutionCallback | None = None,
     stage_report_callback: ExploreSearchStageReportCallback | None = None,
@@ -92,6 +95,7 @@ def run_explore_search(
 ) -> dict[str, object]:
     """Run a read-only repository search from one topic description."""
 
+    scientific_domain = parse_scientific_domain(scientific_domain)
     search_started_at = monotonic()
     current_stage = "ai_planning"
     planned_queries: tuple[str, ...] = ()
@@ -112,6 +116,7 @@ def run_explore_search(
         planning_started_at = monotonic()
         ai_search_plan = _plan_explore_search(
             topic_description=topic_description, planner=dependencies.planner,
+            scientific_domain=scientific_domain,
         )
         ai_search_plan_payload = serialize_ai_search_plan(ai_search_plan)
         planned_queries = tuple(ai_search_plan.queries)
@@ -747,9 +752,15 @@ def _query_attempt_timed_out(retrieved: RetrievedCandidates) -> bool:
     )
 
 
-def _plan_explore_search(*, topic_description: str, planner: AiSearchPlanner) -> AiSearchPlan:
+def _plan_explore_search(
+    *, topic_description: str, planner: AiSearchPlanner,
+    scientific_domain: ScientificDomain | None = None,
+) -> AiSearchPlan:
+    planning_topic = format_search_plan_topic(
+        topic_description=topic_description, scientific_domain=scientific_domain,
+    )
     try:
-        return planner.build_search_plan(topic_description=topic_description)
+        return planner.build_search_plan(topic_description=planning_topic)
     except AiDependencyError as exc:
         logger.exception(
             "AI search planning failed for topic=%r: %s",

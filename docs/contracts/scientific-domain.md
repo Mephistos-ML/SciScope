@@ -19,10 +19,39 @@ independently of historical response JSON. Old rows remain null; stored reports
 and execution-state schemas are not rewritten. Clients accept an absent field
 when communicating with older servers.
 
-The contract currently records context only. Connecting it to query generation
-and exposing the selector are separate changes; no domain filtering is applied
-to repository search. Selecting a domain must not be presented as affecting
-retrieval until the planner consumes it.
+## Query planning
+
+`services.ai.search_plans.format_search_plan_topic` owns the application policy
+for rendering context. It passes the planner `Scientific domain: <label>`, a blank
+line, then the original question. Its label mapping is a natural-language planner
+representation, separate from persisted IDs. Without a supplied domain, the
+planner receives the same question text as before; no domain is inferred.
+
+Both synchronous searches and initial background operations use this path.
+Workers read the immutable domain from the durable run, including after a queued
+operation is reclaimed. The raw question remains the input for admission, topic
+hashing and response presentation. Catalog retrieval still consumes generated
+queries, so domain context can affect its candidates indirectly as well.
+Expansions use the saved plan and do not regenerate queries or accept a
+replacement domain.
+
+The OpenAI adapter's default is the reviewed Entity anchor system prompt. The
+first query anchors on the shortest distinctive entity or specific concept
+stated in the question; the remaining two use complementary established phrases.
+Domain context disambiguates terminology rather than mandating a query prefix or
+suffix. The response contract remains three nonempty, unique queries of at most
+185 characters each. Word-count guidance is a prompt instruction, not a new hard
+parser limit.
+
+Generated queries feed the existing retrieval channels. Domain is not a provider
+filter, and repository-search channels are not disabled by this change. The
+selector is a separate UI change. Existing completed plans and reports are not
+regenerated when the default prompt changes.
+
+The prompt was selected in offline quoted GitHub code-search experiments. Those
+results do not establish retrieval quality for the combined production channels
+or the broader domain labels; product acceptance evaluates that composition
+separately.
 
 ## Deployment and recovery
 

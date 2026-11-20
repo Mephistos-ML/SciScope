@@ -246,6 +246,7 @@ def execute_search_run_operation(
             payload = run_explore_search(
                 dependencies=dependencies,
                 topic_description=run.topic_description,
+                scientific_domain=run.scientific_domain,
                 database_url=database_url,
                 execution_callback=remember_execution,
                 stage_report_callback=remember_report,

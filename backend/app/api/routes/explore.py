@@ -41,6 +41,7 @@ def search_explore_response(
     result = run_explore_search(
         dependencies=request.app.state.explore_dependencies,
         topic_description=topic_description,
+        scientific_domain=scientific_domain,
         database_url=request.app.state.database_url,
         log_context=SearchLogContext(
             request_id=build_request_id(),

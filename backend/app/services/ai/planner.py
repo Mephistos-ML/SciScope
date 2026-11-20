@@ -10,6 +10,8 @@ from app.models.ai import AiSearchPlan, AiPlannerIdentity
 
 
 class SearchPlanBuilder(Protocol):
+    """Plan from rendered question/context; the use case preserves the raw question."""
+
     def __call__(self, *, topic_description: str) -> AiSearchPlan: ...
 
 

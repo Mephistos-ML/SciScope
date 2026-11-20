@@ -63,6 +63,19 @@ Rules:
 - Use ASCII text without quotation marks or search operators.
 - Each query must contain at most {MAX_GENERATED_QUERY_LENGTH} characters, including spaces.
 - Return only JSON matching the provided schema.
+
+Retrieval guidance:
+- Identify the most specific scientific entity explicitly named in the question:
+  a software package, dataset, instrument, method, or scientific concept.
+- Make the first query that entity's shortest distinctive established name.
+  Preserve a multiword name as a natural phrase; an explicit acronym is allowed.
+- Use the other two queries for complementary established phrases tied to that
+  entity or its scientific capability, rather than longer task descriptions.
+- Do not repeat the same entity-only query with cosmetic wording changes.
+- If no specific named entity is supplied, anchor the first query on the most
+  specific scientific concept actually stated; do not invent a software name.
+- Use the supplied scientific domain to disambiguate terminology, not as an
+  automatic prefix or suffix in the queries.
 """
 
 

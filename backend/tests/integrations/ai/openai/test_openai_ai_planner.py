@@ -303,3 +303,44 @@ def test_rendered_request_matches_provider_input_and_schema_is_isolated(
     preview.json_schema.clear()
     fresh = build_search_plan_request(topic_description=topic)
     assert fresh.json_schema["properties"]["queries"]["minItems"] == 3
+
+
+def test_production_prompt_is_the_reviewed_entity_anchor():
+    from hashlib import sha256
+    from app.integrations.ai.openai.planner import build_search_plan_request
+
+    request = build_search_plan_request(topic_description="scientific question")
+    # Frozen identity of the reviewed prompt, independent of private research files.
+    assert sha256(request.system_prompt.encode()).hexdigest() == (
+        "a1f886ee284b37e09399907dc405d668785962072c1b89d94530550c703a9a41"
+    )
+
+
+@pytest.mark.parametrize("topic,domain,label", [
+    ("How do I fit paramagnetic NMR shifts?", "chemistry", "Chemistry"),
+    ("How do I analyse stellar spectra?", "astronomy_space_science", "Astronomy & Space Science"),
+    ("How do I analyse ion hopping?", "materials_science", "Materials Science"),
+    ("How do I process satellite observations?", None, None),
+])
+def test_provider_receives_context_and_preserves_query_contract(monkeypatch, topic, domain, label):
+    from app.models.scientific_domain import parse_scientific_domain
+    from app.services.ai.search_plans import format_search_plan_topic
+
+    captured = {}
+
+    def response(**kwargs):
+        captured.update(kwargs)
+        return {"queries": ["specific entity", "scientific method", "related concept"]}
+
+    monkeypatch.setattr("app.integrations.ai.openai.planner.build_openai_json_response", response)
+    planner = OpenAiSearchPlanner(api_key="offline", base_url="https://example.test",
+                                 timeout_seconds=20, model="test", reasoning_effort="low")
+    plan = planner.build_search_plan(topic_description=format_search_plan_topic(
+        topic_description=topic, scientific_domain=parse_scientific_domain(domain),
+    ))
+    expected = f"Scientific domain: {label}\n\n{topic}" if label else topic
+    assert captured["user_prompt"] == f"Topic description:\n{expected}"
+    assert plan.queries == ("specific entity", "scientific method", "related concept")
+    schema = captured["json_schema"]["properties"]["queries"]
+    assert schema["minItems"] == schema["maxItems"] == 3
+    assert schema["items"]["maxLength"] == 185
