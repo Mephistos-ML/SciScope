@@ -522,7 +522,7 @@ input::placeholder {
 
 .explore-query-fields {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 20px;
 }
@@ -539,6 +539,11 @@ input::placeholder {
   font-weight: 400;
   text-transform: none;
   letter-spacing: normal;
+}
+
+.explore-domain-field {
+  width: 100%;
+  max-width: 300px;
 }
 
 .explore-domain-input {
@@ -2192,10 +2197,6 @@ input::placeholder {
   .feed-layout,
   .about-grid {
     grid-template-columns: 1fr;
-  }
-
-  .explore-query-fields {
-    grid-template-columns: minmax(0, 1fr);
   }
 
   .query-workspace,
