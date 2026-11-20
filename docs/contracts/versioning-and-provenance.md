@@ -9,14 +9,27 @@ all four copies without application startup. Quality CI and release checks run
 it. Schema and ranking-policy version changes remain explicit reviewed decisions;
 parameter tuning does not automatically create a new algorithm version.
 
-The Test and Release workflows still trigger independently. These consistency
-checks do not establish that every other CI job passed before publication.
-Complete cross-workflow release gating is separate delivery work.
+Pull requests run the Test workflow. A push to main runs Release, which calls
+that same Test workflow at the caller's commit. Publication requires its backend
+static checks, backend tests, PostgreSQL tests, frontend checks and browser
+journeys to succeed. Only the publication job receives write permissions.
+Checkout is pinned to the triggering SHA; a pre-publication guard rejects a
+checkout or remote main that no longer matches the checked revision. Semantic
+release then prepares the version/changelog commit. This workflow publishes a
+GitHub release; deployment remains a separate operation. Local reusable workflow
+references select the caller's commit, as defined by [GitHub Actions](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows).
+
+CI jobs have 15-minute limits and publication has a 10-minute limit. A failed or
+cancelled quality job prevents publication. If publication is interrupted, inspect
+the remote main commit, version tag and GitHub release before retrying: remote
+release effects are not rolled back automatically. The revision guard rejects an
+older triggering SHA once main has advanced.
 
 ## Generated TypeScript contracts
 
 The ranking models own current and explicitly retained historical policy/schema
-IDs. `RetrievalMatchLocation` owns the current vocabulary. Run:
+IDs. `RetrievalMatchLocation` owns the current location vocabulary, and
+`ScientificDomain` owns the domain IDs. Run:
 
 ```sh
 python scripts/generate_search_contracts.py
@@ -25,8 +38,9 @@ python scripts/generate_search_contracts.py --check
 
 The generator reads literal declarations and ranking DTO annotations with AST,
 without importing configuration or composition. It writes
-`frontend/src/types/searchContracts.generated.ts`: supported IDs, locations, and
-current ranking DTO types. Unsupported annotations fail explicitly. This is scoped
+`frontend/src/types/searchContracts.generated.ts`: supported IDs, locations,
+scientific domains and current ranking DTO types. Unsupported annotations fail
+explicitly. This is scoped
 generation, not a general Python-to-TypeScript compiler or generation of every API.
 
 CI rejects stale generated output. TypeScript checks consumers of generated DTO

@@ -11,9 +11,9 @@ counting, and `score.py` owns location weights and the calculation:
 The final score is the sum of the location contributions.
 
 
-Initial weights are name 1.00, description 0.85, topic 0.75, README 0.65,
+Weights are name 1.00, description 0.85, topic 0.75, README 0.65,
 documentation 0.55, code 0.60, and metadata fallback 0.65. Notebook, data,
-configuration, project metadata, legal, and other each initially use 0.25. They are
+configuration, project metadata, legal, and other each use 0.25. They are
 provisional policy values, not learned relevance probabilities.
 
 `score.py` constructs the per-location breakdown once per candidate; ranking
@@ -58,7 +58,7 @@ The formula does not correct for differences in provider coverage or query count
 Future span-level counting requires a separate evidence contract and persistence
 plan rather than interpreting historical hits as occurrence counts.
 
-### File taxonomy and precedence (ranking policy v2)
+### File taxonomy and precedence
 
 Rules use case-insensitive names/extensions and normalized separators, without
 reading file contents or inferring unreported matches. Apply them in this order:
@@ -85,7 +85,8 @@ Arbitrary JSON/XML/TXT files remain `other` because extension alone does not
 identify their role. File categories identify observed evidence, not intrinsic
 relevance or whether a repository should pass admission.
 
-Taxonomy expansion is policy `location_weighted_log_matches_v2`. The logarithmic
+These categories were introduced in policy `location_weighted_log_matches_v2`
+and remain part of current policy v4. The logarithmic
 formula is unchanged, but splitting one count across categories changes its
 aggregate score even with equal weights. Do not combine v1 and v2 evaluations
 without recording the policy. Path-bearing cached/v1 evidence is reclassified
@@ -99,9 +100,8 @@ Admission still governs candidate eligibility. The additional score filter is
 `score >= score_threshold`. Composition reads and validates
 `EXPLORE_SEARCH_LOG_MATCH_CUTOFF` and supplies it through `ExploreDependencies` to
 initial, partial, and expanded search evaluation. It must be finite and
-nonnegative. The default is 0, disabling additional score-based exclusion while
-the new threshold is being evaluated; even an admitted zero-score candidate can
-therefore be visible. This is a delivery-policy change from the old cutoff of 50.
+nonnegative. The default of 0 disables additional score-based exclusion; even an
+admitted zero-score candidate can be visible. Historical 0--100 cutoffs are not comparable.
 
 The retired `EXPLORE_SEARCH_RELEVANCE_CUTOFF` setting causes startup to fail if
 nonempty. It cannot silently carry a 0--100 threshold onto the new scale.
@@ -132,8 +132,8 @@ observation counts keep their existing `hit_count` storage contract, and resumab
 execution JSON keeps its existing `hitCount` key with an explicit mapping to the
 renamed application field. The taxonomy extension writes execution schema 2 and
 explicitly reads/upgrades schema 1; see the
-[execution-state contract](explore-execution-state.md). No table migration or bulk
-backfill is needed. Match-evidence fields retain their shape while execution
+[execution-state contract](explore-execution-state.md). The vocabulary upgrade
+requires no table migration or bulk evidence backfill. Match-evidence fields retain their shape while execution
 schema 2 extends their allowed vocabulary. Evidence is recounted on subsequent
 evaluation. Counting uses the
 public `retrieval.evidence.classify_match_path` contract to classify path-bearing
@@ -154,66 +154,5 @@ validation, provider-file classification, and serialized/UI score explanations.
 These checks do not establish improved retrieval relevance on real user queries;
 held-out benchmark evaluation remains required before claiming that improvement.
 
-
-## External query expressions
-
-Provider search adapters send each complete query as a quoted phrase. Raw query
-text remains the canonical evidence identity; protocol quoting is owned by
-`integrations/repositories/common/search_query.py`. Both GitHub channels and both
-GitLab channels use this formatter without a broad-query fallback. This changes
-external candidate retrieval, not score aggregation. Existing catalog, semantic
-retrieval and metadata-location inference retain their documented behavior; this
-request-format change is not a new proof that every returned fragment contains
-an exact phrase. Provider engine behavior must be evaluated independently.
-
-GitHub code search alone appends the fixed file-extension suffix owned by
-`integrations/repositories/github/search/file_policy.py`. Its public
-`build_code_search_query` contract quotes the phrase, appends 59 allowed extensions
-and rejects a decoded expression longer than 1000 characters before URL encoding.
-The suffix occupies 812 ASCII characters. New AI queries have a 185-character
-bound; escaping can still make a complete expression too long, so the adapter's
-final validation is required. Overflow raises `ValueError` without truncation,
-request splitting or a broad-search fallback. GitHub repository search and GitLab
-do not receive this file restriction.
-
-This file scope controls external retrieval eligibility, independently of the
-path classifier's location taxonomy. It excludes extensionless README files but
-retains README files with allowed extensions. Existing catalog evidence is not
-retroactively removed or rewritten. The allowed extensions are owned by the
-[GitHub file policy](../../backend/app/integrations/repositories/github/search/file_policy.py).
-
-Product discovery consumes the GitHub adapter's `search_code` batch contract:
-validated signals, reported counts, incomplete-coverage reasons and an optional
-terminal source error. A later page failure retains the validated prefix. An
-empty validated result is distinct from first-page unavailability. Page-budget
-termination, provider incompleteness/truncation, unmappable items and missing
-coverage metadata all set product `partial`, independently of candidate count.
-Malformed page envelopes are classified as source errors; malformed individual
-items are skipped and mark coverage incomplete. Optional blob SHA is not used by
-product discovery and cannot invalidate a usable file match. Page bodies are
-bounded to 2 MiB, page size to 100 and page budget to 10 at the adapter boundary;
-production composition selects three pages.
-
-The parallel lane merger retains successful repository-search channels. Source
-status can remain `ok` when some observations are usable, while run `partial` and
-per-lane `partial`/failure status describe missing coverage. Existing lane outcome
-fields retain the first coverage reason as `error_code`, or a terminal IO error
-and retry hint; structured lane logs include all observed coverage reasons. These
-fields are serialized through the current execution-state contract without
-persisting exception objects. Historical reports are not rewritten.
-
-The existing strict `discover_repository_candidates_from_code` collector remains
-the contract for current offline callers that calculate coverage from saved pages
-and need terminal request failures to preserve interrupted checkpoints. It shares
-IO and mapping with `search_code`, and raises the returned terminal error rather
-than treating a prefix as a completed collection. Product composition directly
-binds the batch API; no second mapping or HTTP implementation is maintained.
-
-When GitHub reports a code-search pool above its retrieval cap, Explore returns
-one refinement suggestion through its existing message field. The suggestion
-asks for a more specific method, tool or scientific task without displaying
-provider names, file counts or API limits. Provider counts travel as discovery
-diagnostics independently of candidate signals, including empty responses.
-The suggestion does not change scores or redefine the `partial` flag; it is
-shown for completed searches as well as partial searches and is preserved in
-the existing resumable warning contract.
+Provider queries, pagination, partial coverage and retry ownership are defined in
+the [retrieval contract](retrieval.md).

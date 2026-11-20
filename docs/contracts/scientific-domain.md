@@ -43,15 +43,8 @@ suffix. The response contract remains three nonempty, unique queries of at most
 185 characters each. Word-count guidance is a prompt instruction, not a new hard
 parser limit.
 
-Production composition bounds GitHub code search to three pages per query, with
-100 file entries requested per page. Empty or short pages stop pagination early;
-remaining lane deadlines can stop it earlier still. This is an upper bound on
-logical search-page requests, not HTTP attempts: request-level retries may add
-attempts within the existing deadlines. The adapter retains an explicit page
-parameter for callers that need a different bounded budget.
-
 Generated queries feed the existing retrieval channels. Domain is not a provider
-filter, and repository-search channels are not disabled by this change. Existing
+filter. The [retrieval contract](retrieval.md) defines channels and budgets. Existing
 completed plans and reports are not regenerated when the default prompt changes.
 
 ## Explore selector
@@ -81,16 +74,9 @@ backfill or default. Apply the migration before deploying the new backend.
 Old binaries can keep writing rows with null while the schema is expanded.
 Database DDL still takes a table lock; schedule the migration accordingly.
 
-Do not enable domain selection until all API and worker instances understand the
-field and the planner consumes it. An old worker could otherwise execute a run
-without its selected context. The new frontend sends `scientificDomain` even
-when null; old API binaries reject that field. Deploy the compatible API and
-workers before exposing this selector. If the ranking reader must also be
-upgraded first, deploy both frontend and backend while traffic is quiesced for
-the existing coordinated cutover, then reopen traffic. No runtime capability
-detection or old-server fallback is implemented.
-
-Application rollback may retain the extra column;
-downgrading the schema drops saved domain choices, so preserve a backup before
-that destructive operation. No production migration is performed by development
-tests.
+All API and worker instances must understand the domain before the frontend
+selector is exposed. The new frontend sends `scientificDomain` even when null;
+older APIs reject that field. Use the coordinated deployment and rollback order
+in [backend recovery](../operations/backend-recovery.md#coordinated-search-upgrade).
+Application rollback may retain the extra column. Schema downgrade drops saved
+domain choices and requires a recoverable backup.

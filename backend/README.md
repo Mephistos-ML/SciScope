@@ -107,8 +107,9 @@ a completed query fan-out after those retries are exhausted.
 Repository and code-search lanes have
 separate provider and timeout budgets. Candidate admission filters non-software
 results; ranking sums location-weighted logarithms of distinct match counts.
-See [the ranking contract](../docs/contracts/repository-ranking.md) for match
-identity, provider coverage limits, score scale, and historical snapshots.
+See [retrieval](../docs/contracts/retrieval.md) for provider budgets and coverage,
+and [ranking](../docs/contracts/repository-ranking.md) for match identity, score
+scale and historical snapshots.
 Completed candidates can be delivered with partial coverage when a source fails.
 Admitted external discoveries update the shared repository catalog.
 

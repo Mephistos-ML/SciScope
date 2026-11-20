@@ -7,7 +7,7 @@ credentials, guest/session tokens or lease tokens during diagnosis.
 
 ## Diagnose
 
-Production images now require a source SHA build argument. Use
+Production images require a source SHA build argument. Use
 `python scripts/deploy_backend.py --dry-run` to inspect the command from a clean
 checkout, then `python scripts/deploy_backend.py` to deploy when authorized.
 Direct builds need `--build-arg APP_REVISION=<full-source-sha>`. Missing or invalid
@@ -23,76 +23,58 @@ identity fails early; do not label an image with an unrelated SHA. See
 | Stale Feed | Scheduler, monitoring lease, scan summaries and repository checks |
 | Terminal failed run | Error code; restart does not requeue terminal work |
 
-## Scientific domain schema rollout
+## Coordinated search upgrade
 
-Apply revision `0019_search_scientific_domain` before deploying backend code that
-reads the optional run context. See the [domain contract](../contracts/scientific-domain.md)
-for overlap, worker compatibility and rollback limits. The existing coordinated
-`0018` cutover below still applies when upgrading from an earlier schema.
+The backend writes execution schema 2, ranking breakdown schema 5, policy
+`location_weighted_log_matches_v4` and configuration schema 2. The frontend reads
+historical unversioned 0--100 scores, breakdown schemas 2/3 and current schema 5;
+unsupported formats remain explicitly unsupported. Completed reports are not
+rewritten. New stages use the executing worker's current ranking policy.
 
-## Log-match ranking rollout and recovery
+When upgrading from a deployment before revisions 0018/0019:
 
-The current ranking policy is `location_weighted_log_matches_v4`. Deploy the diagnostic
-frontend first: it understands historical unversioned 0--100 snapshots, version-2
-per-location breakdowns using `points`, and version-3 breakdowns using
-`contribution`, plus the current version-5 breakdowns.
-The earlier UI would mislabel an unsupported format as a score
-out of 100. Version 3 renames diagnostic fields without changing numeric scores.
+1. Take a recoverable database backup and record the deployed image revisions.
+2. Quiesce incoming traffic and drain/stop every API and worker instance. Prevent
+   old instances from automatically restarting during the cutover.
+3. Apply migrations through `0019_search_scientific_domain`.
+4. Deploy the matching API, workers and frontend while traffic remains quiesced.
+   Remove `EXPLORE_SEARCH_RELEVANCE_CUTOFF`; use
+   `EXPLORE_SEARCH_LOG_MATCH_CUTOFF=0` unless a nonzero cutoff has been evaluated.
+5. Verify readiness and a search with and without a domain, expansion of the
+   same run, and persisted reports before reopening traffic.
 
-Remove `EXPLORE_SEARCH_RELEVANCE_CUTOFF` from API and worker configuration when
-deploying the new backend; a nonempty retired setting prevents startup. Use
-`EXPLORE_SEARCH_LOG_MATCH_CUTOFF=0` initially to disable the additional score
-filter while retaining admission. A nonzero threshold requires evaluation on the
-new scale. Reconstruct dependencies/restart processes after changing the setting.
+The earlier diagnostic reader must not receive new scores, and the new domain
+selector must not send requests to an old API. Updating both during the quiesced
+window satisfies those constraints. Fly's overlapping release command alone
+does not coordinate this cutover. API and workers must agree on the schemas and
+ranking policy; reconstruct dependencies after configuration changes.
 
-Coordinate the API and worker upgrade to avoid different ranking policies being
-selected by workers in the same deployment. Previously completed responses and
-reports stay unchanged. Existing queued work and resumed/expanded runs use their
-stored retrieval evidence with the new formula when evaluated; new per-stage
-breakdowns identify that policy even when a run's creation metadata is older.
+### Migration effects
 
-No database migration or backfill is required. If rolling back backend code,
-restore the former deployment's cutoff configuration and restart API/workers
-together. The new UI can remain deployed because it reads both score formats.
-Rollback does not revert results or snapshots already delivered by the new
-formula; preserve them for audit rather than rewriting scores.
+`0018_repository_profile_fields` removes a retired repository column and redundant
+profile JSON keys. JSON cleanup uses keyset batches of 500 inside the migration
+transaction; duration and row locking scale with catalog size. Prior binaries
+select the removed column, while current binaries cannot insert into the earlier
+NOT NULL schema. Historical run reports are preserved.
 
-### Taxonomy v2 cutover
+`0019_search_scientific_domain` adds a nullable domain column without a backfill.
+Old rows retain null. The schema expansion can precede application deployment,
+but domain-bearing work must not be consumed by old workers. PostgreSQL DDL
+requires a table lock even without a backfill.
 
-The expanded file taxonomy writes execution schema 2 and accepts historical
-schema 1 through an explicit read upgrade. Stop/drain old workers before enabling
-the new writer, and upgrade API and workers together. Old code does not understand
-schema 2 or the new location vocabulary. New workers can resume v1 states and
-publish them as v2 atomically through the existing fenced completion path.
+### Rollback and recovery
 
-New file categories inherit weight 0.25; separate logarithmic aggregation can
-still increase scores. Root-level documents newly recognized as documentation
-use the existing documentation weight 0.55. Re-evaluate any nonzero cutoff.
-Completed scores and reports are not recomputed; cached path evidence is
-classified under the active policy when a new evaluation runs.
+Prefer a tested forward fix after new execution states or profile changes have
+been written. Earlier binaries may not understand execution schema 2, the expanded
+location vocabulary or the changed repository schema. Do not relabel or discard
+user state to make an old reader accept it.
 
-After schema-2 states or new catalog locations exist, backend rollback requires
-code that understands that vocabulary and schema; a rollback to the old reader
-alone is unsafe. Prefer a forward fix. Do not discard or relabel durable user
-state to force an old reader to accept it. No table migration/backfill is needed.
-
-### Ranking/profile cutover
-
-The current backend writes ranking breakdown schema 5, policy v4 and configuration
-schema 2. Deploy the frontend reader first; unsupported historical schema 4 remains
-explicitly unsupported rather than being reinterpreted. Stored reports are not rewritten.
-
-Revision `0018_repository_profile_fields` removes a retired repository column and
-its redundant keys from current profile JSON, preserving unrelated metadata. JSON
-cleanup uses keyset batches of 500 within the migration transaction; duration and
-row locking scale with the catalog size. Historical run reports are not rewritten.
-Quiesce the API and workers before applying it: previous binaries select that
-column, and the new binaries cannot insert into the prior NOT NULL schema. Take
-a recoverable backup, migrate, then start the new binaries together. Fly's default
-release-command overlap alone is not a safe coordinated cutover for this revision.
-No production migration was executed as part of this patch. Downgrade restores the
-column shape with zero defaults, not the former values; restore from backup to
-recover those facts. Prefer a tested forward fix.
+A coordinated application rollback must restore compatible frontend/API/worker
+images and their cutoff configuration. Retaining the optional domain column is
+safe for earlier writers. Downgrading 0019 loses domain choices; downgrading 0018
+restores the column shape with zero defaults, not its former values. Restore from
+the database backup when those facts are required. Rolling back code does not
+undo scores or reports already delivered by the new formula.
 
 Inside the API container:
 
