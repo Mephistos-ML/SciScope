@@ -44,9 +44,23 @@ suffix. The response contract remains three nonempty, unique queries of at most
 parser limit.
 
 Generated queries feed the existing retrieval channels. Domain is not a provider
-filter, and repository-search channels are not disabled by this change. The
-selector is a separate UI change. Existing completed plans and reports are not
-regenerated when the default prompt changes.
+filter, and repository-search channels are not disabled by this change. Existing
+completed plans and reports are not regenerated when the default prompt changes.
+
+## Explore selector
+
+Explore displays an optional native select alongside the question on desktop,
+stacked beneath it on smaller screens. Its IDs come from the generated backend
+vocabulary; display labels belong to the UI. The initial choice is Not specified,
+sent as null. The control has a visible label, keyboard support and the existing
+field focus styles.
+
+The choice lives with the question draft in App state. New searches submit it
+as `scientificDomain`; loading temporarily disables the selector. Errors and
+completed searches preserve the draft choice. Editing it applies to a new search,
+while expansion uses the existing run's immutable domain and does not overwrite
+the draft. Like the question draft, it is not persisted in browser storage across
+a page reload.
 
 The prompt was selected in offline quoted GitHub code-search experiments. Those
 results do not establish retrieval quality for the combined production channels
@@ -62,7 +76,14 @@ Database DDL still takes a table lock; schedule the migration accordingly.
 
 Do not enable domain selection until all API and worker instances understand the
 field and the planner consumes it. An old worker could otherwise execute a run
-without its selected context. Application rollback may retain the extra column;
+without its selected context. The new frontend sends `scientificDomain` even
+when null; old API binaries reject that field. Deploy the compatible API and
+workers before exposing this selector. If the ranking reader must also be
+upgraded first, deploy both frontend and backend while traffic is quiesced for
+the existing coordinated cutover, then reopen traffic. No runtime capability
+detection or old-server fallback is implemented.
+
+Application rollback may retain the extra column;
 downgrading the schema drops saved domain choices, so preserve a backup before
 that destructive operation. No production migration is performed by development
 tests.

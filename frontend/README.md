@@ -15,8 +15,9 @@ timeouts; `VITE_TURNSTILE_SITE_KEY` enables the search challenge widget.
 
 ## Product surfaces
 
-- Explore creates and polls searches, preserves useful results during expansion,
-  and offers explicit repository subscriptions.
+- Explore offers optional scientific-domain context for new searches, creates
+  and polls searches, preserves useful results during expansion, and offers
+  explicit repository subscriptions.
 - Feed lists release cards and scan commit groups. Each card loads ten commit
   previews on expansion and pages additional commits on request. Opening or
   following links does not mark updates read. Card and account-wide read actions

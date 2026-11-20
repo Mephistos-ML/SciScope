@@ -520,6 +520,37 @@ input::placeholder {
   color: var(--navy-900);
 }
 
+.explore-query-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  align-items: start;
+  gap: 20px;
+}
+
+.explore-topic-field,
+.explore-domain-field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 12px;
+}
+
+.field-optional {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.explore-domain-input {
+  min-height: 54px;
+  cursor: pointer;
+}
+
+.explore-domain-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .explore-query-input {
   min-height: 84px;
 }
@@ -2161,6 +2192,10 @@ input::placeholder {
   .feed-layout,
   .about-grid {
     grid-template-columns: 1fr;
+  }
+
+  .explore-query-fields {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .query-workspace,

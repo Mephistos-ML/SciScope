@@ -29,7 +29,7 @@ dependencies and runs the same suite against its PostgreSQL service.
 
 ## Coverage
 
-- **Explore:** guest search, token-authorized polling, result delivery and expansion
+- **Explore:** optional scientific-domain selection, guest search, token-authorized polling, result delivery and expansion
   of the same run; retained results, pending controls and durable operation counts.
 - **Feed and subscriptions:** grouped updates, repository filters, lazy commit
   loading, card and commit pagination, keyboard disclosure and mobile layout.
@@ -48,7 +48,12 @@ Planner, retrieval and repository-monitor capabilities use fixed data. OAuth and
 live provider protocols are outside this suite; the harness creates sessions
 instead of performing Google sign-in.
 
-Successful journeys mock no API responses. HTTP rejection/error scenarios inject
+`scientific-domain.spec.ts` isolates client behavior with fixed API responses:
+keyboard selection, responsive layout, request payloads, retry preservation and
+separation of the next search draft from an existing run's expansion context.
+The main Explore journey verifies domain persistence through the real API/worker.
+
+Successful full-stack journeys mock no API responses. HTTP rejection/error scenarios inject
 responses at the browser transport boundary to check client handling, not server
 quota or availability policy. Worker failure and provider outage scenarios use
 real API snapshots and PostgreSQL state.

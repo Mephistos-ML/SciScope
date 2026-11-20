@@ -35,6 +35,7 @@ test("guest discovers repositories, polls and expands the same durable run", asy
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Explore Scientific Software" })).toBeVisible();
   await page.getByLabel("Topic Description").fill("Scientific simulation software");
+  await page.getByRole("combobox", { name: "Scientific domain (optional)" }).selectOption("biology_bioinformatics");
   const createdResponse = page.waitForResponse((response) => response.url() === `${api}/api/explore/search-runs`
     && response.request().method() === "POST");
   const firstRunningPoll = page.waitForResponse(isRunningPoll);
@@ -43,6 +44,8 @@ test("guest discovers repositories, polls and expands the same durable run", asy
   expect(creation.status()).toBe(202);
   const created = await creation.json();
   expect(created.guestAccessToken).toBeTruthy();
+  expect(creation.request().postDataJSON().scientificDomain).toBe("biology_bioinformatics");
+  expect(created.scientificDomain).toBe("biology_bioinformatics");
   const firstPoll = await firstRunningPoll;
   expect(firstPoll.request().headers()["x-search-run-token"] === created.guestAccessToken).toBe(true);
   await expect(page.getByRole("button", { name: "Searching", exact: true })).toBeDisabled();
@@ -81,6 +84,8 @@ test("guest discovers repositories, polls and expands the same durable run", asy
   const snapshot = await final.json();
   expect(snapshot.status).toBe("completed");
   expect(snapshot.runId).toBe(created.runId);
+  expect(snapshot.scientificDomain).toBe("biology_bioinformatics");
+  await expect(page.getByRole("combobox", { name: "Scientific domain (optional)" })).toHaveValue("biology_bioinformatics");
   expect(snapshot.items.map((item: { itemId: string }) => item.itemId).sort()).toEqual(["github:repo:1", "github:repo:2"]);
   const facts = await (await request.get(`${provider}/facts`)).json();
   expect(facts.counts.search_runs - baseline.counts.search_runs).toBe(1);

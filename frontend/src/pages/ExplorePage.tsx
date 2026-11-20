@@ -10,6 +10,7 @@ import type {
   SearchDiagnosticsReport,
   ViewerPayload,
 } from "../types/api";
+import { SCIENTIFIC_DOMAINS, type ScientificDomain } from "../types/searchContracts.generated";
 import { SearchDiagnosticsRepositoryDetails } from "../components/SearchDiagnosticsRepositoryDetails";
 import { SearchDiagnosticsSummary } from "../components/SearchDiagnosticsSummary";
 import { SourceBadge } from "../components/SourceBadge";
@@ -37,6 +38,7 @@ type ExplorePageProps = {
   onSignIn: () => void;
   onSubscribe: (result: ExploreResultItem) => void;
   onTopicInputChange: (value: string) => void;
+  onScientificDomainChange: (value: ScientificDomain | null) => void;
   onTurnstileTokenChange: (token: string | null) => void;
   results: ExploreResultItem[];
   isExpandingSearch: boolean;
@@ -44,6 +46,7 @@ type ExplorePageProps = {
   subscribePendingRepositoryId: string | null;
   subscribedRepositoryIds: string[];
   topicInput: string;
+  scientificDomain: ScientificDomain | null;
   searchStageLabel: string | null;
   searchDiagnosticsActive: boolean;
   searchDiagnosticsReport: SearchDiagnosticsReport | null;
@@ -64,6 +67,7 @@ export function ExplorePage({
   onSignIn,
   onSubscribe,
   onTopicInputChange,
+  onScientificDomainChange,
   onTurnstileTokenChange,
   results,
   isExpandingSearch,
@@ -75,6 +79,7 @@ export function ExplorePage({
   subscribePendingRepositoryId,
   subscribedRepositoryIds,
   topicInput,
+  scientificDomain,
   turnstileReady,
   turnstileResetKey,
   turnstileSiteKey,
@@ -164,16 +169,43 @@ export function ExplorePage({
 
       <section className="explore-query-layout">
         <article className="query-workspace">
-          <label className="field-label" htmlFor="topic-query">
-            Topic Description
-          </label>
-          <textarea
-            id="topic-query"
-            className="text-field text-area explore-query-input"
-            value={topicInput}
-            onChange={(event) => onTopicInputChange(event.target.value)}
-            placeholder="Enter a research topic, method or software area..."
-          />
+          <div className="explore-query-fields">
+            <div className="explore-topic-field">
+              <label className="field-label" htmlFor="topic-query">
+                Topic Description
+              </label>
+              <textarea
+                id="topic-query"
+                className="text-field text-area explore-query-input"
+                value={topicInput}
+                onChange={(event) => onTopicInputChange(event.target.value)}
+                placeholder="Enter a research topic, method or software area..."
+              />
+            </div>
+            <div className="explore-domain-field">
+              <label className="field-label" htmlFor="scientific-domain">
+                Scientific domain <span className="field-optional">(optional)</span>
+              </label>
+              <select
+                id="scientific-domain"
+                className="text-field explore-domain-input"
+                aria-describedby="scientific-domain-hint"
+                disabled={searchPending}
+                value={scientificDomain ?? ""}
+                onChange={(event) => onScientificDomainChange(
+                  event.target.value === "" ? null : event.target.value as ScientificDomain,
+                )}
+              >
+                <option value="">Not specified</option>
+                {SCIENTIFIC_DOMAINS.map((domain) => (
+                  <option key={domain} value={domain}>{SCIENTIFIC_DOMAIN_LABELS[domain]}</option>
+                ))}
+              </select>
+              <p className="field-hint" id="scientific-domain-hint">
+                Adds context to a new search.
+              </p>
+            </div>
+          </div>
           <p className="field-hint">
             {viewer
               ? "SciScope will generate discovery queries and let you subscribe to specific repositories from the results."
@@ -530,6 +562,17 @@ export function ExplorePage({
     </main>
   );
 }
+
+const SCIENTIFIC_DOMAIN_LABELS: Record<ScientificDomain, string> = {
+  physics: "Physics",
+  chemistry: "Chemistry",
+  materials_science: "Materials Science",
+  biology_bioinformatics: "Biology & Bioinformatics",
+  earth_environmental_science: "Earth & Environmental Science",
+  astronomy_space_science: "Astronomy & Space Science",
+  mathematics_statistics: "Mathematics & Statistics",
+  computer_science: "Computer Science",
+};
 
 const LOADING_REPOSITORY_ROW_COUNT = [0, 1, 2, 3, 4] as const;
 const RESULTS_PER_PAGE = 10;

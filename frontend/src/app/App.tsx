@@ -20,6 +20,7 @@ import {
   markFeedGroupRead,
   signOut,
 } from "../lib/api";
+import type { ScientificDomain } from "../types/searchContracts.generated";
 import { frontendConfig } from "../lib/config";
 import { pollExploreSearchRun, searchRunPresentation } from "../lib/searchRuns";
 import { AppShell } from "../components/AppShell";
@@ -76,6 +77,7 @@ export function App() {
   const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>([]);
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
   const [topicInput, setTopicInput] = useState("");
+  const [scientificDomain, setScientificDomain] = useState<ScientificDomain | null>(null);
   const [signingIn, setSigningIn] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [searchPending, setSearchPending] = useState(false);
@@ -348,6 +350,7 @@ export function App() {
     try {
       const job = await createExploreSearchRun({
         topicDescription: topicInput.trim(),
+        scientificDomain,
         turnstileToken,
       });
       setExploreGuestAccessToken(job.guestAccessToken ?? null);
@@ -707,6 +710,7 @@ export function App() {
               onSignIn={() => void handleSignIn()}
               onSubscribe={(result) => void handleSubscribe(result)}
               onTopicInputChange={setTopicInput}
+              onScientificDomainChange={setScientificDomain}
               onTurnstileTokenChange={setTurnstileToken}
               results={results}
               canExpandSearch={canExpandSearch}
@@ -726,6 +730,7 @@ export function App() {
               subscribePendingRepositoryId={createPendingRepositoryId}
               subscribedRepositoryIds={subscriptions.map((item) => item.repository.repositoryId)}
               topicInput={topicInput}
+              scientificDomain={scientificDomain}
               searchStageLabel={
                 isExpandingSearch
                   ? "Expanding search…"
