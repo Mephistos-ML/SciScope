@@ -1,5 +1,11 @@
-.git
+.git/**
+!.git/HEAD
+!.git/refs/
+!.git/refs/**
+!.git/packed-refs
 .gitignore
+.env
+.env.*
 .venv
 .pytest_cache
 __pycache__
@@ -12,3 +18,4 @@ node_modules
 *.sqlite3
 backend/tests
 benchmarks
+backend/app/_image_revision.txt

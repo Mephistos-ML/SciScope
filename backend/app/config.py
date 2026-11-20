@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 import re
 from math import isfinite
+from pathlib import Path
 
 DEFAULT_EXPLORE_QUOTA_WINDOW_SECONDS = 86400  # 24 hours
 
@@ -94,6 +95,16 @@ def _read_optional_csv_env(name: str) -> tuple[str, ...]:
 
 APP_ENV = _read_required_env("APP_ENV")
 APP_REVISION = _read_optional_env("APP_REVISION")
+# Docker embeds the SHA once; all entrypoints, including SSH diagnostics and
+# Fly's release command, read the same artifact instead of inheriting shell state.
+_image_revision_path = Path(__file__).with_name("_image_revision.txt")
+if _image_revision_path.exists():
+    _image_revision = _image_revision_path.read_text().strip()
+    if re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", _image_revision) is None:
+        raise RuntimeError("Image REVISION must contain a full Git commit SHA")
+    if APP_REVISION and APP_REVISION != _image_revision:
+        raise RuntimeError("APP_REVISION must match the revision embedded in the image")
+    APP_REVISION = _image_revision
 if APP_REVISION and re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", APP_REVISION) is None:
     raise RuntimeError("APP_REVISION must be a full Git commit SHA")
 if APP_ENV == "production" and not APP_REVISION:

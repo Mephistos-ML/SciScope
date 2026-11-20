@@ -7,10 +7,12 @@ credentials, guest/session tokens or lease tokens during diagnosis.
 
 ## Diagnose
 
-Production images require a source SHA build argument. Use
+Production images embed the source SHA in `app/_image_revision.txt`. Fly Dashboard builds
+resolve it from filtered checkout metadata automatically. Use
 `python scripts/deploy_backend.py --dry-run` to inspect the command from a clean
 checkout, then `python scripts/deploy_backend.py` to deploy when authorized.
-Direct builds need `--build-arg APP_REVISION=<full-source-sha>`. Missing or invalid
+Builds without usable Git metadata need
+`--build-arg APP_REVISION=<full-source-sha>`. Missing or invalid
 identity fails early; do not label an image with an unrelated SHA. See
 [versioning and provenance](../contracts/versioning-and-provenance.md).
 
