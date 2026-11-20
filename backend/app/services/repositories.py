@@ -89,7 +89,7 @@ def repair_repository_profiles(
             name: {"before": getattr(original, name), "after": getattr(refreshed, name)}
             for name in (
                 "full_name", "url", "owner_login", "description", "language",
-                "stars", "topics", "provider_updated_at", "metadata",
+                "topics", "provider_updated_at", "metadata",
             )
             if getattr(original, name) != getattr(refreshed, name)
         }
@@ -118,7 +118,6 @@ def _looks_like_subscription_profile(repository: Repository) -> bool:
         and not repository.owner_login
         and not repository.description
         and not repository.language
-        and repository.stars == 0
         and not repository.topics
         and repository.provider_updated_at is None
     )

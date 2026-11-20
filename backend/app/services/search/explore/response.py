@@ -60,7 +60,10 @@ def _build_response_envelope(
         "items": items,
         "sourceStatuses": list(retrieved.source_statuses),
         "partial": retrieved.partial,
-        "message": _build_partial_message(retrieved.warnings) if retrieved.partial else None,
+        "message": (
+            _build_partial_message(retrieved.warnings) if retrieved.partial
+            else " ".join(dict.fromkeys(retrieved.warnings)) or None
+        ),
         "canExpand": can_expand,
     }
 

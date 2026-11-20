@@ -1,38 +1,56 @@
 # SPDX-FileCopyrightText: 2026 Ernest Borysenko
 # SPDX-License-Identifier: Apache-2.0
 
-"""Score calculation for heuristic repository ranking."""
+"""Location-weighted logarithmic match scoring; no probability interpretation."""
 
 from __future__ import annotations
 
-from app.services.search.ranking.models import RankingFeatures, RankingScoreBreakdown
+from math import log1p
+from types import MappingProxyType
+from typing import Mapping
+
+from app.services.search.ranking.models import (
+    LocationScoreContribution,
+    RankingFeatures,
+    RankingScoreBreakdown,
+)
+from app.services.search.retrieval.models import RetrievalMatchLocation
 
 
-def calculate_relevance_score(features: RankingFeatures) -> float:
-    """Calculate a bounded 0-100 relevance score from ranking features."""
+# Initial policy weights, inherited from the previous heuristic. These have not
+# been calibrated on held-out relevance judgments. This is their sole owner.
+LOCATION_WEIGHTS: Mapping[RetrievalMatchLocation, float] = MappingProxyType(
+    {
+        "name": 1.00,
+        "description": 0.85,
+        "topic": 0.75,
+        "readme": 0.65,
+        "documentation": 0.55,
+        "code": 0.60,
+        "notebook": 0.25,
+        "data": 0.25,
+        "configuration": 0.25,
+        "project_metadata": 0.25,
+        "legal": 0.25,
+        "metadata": 0.65,
+        "other": 0.25,
+    }
+)
 
-    breakdown = build_relevance_score_breakdown(features)
-    return round(
-        min(
-            max(
-                breakdown.strongest_match_points
-                + breakdown.corroboration_points,
-                0.0,
-            ),
-            100.0,
-        ),
-        2,
-    )
 
-
-def build_relevance_score_breakdown(
+def build_ranking_score_breakdown(
     features: RankingFeatures,
 ) -> RankingScoreBreakdown:
-    """Build score contributions from one repository's ranking features."""
+    """Capture counts, weights and contributions for reproducible diagnostics."""
 
     return RankingScoreBreakdown(
-        strongest_match_quality=features.strongest_match_quality,
-        strongest_match_points=round(85.0 * features.strongest_match_quality, 2),
-        corroboration_quality=features.corroboration_quality,
-        corroboration_points=round(15.0 * features.corroboration_quality, 2),
+        locations=tuple(
+            LocationScoreContribution(
+                location=item.location,
+                count=item.count,
+                weight=LOCATION_WEIGHTS[item.location],
+                contribution=LOCATION_WEIGHTS[item.location] * log1p(item.count),
+            )
+            for item in features.match_counts_by_location
+        ),
     )

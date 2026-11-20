@@ -7,6 +7,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Literal
+
+from app.integrations.repositories.common.source_status import RepositorySourceError
 
 from app.models.signal import Signal
 
@@ -17,6 +20,24 @@ class JsonResponse:
 
     payload: object
     url: str
+
+
+DiscoveryCoverageReason = Literal[
+    "page_budget", "provider_incomplete", "provider_truncated", "unmapped_items", "coverage_unknown",
+]
+
+
+@dataclass(frozen=True)
+class RepositoryDiscoveryBatch:
+    """Validated observations, incomplete coverage and an optional terminal IO error.
+
+    This transient adapter result is not a persisted error/exception schema.
+    """
+
+    signals: tuple[Signal, ...]
+    reported_result_counts: tuple[int, ...] = ()
+    coverage_reasons: tuple[DiscoveryCoverageReason, ...] = ()
+    error: RepositorySourceError | None = None
 
 
 @dataclass(frozen=True)
@@ -41,7 +62,6 @@ class RepositoryCandidate:
     description: str = ""
     owner_login: str = ""
     language: str = ""
-    stars: int = 0
     topics: tuple[str, ...] = ()
     matched_path: str = ""
     matched_excerpt: str = ""

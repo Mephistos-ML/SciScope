@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from typing import Literal, Mapping, Protocol
 
 from app.models.signal import Signal
+from app.integrations.repositories.common.models import RepositoryDiscoveryBatch
 
 
 RetrievalMatchLocation = Literal[
@@ -19,6 +20,11 @@ RetrievalMatchLocation = Literal[
     "readme",
     "documentation",
     "code",
+    "notebook",
+    "data",
+    "configuration",
+    "project_metadata",
+    "legal",
     "other",
     "metadata",
 ]
@@ -58,7 +64,7 @@ class CandidateProvenance:
     matched_queries: tuple[str, ...]
     matched_channels: tuple[str, ...]
     best_rank_by_channel: Mapping[str, int]
-    hit_count: int
+    raw_hit_count: int
     match_evidence: tuple[RetrievalMatchEvidence, ...] = ()
     origins: tuple[RetrievalMatchOrigin, ...] = ("provider",)
 
@@ -103,7 +109,7 @@ class RetrievedCandidates:
 class RepositoryDiscoverer(Protocol):
     def __call__(
         self, queries: Sequence[str], *, deadline_monotonic: float | None,
-    ) -> list[Signal]: ...
+    ) -> list[Signal] | RepositoryDiscoveryBatch: ...
 
 
 @dataclass(frozen=True)

@@ -6,23 +6,42 @@ on:
       - main
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
+  checks:
+    name: Required quality gates
+    uses: ./.github/workflows/test.yml
+    permissions:
+      contents: read
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
   semantic-release:
+    needs: checks
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
+      - name: Require the current tested main revision
+        env:
+          TESTED_SHA: ${{ github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$TESTED_SHA"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$TESTED_SHA"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -33,6 +52,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+
+      - name: Check release metadata and generated contracts
+        run: |
+          python scripts/check_release_versions.py
+          python scripts/generate_search_contracts.py --check
 
       - name: Run semantic-release
         env:

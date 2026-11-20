@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 from threading import Event
+from math import log1p
+import pytest
 
 from app.services.search.retrieval import timeouts
 from dataclasses import replace
@@ -14,6 +16,7 @@ from app.models.signal import Signal
 from app.services.search.retrieval.models import RetrievalLane
 from app.services.search.retrieval.merge import merge_retrieval_hits
 from app.services.search.retrieval.service import run_external_repository_retrieval
+from app.services.search.ranking import rank_repository_candidates
 from app.integrations.repositories.common.source_status import RepositorySourceError
 
 
@@ -37,7 +40,6 @@ def _build_repository_signal(
             "description": "A python package for working with ORCA.",
             "topics": ["orca", "chemistry"],
             "language": "Python",
-            "stars": 12,
         },
     )
 
@@ -96,7 +98,7 @@ def test_merge_retrieval_hits_accumulates_candidate_provenance() -> None:
         "repository_search": 7,
         "code_search": 3,
     }
-    assert candidate.provenance.hit_count == 2
+    assert candidate.provenance.raw_hit_count == 2
     assert candidate.provenance.match_evidence[0].location == "description"
     assert candidate.provenance.match_evidence[0].channel == "repository_search"
     assert candidate.provenance.match_evidence[0].origin == "provider"
@@ -106,6 +108,26 @@ def test_merge_retrieval_hits_accumulates_candidate_provenance() -> None:
     assert candidate.provenance.match_evidence[1].origin == "provider"
     assert candidate.provenance.match_evidence[1].retrieval_rank == 3
     assert candidate.provenance.match_evidence[1].path == "src/orto/parser.py"
+
+
+def test_file_hits_keep_their_location_and_count_once_despite_metadata_overlap():
+    signal = _build_repository_signal("github:repo:1", query="orca python")
+    # Both file hits also match the repository description. Their file paths
+    # remain authoritative; a retried page must not count the first file twice.
+    hits = tuple(
+        _build_hit(
+            source="github", channel="code_search", query="orca python", rank=rank,
+            signal=replace(signal, payload={**signal.payload, "matched_path": path}),
+        )
+        for rank, path in enumerate(("src/a.py", "src/b.py", "src/a.py", "README.md"), 1)
+    )
+    candidates = merge_retrieval_hits(hits)
+    result = rank_repository_candidates(candidates, queries=("orca python",))
+    ranked = result.ranked_candidates[0]
+    assert {item.location: item.count for item in ranked.features.match_counts_by_location} == {
+        "code": 2, "readme": 1,
+    }
+    assert ranked.score == pytest.approx(.6 * log1p(2) + .65 * log1p(1))
 
 
 def test_run_external_repository_retrieval_merges_duplicate_repo_hits() -> None:
@@ -138,7 +160,7 @@ def test_run_external_repository_retrieval_merges_duplicate_repo_hits() -> None:
     assert dict(candidate.provenance.best_rank_by_channel) == {
         "repository_search": 1,
     }
-    assert candidate.provenance.hit_count == 2
+    assert candidate.provenance.raw_hit_count == 2
     assert len(candidate.provenance.match_evidence) == 2
 
 
@@ -160,7 +182,6 @@ def test_merge_retrieval_hits_preserves_language_from_richer_duplicate_signal() 
             "query": "pair potential",
             "topics": [],
             "language": "",
-            "stars": 0,
         },
     )
 
@@ -186,7 +207,6 @@ def test_merge_retrieval_hits_preserves_language_from_richer_duplicate_signal() 
     assert len(candidates) == 1
     candidate = candidates[0]
     assert candidate.signal.payload["language"] == "Python"
-    assert candidate.signal.payload["stars"] == 12
     assert candidate.signal.payload["topics"] == ["orca", "chemistry"]
     assert "Matched code path:" in candidate.signal.raw_text
 

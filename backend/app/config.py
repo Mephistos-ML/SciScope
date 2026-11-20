@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import os
+import re
+from math import isfinite
 
 DEFAULT_EXPLORE_QUOTA_WINDOW_SECONDS = 86400  # 24 hours
 
@@ -91,6 +93,11 @@ def _read_optional_csv_env(name: str) -> tuple[str, ...]:
 
 
 APP_ENV = _read_required_env("APP_ENV")
+APP_REVISION = _read_optional_env("APP_REVISION")
+if APP_REVISION and re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", APP_REVISION) is None:
+    raise RuntimeError("APP_REVISION must be a full Git commit SHA")
+if APP_ENV == "production" and not APP_REVISION:
+    raise RuntimeError("APP_REVISION is required in production; supply the source SHA at image build")
 APP_LOG_LEVEL = (_read_optional_env("APP_LOG_LEVEL") or "INFO").upper()
 SEARCH_DIAGNOSTICS_USER_EMAILS = _read_optional_csv_env(
     "SEARCH_DIAGNOSTICS_USER_EMAILS"
@@ -187,9 +194,14 @@ EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS = _read_optional_int_env(
     60,
 )
 EXPLORE_ADMISSION_MODE = _read_optional_env("EXPLORE_ADMISSION_MODE") or "enforced"
-EXPLORE_SEARCH_RELEVANCE_CUTOFF = _read_optional_float_env(
-    "EXPLORE_SEARCH_RELEVANCE_CUTOFF",
-    50.0,
+if _read_optional_env("EXPLORE_SEARCH_RELEVANCE_CUTOFF"):
+    raise RuntimeError(
+        "EXPLORE_SEARCH_RELEVANCE_CUTOFF uses the retired 0-100 scale; remove it "
+        "and configure EXPLORE_SEARCH_LOG_MATCH_CUTOFF for logarithmic match scores"
+    )
+EXPLORE_SEARCH_LOG_MATCH_CUTOFF = _read_optional_float_env(
+    "EXPLORE_SEARCH_LOG_MATCH_CUTOFF",
+    0.0,
 )
 SEMANTIC_CATALOG_ENABLED = _read_bool_env("SEMANTIC_CATALOG_ENABLED", False)
 SEMANTIC_EMBEDDING_MODEL = (
@@ -311,10 +323,12 @@ if EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS <= 0:
 if EXPLORE_ADMISSION_MODE not in {"off", "enforced"}:
     raise RuntimeError("EXPLORE_ADMISSION_MODE must be one of: off, enforced")
 
-if not 0.0 <= EXPLORE_SEARCH_RELEVANCE_CUTOFF <= 100.0:
+if not isfinite(EXPLORE_SEARCH_LOG_MATCH_CUTOFF) or EXPLORE_SEARCH_LOG_MATCH_CUTOFF < 0.0:
     raise RuntimeError(
-        "EXPLORE_SEARCH_RELEVANCE_CUTOFF must be between 0 and 100"
+        "EXPLORE_SEARCH_LOG_MATCH_CUTOFF must be finite and nonnegative"
     )
+
+
 
 if SEMANTIC_EMBEDDING_DIMENSIONS != 1536:
     raise RuntimeError(

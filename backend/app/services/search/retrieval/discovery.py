@@ -86,6 +86,12 @@ def discover_candidates_across_sources(
             break
 
         remaining_lane_count -= 1
+        if lane_result.broad_query:
+            suggestion = (
+                "Try a more specific search: add a method, tool, or scientific task."
+            )
+            if suggestion not in warnings:
+                warnings.append(suggestion)
         lane_outcomes.append(build_lane_outcome(lane_result))
         lane_partial, lane_warning = consume_lane_result(
             lane_result,
@@ -97,7 +103,7 @@ def discover_candidates_across_sources(
         )
         if lane_partial:
             partial = True
-        if lane_warning is not None:
+        if lane_warning is not None and lane_warning not in warnings:
             warnings.append(lane_warning)
         emit_retrieval_progress(
             candidates,

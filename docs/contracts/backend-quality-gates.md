@@ -3,7 +3,8 @@
 `AGENTS.md` defines policy. `pyproject.toml` contains the executable import,
 lint and type-checking configuration; `.github/workflows/test.yml` runs each
 check in the independent `Backend architecture and static checks` job. A failed
-check fails that job on pull requests and pushes to main. Requiring the job for
+check fails that job on pull requests and main releases. Release invokes the
+Test workflow and waits for every required job before publication. Requiring CI for
 merges also needs GitHub branch protection; workflow configuration alone does not
 configure repository permissions.
 
@@ -40,7 +41,7 @@ copies of the application and require the actual CLI to reject them.
 ## Lint and types
 
 Ruff checks all backend Python code: application, scripts, migrations and tests.
-The initial rules (`E4`, `E9`, `F`) catch misplaced imports, syntax issues,
+The configured rules (`E4`, `E9`, `F`) catch misplaced imports, syntax issues,
 undefined names, unused imports/variables and duplicate definitions. This is a
 correctness gate, not a repository-wide formatting rollout. There are no blanket
 file exclusions or rule suppressions.

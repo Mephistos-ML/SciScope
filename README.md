@@ -22,7 +22,7 @@ Scientific software is spread across repositories, and finding relevant tools of
 
 SciScope searches GitHub and GitLab from a description of your research topic. You can review the results, subscribe to useful repositories, and follow their releases and code updates in a personal feed.
 
-1. **Describe your topic.** Enter a research area or task, such as `paramagnetic NMR tools`.
+1. **Describe your topic.** Enter a research area or task, such as `paramagnetic NMR tools`. Optionally choose a scientific domain to clarify the context.
 2. **Explore repositories.** SciScope generates search queries, combines results, and ranks candidates by relevance.
 3. **Follow useful tools.** Subscribe to the repositories you want to monitor.
 4. **Review updates.** Browse release cards and grouped commits, expand their details, and mark updates as read.
@@ -58,20 +58,18 @@ The API, search worker, and scheduled monitoring run as separate processes shari
 
 ## Reliability and verification
 
-- Searches run asynchronously and retain completed results when a provider is slow or unavailable.
-- Provider requests have bounded deadlines and response sizes.
+- Searches run asynchronously and preserve results delivered before their deadline.
+- Search requests use bounded time budgets; code-search pages also have a response-size limit.
 - Feed publications and monitoring checkpoints commit atomically.
-- CI checks import boundaries, lint, scoped strict typing, backend tests, and the frontend build.
+- Release publication waits for static checks, backend and PostgreSQL tests, frontend checks, and browser journeys.
 - PostgreSQL tests cover database-specific transactions and concurrency.
 - Browser tests exercise search, subscriptions, grouped feed updates, and read-state behavior.
 
-## Current scope and ongoing work
+## Current scope
 
-SciScope uses a heuristic ranking engine whose scoring formula is still being tuned. It can currently miss useful repositories. A training and evaluation dataset is being collected, and improving ranking quality is an active priority.
-
-Repository discovery and monitoring currently cover GitHub and GitLab. Gitee and other hosting platforms are not yet integrated.
-
-Multilingual support is not yet available.
+SciScope uses a transparent heuristic ranker. Results depend on question
+specificity and provider coverage, so relevant repositories may be missed.
+Repository discovery and monitoring cover GitHub and GitLab.
 
 ## Development and documentation
 

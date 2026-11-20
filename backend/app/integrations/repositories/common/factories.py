@@ -52,7 +52,6 @@ def build_repository_candidate_signal(candidate: RepositoryCandidate) -> Signal:
             "description": candidate.description,
             "topics": list(candidate.topics),
             "language": candidate.language,
-            "stars": candidate.stars,
             "query": candidate.query,
             "matched_path": candidate.matched_path,
             "matched_excerpt": candidate.matched_excerpt,
@@ -81,7 +80,6 @@ def build_repository_entity(signal: Signal) -> Repository:
         owner_login=str(signal.payload.get("author") or ""),
         description=str(signal.payload.get("description") or ""),
         language=str(signal.payload.get("language") or ""),
-        stars=int(signal.payload.get("stars") or 0),
         topics=tuple(
             str(topic)
             for topic in signal.payload.get("topics", [])

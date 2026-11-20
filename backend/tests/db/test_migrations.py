@@ -139,7 +139,7 @@ def test_migrations_upgrade_legacy_schema_without_alembic_history(tmp_path: Path
             sa.text("SELECT version_num FROM alembic_version")
         ).scalar_one()
 
-    assert version == "0017_feed_update_groups"
+    assert version == "0019_search_scientific_domain"
     assert inspector.has_table("user_feed_update_groups")
     assert inspector.has_table("user_feed_update_group_members")
     assert inspector.has_table("search_runs")
@@ -311,3 +311,25 @@ def test_execution_state_migration_converts_data_without_a_runtime_legacy_reader
     with engine.connect() as connection:
         restored = connection.execute(sa.select(runs.c.run_id, runs.c.execution_state_json)).all()
     assert dict(restored) == expected_states
+
+
+def test_repository_columns_match_current_contract(tmp_path):
+    from app.database.records.repositories import RepositoryRecordModel
+    database_url = build_test_database_url(tmp_path / "current-schema.sqlite3")
+    migrate_test_database(database_url)
+    engine = sa.create_engine(database_url)
+    try:
+        assert {column["name"] for column in sa.inspect(engine).get_columns("repositories")} == set(RepositoryRecordModel.__table__.columns.keys())
+    finally:
+        engine.dispose()
+
+
+def test_profile_migration_preserves_unrelated_metadata(tmp_path):
+    from tests.fixtures.migrations import verify_profile_metadata_migration
+    verify_profile_metadata_migration(build_test_database_url(tmp_path / "profile-cutover.sqlite3"))
+
+
+def test_scientific_domain_upgrade_preserves_existing_runs(tmp_path):
+    from tests.fixtures.migrations import assert_scientific_domain_upgrade
+
+    assert_scientific_domain_upgrade(build_test_database_url(tmp_path / "domain.sqlite3"))

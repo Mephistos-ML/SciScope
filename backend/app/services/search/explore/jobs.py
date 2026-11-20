@@ -14,6 +14,7 @@ import secrets
 from uuid import uuid4
 
 from app.models.explore_access import ExploreAdmission
+from app.models.scientific_domain import ScientificDomain
 from app.models.persistence import PersistenceError
 from app.models.search_run import (
     SearchRun,
@@ -25,6 +26,7 @@ from app.services.search.access.service import hash_explore_topic, record_explor
 from app.services.search.access.errors import ExploreAccessDeniedError
 from app.storage.search_admission import explore_admission_transaction
 from app.services.search.explore.dependencies import ExploreDependencies
+from app.services.search.ranking.models import RANKING_POLICY_VERSION
 from app.services.search.explore.execution import (
     ExploreSearchExecution,
     ExploreExecutionStateError,
@@ -51,6 +53,7 @@ logger = logging.getLogger(__name__)
 def create_explore_search_run(
     *,
     topic_description: str,
+    scientific_domain: ScientificDomain | None = None,
     admission: ExploreAdmission,
     dependencies: ExploreDependencies,
     database_url: str,
@@ -64,13 +67,14 @@ def create_explore_search_run(
         run_id=run_id,
         owner_user_id=owner_user_id,
         topic_description=topic_description,
+        scientific_domain=scientific_domain,
         topic_hash=hash_explore_topic(topic_description),
         status="queued",
         planner_mode=dependencies.planner.identity.mode,
         planner_model=dependencies.planner.identity.model,
         planner_reasoning_effort=dependencies.planner.identity.reasoning_effort,
-        ranking_policy_version="heuristic-v1",
-        backend_revision="unknown",
+        ranking_policy_version=RANKING_POLICY_VERSION,
+        backend_revision=dependencies.backend_revision,
         created_at=now,
         guest_access_token_hash=(
             _hash_guest_token(guest_access_token) if guest_access_token else None
@@ -131,6 +135,7 @@ def _build_run_snapshot(run: SearchRun) -> dict[str, object]:
     }
     payload.update(
         {
+            "scientificDomain": run.scientific_domain.value if run.scientific_domain else None,
             "runId": run.run_id,
             "status": run.status,
             "error": run.error_message,
@@ -241,6 +246,7 @@ def execute_search_run_operation(
             payload = run_explore_search(
                 dependencies=dependencies,
                 topic_description=run.topic_description,
+                scientific_domain=run.scientific_domain,
                 database_url=database_url,
                 execution_callback=remember_execution,
                 stage_report_callback=remember_report,

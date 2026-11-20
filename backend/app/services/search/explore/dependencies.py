@@ -15,3 +15,5 @@ class ExploreDependencies:
     planner: AiSearchPlanner
     lanes: tuple[RetrievalLane, ...]
     embeddings: EmbeddingProvider | None
+    score_threshold: float = 0.0
+    backend_revision: str = "unavailable"

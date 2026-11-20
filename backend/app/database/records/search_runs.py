@@ -30,6 +30,7 @@ class SearchRunRecordModel(Base):
     )
     guest_access_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     topic_description: Mapped[str] = mapped_column(Text, nullable=False)
+    scientific_domain: Mapped[str | None] = mapped_column(String(64), nullable=True)
     topic_hash: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False)
     planner_mode: Mapped[str] = mapped_column(String, nullable=False)

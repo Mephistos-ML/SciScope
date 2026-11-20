@@ -37,7 +37,6 @@ def build_explore_repository_signal(
             "query": query,
             "topics": ["paramagnetic-nmr", "pcs"],
             "language": "Python",
-            "stars": 14,
         },
     )
 
@@ -65,7 +64,6 @@ def build_code_only_explore_repository_signal(
             "query": query,
             "topics": ["lammps", "molecular-simulation"],
             "language": "C++",
-            "stars": 4,
         },
     )
 
@@ -77,7 +75,7 @@ def build_retrieved_candidates(
     partial: bool = False,
     warnings: tuple[str, ...] = (),
     matched_channels: tuple[str, ...] = ("repository_search",),
-    hit_count: int = 1,
+    raw_hit_count: int = 1,
     match_locations: tuple[RetrievalMatchLocation, ...] | None = None,
 ) -> RetrievedCandidates:
     return RetrievedCandidates(
@@ -91,7 +89,7 @@ def build_retrieved_candidates(
                     best_rank_by_channel={
                         channel_name: 1 for channel_name in matched_channels
                     },
-                    hit_count=hit_count,
+                    raw_hit_count=raw_hit_count,
                     match_evidence=(
                         RetrievalMatchEvidence(
                             query=str(signal.payload.get("query") or ""),

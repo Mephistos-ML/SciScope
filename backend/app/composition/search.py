@@ -5,10 +5,12 @@
 
 import logging
 from functools import partial
+from pathlib import Path
 from urllib.parse import urlparse
 
 from app import config
 from app.composition.repositories import RepositoryAdapters
+from app.composition.revision import resolve_backend_revision
 from app.models.ai import AiPlannerIdentity
 from app.integrations.ai.openai.planner import OpenAiSearchPlanner
 from app.integrations.ai.openai.embeddings import OpenAiTextEmbedder
@@ -18,11 +20,12 @@ from app.services.ai.search_plans import build_bootstrap_ai_search_plan
 from app.services.search.explore.dependencies import ExploreDependencies
 from app.services.search.retrieval.models import RetrievalLane
 from app.integrations.repositories.github.search.repository import discover_repository_candidates as github_repositories
-from app.integrations.repositories.github.search.code import discover_repository_candidates_from_code as github_code
+from app.integrations.repositories.github.search.code import search_code as github_code
 from app.integrations.repositories.gitlab.search.repository import discover_repository_candidates as gitlab_repositories
 from app.integrations.repositories.gitlab.search.code import discover_repository_candidates_from_code as gitlab_code
 
 logger = logging.getLogger(__name__)
+
 
 
 def build_explore_dependencies(*, repositories: RepositoryAdapters) -> ExploreDependencies:
@@ -50,7 +53,7 @@ def build_explore_dependencies(*, repositories: RepositoryAdapters) -> ExploreDe
 
     lanes = [
         RetrievalLane("github", "repository_search", partial(github_repositories, client=repositories.github)),
-        RetrievalLane("github", "code_search", partial(github_code, client=repositories.github)),
+        RetrievalLane("github", "code_search", partial(github_code, client=repositories.github, per_query_limit=100, max_pages=3)),
         RetrievalLane("gitlab", "repository_search", partial(gitlab_repositories, client=repositories.gitlab)),
     ]
     hostname = (urlparse(repositories.gitlab.base_url).hostname or "").casefold()
@@ -59,7 +62,13 @@ def build_explore_dependencies(*, repositories: RepositoryAdapters) -> ExploreDe
     else:
         logger.info("GitLab global code-search lane is unavailable for configured host=%s", hostname)
     embeddings = build_embedding_provider() if config.SEMANTIC_CATALOG_ENABLED else None
-    return ExploreDependencies(planner=planner, lanes=tuple(lanes), embeddings=embeddings)
+    return ExploreDependencies(
+        planner=planner, lanes=tuple(lanes), embeddings=embeddings,
+        score_threshold=config.EXPLORE_SEARCH_LOG_MATCH_CUTOFF,
+        backend_revision=resolve_backend_revision(
+            config.APP_REVISION, repository_root=Path(__file__).resolve().parents[3],
+        ),
+    )
 
 
 def build_embedding_provider() -> EmbeddingProvider:

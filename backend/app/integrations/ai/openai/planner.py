@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from copy import deepcopy
 from typing import Any
 
 from app.models.ai import AiSearchPlan
@@ -14,6 +15,7 @@ from app.models.ai import normalize_search_queries
 from app.models.ai import AiResponseError
 
 SEARCH_QUERY_COUNT = 3
+MAX_GENERATED_QUERY_LENGTH = 185
 
 _SEARCH_PLAN_JSON_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -27,33 +29,77 @@ _SEARCH_PLAN_JSON_SCHEMA: dict[str, Any] = {
             "items": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 500,
+                "maxLength": MAX_GENERATED_QUERY_LENGTH,
             },
         },
     },
 }
 
-_SYSTEM_PROMPT = """Generate exactly 3 ordered search queries for scientific software repository discovery.
+_SYSTEM_PROMPT = f"""Generate exactly 3 search queries for scientific software repositories
+from the user's scientific question.
 
-Goal: maximize recall of domain-specific scientific software repositories while avoiding generic software, papers, datasets, tutorials, and unrelated tools.
+Each query will be searched independently as a quoted phrase.
+Prefer short expressions likely to appear verbatim in code or documentation.
 
 Rules:
-- Query 1 must be the canonical short form of the topic.
-- Stay close to the user topic and preserve its scientific meaning.
-- Do not invent software names, package names, frameworks, languages, or file names that are not explicitly mentioned in the topic.
-- Do not add a programming language unless it is explicitly mentioned in the topic.
-- Each query must represent a meaningfully different retrieval angle, not a minor rewording.
-- Prefer exact scientific method names, scientific subterms, implementation phrases, and domain-specific terminology that are likely to appear in repository metadata or code search.
-- Keep queries short: 2 to 6 words.
-- Avoid broad generic terms like: software, tool, analysis, project, model, python, dataset, paper, tutorial, notes, example.
-- Use only ASCII characters.
+- Preserve the scientific meaning and explicitly named entities.
+- Every query must retain a named scientific tool, method, dataset,
+  instrument, or a specific scientific concept from the question.
+- A language, environment, or generic artifact alone is not sufficient:
+  do not return phrases such as "Jupyter notebook" or "Python examples"
+  without the question's scientific context.
+- Prefer 2-3 words per query. Use up to 4 to preserve a scientific name
+  or combine scientific context with an explicit requirement.
+- A single explicitly named scientific tool or acronym is allowed.
+- Include explicit language, environment, or artifact requirements in
+  at least one query when they can form a natural contextual phrase.
+- Choose complementary terminology or established synonyms.
+  Word reordering and generic filler do not create distinct queries.
+- Do not invent instruments, methods, software names, or restrictions.
+- If the question lacks specific context, preserve its stated subject
+  without inventing a scientific domain.
+- Do not add words such as software, tool, library, tutorial, examples,
+  or workflow merely to make a query longer.
+- Use ASCII text without quotation marks or search operators.
+- Each query must contain at most {MAX_GENERATED_QUERY_LENGTH} characters, including spaces.
 - Return only JSON matching the provided schema.
 
-Use these retrieval angles in this order:
-  1. canonical topic phrase: the strongest first search for the user
-  2. a substantially different method, synonym, or implementation-oriented angle
-  3. another substantially different scientific phrasing that stays within the topic
+Retrieval guidance:
+- Identify the most specific scientific entity explicitly named in the question:
+  a software package, dataset, instrument, method, or scientific concept.
+- Make the first query that entity's shortest distinctive established name.
+  Preserve a multiword name as a natural phrase; an explicit acronym is allowed.
+- Use the other two queries for complementary established phrases tied to that
+  entity or its scientific capability, rather than longer task descriptions.
+- Do not repeat the same entity-only query with cosmetic wording changes.
+- If no specific named entity is supplied, anchor the first query on the most
+  specific scientific concept actually stated; do not invent a software name.
+- Use the supplied scientific domain to disambiguate terminology, not as an
+  automatic prefix or suffix in the queries.
 """
+
+
+@dataclass(frozen=True)
+class SearchPlanRequest:
+    """Rendered provider input shared by production execution and offline research."""
+
+    system_prompt: str
+    user_prompt: str
+    json_schema: dict[str, Any]
+
+
+def build_search_plan_request(
+    *, topic_description: str, system_prompt: str | None = None
+) -> SearchPlanRequest:
+    if system_prompt is not None and (
+        not system_prompt.strip() or len(system_prompt.encode()) > 16 * 1024
+    ):
+        raise ValueError("Research system prompt must be nonempty and at most 16 KiB")
+    return SearchPlanRequest(
+        system_prompt=_SYSTEM_PROMPT if system_prompt is None else system_prompt,
+        user_prompt=f"Topic description:\n{topic_description.strip() or 'Untitled topic'}",
+        json_schema=deepcopy(_SEARCH_PLAN_JSON_SCHEMA),
+    )
 
 
 @dataclass(frozen=True)
@@ -70,26 +116,23 @@ class OpenAiSearchPlanner:
         self,
         *,
         topic_description: str,
+        system_prompt: str | None = None,
     ) -> AiSearchPlan:
-        user_prompt = _build_user_prompt(
+        request = build_search_plan_request(
             topic_description=topic_description,
+            system_prompt=system_prompt,
         )
         payload = build_openai_json_response(
-            api_key=self.api_key, base_url=self.base_url, timeout_seconds=self.timeout_seconds,
+            api_key=self.api_key,
+            base_url=self.base_url,
+            timeout_seconds=self.timeout_seconds,
             model=self.model,
             reasoning_effort=self.reasoning_effort,
-            system_prompt=_SYSTEM_PROMPT,
-            user_prompt=user_prompt,
-            json_schema=_SEARCH_PLAN_JSON_SCHEMA,
+            system_prompt=request.system_prompt,
+            user_prompt=request.user_prompt,
+            json_schema=request.json_schema,
         )
         return _parse_ai_search_plan(payload)
-
-
-def _build_user_prompt(
-    *,
-    topic_description: str,
-) -> str:
-    return f"Topic description:\n{topic_description.strip() or 'Untitled topic'}"
 
 
 def _parse_ai_search_plan(
@@ -100,10 +143,15 @@ def _parse_ai_search_plan(
         raise AiResponseError("OpenAI planner returned invalid queries")
 
     if len(raw_queries) != SEARCH_QUERY_COUNT or any(
-        not isinstance(query, str) or not query.strip() or len(query) > 500
+        not isinstance(query, str)
+        or not query.strip()
+        or len(query) > MAX_GENERATED_QUERY_LENGTH
         for query in raw_queries
     ):
-        raise AiResponseError("AI planner must return 3 nonempty bounded string queries")
+        raise AiResponseError(
+            "AI planner must return 3 nonempty bounded string queries "
+            f"(at most {MAX_GENERATED_QUERY_LENGTH} characters each)"
+        )
     queries = normalize_search_queries(raw_queries)
     if len(queries) != SEARCH_QUERY_COUNT:
         raise AiResponseError("OpenAI planner must return 3 unique queries")

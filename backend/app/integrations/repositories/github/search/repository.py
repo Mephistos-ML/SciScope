@@ -10,6 +10,7 @@ from time import monotonic
 from urllib.parse import quote_plus
 
 from app.models.signal import Signal
+from app.integrations.repositories.common.search_query import quote_search_phrase
 from app.integrations.repositories.common.models import RepositoryCandidate
 from app.integrations.repositories.common.factories import build_repository_candidate_signal
 from app.integrations.repositories.common.deadlines import raise_source_timeout_error
@@ -72,7 +73,6 @@ def discover_repository_candidates(
                 description=profile.description,
                 owner_login=profile.owner_login,
                 language=profile.language,
-                stars=profile.stars,
                 topics=profile.topics,
                 provider_updated_at=profile.provider_updated_at,
             )
@@ -82,7 +82,7 @@ def discover_repository_candidates(
 
 
 def _build_repository_search_url(query: str, *, client: GitHubClient, per_query_limit: int) -> str:
-    encoded_query = quote_plus(query)
+    encoded_query = quote_plus(quote_search_phrase(query))
     return (
         f"{client.api_base}/search/repositories"
         f"?q={encoded_query}&sort=updated&order=desc&per_page={per_query_limit}"

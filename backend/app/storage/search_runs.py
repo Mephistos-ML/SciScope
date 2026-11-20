@@ -26,6 +26,7 @@ from app.database.records.search_runs import (
 from app.database.session import database_now
 from app.storage.transaction import persistence_session
 from app.models.ai import AiPlannerIdentity
+from app.models.scientific_domain import parse_scientific_domain
 from app.models.search_run import (
     SearchRun,
     SearchRunOperation,
@@ -47,6 +48,7 @@ def write_search_run(session: Session, run: SearchRun) -> None:
             owner_user_id=run.owner_user_id,
             guest_access_token_hash=run.guest_access_token_hash,
             topic_description=run.topic_description,
+            scientific_domain=run.scientific_domain.value if run.scientific_domain else None,
             topic_hash=run.topic_hash,
             status=run.status,
             planner_mode=run.planner_mode,
@@ -586,6 +588,7 @@ def get_search_run_report(run_id: str, *, database_url: str) -> dict[str, object
                 "runId": run.run_id,
                 "ownerUserId": run.owner_user_id,
                 "topicDescription": run.topic_description,
+                "scientificDomain": run.scientific_domain,
                 "status": run.status,
                 "plannerMode": run.planner_mode,
                 "plannerModel": run.planner_model,
@@ -676,6 +679,7 @@ def map_search_run_record(record: SearchRunRecordModel) -> SearchRun:
         owner_user_id=record.owner_user_id,
         guest_access_token_hash=record.guest_access_token_hash,
         topic_description=record.topic_description,
+        scientific_domain=parse_scientific_domain(record.scientific_domain),
         topic_hash=record.topic_hash,
         status=record.status,  # type: ignore[arg-type]
         planner_mode=record.planner_mode,

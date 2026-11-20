@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from math import log1p
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 import tempfile
@@ -62,7 +63,7 @@ def _build_subscription_watch() -> SubscriptionWatchRecord:
             source="github",
             full_name="Mephistos-ML/paranmr",
             url="https://github.com/Mephistos-ML/paranmr",
-            metadata={"repo": "Mephistos-ML/paranmr", "stars": 14},
+            metadata={"repo": "Mephistos-ML/paranmr"},
         ),
         selected_query="paramagnetic nmr",
         created_at="2026-08-14T10:00:00+00:00",
@@ -778,18 +779,20 @@ def test_explore_search_accepts_verified_turnstile_token_for_suspicious_guest(
     assert response.json()["items"][0]["itemId"] == "github:repo:102"
 
 
+@pytest.mark.parametrize("domain", [None, "chemistry"])
 def test_explore_search_run_returns_completed_snapshot(
-    monkeypatch, explore_run_database
+    monkeypatch, explore_run_database, domain
 ) -> None:
     _allow_explore_access(monkeypatch)
-    _use_search_plan_builder(
-        monkeypatch,
-        lambda topic_description: build_ready_repository_ai_plan(
-            "paramagnetic nmr",
-            "pcs tensor fitting",
-            "pseudocontact shift",
-        ),
-    )
+    planned_topics = []
+
+    def plan(topic_description):
+        planned_topics.append(topic_description)
+        return build_ready_repository_ai_plan(
+            "paramagnetic nmr", "pcs tensor fitting", "pseudocontact shift",
+        )
+
+    _use_search_plan_builder(monkeypatch, plan)
     monkeypatch.setattr(
         "app.services.search.explore.service.run_external_repository_retrieval",
         lambda queries, progress_callback=None, **kwargs: build_retrieved_candidates(
@@ -804,20 +807,31 @@ def test_explore_search_run_returns_completed_snapshot(
         ),
     )
 
+    monkeypatch.setattr(app.state, "explore_dependencies", replace(
+        app.state.explore_dependencies, backend_revision="a" * 40,
+    ))
     with TestClient(app) as client:
         response = client.post(
             "/api/explore/search-runs",
-            json={"topicDescription": "Paramagnetic NMR analysis workflows"},
+            json={"topicDescription": "Paramagnetic NMR analysis workflows", "scientificDomain": domain},
         )
 
         assert response.status_code == 202
         assert response.json()["status"] == "queued"
+        assert response.json()["scientificDomain"] == domain
         client.headers['X-Search-Run-Token'] = response.json()['guestAccessToken']
+        # A stage records the executing worker's revision independently of
+        # the API revision recorded when the run was created.
+        monkeypatch.setattr(app.state, "explore_dependencies", replace(
+            app.state.explore_dependencies, backend_revision="b" * 40,
+        ))
         _process_next_search_run_operation(explore_run_database)
         created = client.get(f"/api/explore/search-runs/{response.json()['runId']}").json()
         assert created["status"] == "completed"
+        assert created["scientificDomain"] == domain
         assert created["canExpand"] is True
         assert created["items"][0]["itemId"] == "github:repo:102"
+        assert created["items"][0]["scoreFormula"] == "location_weighted_log_matches_v4"
         assert "ownerUserId" not in created
 
         follow_up = client.get(f"/api/explore/search-runs/{created['runId']}")
@@ -838,10 +852,30 @@ def test_explore_search_run_returns_completed_snapshot(
         database_url=explore_run_database,
     )
     assert report is not None
+    assert report["run"]["scientificDomain"] == domain
+    assert report["run"]["backendRevision"] == "a" * 40
+    provenance = report["rankingSnapshots"][0]["candidateFacts"]["evaluation_provenance"]
+    assert provenance["backend_revision"] == "b" * 40
+    assert provenance["configuration_fingerprint"].startswith("sha256:")
+    assert provenance["ranking_configuration"]["score_threshold"] == 0
+    assert report["run"]["rankingPolicyVersion"] == "location_weighted_log_matches_v4"
     evidence = report["rankingSnapshots"][0]["retrievalFacts"]["match_evidence"][0]
     assert evidence["channel"] == "repository_search"
     assert evidence["origin"] == "provider"
     assert evidence["retrieval_rank"] == 1
+    breakdown = report["rankingSnapshots"][0]["scoreBreakdown"]
+    assert breakdown["schema_version"] == 5
+    ranking_features = report["rankingSnapshots"][0]["rankingFeatures"]
+    assert ranking_features["raw_hit_count"] == 1
+    assert ranking_features["evidence_record_count"] == 1
+    assert ranking_features["match_counts_by_location"] == [
+        {"location": "description", "count": 1},
+    ]
+    assert breakdown["formula"] == "location_weighted_log_matches_v4"
+    assert breakdown["locations"] == [
+        {"location": "description", "count": 1, "weight": 0.85,
+         "contribution": pytest.approx(0.85 * log1p(1))},
+    ]
     stage = get_search_run_stage(
         created["runId"],
         1,
@@ -858,20 +892,23 @@ def test_explore_search_run_returns_completed_snapshot(
         "response_serialization",
         "stage_wall_time",
     }
+    assert planned_topics == [("Scientific domain: Chemistry\n\n" if domain else "") + "Paramagnetic NMR analysis workflows"]
+    assert created["topicDescription"] == "Paramagnetic NMR analysis workflows"
 
 
 def test_explore_search_run_expands_one_pending_query_and_merges_candidates(
     monkeypatch, explore_run_database
 ) -> None:
     _allow_explore_access(monkeypatch)
-    _use_search_plan_builder(
-        monkeypatch,
-        lambda topic_description: build_ready_repository_ai_plan(
-            "paramagnetic nmr",
-            "pcs tensor fitting",
-            "pseudocontact shift",
-        ),
-    )
+    planned_topics = []
+
+    def plan(topic_description):
+        planned_topics.append(topic_description)
+        return build_ready_repository_ai_plan(
+            "paramagnetic nmr", "pcs tensor fitting", "pseudocontact shift",
+        )
+
+    _use_search_plan_builder(monkeypatch, plan)
     retrieval_queries: list[tuple[str, ...]] = []
 
     def _retrieve(queries, **_kwargs):
@@ -895,7 +932,7 @@ def test_explore_search_run_expands_one_pending_query_and_merges_candidates(
     with TestClient(app) as client:
         created = client.post(
             "/api/explore/search-runs",
-            json={"topicDescription": "Paramagnetic NMR analysis workflows"},
+            json={"topicDescription": "Paramagnetic NMR analysis workflows", "scientificDomain": "chemistry"},
         ).json()
         client.headers['X-Search-Run-Token'] = created['guestAccessToken']
         _process_next_search_run_operation(explore_run_database)
@@ -909,12 +946,15 @@ def test_explore_search_run_expands_one_pending_query_and_merges_candidates(
     assert expanded.status_code == 200
     payload = expanded.json()
     assert payload["status"] == "completed"
+    assert payload["scientificDomain"] == "chemistry"
     assert payload["canExpand"] is True
     assert {item["itemId"] for item in payload["items"]} == {
         "github:repo:111",
         "github:repo:114",
     }
     assert retrieval_queries == [("paramagnetic nmr",), ("pcs tensor fitting",)]
+    assert planned_topics == ["Scientific domain: Chemistry\n\nParamagnetic NMR analysis workflows"]
+    assert created["topicDescription"] == "Paramagnetic NMR analysis workflows"
 
 
 def test_explore_search_expansion_preserves_all_previous_results(
@@ -1120,3 +1160,112 @@ def test_explore_search_run_returns_completed_partial_snapshot(
     assert payload["status"] == "completed_partial"
     assert payload["items"][0]["itemId"] == "gitlab:repo:116"
     assert "partial coverage" in payload["message"]
+
+
+@pytest.mark.parametrize("endpoint", ["search", "search-runs"])
+@pytest.mark.parametrize("domain", ["", "unknown", "Chemistry", 1, True, [], {}])
+def test_invalid_scientific_domain_rejected_before_admission(monkeypatch, endpoint, domain):
+    def unexpected(*args, **kwargs):
+        pytest.fail("Invalid context must not consume quota or schedule work")
+
+    monkeypatch.setattr("app.api.routes.explore._prepare_explore_search_request", unexpected)
+    with TestClient(app) as client:
+        response = client.post(f"/api/explore/{endpoint}", json={
+            "topicDescription": "Scientific software", "scientificDomain": domain,
+        })
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("domain", [None, "chemistry"])
+def test_sync_search_passes_domain_only_to_planning(monkeypatch, domain):
+    _allow_explore_access(monkeypatch)
+    planned = []
+
+    def plan(topic_description):
+        planned.append(topic_description)
+        # A pending bootstrap plan avoids external retrieval in this transport test.
+        from app.models.ai import AiSearchPlan
+        return AiSearchPlan("pending", ())
+
+    _use_search_plan_builder(monkeypatch, plan)
+    with TestClient(app) as client:
+        response = client.post("/api/explore/search", json={
+            "topicDescription": "How do I fit paramagnetic NMR shifts?",
+            "scientificDomain": domain,
+        })
+    assert response.status_code == 200
+    assert planned == [
+        ("Scientific domain: Chemistry\n\n" if domain else "")
+        + "How do I fit paramagnetic NMR shifts?"
+    ]
+    assert response.json()["topicDescription"] == "How do I fit paramagnetic NMR shifts?"
+    assert response.json()["scientificDomain"] == domain
+
+
+@pytest.mark.parametrize("background", [False, True])
+@pytest.mark.parametrize("domain", [None, "chemistry"])
+def test_product_paths_deliver_domain_to_real_planner_adapter(
+    monkeypatch, explore_run_database, background, domain,
+):
+    from app import config
+    from app.composition.repositories import build_repository_adapters
+    from app.composition.search import build_explore_dependencies
+
+    _allow_explore_access(monkeypatch)
+    monkeypatch.setattr(config, "AI_PLANNER_MODE", "openai")
+    monkeypatch.setattr(app.state, "explore_dependencies", build_explore_dependencies(
+        repositories=build_repository_adapters(),
+    ))
+    requests = []
+    queries = ["paramagnetic NMR", "contact shifts", "pseudocontact shifts"]
+
+    def respond(**kwargs):
+        requests.append(kwargs)
+        return {"queries": queries}
+
+    monkeypatch.setattr(
+        "app.integrations.ai.openai.planner.build_openai_json_response", respond,
+    )
+    searched = []
+
+    def retrieve(selected, **kwargs):
+        searched.extend(selected)
+        return build_retrieved_candidates(
+            build_explore_repository_signal("github:repo:102", query=selected[0]),
+            source_statuses=({"source": "github", "status": "ok", "candidateCount": 1, "error": None},),
+            successful_source_count=1,
+        )
+
+    monkeypatch.setattr(
+        "app.services.search.explore.service.run_external_repository_retrieval", retrieve,
+    )
+    question = "How do I fit paramagnetic NMR shifts?"
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/explore/search-runs" if background else "/api/explore/search",
+            json={"topicDescription": question, "scientificDomain": domain},
+        )
+        assert response.status_code == (202 if background else 200)
+        payload = response.json()
+        if background:
+            assert not requests  # The API queues work without provider IO.
+            _process_next_search_run_operation(explore_run_database)
+            response = client.get(
+                f"/api/explore/search-runs/{payload['runId']}",
+                headers={"X-Search-Run-Token": payload["guestAccessToken"]},
+            )
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["status"] == "completed"
+            from app.storage.search_runs import get_search_run
+            saved_run = get_search_run(payload["runId"], database_url=explore_run_database)
+            assert saved_run is not None
+            assert saved_run.execution_state["plan"]["queries"] == queries
+    assert len(requests) == 1
+    context = f"Scientific domain: Chemistry\n\n{question}" if domain else question
+    assert requests[0]["user_prompt"] == f"Topic description:\n{context}"
+    assert "Retrieval guidance:" in requests[0]["system_prompt"]
+    assert payload["aiSearchPlan"] == {"status": "ready", "queries": []}
+    assert searched == queries[:1]  # Existing initial-stage scheduling is preserved.
+    assert payload["topicDescription"] == question
+    assert payload["scientificDomain"] == domain

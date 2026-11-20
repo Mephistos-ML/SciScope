@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { SearchDiagnosticsRankingSnapshot } from "../types/api";
+import { SUPPORTED_LOG_MATCH_BREAKDOWN_SCHEMA_VERSIONS, RETRIEVAL_MATCH_LOCATIONS } from "../types/searchContracts.generated";
+import type { LocationScoreContribution, RankingFeatures, RetrievalMatchLocation } from "../types/searchContracts.generated";
 
 type SearchDiagnosticsRepositoryDetailsProps = {
   snapshot: SearchDiagnosticsRankingSnapshot;
@@ -24,11 +26,21 @@ export function SearchDiagnosticsRepositoryDetails({
   const admission = snapshot.admissionFacts;
   const retrieval = snapshot.retrievalFacts;
   const scoreBreakdown = snapshot.scoreBreakdown;
-  const matchedQueryCount = readNumber(features, "matched_query_count");
-  const totalQueryCount = readNumber(features, "total_query_count");
-  const evidenceCount = readNumber(features, "evidence_count");
-  const hitCount = readNumber(features, "hit_count");
+  const snapshotVersion = scoreBreakdown.schema_version;
+  const isLogMatchScore = SUPPORTED_LOG_MATCH_BREAKDOWN_SCHEMA_VERSIONS.some((version) => version === snapshotVersion);
+  const isHistoricalHeuristic = snapshotVersion === undefined;
+  const hasNamedDiagnostics = isLogMatchScore && snapshotVersion !== 2;
+  const locations = readLocationContributions(scoreBreakdown.locations, snapshotVersion);
+  const matchedQueryCount = readNumber(features, "matched_query_count" satisfies keyof RankingFeatures);
+  const totalQueryCount = readNumber(features, "total_query_count" satisfies keyof RankingFeatures);
+  const evidenceRecordCount = readNumber(
+    features, hasNamedDiagnostics ? "evidence_record_count" satisfies keyof RankingFeatures : "evidence_count",
+  );
+  const rawHitCount = readNumber(features, hasNamedDiagnostics ? "raw_hit_count" satisfies keyof RankingFeatures : "hit_count");
   const evidence = readMatchEvidence(retrieval.match_evidence);
+  const provenanceValue = snapshot.candidateFacts?.evaluation_provenance;
+  const provenance = provenanceValue && typeof provenanceValue === "object"
+    ? provenanceValue as Record<string, unknown> : {};
 
   return (
     <section className="repository-diagnostics-details">
@@ -39,23 +51,38 @@ export function SearchDiagnosticsRepositoryDetails({
         </div>
         <div className="repository-diagnostics-score">
           <span>Backend rank #{snapshot.rankPosition}</span>
-          <strong>{formatScore(snapshot.finalScore)}</strong>
+          <strong>{formatScore(snapshot.finalScore, isHistoricalHeuristic)}</strong>
         </div>
       </div>
 
       <div className="repository-diagnostics-metrics">
         <Metric
-          label="Query coverage"
+          label="Matched queries"
           value={formatRatio(matchedQueryCount, totalQueryCount)}
         />
-        <Metric label="Evidence" value={formatCount(evidenceCount, "items")} />
-        <Metric label="Raw hits" value={formatCount(hitCount, "hits")} />
+        <Metric label="Evidence records" value={formatCount(evidenceRecordCount, "records")} />
+        <Metric label="Raw hits" value={formatCount(rawHitCount, "hits")} />
         <Metric label="Admission" value={formatLabel(readString(admission, "decision") ?? "unknown")} />
       </div>
 
       <div className="repository-diagnostics-columns">
         <section>
           <h5>Score breakdown</h5>
+          {isLogMatchScore ? (
+            <>
+              <p>Weighted log matches</p>
+              <dl className="repository-diagnostics-definition-list">
+                {locations.map((item) => (
+                  <Definition
+                    key={item.location}
+                    label={formatLabel(item.location)}
+                    value={`${item.count} matches; weight ${item.weight.toFixed(2)}; contribution ${item.contribution.toFixed(4)}`}
+                  />
+                ))}
+              </dl>
+              {!locations.length ? <p>No current-query matches.</p> : null}
+            </>
+          ) : isHistoricalHeuristic ? (
           <dl className="repository-diagnostics-definition-list">
             <Definition
               label="Strongest match"
@@ -74,14 +101,17 @@ export function SearchDiagnosticsRepositoryDetails({
               value={formatDecimal(readNumber(features, "corroboration_quality"))}
             />
           </dl>
+          ) : <p>Unsupported ranking snapshot format.</p>}
         </section>
 
         <section>
           <h5>Retrieval context</h5>
-          <dl className="repository-diagnostics-definition-list">
+          <dl className="repository-diagnostics-definition-list repository-diagnostics-provenance">
             <Definition label="Origins" value={formatList(readStringList(retrieval.origins))} />
             <Definition label="Channels" value={formatList(readStringList(retrieval.matched_channels))} />
             <Definition label="Admission bucket" value={formatLabel(readString(admission, "bucket") ?? "unknown")} />
+            <Definition label="Backend revision" value={readString(provenance, "backend_revision") ?? "Not recorded"} />
+            <Definition label="Configuration fingerprint" value={readString(provenance, "configuration_fingerprint") ?? "Not recorded"} />
           </dl>
         </section>
       </div>
@@ -171,13 +201,36 @@ function readKnownString(value: Record<string, unknown>, key: string): string | 
   return candidate && candidate !== "unknown" ? candidate : null;
 }
 
-function formatScore(value: number): string {
-  return `${value.toFixed(2)} / 100`;
+function formatScore(value: number, isHistoricalHeuristic: boolean): string {
+  return isHistoricalHeuristic ? `${value.toFixed(2)} / 100` : value.toFixed(4);
+}
+
+function readLocationContributions(value: unknown, snapshotVersion: unknown): LocationScoreContribution[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const candidate = item as Record<string, unknown>;
+    const location = readString(candidate, "location");
+    const count = readNumber(candidate, "count");
+    const weight = readNumber(candidate, "weight");
+    const contribution = readNumber(candidate, snapshotVersion === 2 ? "points" : "contribution");
+    return location && isMatchLocation(location) && count !== null && weight !== null && contribution !== null
+      ? [{ location, count, weight, contribution }]
+      : [];
+  });
+}
+
+function isMatchLocation(value: string): value is RetrievalMatchLocation {
+  return RETRIEVAL_MATCH_LOCATIONS.some((location) => location === value);
 }
 
 function formatRatio(numerator: number | null, denominator: number | null): string {
   if (numerator === null || denominator === null) return "—";
   return `${numerator} / ${denominator}`;
+}
+
+function formatContribution(value: number | null): string {
+  return value === null ? "—" : value.toFixed(4);
 }
 
 function formatCount(value: number | null, noun: string): string {

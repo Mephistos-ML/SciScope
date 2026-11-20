@@ -33,7 +33,7 @@ def test_upsert_repositories_persists_global_repositories(tmp_path) -> None:
                 provider_repository_id="123",
                 full_name="Mephistos-ML/paranmr",
                 url="https://github.com/Mephistos-ML/paranmr",
-                metadata={"stars": 12},
+                metadata={"sample_count": 12},
             )
         ],
         database_url=database_url,
@@ -44,7 +44,7 @@ def test_upsert_repositories_persists_global_repositories(tmp_path) -> None:
     assert len(repositories) == 1
     assert repositories[0].repository_id == "github:repo:123"
     assert repositories[0].full_name == "Mephistos-ML/paranmr"
-    assert repositories[0].metadata["stars"] == 12
+    assert repositories[0].metadata["sample_count"] == 12
 
 
 def test_create_subscription_returns_direct_repository_watch(tmp_path) -> None:
@@ -59,7 +59,7 @@ def test_create_subscription_returns_direct_repository_watch(tmp_path) -> None:
                 provider_repository_id="123",
                 full_name="Mephistos-ML/paranmr",
                 url="https://github.com/Mephistos-ML/paranmr",
-                metadata={"stars": 14},
+                metadata={},
             )
         ],
         database_url=database_url,

@@ -19,10 +19,10 @@ def build_repository_item(ranked_candidate: RankedRepositoryCandidate) -> dict[s
         "url": signal.url,
         "description": _read_candidate_description(signal.raw_text),
         "language": signal.payload.get("language"),
-        "stars": signal.payload.get("stars"),
         "providerUpdatedAt": signal.payload.get("provider_updated_at"),
         "query": signal.payload.get("query"),
         "score": ranked_candidate.score,
+        "scoreFormula": ranked_candidate.score_breakdown.formula,
         "reason": "Matched by SciScope search.",
     }
 

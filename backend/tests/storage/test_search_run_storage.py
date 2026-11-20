@@ -7,6 +7,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import pytest
+from app.models.scientific_domain import ScientificDomain
+
 from app.database.session import session_scope
 from app.models.search_run import (
     SearchRun,
@@ -33,12 +36,14 @@ from app.storage.search_runs import (
 from tests.fixtures.database import build_test_database_url, migrate_test_database
 
 
-def test_search_run_storage_persists_execution_facts(tmp_path) -> None:
+@pytest.mark.parametrize("domain", [None, *ScientificDomain])
+def test_search_run_storage_persists_execution_facts(tmp_path, domain) -> None:
     database_url = build_test_database_url(tmp_path / "search-runs.sqlite3")
     migrate_test_database(database_url)
     started_at = datetime(2026, 9, 28, 12, 0, tzinfo=UTC)
     run = SearchRun(
         run_id="run_1",
+        scientific_domain=domain,
         owner_user_id=None,
         topic_description="Paramagnetic NMR fitting",
         topic_hash="topic_hash",
@@ -142,6 +147,9 @@ def test_search_run_storage_persists_execution_facts(tmp_path) -> None:
         "GitHub repository search is rate-limited right now."
     )
     assert report["rankingSnapshots"][0]["repositoryId"] == "github:repo:science/example"
+    loaded = get_search_run("run_1", database_url=database_url)
+    assert loaded is not None
+    assert loaded.scientific_domain == domain
 
 
 def test_search_run_report_projects_run_failure_fields(tmp_path) -> None:

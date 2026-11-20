@@ -34,5 +34,5 @@ def select_canonical_candidates(
         ranked
         for ranked in evaluation.ranking.ranked_candidates
         if ranked.candidate.repository_id in admitted_repository_ids
-        and ranked.score >= evaluation.ranking.relevance_cutoff
+        and ranked.score >= evaluation.score_threshold
     )

@@ -95,9 +95,21 @@ topic -> AI query plan -> catalog + external retrieval
       -> merge -> candidate admission -> heuristic ranking -> results
 ```
 
-External discovery runs for every search. Repository and code-search lanes have
+External discovery runs for every search. Product GitHub code search requests
+up to three pages of 100 files per executed query, stopping early on empty or
+short pages and respecting lane deadlines. GitHub repository search and GitLab
+repository search remain parallel channels with their existing limits.
+Request retries can add HTTP attempts beyond the logical page count. Validated
+code-search pages survive later request errors, with incomplete coverage exposed
+as `partial`. Provider clients own HTTP retries; the application does not rerun
+a completed query fan-out after those retries are exhausted.
+
+Repository and code-search lanes have
 separate provider and timeout budgets. Candidate admission filters non-software
-results; ranking uses query coverage, match location, and bounded evidence density.
+results; ranking sums location-weighted logarithms of distinct match counts.
+See [retrieval](../docs/contracts/retrieval.md) for provider budgets and coverage,
+and [ranking](../docs/contracts/repository-ranking.md) for match identity, score
+scale and historical snapshots.
 Completed candidates can be delivered with partial coverage when a source fails.
 Admitted external discoveries update the shared repository catalog.
 
@@ -212,7 +224,8 @@ in [Backend quality gates](../docs/contracts/backend-quality-gates.md).
 | `SEARCH_RUN_WORKER_LEASE_SECONDS`, `SEARCH_RUN_WORKER_POLL_SECONDS` | Durable worker ownership and polling |
 | `EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS`, `EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS` | Search time budgets |
 | `EXPLORE_SEARCH_REPOSITORY_LANE_TIMEOUT_SECONDS`, `EXPLORE_SEARCH_CODE_LANE_TIMEOUT_SECONDS` | Retrieval lane budgets |
-| `EXPLORE_ADMISSION_MODE`, `EXPLORE_SEARCH_RELEVANCE_CUTOFF` | Candidate and delivery policy |
+| `EXPLORE_ADMISSION_MODE`, `EXPLORE_SEARCH_LOG_MATCH_CUTOFF` | Candidate and delivery policy; log-score cutoff defaults to 0 |
+| `APP_REVISION` | Full source Git SHA; required for production images, resolved from Git for local checkouts |
 | `SEMANTIC_CATALOG_ENABLED`, `SEMANTIC_EMBEDDING_MODEL`, `SEMANTIC_CATALOG_MIN_SIMILARITY` | Optional semantic catalog retrieval |
 | `SEARCH_DIAGNOSTICS_USER_EMAILS`, `SEARCH_QUOTA_BYPASS_USER_EMAILS` | Restricted product capabilities |
 

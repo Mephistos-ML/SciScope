@@ -74,7 +74,6 @@ class Repository:
     owner_login: str = ""
     description: str = ""
     language: str = ""
-    stars: int = 0
     topics: tuple[str, ...] = ()
     first_seen_at: datetime | None = None
     last_seen_at: datetime | None = None

@@ -7,6 +7,13 @@ credentials, guest/session tokens or lease tokens during diagnosis.
 
 ## Diagnose
 
+Production images require a source SHA build argument. Use
+`python scripts/deploy_backend.py --dry-run` to inspect the command from a clean
+checkout, then `python scripts/deploy_backend.py` to deploy when authorized.
+Direct builds need `--build-arg APP_REVISION=<full-source-sha>`. Missing or invalid
+identity fails early; do not label an image with an unrelated SHA. See
+[versioning and provenance](../contracts/versioning-and-provenance.md).
+
 | Symptom | Check |
 | --- | --- |
 | API unavailable | `/health`, Machine/process state and logs |
@@ -15,6 +22,59 @@ credentials, guest/session tokens or lease tokens during diagnosis.
 | Run remains running | Operation lease against DB time; worker heartbeat logs |
 | Stale Feed | Scheduler, monitoring lease, scan summaries and repository checks |
 | Terminal failed run | Error code; restart does not requeue terminal work |
+
+## Coordinated search upgrade
+
+The backend writes execution schema 2, ranking breakdown schema 5, policy
+`location_weighted_log_matches_v4` and configuration schema 2. The frontend reads
+historical unversioned 0--100 scores, breakdown schemas 2/3 and current schema 5;
+unsupported formats remain explicitly unsupported. Completed reports are not
+rewritten. New stages use the executing worker's current ranking policy.
+
+When upgrading from a deployment before revisions 0018/0019:
+
+1. Take a recoverable database backup and record the deployed image revisions.
+2. Quiesce incoming traffic and drain/stop every API and worker instance. Prevent
+   old instances from automatically restarting during the cutover.
+3. Apply migrations through `0019_search_scientific_domain`.
+4. Deploy the matching API, workers and frontend while traffic remains quiesced.
+   Remove `EXPLORE_SEARCH_RELEVANCE_CUTOFF`; use
+   `EXPLORE_SEARCH_LOG_MATCH_CUTOFF=0` unless a nonzero cutoff has been evaluated.
+5. Verify readiness and a search with and without a domain, expansion of the
+   same run, and persisted reports before reopening traffic.
+
+The earlier diagnostic reader must not receive new scores, and the new domain
+selector must not send requests to an old API. Updating both during the quiesced
+window satisfies those constraints. Fly's overlapping release command alone
+does not coordinate this cutover. API and workers must agree on the schemas and
+ranking policy; reconstruct dependencies after configuration changes.
+
+### Migration effects
+
+`0018_repository_profile_fields` removes a retired repository column and redundant
+profile JSON keys. JSON cleanup uses keyset batches of 500 inside the migration
+transaction; duration and row locking scale with catalog size. Prior binaries
+select the removed column, while current binaries cannot insert into the earlier
+NOT NULL schema. Historical run reports are preserved.
+
+`0019_search_scientific_domain` adds a nullable domain column without a backfill.
+Old rows retain null. The schema expansion can precede application deployment,
+but domain-bearing work must not be consumed by old workers. PostgreSQL DDL
+requires a table lock even without a backfill.
+
+### Rollback and recovery
+
+Prefer a tested forward fix after new execution states or profile changes have
+been written. Earlier binaries may not understand execution schema 2, the expanded
+location vocabulary or the changed repository schema. Do not relabel or discard
+user state to make an old reader accept it.
+
+A coordinated application rollback must restore compatible frontend/API/worker
+images and their cutoff configuration. Retaining the optional domain column is
+safe for earlier writers. Downgrading 0019 loses domain choices; downgrading 0018
+restores the column shape with zero defaults, not its former values. Restore from
+the database backup when those facts are required. Rolling back code does not
+undo scores or reports already delivered by the new formula.
 
 Inside the API container:
 

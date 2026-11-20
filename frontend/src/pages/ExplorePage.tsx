@@ -10,6 +10,7 @@ import type {
   SearchDiagnosticsReport,
   ViewerPayload,
 } from "../types/api";
+import { SCIENTIFIC_DOMAINS, type ScientificDomain } from "../types/searchContracts.generated";
 import { SearchDiagnosticsRepositoryDetails } from "../components/SearchDiagnosticsRepositoryDetails";
 import { SearchDiagnosticsSummary } from "../components/SearchDiagnosticsSummary";
 import { SourceBadge } from "../components/SourceBadge";
@@ -24,7 +25,7 @@ type ExploreSearchFeedback = {
   turnstileRequired: boolean;
 };
 
-type ExploreSortOption = "relevance" | "recent_activity" | "stars";
+type ExploreSortOption = "relevance" | "recent_activity";
 type SearchDiagnosticsStatus = "idle" | "loading" | "ready" | "unavailable";
 
 type ExplorePageProps = {
@@ -37,6 +38,7 @@ type ExplorePageProps = {
   onSignIn: () => void;
   onSubscribe: (result: ExploreResultItem) => void;
   onTopicInputChange: (value: string) => void;
+  onScientificDomainChange: (value: ScientificDomain | null) => void;
   onTurnstileTokenChange: (token: string | null) => void;
   results: ExploreResultItem[];
   isExpandingSearch: boolean;
@@ -44,6 +46,7 @@ type ExplorePageProps = {
   subscribePendingRepositoryId: string | null;
   subscribedRepositoryIds: string[];
   topicInput: string;
+  scientificDomain: ScientificDomain | null;
   searchStageLabel: string | null;
   searchDiagnosticsActive: boolean;
   searchDiagnosticsReport: SearchDiagnosticsReport | null;
@@ -64,6 +67,7 @@ export function ExplorePage({
   onSignIn,
   onSubscribe,
   onTopicInputChange,
+  onScientificDomainChange,
   onTurnstileTokenChange,
   results,
   isExpandingSearch,
@@ -75,6 +79,7 @@ export function ExplorePage({
   subscribePendingRepositoryId,
   subscribedRepositoryIds,
   topicInput,
+  scientificDomain,
   turnstileReady,
   turnstileResetKey,
   turnstileSiteKey,
@@ -164,16 +169,43 @@ export function ExplorePage({
 
       <section className="explore-query-layout">
         <article className="query-workspace">
-          <label className="field-label" htmlFor="topic-query">
-            Topic Description
-          </label>
-          <textarea
-            id="topic-query"
-            className="text-field text-area explore-query-input"
-            value={topicInput}
-            onChange={(event) => onTopicInputChange(event.target.value)}
-            placeholder="Enter a research topic, method or software area..."
-          />
+          <div className="explore-query-fields">
+            <div className="explore-topic-field">
+              <label className="field-label" htmlFor="topic-query">
+                Topic Description
+              </label>
+              <textarea
+                id="topic-query"
+                className="text-field text-area explore-query-input"
+                value={topicInput}
+                onChange={(event) => onTopicInputChange(event.target.value)}
+                placeholder="Enter a research topic, method or software area..."
+              />
+            </div>
+            <div className="explore-domain-field">
+              <label className="field-label" htmlFor="scientific-domain">
+                Scientific domain <span className="field-optional">(optional)</span>
+              </label>
+              <select
+                id="scientific-domain"
+                className="text-field explore-domain-input"
+                aria-describedby="scientific-domain-hint"
+                disabled={searchPending}
+                value={scientificDomain ?? ""}
+                onChange={(event) => onScientificDomainChange(
+                  event.target.value === "" ? null : event.target.value as ScientificDomain,
+                )}
+              >
+                <option value="">Not specified</option>
+                {SCIENTIFIC_DOMAINS.map((domain) => (
+                  <option key={domain} value={domain}>{SCIENTIFIC_DOMAIN_LABELS[domain]}</option>
+                ))}
+              </select>
+              <p className="field-hint" id="scientific-domain-hint">
+                Adds context to a new search.
+              </p>
+            </div>
+          </div>
           <p className="field-hint">
             {viewer
               ? "SciScope will generate discovery queries and let you subscribe to specific repositories from the results."
@@ -201,7 +233,7 @@ export function ExplorePage({
             </p>
           ) : null}
           {exploreSearchFeedback ? (
-            <div className="query-feedback-panel">
+            <div className="query-feedback-panel" role="status">
               <p className="query-feedback-copy">{exploreSearchFeedback.message}</p>
               {requiresTurnstile ? (
                 <>
@@ -297,7 +329,6 @@ export function ExplorePage({
                   >
                     <option value="relevance">Relevance</option>
                     <option value="recent_activity">Recent activity</option>
-                    <option value="stars">Stars</option>
                   </select>
                 </label>
               </div>
@@ -309,7 +340,6 @@ export function ExplorePage({
                   <div className="repository-table-head">
                     <span>Repository</span>
                     <span>Source</span>
-                    <span>Stars</span>
                     <span>Activity</span>
                     <span>Actions</span>
                   </div>
@@ -336,13 +366,6 @@ export function ExplorePage({
 
                         <div
                           className="repository-cell repository-metadata-cell"
-                          data-label="Stars"
-                        >
-                          <span className="repository-skeleton-meta repository-skeleton-meta-short skeleton-shimmer" />
-                        </div>
-
-                        <div
-                          className="repository-cell repository-metadata-cell"
                           data-label="Activity"
                         >
                           <span className="repository-skeleton-meta skeleton-shimmer" />
@@ -365,7 +388,6 @@ export function ExplorePage({
                   <div className="repository-table-head">
                     <span>Repository</span>
                     <span>Source</span>
-                    <span>Stars</span>
                     <span>Activity</span>
                     <span>Actions</span>
                   </div>
@@ -391,13 +413,6 @@ export function ExplorePage({
 
                             <div className="repository-cell" data-label="Source">
                               <SourceBadge href={result.url} source={result.source} />
-                            </div>
-
-                            <div
-                              className="repository-cell repository-metadata-cell"
-                              data-label="Stars"
-                            >
-                              {result.stars !== null ? formatCompactNumber(result.stars) : "-"}
                             </div>
 
                             <div
@@ -548,17 +563,19 @@ export function ExplorePage({
   );
 }
 
+const SCIENTIFIC_DOMAIN_LABELS: Record<ScientificDomain, string> = {
+  physics: "Physics",
+  chemistry: "Chemistry",
+  materials_science: "Materials Science",
+  biology_bioinformatics: "Biology & Bioinformatics",
+  earth_environmental_science: "Earth & Environmental Science",
+  astronomy_space_science: "Astronomy & Space Science",
+  mathematics_statistics: "Mathematics & Statistics",
+  computer_science: "Computer Science",
+};
+
 const LOADING_REPOSITORY_ROW_COUNT = [0, 1, 2, 3, 4] as const;
 const RESULTS_PER_PAGE = 10;
-
-function formatCompactNumber(value: number): string {
-  if (value >= 1000) {
-    const compactValue = value / 1000;
-    return compactValue >= 10 ? `${Math.round(compactValue)}k` : `${compactValue.toFixed(1)}k`;
-  }
-
-  return `${value}`;
-}
 
 function formatProviderActivity(value: string | null): string {
   if (!value) return "-";
@@ -579,9 +596,7 @@ function sortExploreResults(
     const primaryDifference =
       sortOption === "recent_activity"
         ? compareProviderActivity(left.providerUpdatedAt, right.providerUpdatedAt)
-        : sortOption === "stars"
-          ? (right.stars ?? -1) - (left.stars ?? -1)
-          : right.score - left.score;
+        : right.score - left.score;
 
     if (primaryDifference !== 0) return primaryDifference;
 

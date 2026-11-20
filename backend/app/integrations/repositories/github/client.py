@@ -11,6 +11,7 @@ from typing import ClassVar
 import json
 from http.client import HTTPException
 import logging
+import random
 from math import ceil
 import time
 from time import monotonic
@@ -18,11 +19,15 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from app.integrations.repositories.github.http import (
-    GITHUB_API_BASE, build_user_agent, read_error_message,
+    GITHUB_API_BASE,
+    build_user_agent,
+    read_error_message,
 )
 from app.integrations.repositories.common.models import JsonResponse
 from app.integrations.repositories.common.source_status import RepositorySourceError
-from app.integrations.repositories.common.deadlines import read_remaining_timeout_seconds
+from app.integrations.repositories.common.deadlines import (
+    read_remaining_timeout_seconds,
+)
 from app.integrations.repositories.common.response_body import read_response_body
 
 logger = logging.getLogger(__name__)
@@ -35,6 +40,7 @@ GITHUB_RETRY_BACKOFF_SECONDS = 1.5
 @dataclass(frozen=True)
 class GitHubClient:
     auth_headers: Callable[[], dict[str, str]] = field(repr=False)
+    before_attempt: Callable[[str], None] | None = field(default=None, repr=False)
     api_base: ClassVar[str] = GITHUB_API_BASE
 
     def fetch_json(
@@ -62,6 +68,10 @@ class GitHubClient:
 
         last_error: Exception | None = None
         for attempt in range(1, GITHUB_REQUEST_RETRIES + 1):
+            # Invoked once per actual transport attempt, including retries. A
+            # caller may enforce a durable request budget before any external IO.
+            if self.before_attempt is not None:
+                self.before_attempt(url)
             try:
                 request_timeout_seconds = read_remaining_timeout_seconds(
                     deadline_monotonic=deadline_monotonic,
@@ -72,24 +82,61 @@ class GitHubClient:
                     if max_response_bytes is None and deadline_monotonic is None:
                         payload = json.load(response)
                     else:
-                        body = read_response_body(response, source="github",
-                                                  deadline_monotonic=deadline_monotonic,
-                                                  max_response_bytes=max_response_bytes)
-                        try:
-                            payload = json.loads(body)
-                        except (ValueError, UnicodeDecodeError, RecursionError) as error:
-                            raise RepositorySourceError(source="github", status="error",
-                                                        public_message="Provider returned invalid JSON.") from error
+                        body = read_response_body(
+                            response,
+                            source="github",
+                            deadline_monotonic=deadline_monotonic,
+                            max_response_bytes=max_response_bytes,
+                        )
+                        payload = json.loads(body)
                     return JsonResponse(payload=payload, url=str(final_url))
+            except (json.JSONDecodeError, UnicodeDecodeError) as error:
+                # These GET requests are safe to repeat; a truncated or damaged
+                # response must never be interpreted as a complete empty result.
+                delay = _retry_delay(attempt)
+                if attempt < GITHUB_REQUEST_RETRIES and (
+                    deadline_monotonic is None
+                    or monotonic() + delay < deadline_monotonic
+                ):
+                    logger.warning(
+                        "GitHub returned malformed JSON url=%s attempt=%s/%s; retrying",
+                        url,
+                        attempt,
+                        GITHUB_REQUEST_RETRIES,
+                    )
+                    time.sleep(delay)
+                    continue
+                raise RepositorySourceError(
+                    source="github",
+                    status="error",
+                    public_message="Provider returned invalid JSON.",
+                ) from error
+            except RecursionError as error:
+                raise RepositorySourceError(
+                    source="github",
+                    status="error",
+                    public_message="Provider returned invalid JSON.",
+                ) from error
             except HTTPError as exc:
                 try:
-                    message = read_error_message(exc, deadline_monotonic=deadline_monotonic)
+                    message = read_error_message(
+                        exc, deadline_monotonic=deadline_monotonic
+                    )
                 except TimeoutError as error:
                     raise _build_transport_source_error(error) from error
                 finally:
                     exc.close()
-                if (attempt < GITHUB_REQUEST_RETRIES and 500 <= exc.code < 600
-                        and (deadline_monotonic is None or monotonic() + GITHUB_RETRY_BACKOFF_SECONDS * attempt < deadline_monotonic)):
+                retry_after = _read_retry_after_seconds(exc) or 0
+                retry_delay = max(_retry_delay(attempt), retry_after)
+                if (
+                    attempt < GITHUB_REQUEST_RETRIES
+                    and (exc.code == 408 or 500 <= exc.code < 600)
+                    and retry_delay <= GITHUB_REQUEST_TIMEOUT_SECONDS
+                    and (
+                        deadline_monotonic is None
+                        or monotonic() + retry_delay < deadline_monotonic
+                    )
+                ):
                     logger.warning(
                         (
                             "GitHub API request returned retryable HTTP error "
@@ -101,7 +148,7 @@ class GitHubClient:
                         exc.code,
                         message,
                     )
-                    time.sleep(GITHUB_RETRY_BACKOFF_SECONDS * attempt)
+                    time.sleep(retry_delay)
                     continue
                 logger.warning(
                     (
@@ -130,9 +177,10 @@ class GitHubClient:
                 )
                 if attempt == GITHUB_REQUEST_RETRIES:
                     break
-                if deadline_monotonic is not None and monotonic() + GITHUB_RETRY_BACKOFF_SECONDS * attempt >= deadline_monotonic:
+                retry_delay = _retry_delay(attempt)
+                if deadline_monotonic is not None and monotonic() + retry_delay >= deadline_monotonic:
                     break
-                time.sleep(GITHUB_RETRY_BACKOFF_SECONDS * attempt)
+                time.sleep(retry_delay)
 
         if last_error is not None:
             raise _build_transport_source_error(last_error) from last_error
@@ -140,7 +188,18 @@ class GitHubClient:
         raise RuntimeError("GitHub fetch failed without a captured error.")
 
 
+def _retry_delay(attempt: int) -> float:
+    return GITHUB_RETRY_BACKOFF_SECONDS * (2 ** (attempt - 1)) + random.uniform(0, 0.5)
+
+
 def _build_source_error(exc: HTTPError, *, message: str) -> RepositorySourceError:
+    if exc.code == 408:
+        return RepositorySourceError(
+            source="github",
+            status="timed_out",
+            public_message="GitHub search timed out right now.",
+            retry_after_seconds=_read_retry_after_seconds(exc),
+        )
     if exc.code in (401, 403):
         lowered = message.casefold()
         if (
@@ -172,6 +231,7 @@ def _build_source_error(exc: HTTPError, *, message: str) -> RepositorySourceErro
         source="github",
         status="error",
         public_message="GitHub repository search is unavailable right now.",
+        retry_after_seconds=_read_retry_after_seconds(exc),
     )
 
 
@@ -220,6 +280,6 @@ def _read_positive_seconds(raw_value: str | None) -> int | None:
 
     try:
         value = ceil(float(raw_value))
-    except ValueError:
+    except (ValueError, OverflowError):
         return None
     return value if value > 0 else None

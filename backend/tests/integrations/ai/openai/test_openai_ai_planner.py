@@ -10,8 +10,69 @@ import pytest
 from app.integrations.ai.openai.planner import OpenAiSearchPlanner
 
 
+def test_explicit_research_prompt_preserves_schema_and_production_default(monkeypatch):
+    from app.integrations.ai.openai.planner import build_search_plan_request
+
+    baseline = build_search_plan_request(topic_description="satellite data")
+    captured = []
+
+    def respond(**kwargs):
+        captured.append(kwargs)
+        return {"queries": ["satellite data", "Earth observation", "data catalog"]}
+
+    monkeypatch.setattr(
+        "app.integrations.ai.openai.planner.build_openai_json_response", respond
+    )
+    planner = OpenAiSearchPlanner(
+        api_key="test",
+        base_url="https://example.test/v1",
+        timeout_seconds=20,
+        model="test",
+        reasoning_effort="low",
+    )
+    planner.build_search_plan(
+        topic_description="satellite data", system_prompt="Frozen research prompt"
+    )
+    planner.build_search_plan(topic_description="satellite data")
+    assert captured[0]["system_prompt"] == "Frozen research prompt"
+    assert captured[1]["system_prompt"] == baseline.system_prompt
+    assert (
+        captured[0]["user_prompt"] == captured[1]["user_prompt"] == baseline.user_prompt
+    )
+    assert (
+        captured[0]["json_schema"] == captured[1]["json_schema"] == baseline.json_schema
+    )
+
+
+@pytest.mark.parametrize("prompt", ["", "  ", "x" * (16 * 1024 + 1)])
+def test_invalid_research_prompt_rejected_before_provider(monkeypatch, prompt):
+    def network(**kwargs):
+        pytest.fail("Invalid prompt must not trigger provider IO")
+
+    monkeypatch.setattr(
+        "app.integrations.ai.openai.planner.build_openai_json_response", network
+    )
+    planner = OpenAiSearchPlanner(
+        api_key="test",
+        base_url="https://example.test/v1",
+        timeout_seconds=20,
+        model="test",
+        reasoning_effort="low",
+    )
+    with pytest.raises(ValueError, match="Research system prompt"):
+        planner.build_search_plan(
+            topic_description="satellite data", system_prompt=prompt
+        )
+
+
 def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
-    planner = OpenAiSearchPlanner(api_key="test-key", base_url="https://example.test/v1", timeout_seconds=20, model="test-model", reasoning_effort="low")
+    planner = OpenAiSearchPlanner(
+        api_key="test-key",
+        base_url="https://example.test/v1",
+        timeout_seconds=20,
+        model="test-model",
+        reasoning_effort="low",
+    )
     captured_prompts: dict[str, str] = {}
 
     def _fake_response(**kwargs):
@@ -30,7 +91,9 @@ def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
         _fake_response,
     )
 
-    plan = planner.build_search_plan(topic_description="Paramagnetic NMR analysis workflows")
+    plan = planner.build_search_plan(
+        topic_description="Paramagnetic NMR analysis workflows"
+    )
 
     assert plan.status == "ready"
     assert plan.queries == (
@@ -38,15 +101,21 @@ def test_openai_planner_builds_plan_from_model_response(monkeypatch) -> None:
         "pcs tensor fitting",
         "lanthanide pcs",
     )
-    assert "scientific software repository discovery" in captured_prompts["system"]
-    assert "Generate exactly 3 ordered search queries" in captured_prompts["system"]
-    assert "canonical short form of the topic" in captured_prompts["system"]
-    assert "Do not invent software names" in captured_prompts["system"]
-    assert captured_prompts["user"].startswith("Topic description:\n")
+    assert captured_prompts["system"].strip()
+    assert (
+        captured_prompts["user"]
+        == "Topic description:\nParamagnetic NMR analysis workflows"
+    )
 
 
 def test_openai_planner_rejects_unexpected_query_count(monkeypatch) -> None:
-    planner = OpenAiSearchPlanner(api_key="test-key", base_url="https://example.test/v1", timeout_seconds=20, model="test-model", reasoning_effort="low")
+    planner = OpenAiSearchPlanner(
+        api_key="test-key",
+        base_url="https://example.test/v1",
+        timeout_seconds=20,
+        model="test-model",
+        reasoning_effort="low",
+    )
 
     monkeypatch.setattr(
         "app.integrations.ai.openai.planner.build_openai_json_response",
@@ -61,13 +130,21 @@ def test_openai_planner_rejects_unexpected_query_count(monkeypatch) -> None:
     )
 
     with pytest.raises(RuntimeError, match="3 nonempty bounded string queries"):
-        planner.build_search_plan(topic_description="Paramagnetic NMR analysis workflows")
+        planner.build_search_plan(
+            topic_description="Paramagnetic NMR analysis workflows"
+        )
 
 
 def test_openai_planner_raises_when_normalized_queries_are_below_minimum(
     monkeypatch,
 ) -> None:
-    planner = OpenAiSearchPlanner(api_key="test-key", base_url="https://example.test/v1", timeout_seconds=20, model="test-model", reasoning_effort="low")
+    planner = OpenAiSearchPlanner(
+        api_key="test-key",
+        base_url="https://example.test/v1",
+        timeout_seconds=20,
+        model="test-model",
+        reasoning_effort="low",
+    )
 
     monkeypatch.setattr(
         "app.integrations.ai.openai.planner.build_openai_json_response",
@@ -81,11 +158,19 @@ def test_openai_planner_raises_when_normalized_queries_are_below_minimum(
     )
 
     with pytest.raises(RuntimeError, match="3 unique queries"):
-        planner.build_search_plan(topic_description="Paramagnetic NMR analysis workflows")
+        planner.build_search_plan(
+            topic_description="Paramagnetic NMR analysis workflows"
+        )
 
 
 def test_openai_planner_raises_for_invalid_payload(monkeypatch) -> None:
-    planner = OpenAiSearchPlanner(api_key="test-key", base_url="https://example.test/v1", timeout_seconds=20, model="test-model", reasoning_effort="low")
+    planner = OpenAiSearchPlanner(
+        api_key="test-key",
+        base_url="https://example.test/v1",
+        timeout_seconds=20,
+        model="test-model",
+        reasoning_effort="low",
+    )
 
     monkeypatch.setattr(
         "app.integrations.ai.openai.planner.build_openai_json_response",
@@ -95,20 +180,167 @@ def test_openai_planner_raises_for_invalid_payload(monkeypatch) -> None:
     )
 
     with pytest.raises(RuntimeError, match="invalid queries"):
-        planner.build_search_plan(topic_description="Paramagnetic NMR analysis workflows")
+        planner.build_search_plan(
+            topic_description="Paramagnetic NMR analysis workflows"
+        )
 
 
-@pytest.mark.parametrize("queries", [
-    [1, "second", "third"],
-    [None, "second", "third"],
-    ["first", "FIRST", "third"],
-    ["", "second", "third"],
-    ["x" * 501, "second", "third"],
-])
+@pytest.mark.parametrize(
+    "queries",
+    [
+        [1, "second", "third"],
+        [None, "second", "third"],
+        ["first", "FIRST", "third"],
+        ["", "second", "third"],
+        ["x" * 186, "second", "third"],
+    ],
+)
 def test_untrusted_queries_cannot_become_an_execution_plan(monkeypatch, queries):
     from app.models.ai import AiResponseError
-    monkeypatch.setattr("app.integrations.ai.openai.planner.build_openai_json_response", lambda **_: {"queries": queries})
-    planner = OpenAiSearchPlanner(api_key="secret", base_url="https://example.test", timeout_seconds=2, model="test", reasoning_effort="low")
+
+    monkeypatch.setattr(
+        "app.integrations.ai.openai.planner.build_openai_json_response",
+        lambda **_: {"queries": queries},
+    )
+    planner = OpenAiSearchPlanner(
+        api_key="secret",
+        base_url="https://example.test",
+        timeout_seconds=2,
+        model="test",
+        reasoning_effort="low",
+    )
     with pytest.raises(AiResponseError):
         planner.build_search_plan(topic_description="scientific topic")
     assert "secret" not in repr(planner)
+
+
+@pytest.mark.parametrize("length", [185, 186])
+def test_generated_query_length_is_enforced_before_normalization(monkeypatch, length):
+    from app.models.ai import AiResponseError
+
+    query = "x" * length
+    captured = {}
+
+    def response(**kwargs):
+        captured.update(kwargs)
+        return {"queries": [query, "second", "third"]}
+
+    monkeypatch.setattr(
+        "app.integrations.ai.openai.planner.build_openai_json_response", response
+    )
+    planner = OpenAiSearchPlanner(
+        api_key="test-key",
+        base_url="https://example.test/v1",
+        timeout_seconds=20,
+        model="test-model",
+        reasoning_effort="low",
+    )
+    # The limit applies to generated queries, not the input scientific question.
+    topic = "scientific requirement " * 30
+    if length == 185:
+        assert planner.build_search_plan(topic_description=topic).queries == (
+            query,
+            "second",
+            "third",
+        )
+    else:
+        with pytest.raises(AiResponseError, match="bounded string queries"):
+            planner.build_search_plan(topic_description=topic)
+    assert captured["user_prompt"] == f"Topic description:\n{topic.strip()}"
+    schema = captured["json_schema"]["properties"]["queries"]
+    assert schema["items"]["maxLength"] == 185
+    assert schema["minItems"] == schema["maxItems"] == 3
+    assert "at most 185 characters, including spaces" in captured["system_prompt"]
+
+
+def test_whitespace_does_not_hide_an_overlength_generated_query(monkeypatch):
+    from app.models.ai import AiResponseError
+
+    monkeypatch.setattr(
+        "app.integrations.ai.openai.planner.build_openai_json_response",
+        lambda **_: {"queries": ["x" * 185 + " ", "second", "third"]},
+    )
+    planner = OpenAiSearchPlanner(
+        api_key="test-key",
+        base_url="https://example.test/v1",
+        timeout_seconds=20,
+        model="test-model",
+        reasoning_effort="low",
+    )
+    with pytest.raises(AiResponseError, match="bounded string queries"):
+        planner.build_search_plan(topic_description="scientific topic")
+
+
+def test_rendered_request_matches_provider_input_and_schema_is_isolated(
+    monkeypatch,
+) -> None:
+    from app.integrations.ai.openai.planner import build_search_plan_request
+
+    topic = "Scientific domain: Earth science\n\nHow do I find satellite data?"
+    preview = build_search_plan_request(topic_description=topic)
+    captured = {}
+
+    def response(**kwargs):
+        captured.update(kwargs)
+        return {"queries": ["satellite data", "Earth observation", "data catalog"]}
+
+    monkeypatch.setattr(
+        "app.integrations.ai.openai.planner.build_openai_json_response", response
+    )
+    planner = OpenAiSearchPlanner(
+        api_key="offline",
+        base_url="https://example.test",
+        timeout_seconds=20,
+        model="test",
+        reasoning_effort="low",
+    )
+    planner.build_search_plan(topic_description=topic)
+    assert (
+        captured["user_prompt"] == preview.user_prompt == f"Topic description:\n{topic}"
+    )
+    assert captured["system_prompt"] == preview.system_prompt
+    assert captured["json_schema"] == preview.json_schema
+    preview.json_schema.clear()
+    fresh = build_search_plan_request(topic_description=topic)
+    assert fresh.json_schema["properties"]["queries"]["minItems"] == 3
+
+
+def test_production_prompt_is_the_reviewed_entity_anchor():
+    from hashlib import sha256
+    from app.integrations.ai.openai.planner import build_search_plan_request
+
+    request = build_search_plan_request(topic_description="scientific question")
+    # Frozen identity of the reviewed prompt, independent of private research files.
+    assert sha256(request.system_prompt.encode()).hexdigest() == (
+        "a1f886ee284b37e09399907dc405d668785962072c1b89d94530550c703a9a41"
+    )
+
+
+@pytest.mark.parametrize("topic,domain,label", [
+    ("How do I fit paramagnetic NMR shifts?", "chemistry", "Chemistry"),
+    ("How do I analyse stellar spectra?", "astronomy_space_science", "Astronomy & Space Science"),
+    ("How do I analyse ion hopping?", "materials_science", "Materials Science"),
+    ("How do I process satellite observations?", None, None),
+])
+def test_provider_receives_context_and_preserves_query_contract(monkeypatch, topic, domain, label):
+    from app.models.scientific_domain import parse_scientific_domain
+    from app.services.ai.search_plans import format_search_plan_topic
+
+    captured = {}
+
+    def response(**kwargs):
+        captured.update(kwargs)
+        return {"queries": ["specific entity", "scientific method", "related concept"]}
+
+    monkeypatch.setattr("app.integrations.ai.openai.planner.build_openai_json_response", response)
+    planner = OpenAiSearchPlanner(api_key="offline", base_url="https://example.test",
+                                 timeout_seconds=20, model="test", reasoning_effort="low")
+    plan = planner.build_search_plan(topic_description=format_search_plan_topic(
+        topic_description=topic, scientific_domain=parse_scientific_domain(domain),
+    ))
+    expected = f"Scientific domain: {label}\n\n{topic}" if label else topic
+    assert captured["user_prompt"] == f"Topic description:\n{expected}"
+    assert plan.queries == ("specific entity", "scientific method", "related concept")
+    schema = captured["json_schema"]["properties"]["queries"]
+    assert schema["minItems"] == schema["maxItems"] == 3
+    assert schema["items"]["maxLength"] == 185

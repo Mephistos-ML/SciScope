@@ -9,6 +9,7 @@ from fastapi import Request
 from fastapi import HTTPException, status
 
 from app.models.explore_access import ExploreAdmission
+from app.models.scientific_domain import ScientificDomain, parse_scientific_domain
 from app.api.auth import get_current_user
 from app.api.client import read_explore_client_ip
 from app.services.search.access.errors import ExploreAccessDeniedError
@@ -32,19 +33,23 @@ def search_explore_response(
 ) -> dict[str, object]:
     """Run an explore search from one topic description."""
 
+    scientific_domain = _read_scientific_domain(payload)
     topic_description, topic_hash = _authorize_explore_search_request(
         request,
         payload,
     )
-    return run_explore_search(
+    result = run_explore_search(
         dependencies=request.app.state.explore_dependencies,
         topic_description=topic_description,
+        scientific_domain=scientific_domain,
         database_url=request.app.state.database_url,
         log_context=SearchLogContext(
             request_id=build_request_id(),
             topic_hash=topic_hash,
         ),
     )
+    result["scientificDomain"] = scientific_domain.value if scientific_domain else None
+    return result
 
 
 def create_explore_search_run_response(
@@ -53,12 +58,14 @@ def create_explore_search_run_response(
 ) -> dict[str, object]:
     """Create one background explore search run."""
 
+    scientific_domain = _read_scientific_domain(payload)
     topic_description = str(payload.get("topicDescription") or "").strip()
     admission = _prepare_explore_search_request(request, payload)
     return create_explore_search_run(
         dependencies=request.app.state.explore_dependencies,
         topic_description=topic_description,
         admission=admission,
+        scientific_domain=scientific_domain,
         database_url=request.app.state.database_url,
     )
 
@@ -137,3 +144,10 @@ def _prepare_explore_search_request(
         turnstile_token=turnstile_token, verify_turnstile_token=request.app.state.verify_turnstile_token,
         database_url=database_url,
     )
+
+
+def _read_scientific_domain(payload: dict[str, object]) -> ScientificDomain | None:
+    try:
+        return parse_scientific_domain(payload.get("scientificDomain"))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="Invalid scientific domain") from exc

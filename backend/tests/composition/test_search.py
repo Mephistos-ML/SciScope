@@ -110,7 +110,10 @@ def test_selected_openai_settings_remain_bound_after_configuration_changes(monke
 def test_registered_lanes_receive_deadlines_through_real_orchestration(monkeypatch):
     calls = []
 
-    def discover(queries, *, deadline_monotonic, client):
+    def discover(
+        queries, *, deadline_monotonic, client, report_result_count=None,
+        per_query_limit=None, max_pages=None,
+    ):
         calls.append((tuple(queries), deadline_monotonic))
         return []
 

@@ -50,7 +50,7 @@ def _profile(source="github", provider_id="123"):
         repository_id=f"{source}:repo:{provider_id}", source=source,
         provider_repository_id=provider_id, full_name="science/tool",
         url=f"https://{source}.com/science/tool", owner_login="science",
-        description="Scientific simulation", language="Python", stars=500,
+        description="Scientific simulation", language="Python",
         topics=("simulation",), metadata={"repo": "science/tool"},
         provider_updated_at=datetime(2026, 10, 1, tzinfo=UTC),
     )
@@ -98,14 +98,13 @@ def test_missing_profile_is_fetched_by_id(database_url, user, source):
     loader.assert_called_once_with(profile.repository_id)
     persisted = get_repository(profile.repository_id, database_url=database_url)
     assert persisted.description == profile.description
-    assert persisted.stars == profile.stars
     assert persisted.language == profile.language
     assert response["repository"]["repositoryId"] == profile.repository_id
 
 
 def test_concurrent_catalog_discovery_wins_over_subscription_fetch(database_url, user):
     fetched = _profile()
-    discovered = replace(fetched, description="Newer discovery", stars=501)
+    discovered = replace(fetched, description="Newer discovery")
     def loader(repository_id):
         upsert_repositories((discovered,), database_url=database_url)
         return fetched
@@ -167,7 +166,7 @@ def test_mismatched_provider_profile_is_not_persisted(database_url, user):
 
 
 def _damaged():
-    return replace(_profile(), owner_login="", description="", language="", stars=0,
+    return replace(_profile(), owner_login="", description="", language="",
                    topics=(), provider_updated_at=None, metadata={"repo": "science/tool", "query": "simulation"})
 
 
@@ -178,12 +177,12 @@ def test_repair_defaults_to_preview_and_apply_is_repeatable(database_url):
     loader = Mock(return_value=_profile())
     preview = repair_repository_profiles(load_repository_profile=loader, database_url=database_url)
     assert preview[0].status == "would_update"
-    assert preview[0].changes["stars"] == {"before": 0, "after": 500}
+    assert preview[0].changes["description"] == {"before": "", "after": "Scientific simulation"}
     assert get_repository(damaged.repository_id, database_url=database_url) == before
     applied = repair_repository_profiles(load_repository_profile=loader, database_url=database_url, apply=True)
     assert applied[0].status == "updated"
     repaired = get_repository(damaged.repository_id, database_url=database_url)
-    assert repaired.stars == 500
+    assert repaired.description == "Scientific simulation"
     assert repaired.first_seen_at == before.first_seen_at
     repeated = repair_repository_profiles(load_repository_profile=loader, database_url=database_url, apply=True)
     assert repeated == []
@@ -195,13 +194,13 @@ def test_repair_defaults_to_preview_and_apply_is_repeatable(database_url):
 
 def test_repair_skips_profiles_changed_during_provider_request(database_url):
     upsert_repositories((_damaged(),), database_url=database_url)
-    concurrent = replace(_profile(), stars=999)
+    concurrent = replace(_profile(), description="Concurrent discovery")
     def loader(repository_id):
         upsert_repositories((concurrent,), database_url=database_url)
         return _profile()
     reports = repair_repository_profiles(load_repository_profile=loader, database_url=database_url, apply=True)
     assert reports[0].status == "skipped_changed"
-    assert get_repository(concurrent.repository_id, database_url=database_url).stars == 999
+    assert get_repository(concurrent.repository_id, database_url=database_url).description == "Concurrent discovery"
 
 
 def test_repair_ignores_legitimately_sparse_profiles_and_isolates_provider_errors(database_url):
@@ -212,7 +211,7 @@ def test_repair_ignores_legitimately_sparse_profiles_and_isolates_provider_error
     assert len(reports) == 1
     assert reports[0].status == "failed"
     loader.assert_called_once_with("github:repo:123")
-    assert get_repository("github:repo:123", database_url=database_url).stars == 0
+    assert get_repository("github:repo:123", database_url=database_url).description == ""
 
 
 def test_repair_continues_after_one_provider_failure(database_url):
@@ -224,7 +223,7 @@ def test_repair_continues_after_one_provider_failure(database_url):
         return _profile(provider_id="456")
     reports = repair_repository_profiles(load_repository_profile=loader, database_url=database_url, apply=True)
     assert [report.status for report in reports] == ["failed", "updated"]
-    assert get_repository("github:repo:456", database_url=database_url).stars == 500
+    assert get_repository("github:repo:456", database_url=database_url).description == "Scientific simulation"
 
 
 def test_repair_preserves_subscriptions_and_feed_history(database_url, user):
@@ -259,11 +258,11 @@ def test_repair_command_previews_by_default_and_accepts_explicit_apply(database_
     report = json.loads(capsys.readouterr().out)
     assert report["mode"] == "dry-run"
     assert report["profiles"][0]["status"] == "would_update"
-    assert get_repository("github:repo:123", database_url=database_url).stars == 0
+    assert get_repository("github:repo:123", database_url=database_url).description == ""
     monkeypatch.setattr(sys, "argv", ["repair_repository_profiles", "--apply", "--repository-id", "github:repo:123"])
     assert command.main() == 0
     assert json.loads(capsys.readouterr().out)["profiles"][0]["status"] == "updated"
-    assert get_repository("github:repo:123", database_url=database_url).stars == 500
+    assert get_repository("github:repo:123", database_url=database_url).description == "Scientific simulation"
 
 
 def test_subscription_operations_use_only_the_explicit_database(tmp_path, monkeypatch):
@@ -312,7 +311,7 @@ def test_repair_pages_past_ineligible_profiles_and_stops_at_provider_budget(data
     assert len(reads) == 3
     assert all("LIMIT" in statement and parameters[-2:] == (100, 0)
                for statement, parameters in reads)
-    assert get_repository("github:repo:1200", database_url=database_url).stars == 0
+    assert get_repository("github:repo:1200", database_url=database_url).description == ""
 
 
 def test_explicit_repair_batches_ids_without_misreporting_profiles_beyond_limit(database_url):

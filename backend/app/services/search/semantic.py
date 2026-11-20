@@ -236,7 +236,6 @@ def _build_candidate(
                 "description": repository.description,
                 "topics": list(repository.topics),
                 "language": repository.language,
-                "stars": repository.stars,
                 "provider_updated_at": (
                     repository.provider_updated_at.isoformat()
                     if repository.provider_updated_at is not None
@@ -258,7 +257,7 @@ def _build_candidate(
                     default=1,
                 )
             },
-            hit_count=len(evidence),
+            raw_hit_count=len(evidence),
             match_evidence=evidence,
             origins=("catalog",),
         ),

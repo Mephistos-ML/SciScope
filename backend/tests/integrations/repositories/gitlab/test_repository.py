@@ -23,7 +23,6 @@ def test_discover_repository_candidates_builds_raw_signals(monkeypatch, reposito
                 "web_url": "https://gitlab.com/Mephistos-ML/paranmr",
                 "description": "Paramagnetic NMR tooling for PCS fitting.",
                 "topics": ["paramagnetic-nmr", "pcs"],
-                "star_count": 14,
                 "last_activity_at": "2026-09-03T12:30:00.000Z",
             }
         ], url=url)
@@ -40,7 +39,6 @@ def test_discover_repository_candidates_builds_raw_signals(monkeypatch, reposito
     assert signal.kind == "repository"
     assert signal.item_id == "gitlab:repo:456"
     assert signal.payload["repo"] == "Mephistos-ML/paranmr"
-    assert signal.payload["stars"] == 14
     assert signal.payload["provider_updated_at"] == "2026-09-03T12:30:00+00:00"
     assert "Paramagnetic NMR tooling" in signal.raw_text
 

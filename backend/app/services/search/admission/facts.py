@@ -55,7 +55,7 @@ def build_candidate_facts(
     evidence = AdmissionEvidence(
         matched_channels=candidate.provenance.matched_channels,
         matched_query_count=matched_query_count,
-        hit_count=candidate.provenance.hit_count,
+        raw_hit_count=candidate.provenance.raw_hit_count,
         path_strength=path_strength,
         has_language=bool(language),
         software_term_hits=software_term_hits,
@@ -68,7 +68,7 @@ def build_candidate_facts(
     return CandidateFacts(
         has_code_search="code_search" in candidate.provenance.matched_channels,
         matched_query_count=matched_query_count,
-        hit_count=candidate.provenance.hit_count,
+        raw_hit_count=candidate.provenance.raw_hit_count,
         has_language=bool(language),
         language=language,
         repo_name_negative_hits=repo_name_negative_hits,

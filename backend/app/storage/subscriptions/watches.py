@@ -112,7 +112,6 @@ def _to_subscription_watch_record(
             owner_login=repository.owner_login,
             description=repository.description,
             language=repository.language,
-            stars=repository.stars,
             topics=tuple(repository.topics_json or []),
             first_seen_at=_ensure_utc(repository.first_seen_at),
             last_seen_at=_ensure_utc(repository.last_seen_at),

@@ -21,6 +21,7 @@ dev = [
     "ruff==0.16.10",
     "mypy==2.4.0",
     "import-linter==2.15",
+    "PyYAML==6.0.2",
 ]
 
 [build-system]
@@ -57,7 +58,10 @@ files = [
     "backend/app/services/search/retrieval/models.py",
     "backend/app/services/search/explore/dependencies.py",
     "backend/app/services/search/explore/execution.py",
+    "backend/app/services/search/explore/provenance.py",
+    "backend/app/composition/revision.py",
     "backend/app/services/search/admission/models.py",
+    "backend/app/services/search/ranking",
 ]
 follow_imports = "silent"
 strict = true
@@ -129,6 +133,7 @@ type = "acyclic_siblings"
 ancestors = ["app"]
 
 [tool.pytest.ini_options]
+testpaths = ["backend/tests"]
 filterwarnings = [
     "error::ResourceWarning",
     "error::pytest.PytestUnraisableExceptionWarning",

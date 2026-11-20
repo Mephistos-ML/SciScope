@@ -45,10 +45,6 @@ def map_repository_profile(payload: object) -> Repository:
         raise _invalid_profile()
     owner = payload.get("owner")
     topics = payload.get("topics")
-    try:
-        stars = int(payload.get("stargazers_count") or 0)
-    except (TypeError, ValueError) as exc:
-        raise _invalid_profile() from exc
     return Repository(
         repository_id=build_repository_id("github", provider_id),
         source="github",
@@ -58,7 +54,6 @@ def map_repository_profile(payload: object) -> Repository:
         owner_login=str(owner.get("login") or "") if isinstance(owner, dict) else "",
         description=str(payload.get("description") or ""),
         language=str(payload.get("language") or ""),
-        stars=stars,
         topics=tuple(str(topic) for topic in topics) if isinstance(topics, list) else (),
         provider_updated_at=parse_provider_updated_at(payload.get("updated_at")),
         metadata={"repo": full_name},

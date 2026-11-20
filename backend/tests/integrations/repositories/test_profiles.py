@@ -21,11 +21,11 @@ def _payload(source, provider_id=123):
         return {
             "id": provider_id, "full_name": "science/tool", "html_url": "https://github.com/science/tool",
             "owner": {"login": "science"}, "description": "Simulation", "language": "Python",
-            "stargazers_count": 42, "topics": ["simulation"], "updated_at": "2026-10-01T00:00:00Z",
+            "topics": ["simulation"], "updated_at": "2026-10-01T00:00:00Z",
         }
     return {
         "id": provider_id, "path_with_namespace": "science/tool", "web_url": "https://gitlab.com/science/tool",
-        "description": "Simulation", "star_count": 42, "topics": ["simulation"],
+        "description": "Simulation", "topics": ["simulation"],
         "last_activity_at": "2026-10-01T00:00:00Z",
     }
 
@@ -45,7 +45,6 @@ def test_lookup_uses_provider_id_and_maps_profile(source, module, monkeypatch):
     assert profile.full_name == "science/tool"
     assert profile.owner_login == "science"
     assert profile.description == "Simulation"
-    assert profile.stars == 42
     assert profile.topics == ("simulation",)
     assert profile.language == "Python"
     assert profile.provider_updated_at == datetime(2026, 10, 1, tzinfo=UTC)

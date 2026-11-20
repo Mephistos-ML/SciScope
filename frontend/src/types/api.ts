@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Ernest Borysenko
 // SPDX-License-Identifier: Apache-2.0
 
+import type { RankingPolicyVersion, ScientificDomain } from "./searchContracts.generated";
+
 export type Viewer = {
   userId: string;
   email: string;
@@ -99,15 +101,23 @@ export type ExploreResultItem = {
   url: string;
   description: string;
   language: string | null;
-  stars: number | null;
   providerUpdatedAt: string | null;
   query: string | null;
   score: number;
+  // Absent on historical 0-100 responses. Current scores are unbounded log sums.
+  scoreFormula?: RankingPolicyVersion;
   reason: string;
+};
+
+export type ExploreSearchRequest = {
+  topicDescription: string;
+  scientificDomain?: ScientificDomain | null;
+  turnstileToken?: string | null;
 };
 
 export type ExploreSearchPayload = {
   topicDescription: string;
+  scientificDomain?: ScientificDomain | null;
   aiSearchPlan: AiSearchPlanPayload;
   items: ExploreResultItem[];
   sourceStatuses?: SourceStatusPayload[];
@@ -165,6 +175,7 @@ export type SearchDiagnosticsReport = {
 };
 
 export type SearchDiagnosticsRun = {
+  scientificDomain?: ScientificDomain | null;
   runId: string;
   topicDescription: string;
   status: string;

@@ -26,5 +26,9 @@ frontend/*.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts
 
-# Downloaded benchmark datasets
-/benchmarks/data/
+# Local outputs and private research; never versioned.
+/output/
+/benchmarks/
+/docs/brand/
+/docs/contracts/research-pipeline.md
+/docs/reviews/research-pipeline-migration.md

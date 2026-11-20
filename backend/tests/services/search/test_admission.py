@@ -424,7 +424,6 @@ def _build_candidate(
             "query": "orca parser",
             "topics": list(topics),
             "language": language,
-            "stars": 0,
         },
     )
     return RepositoryCandidate(
@@ -434,6 +433,6 @@ def _build_candidate(
             matched_queries=matched_queries,
             matched_channels=matched_channels,
             best_rank_by_channel={channel_name: 1 for channel_name in matched_channels},
-            hit_count=len(matched_channels),
+            raw_hit_count=len(matched_channels),
         ),
     )

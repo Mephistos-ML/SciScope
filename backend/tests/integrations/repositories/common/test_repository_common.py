@@ -33,7 +33,6 @@ def test_build_repository_candidate_signal_uses_shared_shape() -> None:
         description="Paramagnetic NMR tooling.",
         owner_login="Mephistos-ML",
         language="Python",
-        stars=14,
         topics=("paramagnetic-nmr", "pcs"),
     )
 
@@ -55,7 +54,6 @@ def test_build_repository_entity_reuses_repository_metadata() -> None:
             query="paramagnetic nmr",
             topics=("paramagnetic-nmr",),
             language="Python",
-            stars=14,
         )
     )
 

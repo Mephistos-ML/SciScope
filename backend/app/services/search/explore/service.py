@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from time import monotonic
 
 from app import config
 from app.models.ai import AiSearchPlan
+from app.models.scientific_domain import ScientificDomain, parse_scientific_domain
 from app.models.search_run import (
     SearchRankingCandidateReport,
     SearchProviderOutcomeReport,
@@ -21,9 +22,10 @@ from app.services.ai.embeddings import EmbeddingProvider
 from app.models.ai import AiDependencyError
 from app.services.ai.planner import AiSearchPlanner
 from app.services.search.explore.dependencies import ExploreDependencies
-from app.services.search.retrieval.models import RetrievalLane
+from app.services.search.retrieval.models import RetrievalLane, RepositoryCandidate
 from app.services.ai.search_plans import (
     serialize_ai_search_plan,
+    format_search_plan_topic,
 )
 from app.services.search.explore.canonical import select_canonical_candidates
 from app.services.search.explore.execution import ExploreQueryAttempt, ExploreSearchExecution
@@ -32,6 +34,7 @@ from app.services.search.catalog import (
     retrieve_catalog_candidates,
 )
 from app.services.search.explore.evaluation import build_explore_search_evaluation
+from app.services.search.explore.provenance import build_evaluation_provenance
 from app.services.search.explore.response import (
     build_empty_explore_search_payload,
     build_explore_search_payload,
@@ -44,15 +47,14 @@ from app.services.search.observability.service import (
 from app.services.search.retrieval import (
     RetrievedCandidates,
     merge_repository_candidates,
-    run_external_repository_retrieval,
 )
+from app.services.search.retrieval.service import run_external_repository_retrieval
 
 logger = logging.getLogger(__name__)
 
 ExploreSearchProgressCallback = Callable[[dict[str, object]], None]
 ExploreSearchExecutionCallback = Callable[[ExploreSearchExecution], None]
 ExploreSearchStageReportCallback = Callable[[SearchStageReport], None]
-MAX_TIMEOUT_ATTEMPTS_PER_QUERY = 3
 
 
 @dataclass(frozen=True)
@@ -63,6 +65,16 @@ class _RetrievalSequence:
     external_candidates: tuple
     catalog_retrieval_duration_ms: int
     candidate_merge_duration_ms: int
+
+
+@dataclass(frozen=True)
+class _QueryRetrieval:
+    retrieved: RetrievedCandidates
+    attempt: ExploreQueryAttempt
+    external_candidates: tuple[RepositoryCandidate, ...]
+    timed_out: bool
+    catalog_duration_ms: int
+    merge_duration_ms: int
 
 
 class ExploreSearchUnavailableError(RuntimeError):
@@ -83,6 +95,7 @@ def run_explore_search(
     *,
     topic_description: str,
     dependencies: ExploreDependencies,
+    scientific_domain: ScientificDomain | None = None,
     progress_callback: ExploreSearchProgressCallback | None = None,
     execution_callback: ExploreSearchExecutionCallback | None = None,
     stage_report_callback: ExploreSearchStageReportCallback | None = None,
@@ -91,6 +104,7 @@ def run_explore_search(
 ) -> dict[str, object]:
     """Run a read-only repository search from one topic description."""
 
+    scientific_domain = parse_scientific_domain(scientific_domain)
     search_started_at = monotonic()
     current_stage = "ai_planning"
     planned_queries: tuple[str, ...] = ()
@@ -111,6 +125,7 @@ def run_explore_search(
         planning_started_at = monotonic()
         ai_search_plan = _plan_explore_search(
             topic_description=topic_description, planner=dependencies.planner,
+            scientific_domain=scientific_domain,
         )
         ai_search_plan_payload = serialize_ai_search_plan(ai_search_plan)
         planned_queries = tuple(ai_search_plan.queries)
@@ -158,6 +173,8 @@ def run_explore_search(
         retrieval_sequence = _retrieve_planned_queries(
             lanes=dependencies.lanes,
             embeddings=dependencies.embeddings,
+            score_threshold=dependencies.score_threshold,
+
             queries=planned_queries,
             topic_description=topic_description,
             ai_search_plan_payload=ai_search_plan_payload,
@@ -172,6 +189,8 @@ def run_explore_search(
         evaluation = build_explore_search_evaluation(
             retrieved,
             queries=executed_queries,
+            score_threshold=dependencies.score_threshold,
+
             log_context=log_context,
         )
         admitted_repository_ids = {
@@ -205,6 +224,8 @@ def run_explore_search(
             if stage_report_callback is not None:
                 stage_report_callback(
                     _build_stage_report(
+                        backend_revision=dependencies.backend_revision,
+
                         evaluation=evaluation,
                         executed_queries=execution.executed_queries,
                         retrieved=retrieved,
@@ -242,7 +263,7 @@ def run_explore_search(
                 candidate_count=len(retrieved.candidates),
                 admitted_candidate_count=len(evaluation.admission.visible_candidates),
                 visible_result_count=len(visible_candidates),
-                relevance_cutoff=evaluation.ranking.relevance_cutoff,
+                score_threshold=evaluation.score_threshold,
                 top_score=(
                     evaluation.ranking.ranked_candidates[0].score
                     if evaluation.ranking.ranked_candidates
@@ -266,6 +287,8 @@ def run_explore_search(
         if stage_report_callback is not None:
             stage_report_callback(
                 _build_stage_report(
+                    backend_revision=dependencies.backend_revision,
+
                     evaluation=evaluation,
                     executed_queries=execution.executed_queries,
                     retrieved=retrieved,
@@ -297,7 +320,7 @@ def run_explore_search(
                 candidate_count=len(retrieved.candidates),
                 admitted_candidate_count=len(evaluation.admission.visible_candidates),
                 visible_result_count=len(visible_candidates),
-                relevance_cutoff=evaluation.ranking.relevance_cutoff,
+                score_threshold=evaluation.score_threshold,
                 ai_planning_duration_ms=planning_duration_ms,
                 retrieval_duration_ms=retrieval_duration_ms,
                 evaluation_duration_ms=evaluation_duration_ms,
@@ -351,6 +374,8 @@ def expand_explore_search(
     retrieval_sequence = _retrieve_planned_queries(
         lanes=dependencies.lanes,
         embeddings=dependencies.embeddings,
+        score_threshold=dependencies.score_threshold,
+
         queries=next_queries,
         topic_description=topic_description,
         ai_search_plan_payload=ai_search_plan_payload,
@@ -366,6 +391,8 @@ def expand_explore_search(
     evaluation = build_explore_search_evaluation(
         retrieved,
         queries=executed_queries,
+        score_threshold=dependencies.score_threshold,
+
         log_context=log_context,
     )
     admitted_repository_ids = {
@@ -404,6 +431,8 @@ def expand_explore_search(
     if stage_report_callback is not None:
         stage_report_callback(
             _build_stage_report(
+                backend_revision=dependencies.backend_revision,
+
                 evaluation=evaluation,
                 executed_queries=retrieval_sequence.executed_queries,
                 retrieved=retrieved,
@@ -431,6 +460,7 @@ def expand_explore_search(
 def _build_stage_report(
     *,
     evaluation,
+    backend_revision: str,
     executed_queries: tuple[str, ...],
     retrieved: RetrievedCandidates,
     admitted_candidate_count: int,
@@ -480,13 +510,21 @@ def _build_stage_report(
         ),
         ranking_candidates=_build_ranking_candidate_reports(
             evaluation,
+            backend_revision=backend_revision,
+
         ),
     )
 
 
 def _build_ranking_candidate_reports(
     evaluation,
+    *,
+    backend_revision: str,
 ) -> tuple[SearchRankingCandidateReport, ...]:
+    provenance = build_evaluation_provenance(
+        backend_revision=backend_revision,
+        score_threshold=evaluation.score_threshold,
+    )
     admission_by_repository_id = {
         item.candidate.repository_id: item.admission
         for item in evaluation.admission.evaluated_candidates
@@ -498,9 +536,9 @@ def _build_ranking_candidate_reports(
             rank_position=position,
             final_score=ranked.score,
             candidate_facts={
+                "evaluation_provenance": provenance,
                 "full_name": ranked.candidate.signal.title,
                 "language": ranked.candidate.signal.payload.get("language"),
-                "stars": ranked.candidate.signal.payload.get("stars"),
                 "provider_updated_at": ranked.candidate.signal.payload.get(
                     "provider_updated_at"
                 ),
@@ -512,7 +550,7 @@ def _build_ranking_candidate_reports(
                 "best_rank_by_channel": dict(
                     ranked.candidate.provenance.best_rank_by_channel
                 ),
-                "hit_count": ranked.candidate.provenance.hit_count,
+                "raw_hit_count": ranked.candidate.provenance.raw_hit_count,
                 "match_evidence": [
                     {
                         "query": evidence.query,
@@ -542,8 +580,8 @@ def _build_ranking_candidate_reports(
                     ).items()
                 },
             },
-            ranking_features=vars(ranked.features),
-            score_breakdown=vars(ranked.score_breakdown),
+            ranking_features=asdict(ranked.features),
+            score_breakdown=asdict(ranked.score_breakdown),
         )
         for position, ranked in enumerate(evaluation.ranking.ranked_candidates, start=1)
     )
@@ -559,6 +597,7 @@ def _retrieve_planned_queries(
     progress_callback: ExploreSearchProgressCallback | None,
     log_context: SearchLogContext | None,
     database_url: str,
+    score_threshold: float,
 ) -> _RetrievalSequence:
     """Retrieve planned queries until one completes or every timeout fallback is exhausted."""
 
@@ -570,32 +609,20 @@ def _retrieve_planned_queries(
     candidate_merge_duration_ms = 0
 
     for query in queries:
-        (
-            step,
-            step_attempts,
-            step_external_candidates,
-            exhausted_timeouts,
-            step_catalog_retrieval_duration_ms,
-            step_candidate_merge_duration_ms,
-        ) = (
-            _retrieve_query_with_timeout_retries(
-                lanes=lanes,
-                embeddings=embeddings,
-                query=query,
-                topic_description=topic_description,
-                ai_search_plan_payload=ai_search_plan_payload,
-                progress_callback=progress_callback if not attempts else None,
-                log_context=log_context,
-                database_url=database_url,
-            )
+        step = _retrieve_query(
+            lanes=lanes, embeddings=embeddings, score_threshold=score_threshold,
+            query=query, topic_description=topic_description,
+            ai_search_plan_payload=ai_search_plan_payload,
+            progress_callback=progress_callback if not attempts else None,
+            log_context=log_context, database_url=database_url,
         )
         executed_queries.append(query)
-        attempts.extend(step_attempts)
-        external_candidates.extend(step_external_candidates)
-        catalog_retrieval_duration_ms += step_catalog_retrieval_duration_ms
-        candidate_merge_duration_ms += step_candidate_merge_duration_ms
-        accumulated = step if accumulated is None else _merge_retrieved_candidates(accumulated, step)
-        if not exhausted_timeouts:
+        attempts.append(step.attempt)
+        external_candidates.extend(step.external_candidates)
+        catalog_retrieval_duration_ms += step.catalog_duration_ms
+        candidate_merge_duration_ms += step.merge_duration_ms
+        accumulated = step.retrieved if accumulated is None else _merge_retrieved_candidates(accumulated, step.retrieved)
+        if not step.timed_out:
             break
 
     if accumulated is None:
@@ -612,7 +639,7 @@ def _retrieve_planned_queries(
     )
 
 
-def _retrieve_query_with_timeout_retries(
+def _retrieve_query(
     *,
     lanes: tuple[RetrievalLane, ...],
     embeddings: EmbeddingProvider | None,
@@ -622,92 +649,46 @@ def _retrieve_query_with_timeout_retries(
     progress_callback: ExploreSearchProgressCallback | None,
     log_context: SearchLogContext | None,
     database_url: str,
-) -> tuple[RetrievedCandidates, tuple[ExploreQueryAttempt, ...], tuple, bool, int, int]:
-    """Retry one timed-out query before the plan moves to another angle."""
-
-    attempts: list[ExploreQueryAttempt] = []
-    external_candidates: list = []
-    accumulated_retrieved: RetrievedCandidates | None = None
-    catalog_retrieval_duration_ms = 0
-    candidate_merge_duration_ms = 0
-    for attempt_number in range(1, MAX_TIMEOUT_ATTEMPTS_PER_QUERY + 1):
-        attempt_started_at = monotonic()
-        catalog_retrieval_started_at = monotonic()
-        local_candidates = retrieve_catalog_candidates((query,), database_url=database_url, embeddings=embeddings)
-        catalog_retrieval_duration_ms += build_duration_ms(catalog_retrieval_started_at)
-        external_retrieved = _run_external_retrieval(
-            (query,),
-            lanes=lanes,
-            local_candidates=local_candidates,
-            topic_description=topic_description,
-            ai_search_plan_payload=ai_search_plan_payload,
-            progress_callback=progress_callback if attempt_number == 1 else None,
-            soft_deadline_monotonic=(
-                attempt_started_at + config.EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS
-            ),
-            hard_deadline_monotonic=(
-                attempt_started_at + config.EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS
-            ),
-            log_context=log_context,
-        )
-        candidate_merge_started_at = monotonic()
-        merged_candidates = merge_repository_candidates(
-                (*local_candidates, *external_retrieved.candidates)
-        )
-        candidate_merge_duration_ms += build_duration_ms(candidate_merge_started_at)
-        attempt_retrieved = RetrievedCandidates(
-            candidates=merged_candidates,
-            source_statuses=external_retrieved.source_statuses,
-            successful_source_count=(
-                external_retrieved.successful_source_count + (1 if local_candidates else 0)
-            ),
-            partial=external_retrieved.partial,
-            warnings=external_retrieved.warnings,
-            lane_outcomes=tuple(
-                replace(outcome, query=query, attempt=attempt_number)
-                for outcome in external_retrieved.lane_outcomes
-            ),
-        )
-        timed_out = _query_attempt_timed_out(attempt_retrieved)
-        accumulated_retrieved = (
-            attempt_retrieved
-            if accumulated_retrieved is None
-            else _merge_retrieved_candidates(accumulated_retrieved, attempt_retrieved)
-        )
-        attempts.append(
-            ExploreQueryAttempt(
-                query=query,
-                attempt=attempt_number,
-                status="timed_out" if timed_out else "completed",
-                duration_ms=build_duration_ms(attempt_started_at),
-                candidate_count=len(attempt_retrieved.candidates),
-            )
-        )
-        external_candidates.extend(external_retrieved.candidates)
-        if not timed_out:
-            assert accumulated_retrieved is not None
-            return (
-                accumulated_retrieved,
-                tuple(attempts),
-                tuple(external_candidates),
-                False,
-                catalog_retrieval_duration_ms,
-                candidate_merge_duration_ms,
-            )
-
-    assert accumulated_retrieved is not None
-    return (
-        accumulated_retrieved,
-        tuple(attempts),
-        tuple(external_candidates),
-        True,
-        catalog_retrieval_duration_ms,
-        candidate_merge_duration_ms,
+    score_threshold: float,
+) -> _QueryRetrieval:
+    """Execute one query once; adapters own transport retry budgets."""
+    started_at = monotonic()
+    local_candidates = retrieve_catalog_candidates((query,), database_url=database_url, embeddings=embeddings)
+    catalog_duration = build_duration_ms(started_at)
+    external = _run_external_retrieval(
+        (query,), lanes=lanes, score_threshold=score_threshold,
+        local_candidates=local_candidates, topic_description=topic_description,
+        ai_search_plan_payload=ai_search_plan_payload, progress_callback=progress_callback,
+        soft_deadline_monotonic=started_at + config.EXPLORE_SEARCH_SOFT_TIMEOUT_SECONDS,
+        hard_deadline_monotonic=started_at + config.EXPLORE_SEARCH_HARD_TIMEOUT_SECONDS,
+        log_context=log_context,
+    )
+    merge_started = monotonic()
+    candidates = merge_repository_candidates((*local_candidates, *external.candidates))
+    merge_duration = build_duration_ms(merge_started)
+    retrieved = RetrievedCandidates(
+        candidates=candidates, source_statuses=external.source_statuses,
+        successful_source_count=external.successful_source_count + (1 if local_candidates else 0),
+        partial=external.partial, warnings=external.warnings,
+        lane_outcomes=tuple(replace(outcome, query=query, attempt=1) for outcome in external.lane_outcomes),
+    )
+    timed_out = _query_attempt_timed_out(retrieved)
+    attempt = ExploreQueryAttempt(
+        query=query, attempt=1, status="timed_out" if timed_out else "completed",
+        duration_ms=build_duration_ms(started_at), candidate_count=len(candidates),
+    )
+    return _QueryRetrieval(
+        retrieved=retrieved, attempt=attempt, external_candidates=external.candidates,
+        timed_out=timed_out, catalog_duration_ms=catalog_duration, merge_duration_ms=merge_duration,
     )
 
 
 def _query_attempt_timed_out(retrieved: RetrievedCandidates) -> bool:
-    """Treat partial provider timeouts as retryable query attempts."""
+    """Identify timeouts for fallback to a different planned query, never a repeat."""
+
+    if any(outcome.status == "timed_out" or outcome.error_code == "timed_out"
+           for outcome in retrieved.lane_outcomes):
+        return True
 
     if any(status.get("status") == "timed_out" for status in retrieved.source_statuses):
         return True
@@ -717,9 +698,15 @@ def _query_attempt_timed_out(retrieved: RetrievedCandidates) -> bool:
     )
 
 
-def _plan_explore_search(*, topic_description: str, planner: AiSearchPlanner) -> AiSearchPlan:
+def _plan_explore_search(
+    *, topic_description: str, planner: AiSearchPlanner,
+    scientific_domain: ScientificDomain | None = None,
+) -> AiSearchPlan:
+    planning_topic = format_search_plan_topic(
+        topic_description=topic_description, scientific_domain=scientific_domain,
+    )
     try:
-        return planner.build_search_plan(topic_description=topic_description)
+        return planner.build_search_plan(topic_description=planning_topic)
     except AiDependencyError as exc:
         logger.exception(
             "AI search planning failed for topic=%r: %s",
@@ -742,6 +729,7 @@ def _run_external_retrieval(
     soft_deadline_monotonic: float | None,
     hard_deadline_monotonic: float | None,
     log_context: SearchLogContext | None,
+    score_threshold: float,
 ) -> RetrievedCandidates:
     retrieval_options: dict[str, object] = {"log_context": log_context}
     if soft_deadline_monotonic is not None:
@@ -765,6 +753,8 @@ def _run_external_retrieval(
                     warnings=partial.warnings,
                 ),
                 queries=queries,
+                score_threshold=score_threshold,
+
             )
         )
     return run_external_repository_retrieval(queries, lanes=lanes, **retrieval_options)
@@ -776,10 +766,13 @@ def _build_explore_search_progress_payload(
     ai_search_plan_payload: dict[str, object],
     retrieved,
     queries: tuple[str, ...],
+    score_threshold: float,
 ) -> dict[str, object]:
     evaluation = build_explore_search_evaluation(
         retrieved,
         queries=queries,
+        score_threshold=score_threshold,
+
     )
     return build_explore_search_payload(
         topic_description=topic_description,

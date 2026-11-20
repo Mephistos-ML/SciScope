@@ -31,7 +31,7 @@ def merge_retrieval_hits(hits: tuple[RetrievalHit, ...]) -> tuple[RepositoryCand
                     matched_queries=(hit.query,),
                     matched_channels=(hit.channel,),
                     best_rank_by_channel={hit.channel: hit.rank},
-                    hit_count=1,
+                    raw_hit_count=1,
                     match_evidence=(build_retrieval_match_evidence(hit),),
                 ),
             )
@@ -85,7 +85,7 @@ def merge_repository_candidates(
                         *candidate.provenance.best_rank_by_channel,
                     )
                 },
-                hit_count=existing.provenance.hit_count + candidate.provenance.hit_count,
+                raw_hit_count=existing.provenance.raw_hit_count + candidate.provenance.raw_hit_count,
                 match_evidence=_append_many_unique_evidence(
                     existing.provenance.match_evidence,
                     candidate.provenance.match_evidence,
@@ -115,7 +115,7 @@ def _merge_provenance(
         matched_queries=matched_queries,
         matched_channels=matched_channels,
         best_rank_by_channel=best_rank_by_channel,
-        hit_count=existing.hit_count + 1,
+        raw_hit_count=existing.raw_hit_count + 1,
         match_evidence=_append_unique_evidence(
             existing.match_evidence,
             build_retrieval_match_evidence(incoming),
@@ -177,13 +177,6 @@ def _merge_signals(existing: Signal, incoming: Signal) -> Signal:
     if merged_language:
         merged_payload["language"] = merged_language
 
-    merged_stars = _prefer_larger_int(
-        preferred.payload.get("stars"),
-        secondary.payload.get("stars"),
-    )
-    if merged_stars is not None:
-        merged_payload["stars"] = merged_stars
-
     merged_repo = _prefer_non_empty_string(
         preferred.payload.get("repo"),
         secondary.payload.get("repo"),
@@ -241,18 +234,6 @@ def _prefer_non_empty_string(first_value: object, second_value: object) -> str:
         if text:
             return text
     return ""
-
-
-def _prefer_larger_int(first_value: object, second_value: object) -> int | None:
-    values: list[int] = []
-    for raw_value in (first_value, second_value):
-        try:
-            values.append(int(raw_value))
-        except (TypeError, ValueError):
-            continue
-    if not values:
-        return None
-    return max(values)
 
 
 def _prefer_richer_raw_text(first_value: str, second_value: str) -> str:

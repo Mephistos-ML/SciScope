@@ -38,7 +38,6 @@ class RepositoryRecordModel(Base):
     owner_login: Mapped[str] = mapped_column(String, nullable=False, default="")
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     language: Mapped[str] = mapped_column(String, nullable=False, default="")
-    stars: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     topics_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     search_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
