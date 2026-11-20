@@ -95,7 +95,13 @@ topic -> AI query plan -> catalog + external retrieval
       -> merge -> candidate admission -> heuristic ranking -> results
 ```
 
-External discovery runs for every search. Repository and code-search lanes have
+External discovery runs for every search. Product GitHub code search requests
+up to three pages of 100 files per executed query, stopping early on empty or
+short pages and respecting lane deadlines. GitHub repository search and GitLab
+repository search remain parallel channels with their existing limits.
+Request retries can add HTTP attempts beyond the logical page count.
+
+Repository and code-search lanes have
 separate provider and timeout budgets. Candidate admission filters non-software
 results; ranking sums location-weighted logarithms of distinct match counts.
 See [the ranking contract](../docs/contracts/repository-ranking.md) for match

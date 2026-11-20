@@ -43,6 +43,13 @@ suffix. The response contract remains three nonempty, unique queries of at most
 185 characters each. Word-count guidance is a prompt instruction, not a new hard
 parser limit.
 
+Production composition bounds GitHub code search to three pages per query, with
+100 file entries requested per page. Empty or short pages stop pagination early;
+remaining lane deadlines can stop it earlier still. This is an upper bound on
+logical search-page requests, not HTTP attempts: request-level retries may add
+attempts within the existing deadlines. The adapter retains an explicit page
+parameter for callers that need a different bounded budget.
+
 Generated queries feed the existing retrieval channels. Domain is not a provider
 filter, and repository-search channels are not disabled by this change. Existing
 completed plans and reports are not regenerated when the default prompt changes.

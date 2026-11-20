@@ -36,6 +36,7 @@ def _github_code_with_coverage(
     counts: list[int] = []
     signals = github_code(
         queries, client=client, deadline_monotonic=deadline_monotonic,
+        per_query_limit=100, max_pages=3,
         report_result_count=counts.append,
     )
     return RepositoryDiscoveryBatch(tuple(signals), tuple(counts))
