@@ -33,19 +33,16 @@ test("domain selection is optional, matches the backend vocabulary and supports 
 });
 
 for (const width of [1280, 390]) {
-  test(`query fields fit the ${width}px layout`, async ({ page }) => {
+  test(`scientific domain sits below topic description at ${width}px without overflow`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 });
     await page.goto("/");
     const topic = await page.getByLabel("Topic Description").boundingBox();
     const domain = await page.getByRole("combobox", { name: selector }).boundingBox();
     expect(topic).not.toBeNull();
     expect(domain).not.toBeNull();
-    if (width > 980) {
-      expect(domain!.x).toBeGreaterThanOrEqual(topic!.x + topic!.width);
-      expect(Math.abs(domain!.y - topic!.y)).toBeLessThan(2);
-    } else {
-      expect(domain!.y).toBeGreaterThan(topic!.y + topic!.height);
-    }
+    expect(domain!.y).toBeGreaterThan(topic!.y + topic!.height);
+    expect(Math.abs(domain!.x - topic!.x)).toBeLessThan(2);
+    expect(domain!.width).toBeLessThanOrEqual(topic!.width);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   });
 }
